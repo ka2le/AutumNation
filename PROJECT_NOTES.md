@@ -37,6 +37,7 @@ Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves
 ## Git workflow (who commits, who pushes)
 
 - **Claude** (Cowork / Claude Code) runs in a sandbox that cannot reach the user's Git credentials, so it **commits to `main` locally but does not push**. After committing, it tells the user what was committed and that `git push` is waiting. This is a Claude-specific limit, not a project rule.
+- **Git locks are not Claude's responsibility.** If a Git lock prevents staging or committing, continue the requested code changes and checks where possible, leave the files intact, and briefly report that the commit needs GPT/Codex or the user to finish. Do not spend time repeatedly retrying Git commands or deleting lock files; another process may be using them. GPT/Codex or the user can resolve the lock, commit any remaining changes, push, and verify deployment.
 - **The user** pushes from their own terminal, where their GitHub credentials live. Pushing `main` triggers the GitHub Pages deploy.
 - **GPT via Codex** runs with the user's credentials, so it **can and should commit and push** to `main` itself, so the site updates without a manual step.
 - Repo: `https://github.com/ka2le/AutumNation.git`, branch `main`. Commit identity used by Claude: Kalle <kalle.kindvall@gmail.com> (repo-local config).
