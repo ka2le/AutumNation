@@ -33,7 +33,7 @@ function gainOf(S, x, smeltIdle){
   if (x.key === 'smeltSpeed') g *= Math.max(0, 1 - smeltIdle*1.5);   // only helps while the smelters are busy
   return g;
 }
-const isPacker = c => c.prio[0].includes('bag') || c.prio[0].includes('jar');
+const isPacker = c => c.prio[0].includes('bag') || c.prio[0].includes('jar') || c.prio[0].includes('wrap');
 const avg = k => hist.length ? hist.reduce((a, h) => a + h[k], 0)/hist.length : 0;
 function income(){
   if (incomeHist.length < 2) return 1;
@@ -49,12 +49,13 @@ function setTasks(S){
   for (let k=0;k<wantMine;k++) roles.push('mine');
   if (S.plant.built){ roles.push('smelt', 'smelt', 'haul', 'smelt'); }
   // with two packers, one puts honey first and the other bags first (both do both)
-  const P = { pack: [['bag', 'jar'], ['leaves']], pack2: [['jar'], ['bag'], ['leaves']], pack1: [['bag'], ['jar'], ['leaves']], mine: [['mine'], ['leaves']], smelt: [['smelt'], ['haul'], ['leaves']], haul: [['haul'], ['leaves']] };
+  // (V11: packers who fill jars also wrap them, once Gift wrapping is bought)
+  const P = { pack: [['bag', 'jar'], ['wrap'], ['leaves']], pack2: [['jar', 'wrap'], ['bag'], ['leaves']], pack1: [['bag'], ['jar'], ['wrap'], ['leaves']], mine: [['mine'], ['leaves']], smelt: [['smelt'], ['haul'], ['leaves']], haul: [['haul'], ['leaves']] };
   if (wantPack === 2){ roles[0] = 'pack1'; roles[1] = 'pack2'; }
   S.robots.forEach((c, j) => {
     const role = j >= 1 ? roles[n - 1 - j] : null;   // robot 0 always gathers leaves
     c.prio = (P[role] || [['leaves']].concat(S.bag.built && !wantPack ? [['bag']] : [])).map(r => r.slice());
-    c.off = ['leaves','mine','bag','jar','smelt','haul'].filter(t => !c.prio.flat().includes(t));
+    c.off = ['leaves','mine','bag','jar','wrap','smelt','haul'].filter(t => !c.prio.flat().includes(t));
   });
   return roles.length + 1;
 }
@@ -68,7 +69,7 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
   const queue = B.length ? B.filter(b => b.st === 'queue').length/B.length : 0;
   const tubFull = S.metalSlot && S.miners.length && F.tubRoom() <= 0 ? 1 : 0;
   const packers = R.filter(r => isPacker(S.robots[r.id]));
-  const packBusy = packers.length ? packers.filter(r => r.st === 'bag' || r.st === 'jar' || r.st === 'toStation').length/packers.length : 0;
+  const packBusy = packers.length ? packers.filter(r => r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'toStation').length/packers.length : 0;
   const smelters = R.filter(r => S.robots[r.id].prio[0][0] === 'smelt');
   const smeltIdle = smelters.length ? smelters.filter(r => r.st !== 'smelt').length/smelters.length : 0;
   hist.push({ t: S.t, idle, waitBin, loiter, queue, tubFull, packBusy, smeltIdle }); while (hist.length && hist[0].t < S.t - 60) hist.shift();

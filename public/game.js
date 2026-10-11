@@ -97,8 +97,10 @@ const UP = {
   // V8: a little more to start with and four more label steps for the late game. V9: the late steps are much cheaper
   // (honey is capped by flowers and packers, so its income can't keep up with ×3 prices)
   honeyPrice: { obj:'hive', name:'Fancy honey labels', max:6, costs:[90, 300, 650, 1000, 1800, 2800], vals:[2.9, 3.8, 5, 6.4, 8, 10, 12.5], val:l=>UP.honeyPrice.vals[l], show:v=>money(v)+' / jar' },
-  // V6: once a robot packs honey at the crate, gift jars (cloth top, twine and a tag) sell for more than plain ones
-  giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[1000, 2200], vals:[1.6, 2.1, 2.9], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
+  // V6: once a robot packs honey at the crate, gift jars (cloth top, twine and a tag) sell for more than plain ones.
+  // V11: wrapping is its own task and takes almost as long as filling the jar, so a gift jar is worth a lot more (2.6×,
+  // about what the old top ribbon gave) and the ribbons are cheaper
+  giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[700, 1500], vals:[2.6, 3.1, 3.7], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
   // the smelting plant
   smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[400, 1000, 1500], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
@@ -112,11 +114,13 @@ const OLD_PALLET_COSTS = [60, 200, 600];
 // V6 refinement: buildings and constants
 const BAG_SIZE = 10;            // leaves in a bag
 const BAGGER_COST = 18;         // the bagging table: a bit more than the next sorting step would have been
-const HONEY_PACK_COST = 800;    // turns the honey crate into a packing bench
+const HONEY_PACK_COST = 550;    // Gift wrapping: opens the Wrap task at the crate (V11: was 800)
 const PLANT_COST = 500;         // the smelting plant (V7: was 300)
 const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
 const RACK_CAP = 10;  // ingots waiting on the plant's rack (the ore hopper's size is UP.hopper)
-const BAG_TIME = 4, JAR_TIME = 3, SMELT_TIME = 13.5;   // seconds per bag / honey jar / ingot at packing speed 1 (V7: jars 2.2 → 3, smelting 10 → 13.5)
+// seconds per bag / honey jar / gift wrap / ingot at packing speed 1 (V7: jars 2.2 → 3, smelting 10 → 13.5; V11: wrapping a
+// gift jar is its own step, 2.6 s, was 1.6 s on top of the jar)
+const BAG_TIME = 4, JAR_TIME = 3, WRAP_TIME = 2.6, SMELT_TIME = 13.5;
 // Per-robot upgrade tracks. Generation 0 needs no research; later generations are unlocked at the workshop.
 const TRACKS = {
   speed: { label:'Wheels', gens:[
@@ -202,7 +206,7 @@ const TECH = {
   jet:     { name:'Jet nozzle',        track:'blow',  cost:420, needs:'turbine', desc:'Blower upgrades 8 to 11.' },
   pincers: { name:'Hydraulic pincers', track:'shake', cost:65,  needsKind:'shakers', desc:'Four stronger shake upgrades: more leaves from every tree and bush.' },
   rumble:  { name:'Rumble claws',      track:'shake', cost:360, needs:'pincers', desc:'Shake upgrades 8 to 11.' },
-  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc:'Four faster packing upgrades: bagging, honey jars and smelting.' },
+  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc:'Four faster packing upgrades: bagging, honey jars, gift wrapping and smelting.' },
   precision:{ name:'Precision tools',  track:'pack',  cost:700, needs:'jig', desc:'Packing upgrades 8 to 11.' },
   cyclone: { name:'Grit cyclone',      track:'dig',   cost:450, needsShaft:true, desc:'Four stronger excavating upgrades for blowers at a mine shaft.' },
   forge:   { name:'Forge blast',       track:'stoke', cost:900, needsPlantBlower:true, desc:'Four stronger bellows upgrades for blowers at the smelting plant.' },
@@ -301,7 +305,10 @@ const bagCap = () => Math.max(3, Math.round(binCap()*0.8/BAG_SIZE));
 // the "keep" lines on the bin card: the truck leaves this much behind (loose leaves for bagging, metal for smelting)
 const keepLeaves = () => S.bag.built ? Math.round(clamp(S.keep.leaves, 0, 1)*binCap()) : 0;
 const keepMetal = () => S.plant.built ? Math.round(clamp(S.keep.metal, 0, 1)*metalCap()) : 0;
-const packOpen = () => !!(S.bag.built || S.hive.packing || S.plant.built);
+// Packing (bagging, filling and wrapping jars, smelting) opens with the first building that needs it
+const packOpen = () => !!(S.bag.built || S.hive.built || S.plant.built);
+// V11: the truck leaves this many plain jars in the crate so they can be wrapped first
+const keepJars = () => S.hive.packing ? Math.round(clamp(S.keep.jars || 0, 0, 1)*crateCap()) : 0;
 const truckEvery = () => val('truck');
 const rv = (ri, k) => TRACKS[k].vals[S.robots[ri].lv[k]];
 const leafCap = ri => rv(ri, 'carry');
@@ -369,7 +376,8 @@ const TASKS = {
   leaves: { name:'Gather leaves', short:'Leaves', col:'#d9652a', kind:'robot' },
   mine:   { name:'Mine metal',    short:'Mine',   col:'#7d868c', kind:'robot' },
   bag:    { name:'Bag leaves',    short:'Bag',    col:'#c9862f', kind:'robot' },
-  jar:    { name:'Pack honey',    short:'Honey',  col:'#e0a12e', kind:'robot' },
+  jar:    { name:'Fill honey jars', short:'Honey', col:'#e0a12e', kind:'robot' },
+  wrap:   { name:'Wrap gift jars', short:'Wrap',  col:'#c23b4e', kind:'robot' },
   smelt:  { name:'Smelt ingots',  short:'Smelt',  col:'#b8452d', kind:'robot' },
   haul:   { name:'Haul ingots',   short:'Haul',   col:'#5f8c87', kind:'robot' },
   blow:   { name:'Blow leaves',   short:'Blow',   col:'#4f7c84', kind:'blower' },
@@ -378,13 +386,14 @@ const TASKS = {
   shake:  { name:'Shake trees',   short:'Shake',  col:'#6f7d3c', kind:'shaker' },
   snip:   { name:'Deadhead flowers', short:'Snip', col:'#7a4d6e', kind:'shaker' },
 };
-const KIND_TASKS = { robot:['leaves','mine','bag','jar','smelt','haul'], blower:['blow','dig','stoke'], shaker:['shake','snip'] };
+const KIND_TASKS = { robot:['leaves','mine','bag','jar','wrap','smelt','haul'], blower:['blow','dig','stoke'], shaker:['shake','snip'] };
 // is the task there at all yet (its building bought, the skill learned)?
 function taskOpen(t, cfg){
   switch (t){
     case 'mine': return S.metalSlot;
     case 'bag': return S.bag.built;
     case 'jar': return S.hive.built;
+    case 'wrap': return S.hive.built && S.hive.packing;
     case 'smelt': case 'haul': return S.plant.built;
     case 'dig': return !!(cfg && cfg.lv.dig > 0) && S.shafts.length > 0;
     case 'stoke': return !!(cfg && cfg.lv.stoke > 0) && S.plant.built;
@@ -434,7 +443,7 @@ function openTasks(ts){
 
 // V6.3: a new robot has every task in Do (tasks that aren't there yet are just skipped), so nothing is left undone if
 // you never touch its list: the work stations first, then mining, then leaves, which always have work.
-const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: [['dig', 'stoke'], ['blow']], shaker: [['shake', 'snip']] };
+const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: [['dig', 'stoke'], ['blow']], shaker: [['shake', 'snip']] };
 const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
 function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0 } }, 'robot'); }
 function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke:0 } }, 'blower') : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
@@ -446,11 +455,11 @@ function freshState(){
     v:2, t:0, cash:0, peak:0, binLeaves:0, binMetal:0, land:0,
     lv:{ bin:0, leafPrice:0, bagPrice:0, metalPrice:0, metalBin:0, truck:0, cleanup:0, hiveTank:0, hiveStore:0, honeyPrice:0, giftPrice:0, smeltSpeed:0, ingotGrade:0, slag:0, pallet:0, hopper:0 }, cleanN:0,
     hive:{ built:false, bees:0, nectar:0, honey:0, jars:0, packing:false, gift:0, up:{ wings:false, fan:false, nursery:false, third:false, tongue:false, recipe:false } },
-    bag:{ built:false, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0 }, ingots:0, shafts:[], keep:{ leaves:0, metal:0 },
+    bag:{ built:false, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0 }, ingots:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
     totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, nectar:0, bags:0, gifts:0, ingots:0 },
-    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, bagShown:false, plantShown:false, taskHint:false, hints:{} }
+    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, bagShown:false, plantShown:false, taskHint:false, hints:{} }
   };
 }
 let S = freshState();
@@ -689,7 +698,11 @@ const ingotCarry = ri => Math.max(1, Math.floor(leafCap(ri)/INGOT_SPACE));
 // The crate holds as many jars as the hive's store.
 const crateCap = () => honeyCap();
 const crateJars = () => S.hive.jars + S.hive.gift;
-const giftTime = ri => (JAR_TIME + 1.6)/packSpeed(ri);
+const wrapTime = ri => WRAP_TIME/packSpeed(ri);
+// V11: jars in robots' hands (being filled, or being wrapped) still need a place in the crate
+const crateFull = () => crateJars() + busyIn('jar') + busyIn('wrap') >= crateCap();
+// plain jars in the crate that nobody is on the way to wrap
+const wrapJars = r => S.hive.jars - R.filter(q => q !== r && q.st === 'toStation' && q.task === 'wrap').length;
 
 function moveTo(r, x, y, sp, dt){
   const dx = x - r.x, dy = y - r.y, d = Math.hypot(dx, dy);
@@ -751,9 +764,11 @@ function drillTimeAt(ri, sp){
 const STN = { bag: [null, null], jar: [null, null], smelt: [null, null, null] };
 const JAR_SPOTS = [{ x: CRATE.x - 12, y: CRATE.y - 15, face: 1 }, { x: CRATE.x + 14, y: CRATE.y - 15, face: -1 }];
 const BAG_SPOTS = [{ x: BAGGER.x - 13, y: BAGGER.y - 9, face: 1 }, { x: BAGGER.x + 16, y: BAGGER.y - 9, face: -1 }];
+// wrapping gift jars uses the honey crate's two spots
+const stKey = t => t === 'wrap' ? 'jar' : t;
 function stationPos(t, i){
   if (t === 'bag') return BAG_SPOTS[i] || BAG_SPOTS[0];
-  if (t === 'jar') return JAR_SPOTS[i] || JAR_SPOTS[0];
+  if (t === 'jar' || t === 'wrap') return JAR_SPOTS[i] || JAR_SPOTS[0];
   return { x: PLANT.x + (i - 1)*40 - 9, y: PLANT.y + 15, face: 1 };
 }
 function stationFree(t, r){ const a = STN[t], mine = a.indexOf(r.id); return mine >= 0 ? mine : a.indexOf(null); }
@@ -775,7 +790,8 @@ function taskWork(r, t){
     case 'leaves': return (binRoom() > 0 || r.carryL < leafCap(r.id)) && hasLeaves();
     case 'mine': return S.metalSlot && mineSlotFor(r) != null && (metalRoom() > 0 || r.carryM < metalCarry(r.id));
     case 'bag': return S.bag.built && stationFree('bag', r) >= 0 && bagRoom() > 0 && bagLeavesFor(r) >= BAG_SIZE;
-    case 'jar': return S.hive.built && stationFree('jar', r) >= 0 && plainJars() >= 1 && crateJars() + busyIn('jar') < crateCap();
+    case 'jar': return S.hive.built && stationFree('jar', r) >= 0 && plainJars() >= 1 && !crateFull();
+    case 'wrap': return S.hive.packing && stationFree('jar', r) >= 0 && wrapJars(r) >= 1;
     case 'smelt':
       if (!S.plant.built || stationFree('smelt', r) < 0 || S.plant.rack + busyIn('smelt') >= RACK_CAP) return false;
       return S.plant.ore + r.carryM >= metalPerIngot() - 1e-9 || (r.carryM > 0 && hopperRoom() > 0) || (S.binMetal > 0 && hopperRoom() > 0);
@@ -858,7 +874,7 @@ function decide(r){
   const t = robotTask(r);
   r.task = t; noteTask(r, t);
   if (t !== 'mine') cfg.miner = null;   // free the miner for someone else
-  releaseStations(r, t);
+  releaseStations(r, stKey(t));
   // first drop off what it carries, if there's room for it
   if (r.carryI > 0 && (t !== 'haul' || r.carryI >= ingotCarry(r.id) || S.plant.rack <= claimedRack(r)) && palletRoom() > 0){ r.st = 'toPallet'; return; }
   // (leaves it's about to bag, and metal it's about to smelt, go straight into the work instead)
@@ -884,7 +900,7 @@ function startTask(r, t){
     if (S.robots[r.id].miner !== sp) claimSlot(r, sp);
     r.st = 'toMine'; return;
   }
-  if (t === 'bag' || t === 'jar'){ claimStation(t, r); r.st = 'toStation'; return; }
+  if (t === 'bag' || t === 'jar' || t === 'wrap'){ claimStation(stKey(t), r); r.st = 'toStation'; return; }
   if (t === 'smelt'){
     claimStation('smelt', r);
     const need = metalPerIngot() - 1e-9;
@@ -912,9 +928,14 @@ function beginWork(r){
     r.workDur = bagTime(r.id);
   } else if (t === 'jar'){
     // a jar's worth of honey pours over from the hive into a jar at the crate
-    if (plainJars() < 1 || crateJars() + busyIn('jar') >= crateCap()) return false;
-    S.hive.honey = Math.max(0, S.hive.honey - 1); r.workDur = S.hive.packing ? giftTime(r.id) : jarTime(r.id);
+    if (plainJars() < 1 || crateFull()) return false;
+    S.hive.honey = Math.max(0, S.hive.honey - 1); r.workDur = jarTime(r.id);
     for (let i=0;i<3;i++) flyTo('honey', HIVE.x - 10, HIVE.y - 40, CRATE.x - 2, CRATE.y - 30, 0.45 + i*0.1, 24, {});
+  } else if (t === 'wrap'){
+    // V11: a robot that only wraps takes a plain jar out of the crate, wraps it and puts it back as a gift jar
+    if (!S.hive.packing || S.hive.jars < 1) return false;
+    S.hive.jars--; r.wrapOwn = false; r.workDur = wrapTime(r.id);
+    flyTo('jar', CRATE.x + rand(-8, 8), CRATE.y - 28, P.x + P.face*9, P.y - 30, 0.3, 14, {});
   } else if (t === 'smelt'){
     // metal in its own basket goes straight in the furnace; the hopper makes up the rest (any spare bit goes in the hopper)
     const need = metalPerIngot(), door = { x: PLANT.x + (r.spot - 1)*40, y: PLANT.y - 22 };
@@ -935,9 +956,17 @@ function finishWork(r){
     pop(BAGGER.x + 4, BAGGER.y - 70, '+1 bag', 'bag', 15, 0.35);
     { const a = sndAt(BAGGER.x, BAGGER.y); sfx('dump', 3, a.pan, a.vol*0.8); }
   } else if (t === 'jar'){
-    if (S.hive.packing){ S.hive.gift++; S.totals.gifts = (S.totals.gifts || 0) + 1; } else S.hive.jars++;
-    S.totals.jars = (S.totals.jars || 0) + 1; hiveRt.bump = 0.25;
-    pop(CRATE.x, CRATE.y - 62, S.hive.packing ? '+1 gift jar' : '+1 jar', 'honey', 14);
+    S.totals.jars = (S.totals.jars || 0) + 1;
+    // V11: a robot that also has Wrap gift jars in its Do list wraps the jar it just filled straight away
+    if (S.hive.packing && taskOn(S.robots[r.id], 'wrap')){
+      unitDone(r, 'jar'); r.st = 'wrap'; r.wrapOwn = true; r.workP = 0; r.workDur = wrapTime(r.id); return;
+    }
+    S.hive.jars++; hiveRt.bump = 0.25;
+    pop(CRATE.x, CRATE.y - 62, '+1 jar', 'honey', 14);
+    { const a = sndAt(CRATE.x, CRATE.y); sfx('clink', 1, a.pan, a.vol*0.7); }
+  } else if (t === 'wrap'){
+    S.hive.gift++; S.totals.gifts = (S.totals.gifts || 0) + 1; hiveRt.bump = 0.25; r.wrapOwn = false;
+    pop(CRATE.x, CRATE.y - 62, '+1 gift jar', 'gift', 14);
     { const a = sndAt(CRATE.x, CRATE.y); sfx('clink', 1, a.pan, a.vol*0.7); }
   } else if (t === 'smelt'){
     S.plant.rack++; S.totals.ingots = (S.totals.ingots || 0) + 1; plantRt.bump = 0.3;
@@ -1048,12 +1077,12 @@ function updRobot(r, dt){
       break;
     }
     case 'toStation': {
-      if (r.spot == null || r.spot < 0 || STN[r.task] == null || STN[r.task][r.spot] !== r.id){ r.st = 'idle'; break; }
+      if (r.spot == null || r.spot < 0 || STN[stKey(r.task)] == null || STN[stKey(r.task)][r.spot] !== r.id){ r.st = 'idle'; break; }
       const p = stationPos(r.task, r.spot);
       if (moveTo(r, p.x, p.y, sp, dt)){ if (!beginWork(r)) r.st = 'idle'; }
       break;
     }
-    case 'bag': case 'jar': case 'smelt': {
+    case 'bag': case 'jar': case 'wrap': case 'smelt': {
       r.workP += dt/r.workDur; r.hammer += dt;
       if (!simMode && r.st === 'smelt'){
         const dx = PLANT.x + (r.spot - 1)*40;
@@ -1485,7 +1514,7 @@ function updTruck(dt){
       // the truck leaves behind what's under the keep lines (loose leaves for bagging, metal for smelting)
       T.takeL = Math.max(0, S.binLeaves - keepLeaves()); T.takeM = Math.max(0, S.binMetal - keepMetal()); S.binLeaves -= T.takeL; S.binMetal -= T.takeM;
       T.takeB = S.bag.bags; S.bag.bags = 0; T.takeI = S.ingots; S.ingots = 0;
-      T.takeH = S.hive.jars | 0; S.hive.jars = 0;
+      T.takeH = Math.max(0, (S.hive.jars | 0) - keepJars()); S.hive.jars -= T.takeH;
       T.takeG = S.hive.gift | 0; S.hive.gift = 0;
       if (T.takeH || T.takeG){ const a = sndAt(CRATE.x, CRATE.y); sfx('clink', T.takeH + T.takeG, a.pan, a.vol); for (let i=0;i<Math.min(T.takeH + T.takeG, 10);i++) flyTo(i < T.takeG ? 'gift' : 'jar', CRATE.x + rand(-12, 12), CRATE.y - 30, T.x + rand(0,58), LANE - 64, 0.7 + i*0.08, 70, {}); }
       for (let i=0;i<Math.min(T.takeB, 8);i++) flyTo('bag', BIN.x + rand(0, 22), BIN.y - 50, T.x + rand(0,58), LANE - 64, 0.55 + i*0.09, 55, {});
@@ -2132,6 +2161,7 @@ function drawHoneyCrate(){
   const label = crateJars() + '/' + cap; let fs = 12;
   c.font = '700 ' + fs + 'px Caveat, cursive'; const lw = c.measureText(label).width; if (lw > 25) fs = fs*25/lw;
   chalk(c, label, 3.5, top + 10, fs, full ? '#ffb38a' : '#efe8d8');
+  if (keepJars() > 0) keepMark(c, -w/2 - 6, -2, top - 32, keepJars()/cap);
   if (S.hive.packing || g > 0){
     // a paper tag on a string from the back right corner counts the gift jars
     const tx0 = 15, ty0 = top - 19;
@@ -2410,8 +2440,9 @@ function buy(o){
     pop(BAGGER.x, BAGGER.y - 90, 'Bagging table built!', 'note', 19, 0.4); sparkle(BAGGER.x, BAGGER.y - 30);
     autoAssign('bag', BAGGER, 'will bag leaves');
   } else if (o.id === 'honeyPack'){
-    S.hive.packing = true; plantRt.packT = S.t;
+    S.hive.packing = true; plantRt.packT = S.t; openTasks(['wrap']);
     pop(CRATE.x, CRATE.y - 80, 'Gift wrapping at the crate', 'note', 18, 0.3); sparkle(CRATE.x, CRATE.y - 30);
+    autoAssign('wrap', CRATE, 'will wrap gift jars');
   } else if (o.id === 'plant'){
     S.plant.built = true; S.flags.plantShown = true; plantRt.builtT = S.t; openTasks(['smelt', 'haul']);
     pop(PLANT.x, PLANT.y - 150, 'Smelting plant built!', 'note', 20, 0.8); sparkle(PLANT.x, PLANT.y - 60);
@@ -2963,14 +2994,28 @@ function drawIngot(c, x, y, s, rot, grade){
   c.fillStyle = 'rgba(255,255,255,.75)'; c.fillRect(-2.6, -4.05, 3.4, 0.45);
   c.restore();
 }
-function drawGiftJar(c, x, y, s){
+const BOW_COL = [['#e8eef4', '#aab4bf'], ['#2f6fb5', '#1f4f86'], ['#f2c443', '#b8862a']];
+function drawGiftJar(c, x, y, s, k = 1, tier = S.lv.giftPrice | 0){
   drawJar(c, x, y, s);
+  if (k < 0.3) return;
   c.save(); c.translate(x, y); c.scale(s/6, s/6);
-  // a red gingham cloth over the lid, tied with twine, and a little paper tag
+  // a red gingham cloth over the lid, tied with twine, and a little paper tag (V11: and a ribbon bow on the front)
   c.fillStyle = '#b8392a'; c.beginPath(); c.moveTo(-4.7, -3.6); c.quadraticCurveTo(-5.4, -7, -3, -6.8); c.lineTo(3, -6.8); c.quadraticCurveTo(5.4, -7, 4.7, -3.6); c.lineTo(3.4, -2.9); c.lineTo(-3.4, -2.9); c.closePath(); c.fill();
   c.fillStyle = 'rgba(255,240,225,.6)'; for (let i=-3; i<=3; i+=2) for (let j=0;j<2;j++) c.fillRect(i - 0.5 + j, -6.4 + j*1.4, 0.9, 0.9);
   c.strokeStyle = '#d9c08a'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(-3.6, -3.9); c.lineTo(3.6, -3.9); c.stroke();
   c.fillStyle = '#f2e3c4'; c.save(); c.translate(3.9, -2.4); c.rotate(0.35); rr(c, -0.2, 0, 2.2, 2.8, 0.4); c.fill(); c.restore();
+  if (k >= 0.6){
+    // a ribbon down the front of the jar, over the label, with a bow at the neck (gold once the ribbons are maxed)
+    const [b0, b1] = BOW_COL[clamp(tier, 0, 2)], big = tier >= 1 ? 1.2 : 1;
+    c.fillStyle = b0; c.fillRect(-0.75, -2.9, 1.5, 7.6); c.fillStyle = b1; c.fillRect(0.35, -2.9, 0.4, 7.6);
+    if (k >= 0.85){
+      if (tier >= 1){ c.fillStyle = b1; c.beginPath(); c.moveTo(-0.4, -2.4); c.lineTo(-2.4, 1.2); c.lineTo(-1.5, 1.4); c.lineTo(0, -2); c.lineTo(1.5, 1.4); c.lineTo(2.4, 1.2); c.lineTo(0.4, -2.4); c.closePath(); c.fill(); }
+      c.fillStyle = b0; ell(c, -2*big, -2.6, 2*big, 1.3*big); c.fill(); ell(c, 2*big, -2.6, 2*big, 1.3*big); c.fill();
+      c.fillStyle = b1; ell(c, -1.7*big, -2.55, 0.8*big, 0.5*big); c.fill(); ell(c, 1.7*big, -2.55, 0.8*big, 0.5*big); c.fill();
+      c.fillStyle = b0; ell(c, 0, -2.5, 1, 1); c.fill();
+      if (tier >= 2){ c.fillStyle = 'rgba(255,250,220,.9)'; ell(c, -2.4, -3, 0.6, 0.35); c.fill(); ell(c, 0.2, -2.8, 0.35, 0.3); c.fill(); }
+    }
+  }
   c.restore();
 }
 // a plot that's ready for a building: dashed outline on the ground and a little wooden sign
@@ -3425,13 +3470,16 @@ function drawRobot(r){
     } else {
       c.lineWidth = 1.6; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + 3, hy + 3); c.moveTo(hx, hy); c.lineTo(hx - 2, hy + 4); if (rv(r.id, 'grab') > 1){ c.moveTo(hx, hy); c.lineTo(hx + 4, hy); c.moveTo(hx, hy); c.lineTo(hx + 1, hy + 4.5); } c.stroke();
     }
-  } else if (r.st === 'bag' || r.st === 'jar' || r.st === 'smelt'){
+  } else if (r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt'){
     // working at a bench or a furnace door: the arm reaches forward and works in quick strokes
     const sp2 = r.st === 'smelt' ? 7 : 11, a = -0.25 + Math.sin(r.hammer*sp2)*0.35, L = r.st === 'smelt' ? 13 : 11;
     c.save(); c.translate(sx, sy); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.lineTo(L, 0); c.stroke();
     if (r.st === 'smelt'){ c.strokeStyle = '#6b7276'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(L, 0); c.lineTo(L + 7, 2); c.moveTo(L, 0); c.lineTo(L + 7, -2); c.stroke(); }
     else { c.lineWidth = 1.4; c.beginPath(); c.moveTo(L, 0); c.lineTo(L + 3, 2.5); c.moveTo(L, 0); c.lineTo(L + 3, -2); c.stroke(); }
     c.restore();
+    // V11: the jar it's filling or wrapping stands on the crate's edge in front of it
+    if (r.st === 'wrap') drawGiftJar(c, sx + 14, sy + 4, 6, clamp(r.workP, 0, 1));
+    else if (r.st === 'jar') drawJar(c, sx + 14, sy + 4, 6);
   } else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
   else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3.5, sy + 7); c.stroke(); }
   // head
@@ -3516,8 +3564,8 @@ function drawRobot(r){
     if (on){ c.fillStyle = 'rgba(255,122,77,.3)'; ell(c, ax - 5, ay - ah - .5, 4.5, 4.5); c.fill(); }
   }
   c.restore();
-  if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'smelt'){
-    const pr = r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : '#ffb866';
+  if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt'){
+    const pr = r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : r.st === 'wrap' ? '#e0475a' : '#ffb866';
     c.save(); c.translate(r.x, r.y + top - hh - 22); c.lineWidth = 3; c.lineCap = 'round';
     c.strokeStyle = 'rgba(40,25,10,.35)'; c.beginPath(); c.arc(0, 0, 6, 0, TAU); c.stroke();
     c.strokeStyle = col; c.beginPath(); c.arc(0, 0, 6, -Math.PI/2, -Math.PI/2 + TAU*clamp(pr, 0, 1)); c.stroke();
@@ -3840,13 +3888,14 @@ function drawPops(){
     c.font = (p.kind === 'note' ? '700 ' : '800 ') + size + 'px ' + (p.kind === 'note' ? 'Caveat, cursive' : '"Baloo 2", sans-serif');
     c.textAlign = 'center'; c.textBaseline = 'middle';
     const w = c.measureText(p.text).width;
-    const tx = (p.kind === 'leaf' || p.kind === 'metal' || p.kind === 'honey' || p.kind === 'bag' || p.kind === 'ingot') ? 9 : 0;
+    const tx = (p.kind === 'leaf' || p.kind === 'metal' || p.kind === 'honey' || p.kind === 'gift' || p.kind === 'bag' || p.kind === 'ingot') ? 9 : 0;
     c.lineJoin = 'round'; c.lineWidth = Math.max(3, size*0.22); c.strokeStyle = 'rgba(55,30,14,.75)'; c.strokeText(p.text, tx, 0);
-    c.fillStyle = p.kind === 'cash' ? '#ffd56b' : p.kind === 'metal' || p.kind === 'ingot' ? '#dfe6ea' : p.kind === 'leaf' || p.kind === 'bag' ? '#ffd7a8' : p.kind === 'honey' ? '#ffe08a' : '#fff4e0';
+    c.fillStyle = p.kind === 'cash' ? '#ffd56b' : p.kind === 'metal' || p.kind === 'ingot' ? '#dfe6ea' : p.kind === 'leaf' || p.kind === 'bag' ? '#ffd7a8' : p.kind === 'honey' || p.kind === 'gift' ? '#ffe08a' : '#fff4e0';
     c.fillText(p.text, tx, 0);
     if (p.kind === 'leaf') drawLeaf(c, tx - w/2 - 10, 0, 7.5, 0.3, 1, 1, 1, 1, 1, 0);
     if (p.kind === 'metal') nugget(c, tx - w/2 - 10, 0, 7, 0.2);
     if (p.kind === 'honey') drawJar(c, tx - w/2 - 10, 1, 9);
+    if (p.kind === 'gift') drawGiftJar(c, tx - w/2 - 10, 1, 9);
     if (p.kind === 'bag') drawLeafBag(c, tx - w/2 - 10, 7, 15);
     if (p.kind === 'ingot') drawIngot(c, tx - w/2 - 10, 3, 13, 0);
     c.restore();
@@ -4097,6 +4146,7 @@ const ICON = {
   ore:    '<path d="M-4.5,-1.5 L-1.5,-4.5 L3.5,-3 L4.5,1.5 L1,4.5 L-3.5,3Z" fill="#8f979b"/><path d="M-1.5,-4.5 L3.5,-3 L1,0Z" fill="#c3cbd0"/>',
   bag:    '<path d="M-1,-3.6 C-4.6,-3 -4.8,3.4 -3.4,4.2 Q0,5 3.4,4.2 C4.8,3.4 4.6,-3 1,-3.6Z" fill="#d4672a"/><ellipse cx="-1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/><ellipse cx="1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/>',
   jar:    '<rect x="-3.6" y="-2.6" width="7.2" height="7.6" rx="2" fill="#eba53a"/><path d="M-4.2,-2.2 Q-4.6,-5.4 -2.6,-5.2 H2.6 Q4.6,-5.4 4.2,-2.2Z" fill="#b8392a"/><rect x="-2" y="-.2" width="4" height="2.6" rx=".5" fill="#fff3d9" opacity=".8"/>',
+  wrap:   '<rect x="-3.6" y="-1.6" width="7.2" height="6.6" rx="1.8" fill="#eba53a"/><path d="M-4.8,-1.2 L-3.4,-4.8 H3.4 L4.8,-1.2Z" fill="#b8392a"/><rect x="-.7" y="-1.4" width="1.4" height="6.4" fill="#2f6fb5"/><ellipse cx="-2.1" cy="-1.5" rx="2.1" ry="1.3" fill="#2f6fb5"/><ellipse cx="2.1" cy="-1.5" rx="2.1" ry="1.3" fill="#2f6fb5"/><circle cy="-1.4" r=".9" fill="#1f4f86"/>',
   gift:   '<rect x="-3.6" y="-1.6" width="7.2" height="6.6" rx="1.8" fill="#eba53a"/><path d="M-4.8,-1.2 L-3.4,-4.8 H3.4 L4.8,-1.2Z" fill="#efdcbc"/><path d="M-3.4,-4.8 L-1.7,-1.2 M0,-4.8 V-1.2 M3.4,-4.8 L1.7,-1.2" stroke="#c96f4a" stroke-width=".6"/><path d="M-4.2,-1.4 H4.2" stroke="#7a5230" stroke-width=".9"/><path d="M3.6,-1.4 L5,1.6" stroke="#7a5230" stroke-width=".6"/><rect x="-1.7" y=".9" width="3.4" height="2.3" rx=".4" fill="#fff3d9"/>',
   ingot:  '<path d="M-5.2,3.4 H5.2 L3.6,-1.4 H-3.6Z" fill="#9aa4aa"/><path d="M-3.6,-1.4 H3.6 L2.6,-3.4 H-2.6Z" fill="#dfe5e8"/><path d="M-4.4,3 L-3.1,-.8" stroke="#fff" stroke-opacity=".55" stroke-width=".7"/>',
   gold:   '<path d="M-5.2,3.4 H5.2 L3.6,-1.4 H-3.6Z" fill="#d4a23a"/><path d="M-3.6,-1.4 H3.6 L2.6,-3.4 H-2.6Z" fill="#f6dc8c"/><path d="M-4.4,3 L-3.1,-.8" stroke="#fff" stroke-opacity=".6" stroke-width=".7"/>',
@@ -4235,7 +4285,7 @@ const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '')
 // ── robot upgrade tracks
 const TRACK_ICON = { speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke' };
 const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
-  drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills jars and smelts', blow:'How hard it blows (range, push and glide)',
+  drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills and wraps jars, and smelts', blow:'How hard it blows (range, push and glide)',
   shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again for the bees', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows' };
 const TRACK_VAL = {
   speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
@@ -4353,9 +4403,10 @@ function robotDoing(r){
     case 'wait': return r.at === 'metal' ? ['mine', metalTarget(r).hopper ? 'Hopper full' : 'Tub full', 1] : ['leaves', 'Bin full', 1];
     case 'toMine': return ['mine', 'To the mine'];
     case 'mine': return ['mine', 'Mining'];
-    case 'toStation': return r.task === 'bag' ? ['bag', 'To the table'] : r.task === 'jar' ? ['jar', 'To the crate'] : ['smelt', 'To a furnace'];
+    case 'toStation': return r.task === 'bag' ? ['bag', 'To the table'] : r.task === 'jar' ? ['jar', 'To the crate'] : r.task === 'wrap' ? ['wrap', 'To the crate'] : ['smelt', 'To a furnace'];
     case 'bag': return ['bag', 'Bagging'];
-    case 'jar': return ['jar', S.hive.packing ? 'Wrapping jars' : 'Filling jars'];
+    case 'jar': return ['jar', 'Filling a jar'];
+    case 'wrap': return ['wrap', 'Wrapping a gift jar'];
     case 'smelt': return ['smelt', 'Smelting'];
     case 'toTub': return ['smelt', 'Fetching ore'];
     case 'toRack': return ['haul', 'Fetching ingots'];
@@ -4460,9 +4511,10 @@ let sliding = false;
 card.addEventListener('pointerdown', e => { if (e.target.classList && e.target.classList.contains('keepr')) sliding = true; });
 addEventListener('pointerup', () => { if (sliding){ sliding = false; save(); } });
 card.addEventListener('input', e => {
-  const id = e.target.id; if (id !== 'keepL' && id !== 'keepM') return;
+  const id = e.target.id; if (id !== 'keepL' && id !== 'keepM' && id !== 'keepJ') return;
   const v = clamp(+e.target.value/100, 0, 1);
   if (id === 'keepL'){ S.keep.leaves = v; const l = $('keepLLv'); if (l) l.innerHTML = keepLeaves() + ic('leaf'); }
+  else if (id === 'keepJ'){ S.keep.jars = v; const l = $('keepJLv'); if (l) l.innerHTML = keepJars() + ic('jar'); }
   else { S.keep.metal = v; const l = $('keepMLv'); if (l) l.innerHTML = keepMetal() + ic('ore'); }
 });
 // ── what each card shows
@@ -4544,9 +4596,13 @@ function cardModel(){
       rows.push(upRow('hiveTank', S.lv.hiveTank < UP.hiveTank.max ? floorNext : ''));
       rows.push(upRow('hiveStore', S.lv.hiveStore < UP.hiveStore.max ? floorNext : ''));
       rows.push(upRow('honeyPrice'));
-      if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', ic('jar') + cash$(honeyPrice()) + arrow + ic('gift') + '<b>' + cash$(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b>', 'honeyPack', HONEY_PACK_COST, '', ic('gift'), 'The robot packing honey wraps every jar as a gift jar. Takes a little longer.')); }
-      else rows.push(upRow('giftPrice'));
-      rows.push(crewRow('jar', 'Packers', 'jar', ri => smeltSkillPack(ri)));
+      if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', ic('jar') + cash$(honeyPrice()) + arrow + ic('gift') + '<b>' + cash$(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b>', 'honeyPack', HONEY_PACK_COST, '', ic('gift'), 'Adds the Wrap task: a robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.')); }
+      else {
+        rows.push(upRow('giftPrice'));
+        rows.push(keepRow('J', 'jar', 'Keep for wrapping', keepJars() + ic('jar'), 'The truck leaves this many plain jars in the crate so they can be wrapped first. At 0 it takes every jar.', S.keep.jars || 0));
+      }
+      rows.push(crewRow('jar', 'Fillers', 'jar', ri => smeltSkillPack(ri)));
+      if (H.packing) rows.push(crewRow('wrap', 'Wrappers', 'wrap', ri => smeltSkillPack(ri)));
       rows2.push({ sig:'hh', html:'<div class="sect">Hive upgrades <span>any order · same price</span></div>' });
       let tiles = '';
       for (const key in HIVE_UP){
@@ -4673,7 +4729,7 @@ function liveHTML(kind){
   if (kind === 'hive'){
     const H = S.hive, idle = B.filter(b => b.st === 'loiter').length, q = B.filter(b => b.st === 'queue').length, out = B.length - idle - q - B.filter(b => b.st === 'in').length;
     return '<span class="st" title="Bees out on the flowers">' + ic('bee') + out + ' <small>out</small>' + (idle ? '<small>&nbsp;· ' + idle + ' idle</small>' : '') + (q ? ' <b class="warnc">&nbsp;' + q + ' queuing</b>' : '') + '</span>' +
-      meter('nectar', H.nectar, tankCap(), 'Nectar in the tank') + meter('honey', H.honey, honeyCap(), 'Honey in the hive, waiting to be jarred') + meter('jar', crateJars(), crateCap(), 'Jars in the crate' + (H.packing ? ' (' + H.gift + ' gift)' : ''));
+      meter('nectar', H.nectar, tankCap(), 'Nectar in the tank') + meter('honey', H.honey, honeyCap(), 'Honey in the hive, waiting to be jarred') + meter('jar', crateJars(), crateCap(), 'Jars in the crate' + (H.packing ? ' (' + H.gift + ' gift)' : '')) + (H.packing ? '<span class="st" title="Gift jars in the crate">' + ic('gift') + H.gift + '</span>' : '');
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), 'Bags in the bin') + slots('bag', busyIn('bag'), 2, 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, RACK_CAP, 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road') + slots('flame', busyIn('smelt'), 3, 'Furnaces working');
@@ -5053,6 +5109,18 @@ function load(data){
     }
     if (v7back > 0){ S.cash += v7back; setTimeout(() => showToast('Rebalanced!', 'A few things you owned work differently now. You got ' + money(v7back) + ' back for them.', 9), 1500); }
     S.flags.v9 = true;
+    if (!(src.flags && src.flags.v11)){
+      // V11: wrapping is its own task. Robots that filled jars with Gift wrapping bought wrapped every jar, so they get
+      // Wrap gift jars beside Fill honey jars; Gift wrapping and the ribbons cost less now, so the difference comes back
+      let back = 0;
+      if (S.hive.packing){
+        back += 800 - HONEY_PACK_COST;
+        for (const c of S.robots) if (taskOn(c, 'jar') && !taskOn(c, 'wrap')){ taskRemove(c, 'wrap'); const i = c.prio.findIndex(r => r.includes('jar')); if (c.prio[i].length < 2) c.prio[i].push('wrap'); else c.prio.splice(i + 1, 0, ['wrap']); }
+      }
+      back += [0, 300, 1000][clamp(S.lv.giftPrice | 0, 0, 2)];
+      S.flags.v11 = true;
+      if (back > 0){ S.cash += back; setTimeout(() => showToast('Gift wrapping', 'Wrapping gift jars is its own task now, and gift jars sell for more. You got ' + money(back) + ' back on wrapping and ribbons.', 9), 1700); }
+    }
     if (v9back > 0){ S.cash += v9back; setTimeout(() => showToast('Rebalanced!', 'There are fewer veins and robot slots now. You got ' + money(v9back) + ' back for the ones that are gone.', 9), 1600); }
     for (const k in UP) S.lv[k] = clamp(S.lv[k] | 0, 0, UP[k].max);
     S.hive.bees = clamp(S.hive.bees | 0, 0, MAX_BEES); S.hive.nectar = Math.max(0, +S.hive.nectar || 0); S.hive.honey = Math.max(0, +S.hive.honey || 0);

@@ -317,6 +317,12 @@ Measured with the payback player, 6 runs, 10 robots, 4 + 4 helpers, 3 veins.
 
 (V8 prices with the same player levelled off at ~7.3k a minute with 14 steps never bought.)
 
+**V11 (gift wrapping as its own task), 4 runs, same player** (its packers fill *and* wrap): 80 min 3,650 (was 2,866),
+90 min 10.1k (7.1k), 100 min 13.9k (13.4k), then flat at ~13.9k. Late honey is ~52 gift jars a minute ≈ $3.1k (was ~64
+jars ≈ $3.0k): wrapping costs packer time, so fewer jars get made with two packers, and bags drop from ~$320 to ~$200
+because the packers spend more of their time on honey. Earned by 150 min ~$1.0M (was ~$0.96M). Milestones unchanged;
+the last price step is bought at ~89 min (was ~98).
+
 ### Stages (for "how long would I wait for X")
 
 | Stage | Around | Income | What's happening |
@@ -344,8 +350,8 @@ Old orchard ~79, last price step ~94.
 | Hotter furnace | 400 / 1,000 / 1,500 | 65, 69, 94 | 3.3–4.8 (only while smelters are busy) |
 | Market stall | 140 / 600 / 2,400 | 49, 63, 85 | 4.4–4.8 |
 | Fancy honey labels | 90 / 300 / 650 / 1,000 / 1,800 / 2,800 | 54–92 | 4.7–4.9 |
-| Gift jar ribbons | 1,000 / 2,200 | 84, 88 | 4.7–4.9 |
-| Gift wrapping (milestone) | 800 | 75 | — |
+| Gift jar ribbons (V11: 2.6× → 3.1× → 3.7× a jar) | 700 / 1,500 | 74, 82 | 4.7–4.8 |
+| Gift wrapping (milestone, opens the Wrap task) | 550 | 69 | — |
 | Hive upgrades | flat 180 each | ~58 | not measured; mostly packer-limited before ~60 min |
 | Truck pickups (exempt) | 2 / 8 / 28 / 90 / 260 / 700 / 1,800 | — | — |
 
@@ -398,3 +404,6 @@ Old orchard ~79, last price step ~94.
   priced ×2.5–3 per step. Too steep for capped sources (see V9).
 - **V9:** caps (10 robots, 4 + 4 helpers, 3 veins). The payback rule, a payback-aware test player, income tracked per
   kind, and the late ladders repriced to 3–5 minute payback. The tools in `tools/balance/` and this guide.
+- **V11:** wrapping gift jars became its own robot task (2.6 s at packing 1×, was 1.6 s added to every jar), a gift jar
+  is worth 2.6× a plain one (ribbons 3.1×, 3.7×; was 1.6 / 2.1 / 2.9×), Gift wrapping $550 and ribbons $700 / 1,500.
+  The test player's packers fill and wrap. Ribbons still pay back in ~4.8 min.
