@@ -2,6 +2,7 @@
 // Dev URL options: ?fresh (play without loading or saving)  ?speed=4 (fast-forward, 0.25–20)
 (() => {
 'use strict';
+if (window.LOC_LEAVING) return;   // index.html is opening a ?locationN copy instead
 // ───────────────────────── utils
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -5008,7 +5009,8 @@ let toastTimer = 0;
 function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = main + (small ? '<small>' + small + '</small>' : ''); t.hidden = false; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 700); }, secs*1000); }
 
 // ───────────────────────── save / load
-const KEY = 'leaf-yard-save-v2';
+// a location copy (public/locationN/, see index.html) keeps its own save
+const KEY = 'leaf-yard-save-v2' + (window.LOCATION ? '-' + window.LOCATION : '');
 function save(){ if (simMode || FRESH) return; try { localStorage.setItem(KEY, JSON.stringify(truck.st === 'pay' ? Object.assign({}, S, { cash: S.cash + (truck.payAmt || 0) }) : S)); } catch(e){} }
 function merge(base, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && base[k] && typeof base[k] === 'object') merge(base[k], src[k]); else if (k in base) base[k] = src[k]; } return base; }
 function load(data){

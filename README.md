@@ -52,6 +52,17 @@ Progress saves in the browser's localStorage (key `leaf-yard-save-v2`). The Work
 
 **Test money:** tap the cash counter 3 times within 2 seconds for +$1,000. Keep tapping: the 4th tap gives +$10,000 and every tap after that +$100,000.
 
+### Test locations (`?location2`)
+
+Test copies of the game live in their own folders next to the real one: `public/location2/` and so on. Each folder is a full copy of `index.html`, `style.css`, `audio.js` and `game.js`; nothing in the main game links to them.
+
+- Open one by adding `?location2` (or `?location2/`) to the address, e.g. `https://ka2le.github.io/AutumNation/?location2`. The page jumps to `location2/` and passes other options along (`?location2&fresh&speed=4`). You can also open `/location2/` directly.
+- Each location has its own save (`leaf-yard-save-v2-location2`); the main save is never touched.
+- **New location:** copy a folder (`public/location2` → `public/location3`) or the four root files into `public/location3/`, then open `?location3`. No edits needed: the code reads the folder name.
+- **Remove one:** delete its folder. Nothing else breaks; `?location3` then just opens the normal game.
+
+`location2` is **The Wildflower prairie**: a second plot of land for testing a "start over somewhere new" feature. A slider under the cash tag sets a pretend income from the first yard (0–1000 $/s).
+
 ### Balance simulation
 
 Open the browser console on the game page and run:

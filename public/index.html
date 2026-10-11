@@ -19,6 +19,36 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Caveat:wght@600;700&display=swap">
 <link rel="stylesheet" href="style.css">
+<script>
+// Locations: test copies of the game live in their own folders, public/locationN/ (each a full copy of index.html,
+// style.css, audio.js and game.js). At the root, ?location2 (or ?location2/) opens public/location2/, passing the other
+// options along (?location2&fresh -> location2/?fresh). If that folder doesn't exist, the normal game just starts.
+// Inside a copy this only names the location (window.LOCATION, which keeps its save apart) and points the icons at the
+// root, so a copy needs no edits: copy the folder (or the four root files) to public/location3/ and open ?location3.
+(function(){
+  var here = location.pathname.match(/\/(location\d+)\/(?:index\.html)?$/i);
+  window.LOCATION = here ? here[1].toLowerCase() : '';
+  if (here){
+    var links = document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]');
+    for (var i = 0; i < links.length; i++) links[i].setAttribute('href', '../' + links[i].getAttribute('href'));
+    return;
+  }
+  var loc = '', rest = [];
+  location.search.slice(1).split('&').forEach(function(p){
+    var m = p.match(/^(location\d+)\/?(=.*)?$/i);
+    if (m && !loc) loc = m[1].toLowerCase(); else if (p) rest.push(p);
+  });
+  if (!loc) return;
+  try {
+    var x = new XMLHttpRequest();
+    x.open('HEAD', loc + '/index.html', false); x.send();
+    if (x.status >= 200 && x.status < 300){
+      window.LOC_LEAVING = true;   // game.js stays idle while the browser moves on
+      location.replace(loc + '/' + (rest.length ? '?' + rest.join('&') : '') + location.hash);
+    }
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 <canvas id="c" aria-label="AutumNation game area"></canvas>
@@ -39,8 +69,8 @@
 <script src="audio.js"></script>
 <script src="game.js"></script>
 <script>
-// installable app + offline play (needs https or localhost)
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+// installable app + offline play (needs https or localhost); registered from the root only, its scope covers the location copies too
+if (!window.LOCATION && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 </script>

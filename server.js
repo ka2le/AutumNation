@@ -38,6 +38,10 @@ const server = http.createServer((req, res) => {
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(ROOT, rel));
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end('Forbidden'); return; }
+  // a folder without the trailing slash (e.g. /location2): redirect so relative paths work, like GitHub Pages does
+  if (!rel.endsWith('/') && fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+    res.writeHead(301, { Location: url.pathname + '/' + url.search }); res.end(); return;
+  }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found: ' + rel); return; }
     const ext = path.extname(file).toLowerCase();
