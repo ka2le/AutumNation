@@ -32,9 +32,11 @@ All paths are relative, so the game works from `/AutumNation/` as well as from a
 
 On the published site (https), Chrome on Android offers **Install app** / **Add to Home screen** in its menu. The game then opens full screen with its own leaf icon and the name AutumNation, and keeps working offline. Desktop Chrome and Edge show an install button in the address bar. On iPhone, use Safari's **Share → Add to Home Screen**.
 
-- `public/manifest.webmanifest` holds the app name, colours and icons.
+- `public/manifest.webmanifest` holds the app name, colours and icons. Its stable ID is `/AutumNation/`, distinct from other apps on `ka2le.github.io`; `start_url` and `scope` resolve relative to the manifest's folder. If hosting at a different path, update the ID before the first install.
 - `public/icons/` has the app icons (`icon.svg` and `icon-maskable.svg` are the sources; the PNGs are rendered from them), `public/favicon.svg` / `favicon.ico` the browser tab icon.
 - `public/sw.js` is the service worker: it loads everything from the network when online (so a new version shows up on the next start) and falls back to its cache when offline. If you add or remove files, add them to `SHELL` and bump `VERSION`.
+
+The service worker only removes old AutumNation caches and reads offline assets from its own cache, preserving other apps hosted on the same domain. Run `node tools/check-pwa.js` to verify app identity and cache isolation.
 
 ## Testing helpers (URL options)
 
