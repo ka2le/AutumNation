@@ -30,6 +30,13 @@ Useful development URL options:
 
 Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves are not carried over). Tapping the cash counter 3 times within 2 seconds adds test money ($1,000, then $10,000, then $100,000 per tap). The Workshop card provides a Start over control.
 
+## Git workflow (who commits, who pushes)
+
+- **Claude** (Cowork / Claude Code) runs in a sandbox that cannot reach the user's Git credentials, so it **commits to `main` locally but does not push**. After committing, it tells the user what was committed and that `git push` is waiting. This is a Claude-specific limit, not a project rule.
+- **The user** pushes from their own terminal, where their GitHub credentials live. Pushing `main` triggers the GitHub Pages deploy.
+- **GPT via Codex** runs with the user's credentials, so it **can and should commit and push** to `main` itself, so the site updates without a manual step.
+- Repo: `https://github.com/ka2le/AutumNation.git`, branch `main`. Commit identity used by Claude: Kalle <kalle.kindvall@gmail.com> (repo-local config).
+
 ## Game systems (v2)
 
 - **Land:** three sizes in `AREAS` (Cottage plot, Meadow, Old orchard). Since V5 they cost $110 and $3,200 (were $25 and $700), so the small plot lasts longer. V5.1 lowered leaf fall a little (spawn 1.0 / 2.8 / 5.6 a second, caps 64 / 220 / 380) so the helpers pay off sooner. The camera starts zoomed in on the small fenced plot and zooms out when land is bought. A For Sale sign appears inside the top fence once cash reaches 50% of the next plot's price. Land beyond the fence is drawn darker and overgrown. The cottage plot has two small trees of its own (middle and bottom-right corner, flagged with `fam` in `TREES`) and two bushes (`BUSHES`, drawn live from `bushCvs` so they can shake).
