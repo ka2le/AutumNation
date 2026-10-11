@@ -45,13 +45,13 @@ const AREAS = [
 // Metal veins: one very close to the bin, one fairly close, the rest a long walk away.
 // V7: veins differ in richness (chunks come that much faster): the one on the cottage plot is thin, so the meadow's
 // veins are worth having, and the far orchard veins pay for the long walk.
+// V9: one vein per plot (three in all). Saves from before V9 had five; `OLD_SPOT_MAP` moves their miners over.
 const SPOTS = [
   { x: 128,  y: -118, land: 0, rich: 0.85 },
   { x: 425,  y: -175, land: 1, rich: 1 },
-  { x: -525, y: -570, land: 1, rich: 1.1 },
   { x: -870, y: -430, land: 2, rich: 1.2 },
-  { x: 760,  y: -985, land: 2, rich: 1.25 },
 ];
+const OLD_SPOT_MAP = { 0: 0, 1: 1, 3: 2 };   // old vein index -> new one; old veins 2 and 4 are gone (refunded)
 const veinWord = sp => { const v = SPOTS[sp].rich || 1; return v < 0.9 ? 'a thin vein' : v > 1.15 ? 'a rich vein' : v > 1.02 ? 'a good vein' : 'a fair vein'; };
 const TREES = [
   { x: -300, y: -440, r: 135, seed: 11 }, { x: 352, y: -472, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
@@ -75,12 +75,13 @@ const UP = {
   // V6: sorting is only a few steps now; after that the bagging table (and the robots working it) takes over
   leafPrice:  { obj:'bin',  name:'Sort leaves',       max:5,  base:0.8, mul:1.7, val:l=>0.13*Math.pow(1.2,l), show:v=>money(v)+' / leaf' },
   // bags: a tied bag of BAG_SIZE leaves is worth more than the same leaves loose, and better bags are worth more again
-  // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top), each one a bigger jump
-  bagPrice:   { obj:'bagger', name:'Better bags', max:10, gaps:[{n:5}], costs:[11, 19, 33, 56, 95, 220, 520, 1200, 2700, 6000], vals:[1.5, 1.8, 2.1, 2.45, 2.8, 3.2, 3.65, 4.15, 4.7, 5.3, 6.0], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
+  // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top). V9: priced against what
+  // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
+  bagPrice:   { obj:'bagger', name:'Better bags', max:10, gaps:[{n:5}], costs:[11, 19, 28, 38, 60, 130, 170, 210, 240, 280], vals:[1.5, 1.8, 2.1, 2.45, 2.8, 3.2, 3.65, 4.15, 4.7, 5.3, 6.0], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
-  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 400, 1200, 3500, 9000], vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
+  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 400, 1800, 3500, 6000], vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
   // V7: a bigger tub also makes the ingot pallet beside it bigger (palletCap), the way the bin's bag shelf grows with the bin
   metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[30, 55, 90, 160, 320, 700, 1600, 3500], vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
@@ -88,19 +89,20 @@ const UP = {
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 28, 90, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
   // the top deal brings a leaf to about $1.20. Each tier is a big jump that costs a lot at the time you can first afford it.
-  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[20, 420, 2900],
+  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[20, 300, 400],
                 vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
   hiveTank:   { obj:'hive', name:'Bigger nectar tank', max:4, costs:[60, 190, 520, 1400], vals:[70, 140, 270, 470, 800], val:l=>UP.hiveTank.vals[l], show:v=>v+' nectar' },
   hiveStore:  { obj:'hive', name:'Bigger honey store', max:6, costs:[40, 110, 280, 600, 1200, 2400], vals:[6, 12, 20, 32, 50, 80, 120], val:l=>UP.hiveStore.vals[l], show:v=>v+' jars' },
-  // V8: a little more to start with and four more label steps for the late game
-  honeyPrice: { obj:'hive', name:'Fancy honey labels', max:6, costs:[90, 300, 1000, 3000, 8000, 20000], vals:[2.9, 3.8, 5, 6.4, 8, 10, 12.5], val:l=>UP.honeyPrice.vals[l], show:v=>money(v)+' / jar' },
+  // V8: a little more to start with and four more label steps for the late game. V9: the late steps are much cheaper
+  // (honey is capped by flowers and packers, so its income can't keep up with ×3 prices)
+  honeyPrice: { obj:'hive', name:'Fancy honey labels', max:6, costs:[90, 300, 650, 1000, 1800, 2800], vals:[2.9, 3.8, 5, 6.4, 8, 10, 12.5], val:l=>UP.honeyPrice.vals[l], show:v=>money(v)+' / jar' },
   // V6: once a robot packs honey at the crate, gift jars (cloth top, twine and a tag) sell for more than plain ones
-  giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[2200, 5500], vals:[1.6, 2.1, 2.9], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
+  giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[1000, 2200], vals:[1.6, 2.1, 2.9], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
   // the smelting plant
-  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[400, 1000, 2500], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
+  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[400, 1000, 1500], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[500, 1300, 3200, 9000, 24000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[500, 1900, 3200, 6000, 7000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
   slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[450, 1100, 2800], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
   hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[80, 260, 700], vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
@@ -110,7 +112,7 @@ const OLD_PALLET_COSTS = [60, 200, 600];
 // V6 refinement: buildings and constants
 const BAG_SIZE = 10;            // leaves in a bag
 const BAGGER_COST = 18;         // the bagging table: a bit more than the next sorting step would have been
-const HONEY_PACK_COST = 1100;   // turns the honey crate into a packing bench
+const HONEY_PACK_COST = 800;    // turns the honey crate into a packing bench
 const PLANT_COST = 500;         // the smelting plant (V7: was 300)
 const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
 const RACK_CAP = 10;  // ingots waiting on the plant's rack (the ore hopper's size is UP.hopper)
@@ -226,7 +228,7 @@ const genAvail = k => gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) &&
 const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
 // V6: twelve robots (since V6.1), and each one costs only a little more than the last (there's a lot more for them to do now)
 const ROBOT_COST = [0, 6, 12, 30, 70, 140, 240, 380, 560, 800, 1100, 1500];
-const ROBOT_MAX = ROBOT_COST.length;   // twelve regular robots
+const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 const MINER_COST = 100;   // every miner costs the same; far veins are already worth less
 const METAL_SLOT_COST = 160;
 // helper robots: up to four of each (V7; five in V6.1). The second costs about twice the first, then the steps get bigger.
@@ -448,7 +450,7 @@ function freshState(){
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
     totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, nectar:0, bags:0, gifts:0, ingots:0 },
-    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, bagShown:false, plantShown:false, taskHint:false, hints:{} }
+    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, bagShown:false, plantShown:false, taskHint:false, hints:{} }
   };
 }
 let S = freshState();
@@ -1499,9 +1501,11 @@ function updTruck(dt){
     puffExhaust(T, dt, 0.25);
     if (T.timer <= 0){
       let amt = T.takeL*leafPrice() + T.takeB*bagPrice() + T.takeM*metalPrice() + T.takeI*ingotPrice() + T.takeH*honeyPrice() + T.takeG*giftJarPrice(), bonus = 0;
+      // balance tests (tools/balance-player.js): during a sim, window.__src adds up what each kind of thing sold for
+      if (simMode && window.__src){ const W = window.__src; W.leaf += T.takeL*leafPrice(); W.bag += T.takeB*bagPrice(); W.metal += T.takeM*metalPrice(); W.ingot += T.takeI*ingotPrice(); W.jar += T.takeH*honeyPrice(); W.gift += T.takeG*giftJarPrice(); W.nL += T.takeL + T.takeB*BAG_SIZE; W.nM += T.takeM; W.nI += T.takeI; W.nJ += T.takeH + T.takeG; }
       // the cleanup program pays a lump sum for every 100 leaves the truck has taken (bagged ones count too)
       const nL = T.takeL + T.takeB*BAG_SIZE;
-      if (S.lv.cleanup && nL){ S.cleanN = (S.cleanN || 0) + nL; while (S.cleanN >= 100){ S.cleanN -= 100; bonus += cleanupBonus(); } amt += bonus; }
+      if (S.lv.cleanup && nL){ S.cleanN = (S.cleanN || 0) + nL; while (S.cleanN >= 100){ S.cleanN -= 100; bonus += cleanupBonus(); } amt += bonus; if (simMode && window.__src) window.__src.clean += bonus; }
       if (bonus && !simMode) setTimeout(() => sfx('chime', 'sale'), 500);
       if (any > 0){
         S.totals.trucks++;
@@ -2282,7 +2286,7 @@ function step(dt){
   }
   if (!S.flags.finished && S.robots.length >= ROBOT_MAX && S.miners.length >= SPOTS.length && S.plant.built){
     S.flags.finished = true;
-    if (!simMode) showToast('The yard hums along nicely.', 'Twelve robots, every vein worked and the furnaces roaring.', 9);
+    if (!simMode) showToast('The yard hums along nicely.', 'Ten robots, every vein worked and the furnaces roaring.', 9);
   }
 }
 const saleVisible = () => S.land + 1 < AREAS.length && S.flags.saleShown >= S.land + 1;
@@ -4775,6 +4779,18 @@ function load(data){
       if ((src.shakers || []).length) S.seen.shaker = 1;
       if (src.hive && src.hive.bees > 0) S.seen.bee = 1;
     }
+    // V9: three veins (was five) and ten robots (was twelve); give back what was paid for miners, shafts and robots that are gone
+    let v9back = 0;
+    const firstV9 = !(src.flags && src.flags.v9);
+    if (firstV9){
+      const mv = sp => sp in OLD_SPOT_MAP ? OLD_SPOT_MAP[sp] : null;
+      const oldShafts = src.shafts || [];
+      for (const sp of (src.miners || [])) if (mv(sp) == null){ v9back += MINER_COST + (oldShafts.includes(sp) ? Math.round(SHAFT_COST*DISCOUNT) : 0); }
+      S.miners = (src.miners || []).map(mv).filter(sp => sp != null);
+      src.shafts = oldShafts.map(mv).filter(sp => sp != null);
+      for (const r of (src.robots || [])) if (r.miner != null) r.miner = mv(r.miner);
+      for (let i = ROBOT_MAX; i < (src.robots || []).length; i++) v9back += ROBOT_COST[i] || 0;
+    }
     // task lists (V6): older saves had one focus per robot; turn it into the matching priority list
     S.robots = (src.robots || []).slice(0, ROBOT_MAX).map(r => {
       const prio = Array.isArray(r.prio) ? r.prio : r.job === 'mine' ? [['mine'], ['leaves']] : [['leaves']];
@@ -4839,6 +4855,8 @@ function load(data){
       S.flags.v7 = true;
     }
     if (v7back > 0){ S.cash += v7back; setTimeout(() => showToast('Rebalanced!', 'A few things you owned work differently now. You got ' + money(v7back) + ' back for them.', 9), 1500); }
+    S.flags.v9 = true;
+    if (v9back > 0){ S.cash += v9back; setTimeout(() => showToast('Rebalanced!', 'There are fewer veins and robot slots now. You got ' + money(v9back) + ' back for the ones that are gone.', 9), 1600); }
     for (const k in UP) S.lv[k] = clamp(S.lv[k] | 0, 0, UP[k].max);
     S.hive.bees = clamp(S.hive.bees | 0, 0, MAX_BEES); S.hive.nectar = Math.max(0, +S.hive.nectar || 0); S.hive.honey = Math.max(0, +S.hive.honey || 0);
     if (src.hive && src.hive.jars === undefined){
@@ -4942,7 +4960,7 @@ window.__leafYard = {
   state: () => S,
   open: (kind, i) => openCard(kind, i),
   buy: o => buy(o),
-  fn: () => ({ offers, binCap, metalCap, hopperCap, honeyCap, tankCap, palletCap, truckEvery, bagCap, upCost, rCost, allPlan, binRoom, tubRoom, hopperRoom, plainJars, crateCap, crateJars }),   // for balance tests
+  fn: () => ({ UP, GEN, offers, binCap, metalCap, hopperCap, honeyCap, tankCap, palletCap, truckEvery, bagCap, upCost, rCost, allPlan, binRoom, tubRoom, hopperRoom, plainJars, crateCap, crateJars }),   // for balance tests
   stations: () => STN,
   treeDrop: () => treeDrop(true),
   bounds: () => ({ view: visRect(), bounds: camBounds() }),

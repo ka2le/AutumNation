@@ -2,6 +2,7 @@
 // A bottleneck-driven test player (balance testing only). Paste this whole file into the browser console on the game
 // page (or run it headless); it plays a 2-hour game in a few seconds and prints what limited the yard and what it bought.
 // window.SIMT = seconds to play (default 7200), window.FULL = 1 to list every purchase, window.MARK = seconds between status lines.
+// window.PAYBACK = minutes (default 5): price upgrades are only bought once they pay for themselves that fast (V9).
 // Every second it works out what is holding each part of the
 // yard back, picks the thing that would help in each part, and buys the cheapest of those (saving up if it can't afford
 // it yet). Prints what it bought, why, and a timeline of the limits.
@@ -10,6 +11,29 @@ const SECS = +(window.SIMT || 7200);
 const log = [], marks = [];
 let fills = [], maxBin = 0, lastTrucks = 0, hist = [], incomeHist = [], nextBuy = 0, nextMark = 0, lim = {}, scarceT = 0, waitFor = null;
 const LEAF_TRACKS = ['speed', 'carry', 'pick', 'grab', 'reach'];
+// what each kind of thing has earned a minute lately (needs window.__src, which the game fills in during a sim)
+if (!window.__src) window.__src = { leaf:0, bag:0, metal:0, ingot:0, jar:0, gift:0, clean:0, nL:0, nM:0, nI:0, nJ:0 };
+const srcH = [], PAYBACK = +(window.PAYBACK || 5);
+const PRICE_KEYS = ['leafPrice', 'bagPrice', 'cleanup', 'metalPrice', 'honeyPrice', 'ingotGrade', 'giftPrice', 'slag', 'smeltSpeed'];
+const PRICE_SRC = { leafPrice:['leaf','bag'], bagPrice:['bag'], metalPrice:['metal','ingot'], honeyPrice:['jar','gift'], giftPrice:['gift'], ingotGrade:['ingot'], slag:['ingot'], smeltSpeed:['ingot'], market:['leaf','bag','metal','ingot','jar','gift','clean'] };
+function srcRate(){
+  if (srcH.length < 2) return null;
+  const a = srcH[0], b = srcH[srcH.length - 1], dt = Math.max(1, b[0] - a[0])/60, o = {};
+  for (const k in b[1]) o[k] = (b[1][k] - a[1][k])/dt;
+  return o;
+}
+// extra money a minute from buying price upgrade x now
+function gainOf(S, x, smeltIdle){
+  const r = srcRate(); if (!r) return 0;
+  if (x.id === 'gen'){ const L = S.gen.market || 0; return PRICE_SRC.market.reduce((a, k) => a + r[k], 0)*(0.1/(1 + 0.1*L)); }
+  const U = F.UP[x.key], L = S.lv[x.key] | 0, v0 = U.val(L), v1 = U.val(L + 1);
+  if (x.key === 'cleanup') return r.nL*(v1 - v0)/100;
+  const ratio = x.key === 'slag' ? (1 + v1)/(1 + v0) : v1/v0;
+  let g = PRICE_SRC[x.key].reduce((a, k) => a + r[k], 0)*(ratio - 1);
+  if (x.key === 'smeltSpeed') g *= Math.max(0, 1 - smeltIdle*1.5);   // only helps while the smelters are busy
+  return g;
+}
+const isPacker = c => c.prio[0].includes('bag') || c.prio[0].includes('jar');
 const avg = k => hist.length ? hist.reduce((a, h) => a + h[k], 0)/hist.length : 0;
 function income(){
   if (incomeHist.length < 2) return 1;
@@ -24,7 +48,9 @@ function setTasks(S){
   for (let k=0;k<wantPack;k++) roles.push('pack');
   for (let k=0;k<wantMine;k++) roles.push('mine');
   if (S.plant.built){ roles.push('smelt', 'smelt', 'haul', 'smelt'); }
-  const P = { pack: [['bag', 'jar'], ['leaves']], mine: [['mine'], ['leaves']], smelt: [['smelt'], ['haul'], ['leaves']], haul: [['haul'], ['leaves']] };
+  // with two packers, one puts honey first and the other bags first (both do both)
+  const P = { pack: [['bag', 'jar'], ['leaves']], pack2: [['jar'], ['bag'], ['leaves']], pack1: [['bag'], ['jar'], ['leaves']], mine: [['mine'], ['leaves']], smelt: [['smelt'], ['haul'], ['leaves']], haul: [['haul'], ['leaves']] };
+  if (wantPack === 2){ roles[0] = 'pack1'; roles[1] = 'pack2'; }
   S.robots.forEach((c, j) => {
     const role = j >= 1 ? roles[n - 1 - j] : null;   // robot 0 always gathers leaves
     c.prio = (P[role] || [['leaves']].concat(S.bag.built && !wantPack ? [['bag']] : [])).map(r => r.slice());
@@ -41,13 +67,14 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
   const loiter = B.length ? B.filter(b => b.st === 'loiter').length/B.length : 0;
   const queue = B.length ? B.filter(b => b.st === 'queue').length/B.length : 0;
   const tubFull = S.metalSlot && S.miners.length && F.tubRoom() <= 0 ? 1 : 0;
-  const packers = R.filter(r => S.robots[r.id].prio[0].includes('bag'));
+  const packers = R.filter(r => isPacker(S.robots[r.id]));
   const packBusy = packers.length ? packers.filter(r => r.st === 'bag' || r.st === 'jar' || r.st === 'toStation').length/packers.length : 0;
   const smelters = R.filter(r => S.robots[r.id].prio[0][0] === 'smelt');
   const smeltIdle = smelters.length ? smelters.filter(r => r.st !== 'smelt').length/smelters.length : 0;
   hist.push({ t: S.t, idle, waitBin, loiter, queue, tubFull, packBusy, smeltIdle }); while (hist.length && hist[0].t < S.t - 60) hist.shift();
   if (S.t < nextBuy) return;
   nextBuy = S.t + 1;
+  if (window.__src){ srcH.push([S.t, Object.assign({}, window.__src)]); while (srcH.length && srcH[0][0] < S.t - 180) srcH.shift(); }
   incomeHist.push([S.t, S.totals.cash]); while (incomeHist.length && incomeHist[0][0] < S.t - 120) incomeHist.shift();
   const staff = setTasks(S);
   const inc = income(), all = F.offers();
@@ -60,14 +87,18 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
   const C = [];   // [offer, why]
   const add = (o, why, maxMin) => { if (o && (maxMin == null || o.cost <= inc*maxMin)) C.push([o, why]); };
   // pure value: price upgrades that pay back within a couple of minutes
-  add(cheapest(all.filter(x => x.id === 'up' && ['leafPrice', 'bagPrice', 'cleanup', 'metalPrice', 'honeyPrice', 'ingotGrade', 'giftPrice', 'slag', 'smeltSpeed'].includes(x.key))), 'price', 2.5);
-  add(cheapest(all.filter(x => x.id === 'gen' && x.key === 'market')), 'price', 2);
+  // price upgrades: a sensible player buys one once it pays for itself within PAYBACK minutes (from what each kind of
+  // thing has earned over the last few minutes), cheapest payback first
+  for (const x of all.filter(x => (x.id === 'up' && PRICE_KEYS.includes(x.key)) || (x.id === 'gen' && x.key === 'market'))){
+    const g = gainOf(S, x, smelters.length ? avg('smeltIdle') : 1);
+    if (g > 0 && x.cost/g <= PAYBACK){ x.payback = x.cost/g; add(x, 'price', 5); }
+  }
   add(all.find(x => x.id === 'bagger'), 'bagging');
   // leaves
   if (L.bin){
     const bin = all.find(x => x.id === 'up' && x.key === 'bin'), tr = all.find(x => x.id === 'up' && x.key === 'truck');
     add(!bin ? tr : !tr ? bin : (bin.cost <= tr.cost*1.6 ? bin : tr), 'bin full');
-    if (S.bag.built) add(cheapest(all.filter(x => (x.id === 'rup' && x.key === 'pack' && S.robots[x.ri].prio[0].includes('bag')) || (x.id === 'tech' && x.key === 'jig'))), 'bin full: pack', 3);
+    if (S.bag.built) add(cheapest(all.filter(x => (x.id === 'rup' && x.key === 'pack' && isPacker(S.robots[x.ri])) || (x.id === 'tech' && x.key === 'jig'))), 'bin full: pack', 3);
   } else if (L.leaves){
     add(cheapest(all.filter(x => x.id === 'shaker' || x.id === 'blower' || (x.id === 'hup' && ['shake', 'blow'].includes(x.key)) || (x.id === 'tech' && ['pincers', 'turbine', 'rumble', 'jet'].includes(x.key)))), 'leaves scarce', 4);
   } else {
@@ -75,7 +106,7 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
     add(cheapest(all.filter(x => (x.id === 'rup' && LEAF_TRACKS.includes(x.key) && leafRobots.includes(x.ri)) || (x.id === 'tech' && ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper'].includes(x.key)) || x.id === 'robot')), 'robots', 4);
   }
   // packing
-  if (L.pack) add(cheapest(all.filter(x => (x.id === 'rup' && x.key === 'pack' && S.robots[x.ri].prio[0].includes('bag')) || (x.id === 'tech' && ['jig', 'precision'].includes(x.key)))), 'packer busy', 3);
+  if (L.pack) add(cheapest(all.filter(x => (x.id === 'rup' && x.key === 'pack' && isPacker(S.robots[x.ri])) || (x.id === 'tech' && ['jig', 'precision'].includes(x.key)))), 'packer busy', 3);
   // bees
   if (!S.hive.built) add(all.find(x => x.id === 'hive'), 'start bees', 5);
   else {
@@ -99,14 +130,14 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
   if (land && (scarceT > 120 || L.flowers || (S.metalSlot && SPOTS_HERE(S) <= 0))) add(land, 'need land');
   if (!C.length) return;
   // a player sees big new steps (land, a new building, a new kind of income) as worth more than one more small upgrade
-  const VALUE = { 'need land': 3, 'start bees': 3, 'start metal': 3, 'start smelting': 3, bagging: 3, 'bin full': 1.5, 'hive full': 1.5, 'tub full': 1.5, 'packer busy': 1.5, 'feed smelter': 1.5 };
+  const VALUE = { 'need land': 3, 'start bees': 3, 'start metal': 3, 'start smelting': 3, bagging: 3, price: 2, 'bin full': 1.5, 'hive full': 1.5, 'tub full': 1.5, 'packer busy': 1.5, 'feed smelter': 1.5 };
   const score = c => c[0].cost/(VALUE[c[1]] || 1);
   const [o, why] = C.sort((a, b) => score(a) - score(b))[0];
   if (o.cost > S.cash + 1e-9){ waitFor = why; return; }   // save up for it
   waitFor = null;
-  Y.buy(o); log.push((S.t/60).toFixed(1) + 'm ' + o.id + (o.key ? ':' + o.key : '') + (o.ri != null ? '#' + o.ri : '') + ' $' + o.cost + ' [' + why + ']');
+  Y.buy(o); log.push((S.t/60).toFixed(1) + 'm ' + o.id + (o.key ? ':' + o.key : '') + (o.ri != null ? '#' + o.ri : '') + ' $' + o.cost + ' [' + why + (o.payback ? ' ' + o.payback.toFixed(1) + 'm' : '') + ']');
 } });
-function SPOTS_HERE(S){ const free = [0, 1, 2, 3, 4].filter(i => [0, 1, 1, 2, 2][i] <= S.land && !S.miners.includes(i)); return free.length; }
+function SPOTS_HERE(S){ const free = [0, 1, 2].filter(i => i <= S.land && !S.miners.includes(i)); return free.length; }
 const firsts = {}; for (const l of log){ const m = / (\w+)(:\w+)?/.exec(l.slice(l.indexOf('m ') + 1)); const k = m[1] + (['tech','up','gen','hiveUp'].includes(m[1]) ? m[2] : ''); if (!firsts[k]) firsts[k] = l; }
 return (window.FULL ? log.join('\n') + '\n' : '') + '--- firsts\n' + Object.values(firsts).join('\n') + '\n--- marks\n' + marks.join('\n') + '\n--- limiter seconds ' + JSON.stringify(lim) + '\nearned ' + Math.round(out.totals.cash) + ' leaves ' + out.totals.leaves + ' honey ' + (out.totals.honey || 0) + ' metal ' + out.totals.metal + ' ingots ' + (out.totals.ingots || 0);
 
