@@ -456,7 +456,7 @@ function freshState(){
 let S = freshState();
 
 // ───────────────────────── canvas & camera
-const cv = $('c'), ctx = cv.getContext('2d');
+const cv = $('c'); let ctx = cv.getContext('2d');   // let: card portraits borrow the robot drawing code for a moment
 let W = 0, H = 0, DPR = 1;
 const cam = { z:1, ox:0, oy:0 };
 let camAnim = null, userCam = false, camMovedT = 0;
@@ -3945,7 +3945,7 @@ function cardShows(o){
 }
 let seenT = 0;
 function markSeen(){
-  if (!cardOpen || cardOpen.kind === 'sound') return;
+  if (!cardOpen || cardOpen.kind === 'sound' || (cardOpen.tabsOn && cardTab === 'tasks')) return;
   let n = 0;
   for (const o of offers()){ if (o.cost > S.cash + 1e-9 || !cardShows(o)) continue; const key = offerKey(o); if (!S.seen[key]){ S.seen[key] = 1; n++; } }
   if (n) save();
@@ -4086,93 +4086,291 @@ $('hCash').addEventListener('pointerdown', e => {
 });
 
 // ───────────────────────── cards
+// V10 UI rework: cards say less and show more. Numbers come with little pictures (a leaf, a chunk of metal, a jar),
+// stock levels are meters, prices are coin buttons that fill up as you save toward them, and the long explanations
+// moved into tooltips. Robots get a live portrait, and their task list sits on a tab of its own.
 const card = $('card');
-let cardOpen = null, cardSig = '', resetArm = false, cardNote = '';
-function pips(l, max, gens){
-  let s = '<span class="pips" aria-label="level ' + l + ' of ' + max + '">';
-  let acc = 0; const bounds = gens ? gens.map(g => (acc += g.n)) : [];
-  for (let i=0;i<max;i++){ if (i > 0 && bounds.includes(i)) s += '<span class="pipgap"></span>'; s += '<span class="pip' + (i < l ? ' on' : '') + '"></span>'; }
-  return s + '</span>';
+let cardOpen = null, cardSig = '', resetArm = false, cardNote = '', cardTab = 'up', fillT = 0;
+// ── little pictures (12×12, centred on 0,0), in the yard's colours
+const ICON = {
+  leaf:   '<path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#d4672a"/><path d="M0,-3.6V4.6" stroke="#8c3215" stroke-width=".8"/>',
+  ore:    '<path d="M-4.5,-1.5 L-1.5,-4.5 L3.5,-3 L4.5,1.5 L1,4.5 L-3.5,3Z" fill="#8f979b"/><path d="M-1.5,-4.5 L3.5,-3 L1,0Z" fill="#c3cbd0"/>',
+  bag:    '<path d="M-1,-3.6 C-4.6,-3 -4.8,3.4 -3.4,4.2 Q0,5 3.4,4.2 C4.8,3.4 4.6,-3 1,-3.6Z" fill="#d4672a"/><ellipse cx="-1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/><ellipse cx="1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/>',
+  jar:    '<rect x="-3.6" y="-2.6" width="7.2" height="7.6" rx="2" fill="#eba53a"/><path d="M-4.2,-2.2 Q-4.6,-5.4 -2.6,-5.2 H2.6 Q4.6,-5.4 4.2,-2.2Z" fill="#b8392a"/><rect x="-2" y="-.2" width="4" height="2.6" rx=".5" fill="#fff3d9" opacity=".8"/>',
+  gift:   '<rect x="-3.6" y="-1.6" width="7.2" height="6.6" rx="1.8" fill="#eba53a"/><path d="M-4.8,-1.2 L-3.4,-4.8 H3.4 L4.8,-1.2Z" fill="#efdcbc"/><path d="M-3.4,-4.8 L-1.7,-1.2 M0,-4.8 V-1.2 M3.4,-4.8 L1.7,-1.2" stroke="#c96f4a" stroke-width=".6"/><path d="M-4.2,-1.4 H4.2" stroke="#7a5230" stroke-width=".9"/><path d="M3.6,-1.4 L5,1.6" stroke="#7a5230" stroke-width=".6"/><rect x="-1.7" y=".9" width="3.4" height="2.3" rx=".4" fill="#fff3d9"/>',
+  ingot:  '<path d="M-5.2,3.4 H5.2 L3.6,-1.4 H-3.6Z" fill="#9aa4aa"/><path d="M-3.6,-1.4 H3.6 L2.6,-3.4 H-2.6Z" fill="#dfe5e8"/><path d="M-4.4,3 L-3.1,-.8" stroke="#fff" stroke-opacity=".55" stroke-width=".7"/>',
+  gold:   '<path d="M-5.2,3.4 H5.2 L3.6,-1.4 H-3.6Z" fill="#d4a23a"/><path d="M-3.6,-1.4 H3.6 L2.6,-3.4 H-2.6Z" fill="#f6dc8c"/><path d="M-4.4,3 L-3.1,-.8" stroke="#fff" stroke-opacity=".6" stroke-width=".7"/>',
+  basket: '<path d="M-3.4,-1.6 Q0,-6.8 3.4,-1.6" fill="none" stroke="#8a5a2e" stroke-width="1.1"/><path d="M-5,-1.6 H5 L3.8,4.6 H-3.8Z" fill="#c98f4c"/><path d="M-4.6,.6 H4.6 M-4.2,2.6 H4.2" stroke="#9a6532" stroke-width=".7"/><path d="M-1.8,-1.6 L-1.4,4.6 M1.8,-1.6 L1.4,4.6" stroke="#9a6532" stroke-width=".6"/><rect x="-5.5" y="-2.4" width="11" height="1.7" rx=".8" fill="#a8703a"/>',
+  bee:    '<path d="M-1.2,-1.6 C-3.6,-6 -6.4,-3.4 -2.6,-.6Z M1.2,-1.6 C3.6,-6 6.4,-3.4 2.6,-.6Z" fill="#d9eef4" stroke="#7fa6b2" stroke-width=".5"/><ellipse cx="0" cy="1.4" rx="3.3" ry="3.8" fill="#f2c230"/><path d="M-3.1,.4 H3.1 M-2.6,2.8 H2.6" stroke="#3a2e22" stroke-width="1.1"/><circle cx="0" cy="-2.6" r="1.6" fill="#3a2e22"/>',
+  nectar: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#f0b43c"/><path d="M-1.9,1.4 A1.9,1.9 0 0 0 0,3.5" stroke="#fff4c8" stroke-width=".9" fill="none" stroke-linecap="round"/>',
+  honey:  '<path d="M0,-5.2 L4.5,-2.6 V2.6 L0,5.2 L-4.5,2.6 V-2.6Z" fill="#e8a83a"/><path d="M0,-2.5 L2.2,-1.25 V1.25 L0,2.5 L-2.2,1.25 V-1.25Z" fill="#c67d1e"/>',
+  truck:  '<rect x="-5.8" y="-3.8" width="7" height="5.6" rx=".8" fill="#c98f4c"/><path d="M-5.8,-1.6 H1.2" stroke="#a8703a" stroke-width=".6"/><path d="M1.6,-1.9 H3.9 L5.8,.4 V1.8 H1.6Z" fill="#5f8c87"/><path d="M2.4,-1.1 H3.6 L4.7,.3 H2.4Z" fill="#d6ecea"/><circle cx="-3.2" cy="2.6" r="1.7" fill="#3a2e22"/><circle cx="3.5" cy="2.6" r="1.7" fill="#3a2e22"/><circle cx="-3.2" cy="2.6" r=".6" fill="#c3cbd0"/><circle cx="3.5" cy="2.6" r=".6" fill="#c3cbd0"/>',
+  clock:  '<circle r="5" fill="#fbf3e2" stroke="#7c5d47" stroke-width="1.2"/><path d="M0,-3 V0 L2,1.4" stroke="#4a3226" stroke-width="1.1" fill="none" stroke-linecap="round"/>',
+  coin:   '<circle r="5.4" fill="#c9922c"/><circle r="4.4" fill="#e8b84e"/><circle r="3" fill="none" stroke="#c9922c" stroke-width=".8"/><path d="M-2.4,-1.9 A3,3 0 0 1 .5,-2.9" stroke="#fbe3a0" stroke-width=".9" fill="none" stroke-linecap="round"/>',
+  wheel:  '<circle r="5.3" fill="#3f3730"/><circle r="3.3" fill="#d4672a"/><circle r="1.1" fill="#fbf3e2"/><path d="M0,-5.3 V-4 M0,5.3 V4 M-5.3,0 H-4 M5.3,0 H4 M-3.75,-3.75 L-2.85,-2.85 M3.75,3.75 L2.85,2.85 M3.75,-3.75 L2.85,-2.85 M-3.75,3.75 L-2.85,2.85" stroke="#7a6d62" stroke-width="1"/>',
+  pick:   '<path d="M0,5.4 V.6" stroke="#7d868c" stroke-width="1.8" stroke-linecap="round"/><path d="M0,.4 C-3.8,-.2 -4.2,-3.4 -2.4,-5.2 M0,.4 C3.8,-.2 4.2,-3.4 2.4,-5.2" stroke="#d4672a" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cy=".4" r="1.5" fill="#4a423b"/><path d="M-5.6,3 H-3.6 M-5.6,4.8 H-3" stroke="#a08670" stroke-width=".8" stroke-linecap="round"/>',
+  claw:   '<path d="M0,5.6 V-.4" stroke="#8a6040" stroke-width="1.5" stroke-linecap="round"/><path d="M-4.4,-.4 H4.4" stroke="#7d868c" stroke-width="1.5" stroke-linecap="round"/><path d="M-4.4,-.4 C-4.6,-2.6 -4.2,-3.8 -3.6,-4.8 M-1.5,-.4 V-5.2 M1.5,-.4 V-5.2 M4.4,-.4 C4.6,-2.6 4.2,-3.8 3.6,-4.8" stroke="#7d868c" stroke-width="1.1" stroke-linecap="round" fill="none"/>',
+  reach:  '<path d="M-5,4.6 L-1.6,1.2" stroke="#6d777d" stroke-width="2.4" stroke-linecap="round"/><path d="M-1.6,1.2 L1.6,-2" stroke="#a8b1b6" stroke-width="1.6" stroke-linecap="round"/><path d="M1,-4.4 L3.6,-1.8 M2.2,-5.4 L4.8,-2.8" stroke="#d4672a" stroke-width="1.2" stroke-linecap="round"/>',
+  drill:  '<rect x="-1.8" y="-5.4" width="3.6" height="3.4" rx=".6" fill="#d4672a"/><path d="M-2,-2 H2 L0,5.4Z" fill="#9aa4aa"/><path d="M-1.6,-.4 L1.4,.4 M-1.1,1.5 L1,2.1 M-.6,3.2 L.5,3.6" stroke="#5b6469" stroke-width=".6"/>',
+  magnet: '<path d="M-3.8,4.6 V-.4 A3.8,3.8 0 0 1 3.8,-.4 V4.6 H1.4 V-.4 A1.4,1.4 0 0 0 -1.4,-.4 V4.6Z" fill="#c4452f"/><rect x="-3.8" y="2.8" width="2.4" height="1.8" fill="#dfe5e8"/><rect x="1.4" y="2.8" width="2.4" height="1.8" fill="#dfe5e8"/>',
+  pack:   '<rect x="-4.8" y="-3.4" width="9.6" height="8" rx=".8" fill="#c98f4c"/><path d="M-4.8,-.8 H4.8" stroke="#a8703a" stroke-width=".6"/><rect x="-1.1" y="-3.4" width="2.2" height="8" fill="#efdcbc"/><path d="M-3.6,-5.2 L0,-3.4 L3.6,-5.2" stroke="#a8703a" stroke-width=".8" fill="none"/>',
+  blow:   '<path d="M-5,-2 Q0,-4.5 3,-2 M-5,1 Q1,-1.5 5,1 M-4,4 Q0,2 3,4" stroke="#4f7c84" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+  shake:  '<circle cx="0" cy="-1.5" r="3.8" fill="#c96a22"/><path d="M0,2.3V5.4" stroke="#6e4a30" stroke-width="1.4"/><path d="M-5.6,-3 l1,1.5 M5.6,-3 l-1,1.5" stroke="#6f7d3c" stroke-width="1" stroke-linecap="round"/>',
+  snip:   '<circle cx="-2.6" cy="3.1" r="1.8" fill="none" stroke="#c4452f" stroke-width="1.2"/><circle cx="2.6" cy="3.1" r="1.8" fill="none" stroke="#c4452f" stroke-width="1.2"/><path d="M-1.6,1.7 L2.4,-5 M1.6,1.7 L-2.4,-5" stroke="#9aa4aa" stroke-width="1.3" stroke-linecap="round"/>',
+  flower: '<circle cx="0" cy="-1.5" r="1.6" fill="#f2c14e"/><g fill="#9e7ad0"><circle cx="0" cy="-4.4" r="1.4"/><circle cx="2.8" cy="-1.5" r="1.4"/><circle cx="-2.8" cy="-1.5" r="1.4"/><circle cx="0" cy="1.4" r="1.4"/></g><path d="M0,3V5.6" stroke="#56652c" stroke-width="1"/>',
+  dig:    '<rect x="-4.6" y="1" width="9.2" height="3.6" rx="1" fill="#3a2a1e"/><path d="M-2,-5 L-2,1 M2,-5 L2,1" stroke="#8a6040" stroke-width="1.2"/><circle cx="0" cy="-4" r="2" fill="none" stroke="#4a423b" stroke-width="1"/>',
+  stoke:  '<path d="M-5,-1 L1,-3.4 L1,1.4 Z" fill="#8a6040"/><path d="M1,-1 H5" stroke="#4a423b" stroke-width="1.2"/><path d="M3.4,2.4 C4.8,3.6 4,5.2 3,5.2 C2,5.2 1.6,3.8 3.4,2.4Z" fill="#e2702a"/>',
+  flame:  '<path d="M0,-5.4 C2.6,-2.4 3.8,0 3.2,2 C2.6,4.4 -2.6,4.4 -3.2,2 C-3.8,0 -1.6,-1.4 0,-5.4Z" fill="#e2702a"/><path d="M0,-1 C1.4,.6 1.6,2 1,3 C.4,3.8 -1,3.6 -1.2,2.6 C-1.4,1.4 -.4,.6 0,-1Z" fill="#ffd36b"/>',
+  haul:   '<path d="M-5,2.6 H5 L3.8,-.4 H-3.8Z" fill="#6d777d"/><path d="M-3.8,-.4 H3.8 L3,-2 H-3Z" fill="#c3cbd0"/><path d="M-4,4.6 H4" stroke="#5f8c87" stroke-width="1.2" stroke-linecap="round"/>',
+  lock:   '<path d="M-2.5,-.6 V-2.2 A2.5,2.5 0 0 1 2.5,-2.2 V-.6" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="-4" y="-.8" width="8" height="6" rx="1.3" fill="currentColor"/><circle cy="1.7" r=".9" fill="#fbf3e2"/>',
+  check:  '<path d="M-3.8,.2 L-1.1,2.9 L4,-2.8" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  robot:  '<path d="M0,-3.8 V-5.2" stroke="#4a423b" stroke-width=".8"/><circle cy="-5.5" r=".95" fill="#d4672a"/><rect x="-4.6" y="-4" width="9.2" height="6.8" rx="2" fill="#e0d4b8" stroke="#a39376" stroke-width=".6"/><rect x="-4.6" y="-.3" width="9.2" height="1.5" fill="#5f8f88"/><circle cx="1.4" cy="-2" r="1.3" fill="#3a2e22"/><circle cx="1.6" cy="-2.2" r=".5" fill="#ffb347"/><rect x="-4.2" y="3" width="8.4" height="2.5" rx="1.1" fill="#4a423b"/>',
+  tub:    '<path d="M-5,-2 H5 L4,4.6 H-4Z" fill="#9aa4aa"/><ellipse cy="-2" rx="5" ry="1.4" fill="#c3cbd0"/><path d="M-4.5,1.2 H4.5" stroke="#6d777d" stroke-width=".7"/><path d="M-2.8,-2.4 L-1.2,-4 L1,-3.4 L2.6,-2.2Z" fill="#7d868c"/>',
+  bin:    '<rect x="-5" y="-2" width="10" height="6.8" rx=".6" fill="#a8703a"/><path d="M-5,.3 H5 M-5,2.6 H5" stroke="#8a5a2e" stroke-width=".6"/><path d="M-4.2,-2 C-3.4,-4.8 -1.2,-4.4 -.2,-2.8 C.8,-5 3.2,-4.6 4.2,-2Z" fill="#d4672a"/>',
+  hopper: '<path d="M-5,-4.4 H5 L1.4,.8 V4.8 H-1.4 V.8Z" fill="#7d868c"/><path d="M-3.4,-3.8 L-1.6,-5 L.4,-4.3 L2.6,-4.8 L3.6,-3.8Z" fill="#c3cbd0"/>',
+  pallet: '<rect x="-5.4" y="2" width="10.8" height="1.4" fill="#a8703a"/><rect x="-5" y="3.4" width="1.6" height="1.8" fill="#8a5a2e"/><rect x="-.8" y="3.4" width="1.6" height="1.8" fill="#8a5a2e"/><rect x="3.4" y="3.4" width="1.6" height="1.8" fill="#8a5a2e"/><path d="M-4.6,2 H-.2 L-.9,-.4 H-3.9Z M.2,2 H4.6 L3.9,-.4 H.9Z M-2.2,-.4 H2.2 L1.5,-2.8 H-1.5Z" fill="#b9c2c7"/>',
+  fan:    '<g fill="#4f7c84"><path d="M0,0 C-1.2,-3 .8,-5.6 2.6,-4.4 C3.4,-3.2 1.6,-1 0,0Z"/><path d="M0,0 C-1.2,-3 .8,-5.6 2.6,-4.4 C3.4,-3.2 1.6,-1 0,0Z" transform="rotate(120)"/><path d="M0,0 C-1.2,-3 .8,-5.6 2.6,-4.4 C3.4,-3.2 1.6,-1 0,0Z" transform="rotate(240)"/></g><circle r="1.2" fill="#3a2e22"/>',
+  wings:  '<path d="M0,1 C-3,-4.4 -6.2,-2.2 -4.8,1.4 C-3.8,3.6 -1,2.8 0,1Z M0,1 C3,-4.4 6.2,-2.2 4.8,1.4 C3.8,3.6 1,2.8 0,1Z" fill="#d9eef4" stroke="#6f9aa8" stroke-width=".6"/><path d="M0,-1.2 V4.4" stroke="#3a2e22" stroke-width="1.5" stroke-linecap="round"/>',
+  three:  '<circle cx="-3" cy="2" r="2.1" fill="#9e7ad0"/><circle cx="3" cy="2" r="2.1" fill="#e07a9a"/><circle cx="0" cy="-2.8" r="2.1" fill="#e2702a"/><circle cx="-3" cy="2" r=".8" fill="#f2c14e"/><circle cx="3" cy="2" r=".8" fill="#f2c14e"/><circle cx="0" cy="-2.8" r=".8" fill="#f2c14e"/>',
+  tongue: '<path d="M-1,-4.6 C1.4,-1.6 2.6,.4 2.6,1.8 A3.6,3.6 0 0 1 -4.6,1.8 C-4.6,.4 -3.4,-1.6 -1,-4.6Z" fill="#f0b43c"/><path d="M3.8,-5 V-1.4 M2,-3.2 H5.6" stroke="#6f8a3a" stroke-width="1.3" stroke-linecap="round"/>',
+  recipe: '<rect x="-4" y="-5" width="8" height="10" rx="1" fill="#fbf3e2" stroke="#a8703a" stroke-width=".7"/><path d="M-2.4,-2.6 H2.4 M-2.4,-.6 H2.4 M-2.4,1.4 H.6" stroke="#a8703a" stroke-width=".7"/><circle cx="2" cy="3" r="1.4" fill="#eba53a"/>',
+  nursery:'<path d="M0,-5.2 L4.5,-2.6 V2.6 L0,5.2 L-4.5,2.6 V-2.6Z" fill="#f4d9a0" stroke="#c67d1e" stroke-width=".8"/><path d="M0,2.6 C-3.2,.4 -2.8,-2.4 -1.1,-2.1 C-.5,-2 0,-1.4 0,-.9 C0,-1.4 .5,-2 1.1,-2.1 C2.8,-2.4 3.2,.4 0,2.6Z" fill="#e0705a"/>',
+  oil:    '<path d="M-4.8,-.8 H1.4 V4.8 H-4.8Z" fill="#c4452f"/><path d="M1.4,.4 L5.2,-3.2" stroke="#7d868c" stroke-width="1.3" stroke-linecap="round"/><path d="M-3.4,-.8 V-2.8 H-.8 V-.8" fill="none" stroke="#7d868c" stroke-width="1"/><path d="M5,-1.8 C5.7,-.8 5.5,.2 4.9,.2 C4.3,.2 4.3,-.8 5,-1.8Z" fill="#c9a13a"/>',
+  blueprint:'<rect x="-5" y="-4" width="10" height="8" rx=".6" fill="#3f6f8f"/><path d="M-3.4,-2 H1 M-3.4,0 H3.4 M-3.4,2 H.4" stroke="#cfe3ef" stroke-width=".7"/><circle cx="2.6" cy="-1.8" r="1.2" fill="none" stroke="#cfe3ef" stroke-width=".7"/>',
+  drop:   '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6b5a2a"/><path d="M-1.9,1.4 A1.9,1.9 0 0 0 0,3.5" stroke="#c9b27a" stroke-width=".9" fill="none" stroke-linecap="round"/>',
+  market: '<path d="M-5.2,-1 L-4,-4.8 H4 L5.2,-1Z" fill="#fbf3e2"/><path d="M-2.6,-4.8 L-3.1,-1 M0,-4.8 V-1 M2.6,-4.8 L3.1,-1" stroke="#c4452f" stroke-width="1.5"/><rect x="-4.6" y="-1" width="1" height="5.8" fill="#8a5a2e"/><rect x="3.6" y="-1" width="1" height="5.8" fill="#8a5a2e"/><rect x="-3.6" y="1.4" width="7.2" height="1.8" fill="#a8703a"/>',
+  horseshoe:'<path d="M-3.8,-4.6 V.4 A3.8,3.8 0 0 0 3.8,.4 V-4.6 H1.6 V.4 A1.6,1.6 0 0 1 -1.6,.4 V-4.6Z" fill="#d4a23a"/><circle cx="-2.7" cy="-2.6" r=".45" fill="#7a5a1e"/><circle cx="2.7" cy="-2.6" r=".45" fill="#7a5a1e"/><circle cx="-2.4" cy="1.6" r=".45" fill="#7a5a1e"/><circle cx="2.4" cy="1.6" r=".45" fill="#7a5a1e"/>',
+  land:   '<path d="M-5.4,-1.6 H5.4 M-5.4,2 H5.4" stroke="#8a5a2e" stroke-width="1.1"/><path d="M-4.6,-4.6 L-3.8,-5.4 L-3,-4.6 V5 H-4.6Z M-.8,-4.6 L0,-5.4 L.8,-4.6 V5 H-.8Z M3,-4.6 L3.8,-5.4 L4.6,-4.6 V5 H3Z" fill="#c98f4c"/>',
+  vein:   '<path d="M-4.5,-.5 L-1.5,-3.5 L3.5,-2 L4.5,2.5 L1,5 L-3.5,4Z" fill="#8f979b"/><path d="M-1.5,-3.5 L3.5,-2 L1,1Z" fill="#c3cbd0"/><path d="M-3.6,-5.6 V-2.4 M-5.2,-4 H-2" stroke="#f2c230" stroke-width=".9" stroke-linecap="round"/>',
+  shaft:  '<path d="M-4,5 L0,-3.6 L4,5" stroke="#6e4a30" stroke-width="1.1" fill="none"/><path d="M-2.6,2 H2.6" stroke="#6e4a30" stroke-width=".8"/><circle cy="-3.4" r="2" fill="#fbf3e2" stroke="#4a423b" stroke-width="1"/><rect x="-5.2" y="3.8" width="10.4" height="1.6" rx=".4" fill="#3a2a1e"/>',
+  note:   '<path d="M-1.2,3 V-4 L4,-5 V2" stroke="#4a3226" stroke-width="1.1" fill="none"/><ellipse cx="-2.6" cy="3.2" rx="1.8" ry="1.3" fill="#4a3226"/><ellipse cx="2.6" cy="2.2" rx="1.8" ry="1.3" fill="#4a3226"/>',
+  wrench: '<path d="M-4.4,4.4 L1,-1" stroke="#7d868c" stroke-width="2" stroke-linecap="round"/><path d="M1.2,-4.8 A3,3 0 1 0 4.8,-1.2 L3,-.8 L.8,-3Z" fill="#7d868c"/>',
+  list:   '<path d="M-1.6,-3.4 H5 M-1.6,0 H5 M-1.6,3.4 H5" stroke="#7c5d47" stroke-width="1.3" stroke-linecap="round"/><circle cx="-4.2" cy="-3.4" r="1.1" fill="#d4672a"/><circle cx="-4.2" cy="0" r="1.1" fill="#d4672a"/><circle cx="-4.2" cy="3.4" r="1.1" fill="#d4672a"/>',
+  cleanup:'<circle r="5.2" fill="#6f8a3a"/><circle r="4" fill="none" stroke="#c9dca0" stroke-width=".6" stroke-dasharray="1 1"/><path d="M0,-3 C2,-2 2,1.6 0,2.6 C-2,1.6 -2,-2 0,-3Z" fill="#f6ead4"/>',
+  slag:   '<path d="M-5.2,4 H3.4 L2,0 H-3.8Z" fill="#9aa4aa"/><path d="M-3.8,0 H2 L1.2,-1.6 H-3Z" fill="#dfe5e8"/><path d="M4,-5 V-1.4 M2.2,-3.2 H5.8" stroke="#6f8a3a" stroke-width="1.3" stroke-linecap="round"/>',
+  sound:  '<path d="M-5,-2 H-2.4 L1,-4.8 V4.8 L-2.4,2 H-5Z" fill="#4a3226"/><path d="M3,-2.4 A3.4,3.4 0 0 1 3,2.4" stroke="#4a3226" stroke-width="1.2" fill="none" stroke-linecap="round"/>',
+};
+ICON.mine = ICON.ore; ICON.leaves = ICON.leaf; ICON.smelt = ICON.flame; ICON.speed = ICON.wheel; ICON.carry = ICON.basket;
+ICON.grab = ICON.claw; ICON.metal = ICON.ore; ICON.workshop = ICON.wrench;
+const ic = (n, cls) => '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="-6 -6 12 12" aria-hidden="true">' + (ICON[n] || '') + '</svg>';
+// an item with a little coin on it: "what this sells for"
+const icp = n => '<svg class="ic" viewBox="-6 -6 12 12" aria-hidden="true">' + ICON[n] + '<g transform="translate(3,3.2) scale(.5)">' + ICON.coin + '</g></svg>';
+ICON.all = '<g transform="translate(-2.3,1) scale(.72)">' + ICON.robot + '</g><g transform="translate(2.4,-.6) scale(.72)">' + ICON.robot + '</g>';
+
+// ── numbers: short prices on buttons ("1,100", "9.9k"), and money with cents only where cents matter
+function pr(v){
+  if (v >= 1e6) return (v/1e6).toFixed(v < 1e7 ? 2 : 1).replace(/\.?0+$/, '') + 'M';
+  if (v >= 1e4) return (v/1e3).toFixed(v < 1e5 ? 1 : 0).replace(/\.0$/, '') + 'k';
+  if (v >= 100) return Math.round(v).toLocaleString('en-US');
+  if (Math.abs(v - Math.round(v)) < 0.005) return String(Math.round(v));
+  return v.toFixed(2);
 }
-function upRow(k, extraDesc){
-  const u = UP[k], l = S.lv[k], maxed = l >= u.max;
-  const from = u.show(u.val(l)), to = maxed ? '' : u.show(u.val(l + 1));
-  const cost = upCost(k), aff = S.cash + 1e-9 >= cost;
-  return { sig: k + l + aff + from + (extraDesc || ''), html:
-    '<div class="row"><div class="n">' + upName(k) + ' ' + pips(l, u.max, u.gaps) + '</div>' +
-    '<div class="d">' + (maxed ? '<b>' + from + '</b>' : from + ' → <b>' + to + '</b>') + (extraDesc ? ' ' + extraDesc : '') + '</div>' +
-    '<div class="btn">' + (maxed ? '<span class="maxed">maxed</span>' : '<button class="buy" data-act="up:' + k + '" aria-disabled="' + !aff + '">' + money(cost) + '</button>') + '</div></div>' };
+const cash$ = v => '$' + (v < 100 ? v.toFixed(2) : pr(v));
+const num = v => v >= 1e4 ? pr(v) : String(Math.floor(v));
+const aff$ = c => S.cash + 1e-9 >= c;
+const pfill = c => Math.min(1, Math.max(0, S.cash/c)).toFixed(3);
+
+// ── building blocks
+// a coin button; when you can't afford it yet it fills up from the left as you save toward it
+const attr = t => String(t).replace(/<[^>]+>/g, '').replace(/"/g, '&quot;');
+function coinBtn(act, cost, opts){
+  opts = opts || {};
+  const a = aff$(cost);
+  return '<button class="buy' + (opts.cls ? ' ' + opts.cls : '') + '" data-act="' + act + '" data-cost="' + cost + '" aria-disabled="' + !a + '" style="--p:' + pfill(cost) + '"' +
+    (opts.tip ? ' title="' + attr(opts.tip) + '"' : '') + ' aria-label="' + attr(opts.label || 'Buy') + ', ' + cash$(cost) + '">' +
+    (opts.pre || '') + ic('coin', 'cn') + '<span>' + pr(cost) + '</span>' + (opts.sticker ? '<i class="stk">' + opts.sticker + '</i>' : '') + '</button>';
 }
+const stamp = (t, cls) => '<span class="stamp' + (cls ? ' ' + cls : '') + '">' + t + '</span>';
+// level pips as little hex nuts, grouped by tier; tiers that aren't unlocked yet are drawn faint
+function nuts(l, groups){
+  let h = '<span class="pips" aria-label="level ' + l + '">', acc = 0;
+  for (const g of groups){ h += '<span class="pg' + (g.lk ? ' lk' : '') + '">'; for (let j=0;j<g.n;j++) h += '<i' + (acc + j < l ? ' class="on"' : '') + '></i>'; h += '</span>'; acc += g.n; }
+  return h + '</span>';
+}
+function upGroups(k){ const u = UP[k]; if (!u.gaps) return [{ n: u.max }]; let left = u.max; const out = []; for (const g of u.gaps){ out.push({ n: g.n }); left -= g.n; } if (left > 0) out.push({ n: left }); return out; }
+function trackGroups(k){ const cap = trackCap(k), out = []; let acc = 0; for (const g of TRACKS[k].gens){ if (!g.n) continue; out.push({ n: g.n, lk: acc >= cap }); acc += g.n; } return out; }
+// a meter: icon, a little bar, and have/room (turns warm red when full)
+function meter(icon, have, cap, tip, cls){
+  const f = cap > 0 ? clamp(have/cap, 0, 1) : 0;
+  return '<span class="mt' + (f >= 1 ? ' full' : '') + (cls ? ' ' + cls : '') + '"' + (tip ? ' title="' + tip + '"' : '') + '>' + ic(icon) + '<span class="bar"><i style="width:' + (f*100).toFixed(1) + '%"></i></span><span class="mv"><b>' + num(have) + '</b>/' + num(cap) + '</span></span>';
+}
+// work spots at a station: one light per spot, lit while someone's working there
+const slots = (icon, busy, n, tip) => { let h = '<span class="slots" title="' + tip + '">' + ic(icon); for (let j=0;j<n;j++) h += '<i' + (j < busy ? ' class="on"' : '') + '></i>'; return h + '</span>'; };
+// one row of a card: picture, name (+ pips), value line, and the buttons on the right
+function row(o){
+  return '<div class="row' + (o.cls ? ' ' + o.cls : '') + '">' + (o.icon ? '<div class="ri">' + o.icon + '</div>' : '') +
+    '<div class="rm"><div class="n"' + (o.tip ? ' title="' + o.tip + '"' : '') + '>' + o.name + (o.pips || '') + (o.unl || '') + '</div>' + (o.val ? '<div class="v">' + o.val + '</div>' : '') + '</div>' +
+    '<div class="btn">' + (o.btn || '') + '</div></div>';
+}
+const arrow = '<span class="to">→</span>';
+const fromTo = (a, b, unit, maxed) => maxed ? '<b>' + a + '</b>' + (unit || '') : a + arrow + '<b>' + b + '</b>' + (unit || '');
+
+function visibleTasks(kind, cfg){ return KIND_TASKS[kind].filter(t => taskOpen(t, cfg)); }
+// ── yard upgrades (bin, truck, hive, plant): short names, a picture, and the value as number + unit picture
+const UP_ICON = { bin:ic('bin'), leafPrice:icp('leaf'), bagPrice:icp('bag'), metalPrice:icp('ore'), metalBin:ic('tub'), truck:ic('truck'), cleanup:ic('cleanup'),
+  hiveTank:ic('nectar'), hiveStore:ic('honey'), honeyPrice:icp('jar'), giftPrice:icp('gift'), smeltSpeed:ic('flame'), ingotGrade:icp('gold'), slag:ic('slag'), hopper:ic('hopper') };
+const UP_SHORT = { truck:'More pickups', hiveTank:'Nectar tank', hiveStore:'Honey store', honeyPrice:'Honey labels', giftPrice:'Gift ribbons', hopper:'Ore hopper', metalBin:'Metal tub' };
+const UP_TIP = {
+  bin:'How many loose leaves the bin holds before robots have to wait', leafPrice:'What the truck pays for a loose leaf', bagPrice:'What the truck pays for a bag of ' + BAG_SIZE + ' leaves',
+  metalPrice:'What the truck pays for a chunk of metal (ingots are worth 4 chunks × the alloy)', metalBin:'How much metal the tub holds. A bigger tub also makes the ingot pallet bigger',
+  truck:'How often the truck comes by', cleanup:'A one-off deal: the truck pays a bonus for every 100 leaves it takes (bagged leaves count too)',
+  hiveTank:'Nectar the hive can hold. Every second tank or store step adds a hive floor, and each floor makes honey', hiveStore:'Jars of honey the hive and crate can hold',
+  honeyPrice:'What the truck pays for a jar of honey', giftPrice:'What the truck pays for a gift jar', smeltSpeed:'How hot the furnaces burn: every smelter is faster',
+  ingotGrade:'What an ingot sells for', slag:'Extra ingots from the same metal', hopper:'Ore waiting at the plant for the smelters' };
+const UP_VAL = {
+  bin: v => [v, ic('leaf')], leafPrice: v => [cash$(v*sellMul()), ''], bagPrice: v => [cash$(BAG_SIZE*val('leafPrice')*v*sellMul()), ''],
+  metalPrice: v => [cash$(v*sellMul()), ''], metalBin: v => [v, ic('ore')], truck: v => [v + 's', ''], cleanup: v => [v ? '$' + v : '–', v ? '<small>/100</small>' + ic('leaf') : ''],
+  hiveTank: v => [v, ic('nectar')], hiveStore: v => [v, ic('jar')], honeyPrice: v => [cash$(v*sellMul()), ''], giftPrice: v => [cash$(val('honeyPrice')*v*sellMul()), ''],
+  smeltSpeed: v => [v.toFixed(2) + '×', ''], ingotGrade: v => [cash$(ORE_PER_INGOT*val('metalPrice')*v*sellMul()), ''], slag: v => [v ? '+' + Math.round(v*100) + '%' : '0%', ic('ingot')], hopper: v => [v, ic('ore')],
+};
+function upRow(k, extra){
+  const u = UP[k], l = S.lv[k], maxed = l >= u.max, cost = maxed ? 0 : upCost(k);
+  const a = UP_VAL[k](u.val(l)), b = maxed ? a : UP_VAL[k](u.val(l + 1));
+  const val = fromTo(a[0], b[0], a[1], maxed) + (extra || '');
+  return { sig: k + l + (maxed ? 'M' : aff$(cost)) + val, html: row({ icon: UP_ICON[k], name: UP_SHORT[k] || upName(k), tip: (typeof u.name === 'function' ? upName(k) + ': ' : '') + UP_TIP[k], pips: nuts(l, upGroups(k)), val,
+    btn: maxed ? stamp('max') : coinBtn('up:' + k, cost, { label: upName(k) }) }) };
+}
+const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '') + '>' + h + '</span>';
+
+// ── robot upgrade tracks
+const TRACK_ICON = { speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke' };
+const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
+  drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills jars and smelts', blow:'How hard it blows (range, push and glide)',
+  shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again for the bees', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows' };
+const TRACK_VAL = {
+  speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
+  drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small>×2</small>'], pack: v => [v.toFixed(2) + '×', ''],
+  blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
+};
 function robotRow(ri, k, kind){
   kind = kind || 'robot';
-  const T = TRACKS[k], L = cfgsOf(kind)[ri].lv[k], cap = trackCap(k), max = trackMax(k);
-  const from = T.show(T.vals[L]);
-  let desc, btn, sig;
-  if (L >= max){ desc = '<b>' + from + '</b>'; btn = '<span class="maxed">maxed</span>'; sig = 'max'; }
-  else if (L >= cap){
-    desc = '<b>' + from + '</b>';
-    btn = '<span class="lock">locked</span>'; sig = 'lock' + L;
-  } else {
-    const c = botCost(kind, ri, k), aff = S.cash + 1e-9 >= c.cost;
-    desc = from + ' → <b>' + T.show(T.vals[L + 1]) + '</b>' + (k === 'carry' && S.metalSlot ? ' · ' + (2 + Math.floor((L+1)/2)) + ' metal' : '') + (k === 'carry' && S.plant.built ? ' · ' + Math.max(1, Math.floor(T.vals[L + 1]/INGOT_SPACE)) + ' ingots' : '') + (k === 'shake' ? ' · ' + Math.max(2, Math.round(T.vals[L + 1]*BUSH_YIELD)) + ' a bush' : '');
-    btn = '<button class="buy" data-act="rup:' + k + '" aria-disabled="' + !aff + '">' + (c.disc ? '<s>' + money(c.full) + '</s>' : '') + money(c.cost) + '</button>';
-    sig = L + '' + aff + c.disc;
+  const T = TRACKS[k], L = cfgsOf(kind)[ri].lv[k], cap = trackCap(k), max = trackMax(k), maxed = L >= max, locked = !maxed && L >= cap;
+  const a = TRACK_VAL[k](T.vals[L]), b = maxed || locked ? a : TRACK_VAL[k](T.vals[L + 1]);
+  let val = fromTo(a[0], b[0], a[1], maxed || locked), btn = '', sig = '';
+  if (k === 'carry' && S.metalSlot){ const m0 = 2 + Math.floor(L/2), m1 = maxed || locked ? m0 : 2 + Math.floor((L + 1)/2); val += xt((m1 !== m0 ? m0 + arrow + '<b>' + m1 + '</b>' : '<b>' + m0 + '</b>') + ic('ore'), 'Metal it carries'); }
+  // smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
+  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Packing × Drill)'); sig += smeltSkill(ri).toFixed(2); }
+  if (maxed){ btn = stamp('max'); sig += 'max'; }
+  else if (locked){ btn = nextUnlock(k) ? '' : '<span class="lk-ic" title="More levels unlock later">' + ic('lock') + '</span>'; sig += 'lock' + L; }
+  else {
+    const c = botCost(kind, ri, k);
+    btn = coinBtn('rup:' + k, c.cost, { label: T.label, sticker: c.disc ? '−' + Math.round((1 - discFor(k))*100) + '%' : '', tip: c.disc ? 'Another robot already has this level, so it’s cheaper (full price ' + cash$(c.full) + ')' : '' });
+    sig += L + '' + aff$(c.cost) + c.disc;
   }
-  // V7: smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
-  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ desc += ' · smelts at <b>' + smeltSkill(ri).toFixed(2) + '×</b>'; sig += smeltSkill(ri).toFixed(2); }
   const ap = allPlan(k);
   if (ap){
-    const aff = S.cash + 1e-9 >= ap.cost, n = peersFor(k).length;
-    const nd = NO_DISCOUNT.includes(k);
+    const n = peersFor(k).length, nd = NO_DISCOUNT.includes(k);
     const tip = ap.catchUp ? 'Bring ' + (ap.behind === 1 ? 'the robot that is behind' : 'the ' + ap.behind + ' robots that are behind') + ' up to level ' + ap.target + (nd ? ' (full price)' : ' (copied levels, so discounted)')
                            : 'Give all ' + n + ' robots level ' + ap.target + (nd ? ', each at full price' : ': one at full price, the rest at ' + Math.round(discFor(k)*100) + '%');
-    btn += '<button class="buy all" data-act="rall:' + k + '" aria-disabled="' + !aff + '" title="' + tip + '" aria-label="' + tip + ', ' + money(ap.cost) + '">' + (ap.catchUp ? 'Match all ' : 'All +1 ') + money(ap.cost) + '</button>';
-    sig += '|a' + ap.target + aff + ap.cost;
+    btn += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match' : 'all') + '</b>' });
+    sig += '|a' + ap.target + aff$(ap.cost) + ap.cost;
   }
-  // the next tier unlock sits by the level dots, away from the buy buttons, and unlocks it for every robot that has this track
+  // the next tier unlock sits by the level nuts (away from the buy buttons) and unlocks it for every robot that has this track
   let unl = '';
   const tid = nextUnlock(k);
   if (tid && L >= cap){
-    const t = TECH[tid], aff = S.cash + 1e-9 >= t.cost, g = TRACKS[k].gens.find(q => q.tech === tid);
-    unl = '<button class="unlock" data-act="tech:' + tid + '" aria-disabled="' + !aff + '" title="' + t.name + ': ' + t.desc + '">Unlock ' + g.n + ' more · ' + money(t.cost) + '</button>';
-    sig += '|u' + tid + aff;
+    const t = TECH[tid], g = T.gens.find(q => q.tech === tid), a2 = aff$(t.cost);
+    unl = '<button class="unlock" data-act="tech:' + tid + '" data-cost="' + t.cost + '" aria-disabled="' + !a2 + '" style="--p:' + pfill(t.cost) + '" title="' + t.name + ': ' + g.n + ' more levels, for every robot">' + ic('lock') + '<span>Unlock</span>' + ic('coin', 'cn') + pr(t.cost) + '</button>';
+    sig += '|u' + tid + a2;
   }
-  return { sig: k + sig, html:
-    '<div class="row"><div class="n">' + T.label + ' <span class="gen">' + genNameAt(k, L) + '</span> ' + pips(L, Math.max(cap, 1), T.gens.filter(g => g.n > 0)) + unl + '</div>' +
-    '<div class="d">' + desc + '</div><div class="btn">' + btn + '</div></div>' };
+  return { sig: k + sig + val, html: row({ icon: ic(TRACK_ICON[k]), name: T.label, tip: genNameAt(k, L) + ' · ' + TRACK_TIP[k], pips: nuts(L, trackGroups(k)), val: val + unl, btn }) };
 }
-function buyRow(name, desc, act, cost, done){
-  const aff = S.cash + 1e-9 >= cost;
-  return { sig: act + aff + done, html: '<div class="row"><div class="n">' + name + '</div><div class="d">' + desc + '</div><div class="btn">' +
-    (done ? '<span class="maxed">' + done + '</span>' : '<button class="buy" data-act="' + act + '" aria-disabled="' + !aff + '">' + money(cost) + '</button>') + '</div></div>' };
+// a one-off purchase (a building, a robot, a deal)
+function buyRow(name, val, act, cost, done, icon, tip){
+  return { sig: act + (done || aff$(cost)) + val, html: row({ icon, name, tip, val, btn: done ? stamp(done === 'done' ? ic('check') : done, 'ok') : coinBtn(act, cost, { label: name }) }) };
 }
-// ── the task list on a robot's card (V6): drag tasks between the rows of "Do" and the "Don't" pile
-const TASK_ICON = {
-  leaves: '<svg viewBox="-6 -6 12 12"><path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#d4672a"/><path d="M0,-3.6V4.6" stroke="#8c3215" stroke-width=".8"/></svg>',
-  mine:   '<svg viewBox="-6 -6 12 12"><path d="M-4.5,-1.5 L-1.5,-4.5 L3.5,-3 L4.5,1.5 L1,4.5 L-3.5,3Z" fill="#8f979b"/><path d="M-1.5,-4.5 L3.5,-3 L1,0Z" fill="#c3cbd0"/></svg>',
-  bag:    '<svg viewBox="-6 -6 12 12"><path d="M-1,-3.6 C-4.6,-3 -4.8,3.4 -3.4,4.2 Q0,5 3.4,4.2 C4.8,3.4 4.6,-3 1,-3.6Z" fill="#d4672a"/><ellipse cx="-1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/><ellipse cx="1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/></svg>',
-  jar:    '<svg viewBox="-6 -6 12 12"><rect x="-3.6" y="-2.6" width="7.2" height="7.6" rx="2" fill="#eba53a"/><path d="M-4.2,-2.2 Q-4.6,-5.4 -2.6,-5.2 H2.6 Q4.6,-5.4 4.2,-2.2Z" fill="#b8392a"/></svg>',
-  smelt:  '<svg viewBox="-6 -6 12 12"><path d="M0,-5.4 C2.6,-2.4 3.8,0 3.2,2 C2.6,4.4 -2.6,4.4 -3.2,2 C-3.8,0 -1.6,-1.4 0,-5.4Z" fill="#e2702a"/><path d="M0,-1 C1.4,.6 1.6,2 1,3 C.4,3.8 -1,3.6 -1.2,2.6 C-1.4,1.4 -.4,.6 0,-1Z" fill="#ffd36b"/></svg>',
-  haul:   '<svg viewBox="-6 -6 12 12"><path d="M-5,2.6 H5 L3.8,-.4 H-3.8Z" fill="#6d777d"/><path d="M-3.8,-.4 H3.8 L3,-2 H-3Z" fill="#c3cbd0"/><path d="M-4,4.6 H4" stroke="#5f8c87" stroke-width="1.2" stroke-linecap="round"/></svg>',
-  blow:   '<svg viewBox="-6 -6 12 12"><path d="M-5,-2 Q0,-4.5 3,-2 M-5,1 Q1,-1.5 5,1 M-4,4 Q0,2 3,4" stroke="#4f7c84" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
-  stoke:  '<svg viewBox="-6 -6 12 12"><path d="M-5,-1 L1,-3.4 L1,1.4 Z" fill="#8a6040"/><path d="M1,-1 H5" stroke="#4a423b" stroke-width="1.2"/><path d="M3.4,2.4 C4.8,3.6 4,5.2 3,5.2 C2,5.2 1.6,3.8 3.4,2.4Z" fill="#e2702a"/></svg>',
-  dig:    '<svg viewBox="-6 -6 12 12"><rect x="-4.6" y="1" width="9.2" height="3.6" rx="1" fill="#3a2a1e"/><path d="M-2,-5 L-2,1 M2,-5 L2,1" stroke="#8a6040" stroke-width="1.2"/><circle cx="0" cy="-4" r="2" fill="none" stroke="#4a423b" stroke-width="1"/></svg>',
-  shake:  '<svg viewBox="-6 -6 12 12"><circle cx="0" cy="-1.5" r="3.8" fill="#c96a22"/><path d="M0,2.3V5.4" stroke="#6e4a30" stroke-width="1.4"/><path d="M-5.6,-3 l1,1.5 M5.6,-3 l-1,1.5" stroke="#6f7d3c" stroke-width="1" stroke-linecap="round"/></svg>',
-  snip:   '<svg viewBox="-6 -6 12 12"><circle cx="0" cy="-1.5" r="1.6" fill="#f2c14e"/><g fill="#9e7ad0"><circle cx="0" cy="-4.4" r="1.4"/><circle cx="2.8" cy="-1.5" r="1.4"/><circle cx="-2.8" cy="-1.5" r="1.4"/><circle cx="0" cy="1.4" r="1.4"/></g><path d="M0,3V5.6" stroke="#56652c" stroke-width="1"/></svg>',
-};
-function visibleTasks(kind, cfg){ return KIND_TASKS[kind].filter(t => taskOpen(t, cfg)); }
+const pct = (a, b) => '<span class="gain">+' + Math.round((a/b - 1)*100) + '%</span>';
+function bagBuildRow(){
+  const per = val('leafPrice')*UP.bagPrice.vals[0]*sellMul();
+  return buyRow('Bagging table', BAG_SIZE + ic('leaf') + arrow + ic('bag') + '<b>' + cash$(per*BAG_SIZE) + '</b> ' + pct(per, leafPrice()), 'bagger', BAGGER_COST, '', ic('bag'),
+    'A robot bags ' + BAG_SIZE + ' loose leaves at a time; bags sell for more and get a shelf of their own in the bin');
+}
+function plantBuildRow(){
+  return buyRow('Smelting plant', ORE_PER_INGOT + ic('ore') + arrow + ic('ingot') + '<b>' + cash$(ingotPrice()) + '</b> ' + pct(ingotPrice()/ORE_PER_INGOT, metalPrice()), 'plant', PLANT_COST, '', ic('flame'),
+    'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth more. Three furnaces, and someone has to haul the ingots to the road');
+}
+const metalSlotRow = () => buyRow('Metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
+  'A metal tub beside the bin, so the truck buys metal too. Then build miners on the rocks (' + cash$(MINER_COST) + ' each, a robot works each one)');
+
+// ── robot portraits: the real robot, drawn live into a little canvas
+const pcv = document.createElement('canvas');
+function drawPortrait(cv2, kind, i, z){
+  const o = kind === 'robot' ? R[i] : HB.find(q => q.kind === kind && q.idx === i); if (!o) return false;
+  const w = cv2.width, h = cv2.height, pc = cv2.getContext('2d'), s = h*(z || 1)/(kind === 'robot' ? 74 : 60);
+  pc.setTransform(1, 0, 0, 1, 0, 0); pc.clearRect(0, 0, w, h);
+  pc.setTransform(s, 0, 0, s, w/2 - o.x*s, h*(kind === 'robot' ? 0.94 : 0.88) - o.y*s);
+  const keep = ctx, pl = parts.length, bl = bubbles.length;
+  ctx = pc;
+  try { kind === 'robot' ? drawRobot(o) : kind === 'blower' ? drawBlower(o) : drawShaker(o); } catch(e){}
+  ctx = keep; parts.length = pl; bubbles.length = bl;
+  return true;
+}
+// small still pictures of robots for the crew lists (cached for a while; they don't need to move)
+const thumbs = {};
+function botThumb(ri){
+  const c = thumbs[ri]; if (c && S.t - c.t < 20) return c.url;
+  pcv.width = pcv.height = 64;
+  if (!drawPortrait(pcv, 'robot', ri)) return '';
+  const url = pcv.toDataURL(); thumbs[ri] = { url, t: S.t };
+  return url;
+}
+const crewBot = (ri, tag) => '<span class="crew" title="' + STYLES[ri].name + '"><img src="' + botThumb(ri) + '" alt="' + STYLES[ri].name + '">' + (tag ? '<b>' + tag + '</b>' : '') + '</span>';
+// "who works here": robots with that task on their list, or a nudge to add it
+function crewRow(icon, label, task, tagOf){
+  const who = S.robots.map((c, ri) => taskOn(c, task) ? ri : -1).filter(ri => ri >= 0);
+  // lots of robots: their faces in a little huddle (with the number once, if they're all the same)
+  const tags = who.map(ri => tagOf ? tagOf(ri) : ''), same = tags.every(t => t === tags[0]);
+  const body = who.length > 4 ? '<span class="huddle">' + who.map((ri, j) => '<img src="' + botThumb(ri) + '" alt="" title="' + STYLES[ri].name + (tags[j] ? ' · ' + attr(tags[j]) : '') + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
+    : who.length ? who.map(ri => crewBot(ri, tagOf ? tagOf(ri) : '')).join('') : '<span class="none">nobody · add <span class="chip mini" style="--tc:' + TASKS[task].col + '">' + ic(task) + TASKS[task].short + '</span> to a robot’s tasks</span>';
+  return { sig: 'crew' + task + who.map(ri => ri + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
+}
+
+// ── the task list on a robot's card: drag tasks between the rows of "Do" and the "Off" pile
 function tasksPanel(kind, i){
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   if (vis.length < 2) return '';
-  const chip = t => '<span class="chip" data-task="' + t + '" style="--tc:' + TASKS[t].col + '" title="Drag to change ' + TASKS[t].name.toLowerCase() + '’s priority">' + TASK_ICON[t] + TASKS[t].name + '</span>';
+  const chip = t => '<span class="chip" data-task="' + t + '" style="--tc:' + TASKS[t].col + '" title="' + TASKS[t].name + ' · drag to move">' + ic(t) + TASKS[t].short + '</span>';
   const rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length), off = cfg.off.filter(t => vis.includes(t));
-  let h = '<div class="tasks" data-kind="' + kind + '" data-i="' + i + '"><div class="th"><b>Do</b><span>top first · side by side = same priority</span></div><div class="tdo">';
+  let h = '<div class="tasks" data-kind="' + kind + '" data-i="' + i + '"><div class="th"><b>Do</b><span title="Side by side: they take turns">top row first</span></div><div class="tdo">';
   rows.forEach((row, ri) => { h += '<div class="trow" data-row="' + ri + '"><span class="tn">' + (ri + 1) + '</span>' + row.map(chip).join('') + (row.length < 2 ? '<span class="tslot"></span>' : '') + '</div>'; });
   // there's always one empty row at the bottom of Do, so a task can be dropped into a priority of its own below the rest
-  h += '<div class="trow tnew" data-row="' + rows.length + '"><span class="tn">' + (rows.length + 1) + '</span><span class="tslot wide">' + (rows.length ? '' : 'nothing to do: drag a task up here') + '</span></div>';
-  h += '</div><div class="th off"><b>Don’t do</b>' + (rows.length ? '<button class="toffall" data-act="taskoff" title="Move every task to Don’t do">all to Don’t do</button>' : '') + '</div><div class="toff">' + (off.length ? off.map(chip).join('') : '<span class="tempty">(drag a task here to turn it off)</span>') + '</div></div>';
+  h += '<div class="trow tnew" data-row="' + rows.length + '"><span class="tn">' + (rows.length + 1) + '</span><span class="tslot wide">' + (rows.length ? '' : 'drag a task up here') + '</span></div>';
+  h += '</div><div class="th off"><b>Off</b>' + (rows.length ? '<button class="toffall" data-act="taskoff" title="Move every task to Off">all off</button>' : '') + '</div><div class="toff">' + off.map(chip).join('') + '</div>' +
+    '<div class="thint">Drag to reorder · side by side = take turns</div></div>';
   return h;
 }
+// the task order in a few small pictures, for the Tasks tab
+function tasksPeek(kind, i){
+  const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
+  return cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length).map(r => r.map(t => ic(t)).join('')).join('<i>›</i>');
+}
+// what a robot is up to, in a word or two (with the picture of the task)
+function robotDoing(r){
+  const cfg = S.robots[r.id];
+  switch (r.st){
+    case 'seek': case 'pick': return ['leaves', 'Gathering'];
+    case 'toBin': case 'dump': return r.at === 'metal' ? ['mine', metalTarget(r).hopper ? 'To the hopper' : 'To the tub'] : ['leaves', 'To the bin'];
+    case 'wait': return r.at === 'metal' ? ['mine', metalTarget(r).hopper ? 'Hopper full' : 'Tub full', 1] : ['leaves', 'Bin full', 1];
+    case 'toMine': return ['mine', 'To the mine'];
+    case 'mine': return ['mine', 'Mining'];
+    case 'toStation': return r.task === 'bag' ? ['bag', 'To the table'] : r.task === 'jar' ? ['jar', 'To the crate'] : ['smelt', 'To a furnace'];
+    case 'bag': return ['bag', 'Bagging'];
+    case 'jar': return ['jar', S.hive.packing ? 'Wrapping jars' : 'Filling jars'];
+    case 'smelt': return ['smelt', 'Smelting'];
+    case 'toTub': return ['smelt', 'Fetching ore'];
+    case 'toRack': return ['haul', 'Fetching ingots'];
+    case 'toPallet': return ['haul', 'Hauling'];
+    case 'waitI': return ['haul', 'Pallet full', 1];
+  }
+  if (!cfg.prio.some(row => row.some(t => taskOpen(t, cfg)))) return ['list', 'Nothing on its list', 1];
+  return ['list', 'Looking for work'];
+}
+// a "don't sell below this line" slider on the bin card
+function keepRow(k, icon, name, now, tip, v){
+  return { sig: 'keep' + k, html: '<div class="row keep"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n" title="' + tip + '">' + name + ' <span class="xt" id="keep' + k + 'Lv">' + now + '</span></div>' +
+    '<input type="range" class="keepr" id="keep' + k + '" min="0" max="100" step="5" value="' + Math.round(clamp(v, 0, 1)*100) + '" aria-label="' + name + '"></div></div>' };
+}
+
 function applyTaskDrop(kind, i, task, tgt){
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   let rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length).map(r => r.map(t => t === task ? null : t));
@@ -4258,264 +4456,261 @@ function tdragEnd(e, cancel){
 }
 card.addEventListener('pointerup', e => tdragEnd(e, false));
 card.addEventListener('pointercancel', e => tdragEnd(e, true));
-// what a robot's tasks would mean in a word, for the live line
-function robotDoing(r){
-  const cfg = S.robots[r.id];
-  switch (r.st){
-    case 'seek': case 'pick': return 'Gathering leaves';
-    case 'toBin': case 'dump': return r.at === 'metal' ? (metalTarget(r).hopper ? 'Taking ore to the smelting plant' : 'Taking metal to the tub') : 'Taking leaves to the bin';
-    case 'wait': return r.at === 'metal' ? (metalTarget(r).hopper ? 'Waiting for room in the hopper' : 'Waiting for room in the metal tub') : 'Waiting for room in the bin';
-    case 'toMine': return S.shafts.includes(cfg.miner) ? 'Heading to the mine shaft' : 'Heading to the miner';
-    case 'mine': return 'Mining';
-    case 'toStation': return r.task === 'bag' ? 'Heading to the bagging table' : r.task === 'jar' ? 'Heading to the honey crate' : 'Heading to a furnace';
-    case 'bag': return 'Bagging leaves';
-    case 'jar': return S.hive.packing ? 'Filling and wrapping a gift jar' : 'Filling a honey jar';
-    case 'smelt': return 'Smelting an ingot';
-    case 'toTub': return 'Fetching ore from the tub';
-    case 'toRack': return 'Fetching ingots';
-    case 'toPallet': return 'Hauling ingots to the pallet';
-    case 'waitI': return 'Waiting for room on the pallet';
-  }
-  if (!cfg.prio.some(row => row.some(t => taskOpen(t, cfg)))) return 'Nothing on its list to do';
-  return 'Nothing to do right now, looking for work';
-}
-// a "don't sell below this line" slider on the bin card
-function keepRow(k, name, now, desc, v){
-  return { sig: 'keep' + k, html: '<div class="row keep"><div class="n">' + name + ' <span class="gen" id="keep' + k + 'Lv">' + now + '</span></div><div class="d">' + desc + '</div><input type="range" class="keepr" id="keep' + k + '" min="0" max="100" step="5" value="' + Math.round(clamp(v, 0, 1)*100) + '" aria-label="' + name + '"></div>' };
-}
 let sliding = false;
 card.addEventListener('pointerdown', e => { if (e.target.classList && e.target.classList.contains('keepr')) sliding = true; });
 addEventListener('pointerup', () => { if (sliding){ sliding = false; save(); } });
 card.addEventListener('input', e => {
   const id = e.target.id; if (id !== 'keepL' && id !== 'keepM') return;
   const v = clamp(+e.target.value/100, 0, 1);
-  if (id === 'keepL'){ S.keep.leaves = v; const l = $('keepLLv'); if (l) l.textContent = keepLeaves() + ' leaves'; }
-  else { S.keep.metal = v; const l = $('keepMLv'); if (l) l.textContent = keepMetal() + ' metal'; }
+  if (id === 'keepL'){ S.keep.leaves = v; const l = $('keepLLv'); if (l) l.innerHTML = keepLeaves() + ic('leaf'); }
+  else { S.keep.metal = v; const l = $('keepMLv'); if (l) l.innerHTML = keepMetal() + ic('ore'); }
 });
-function bagBuildRow(){
-  const per = val('leafPrice')*UP.bagPrice.vals[0]*sellMul();
-  return buyRow('Build a bagging table', 'A robot bags loose leaves from the bin, ' + BAG_SIZE + ' to a bag. A bag sells for <b>' + money(per*BAG_SIZE) + '</b> (' + money(per) + ' a leaf instead of ' + money(leafPrice()) + '). Bags get room of their own in the bin (' + bagCap() + ' bags).', 'bagger', BAGGER_COST, '');
-}
-function plantBuildRow(){
-  return buyRow('Build a smelting plant', 'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth <b>' + money(ingotPrice()) + '</b> (' + money(ingotPrice()/ORE_PER_INGOT) + ' a metal instead of ' + money(metalPrice()) + '). Up to three robots smelt at once, and someone has to haul the ingots down to the road.', 'plant', PLANT_COST, '');
-}
-
+// ── what each card shows
+const HIVE_SHORT = { wings:'+25% bee speed', third:'3 flowers a trip', tongue:'5 nectar a sip', fan:'+50% honey making', recipe:'20 nectar a jar', nursery:'Bees 30% cheaper' };
+const HIVE_ICON = { wings:'wings', third:'three', tongue:'tongue', fan:'fan', recipe:'recipe', nursery:'nursery' };
+const GEN_ICON = { oil:'oil', basket:'basket', fingers:'claw', blueprint:'blueprint', cutting:'drop', market:'market', charm:'horseshoe' };
+const GEN_SHORT = { oil: l => '+' + 20*(l + 1) + '% speed, every robot', basket: () => 'Copied baskets cost 10%', fingers: l => '+' + 30*(l + 1) + '% claw spread',
+  blueprint: () => 'Copied levels cost 30%', cutting: l => '+' + 15*(l + 1) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% double metal' };
+const HEAD_ICON = { bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
 function cardModel(){
   const k = cardOpen.kind, rows = [], rows2 = [];
-  let title = '', sub = '', live = '', top = '', foot = '';
-  if (k === 'robot'){
-    const i = cardOpen.i, cfg = S.robots[i], st = STYLES[i];
-    title = st.name; sub = st.blurb; live = 'robot';
-    top = tasksPanel('robot', i);
-    // two columns: movement and carrying on the left, grabbing, mining and packing on the right
-    for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick'].includes(t) ? rows : rows2).push(robotRow(i, t));
-    if (!rows2.length){ rows2.push(rows.pop()); }
-    if (botCount() > 1){
-      const d = discFor('speed'), db = discFor('carry'), pct = v => Math.round(v*100) + '%';
-      foot = '<div class="foot"><span>Upgrades are for ' + st.name + ' only; unlocks are for every robot. A level another robot already has costs ' + (d === 0.5 ? 'half' : pct(d)) + (db !== d ? ' (baskets ' + pct(db) + ')' : '') + (packOpen() ? ', except Packing, which is always full price' : '') + '. The green buttons upgrade every robot at once.</span></div>';
-    }
-  } else if (k === 'blower' || k === 'shaker'){
-    const i = cardOpen.i, st = (k === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
-    title = st.name; sub = st.blurb; live = 'helper';
-    for (const t of BOT_TRACKS[k]) if (trackVisible(t)) rows.push(robotRow(i, t, k));
-    top = tasksPanel(k, i);
-    if (botCount() > 1) foot = '<div class="foot"><span>Upgrades are for ' + st.name + ' only; unlocks are for every robot. A level another robot already has costs ' + (discFor('speed') === 0.5 ? 'half' : Math.round(discFor('speed')*100) + '%') + '. Wheels count across every kind of robot.</span></div>';
+  let title = '', tag = '', live = '', top = '', foot = '', tabs = null, head = HEAD_ICON[k] || '';
+  if (k === 'robot' || k === 'blower' || k === 'shaker'){
+    const i = cardOpen.i, st = (k === 'robot' ? STYLES : k === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
+    title = st.name; live = k === 'robot' ? 'robot' : 'helper'; head = 'portrait';
+    const tp = tasksPanel(k, i);
+    if (tp) tabs = { peek: tasksPeek(k, i) };
+    if (tp && cardTab === 'tasks') top = tp;
+    else if (k === 'robot'){
+      // two columns: movement and carrying on the left, grabbing, mining and packing on the right
+      for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick'].includes(t) ? rows : rows2).push(robotRow(i, t));
+      if (!rows2.length && rows.length > 2) rows2.push(rows.pop());
+    } else for (const t of BOT_TRACKS[k]) if (trackVisible(t)) rows.push(robotRow(i, t, k));
+    // keep the card the same width on both tabs
+    tabs && (tabs.wide = k === 'robot' && TRACK_ORDER.filter(rowShown).length > 3);
   } else if (k === 'bin'){
-    title = 'Leaf bin'; sub = 'Robots drop what they find here. The truck empties it on every pickup.'; live = 'bin';
-    rows.push(upRow('bin', S.bag.built ? '· plus room for ' + bagCap() + ' bags' : ''));
+    title = 'Leaf bin'; live = 'bin';
+    rows.push(upRow('bin', S.bag.built ? xt('+' + bagCap() + ic('bag'), 'Room for bags, on a shelf of their own') : ''));
     rows.push(upRow('leafPrice'));
     if (!S.bag.built && baggerShown()) rows.push(bagBuildRow());
-    if (S.bag.built) rows.push(keepRow('L', 'Keep for bagging', keepLeaves() + ' leaves', 'The truck leaves this many loose leaves in the bin, so they can be bagged first and sell for more. At 0 it takes everything.', S.keep.leaves));
-    if (!S.metalSlot){ if (metalSlotShown()) rows.push(buyRow('Add a metal slot', 'Lets the truck buy metal too, at ' + money(metalPrice()) + ' a chunk, so you can build miners on the rocks. <b>Each miner costs ' + money(MINER_COST) + '</b> and needs a robot to work it.', 'metalSlot', METAL_SLOT_COST, '')); }
+    if (S.bag.built) rows.push(keepRow('L', 'leaf', 'Keep for bagging', keepLeaves() + ic('leaf'), 'The truck leaves this many loose leaves in the bin so they can be bagged first. At 0 it takes everything.', S.keep.leaves));
+    if (!S.metalSlot){ if (metalSlotShown()) rows.push(metalSlotRow()); }
     else {
-      rows.push(upRow('metalBin', S.plant.built ? '· plus room for ' + palletCap() + ' ingots on the pallet' : '')); rows.push(upRow('metalPrice'));
-      if (S.plant.built) rows.push(keepRow('M', 'Keep for smelting', keepMetal() + ' metal', 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal));
-      if (plantGrade() && !S.plant.built) rows.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html:'<div class="row"><div class="n">What next for metal?</div><div class="d">A smelting plant turns metal into ingots worth a lot more. It shows up in the yard once you’ve held ' + money(PLANT_COST*0.25) + '.</div><div class="btn"></div></div>' });
+      rows2.push(upRow('metalBin', S.plant.built ? xt(palletCap() + ic('ingot'), 'Room on the ingot pallet') : '')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
+      if (S.plant.built) rows2.push(keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal));
+      if (plantGrade() && !S.plant.built) rows2.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html: row({ icon: ic('flame'), cls:'soon', name:'Smelting plant', val:'shows up once you’ve held ' + cash$(PLANT_COST*0.25), tip:'Turns metal into ingots worth a lot more' }) });
     }
   } else if (k === 'sign'){
-    title = 'Pickup schedule'; sub = 'The compost truck takes everything in the bin and pays on the spot.'; live = 'truck';
+    title = 'Pickups'; live = 'truck';
     rows.push(upRow('truck'));
     if (S.lv.cleanup > 0 || seenPrice(upCost('cleanup'))){
-      const nb = UP.cleanup.vals[Math.min(S.lv.cleanup + 1, 3)];
-      rows.push(upRow('cleanup', S.lv.cleanup >= UP.cleanup.max ? '· about ' + money(cleanupBonus()/100) + ' more a leaf' : '· one-off fee, about ' + money(nb/100) + ' a leaf'));
+      const l = S.lv.cleanup, mx = l >= UP.cleanup.max;
+      rows.push(upRow('cleanup', xt('≈ +' + cash$((mx ? cleanupBonus() : UP.cleanup.vals[l + 1])/100) + '/' + ic('leaf'), 'About this much more per leaf')));
     }
   } else if (k === 'shed'){
-    title = 'Workshop'; sub = 'Spare parts, a warm lamp, and plans for better robots.';
+    title = 'Workshop';
     const n = S.robots.length;
-    if (n < ROBOT_MAX) rows.push(buyRow('Build ' + STYLES[n].name, 'Robot ' + (n + 1) + ' of ' + ROBOT_MAX + '. ' + STYLES[n].blurb, 'robot', robotCost(n), ''));
-    else rows.push({ sig:'full', html:'<div class="row"><div class="n">All ' + ROBOT_MAX + ' robots built</div><div class="d">The workshop is full.</div><div class="btn"><span class="maxed">done</span></div></div>' });
+    if (n < ROBOT_MAX) rows.push(buyRow('Build ' + STYLES[n].name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', robotCost(n), '', ic('robot'), STYLES[n].blurb));
+    else rows.push(buyRow('Robots', 'all <b>' + ROBOT_MAX + '</b> built', 'robot', 0, 'done', ic('robot')));
     for (const kind of ['blower', 'shaker']) if (helperShown(kind)){
       const m = cfgsOf(kind).length, stl = (kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[m];
-      const what = kind === 'blower' ? 'Blower ' + (m + 1) + ' of ' + HELPER_MAX + '. Blows leaves from the far corners toward the bin.' : 'Shaker ' + (m + 1) + ' of ' + HELPER_MAX + '. Shakes your trees and bushes so more leaves come down.';
-      rows.push(buyRow('Build ' + stl.name, what, kind, helperCost(kind), ''));
-    }
-    if (!S.hive.built && hiveShown()) rows.push(buyRow('Build a robot beehive', 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars.', 'hive', HIVE_COST, ''));
-
+      rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a blower: pushes leaves to the bin' : 'a shaker: more leaves from trees', kind, helperCost(kind), '', ic(kind === 'blower' ? 'blow' : 'shake'), (kind === 'blower' ? 'A blower: blows far-off leaves toward the bin. ' : 'A shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
+    } else if (cfgsOf(kind).length >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', ic(kind === 'blower' ? 'blow' : 'shake')));
+    if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', HIVE_COST, '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
     if (genVisible()){
       const ks = Object.keys(GEN).filter(genAvail).sort((a, b) => genCost(a) - genCost(b));
-      const owned = Object.keys(GEN).filter(k => gl(k) >= GEN[k].max).map(k => GEN[k].name);
-      rows2.push({ sig:'gh', html:'<div class="sect">Yard-wide upgrades</div>' });
-      for (const k of ks.slice(0, 6)){
-        const g = GEN[k], l = gl(k), name = g.name + (g.max > 1 ? ' ' + pips(l, g.max) : '');
-        const row = buyRow(name, g.desc(l), 'gen:' + k, genCost(k), ''); row.sig += l; rows2.push(row);
+      const owned = Object.keys(GEN).filter(q => gl(q) >= GEN[q].max);
+      rows2.push({ sig:'gh', html:'<div class="sect">Yard-wide</div>' });
+      for (const q of ks.slice(0, 6)){
+        const g = GEN[q], l = gl(q);
+        const r = buyRow(g.name + (g.max > 1 ? nuts(l, [{ n: g.max }]) : ''), GEN_SHORT[q](l), 'gen:' + q, genCost(q), '', ic(GEN_ICON[q]), g.desc(l).replace(/<[^>]+>/g, '')); r.sig += l; rows2.push(r);
       }
-      if (!ks.length) rows2.push({ sig:'gnone', html:'<div class="row"><div class="n">All done for now</div><div class="d">More yard-wide upgrades unlock as the yard grows.</div><div class="btn"></div></div>' });
-      if (owned.length) rows2.push({ sig:'gown' + owned.length, html:'<div class="d gdone">Done: ' + owned.join(', ') + '</div>' });
+      if (!ks.length) rows2.push({ sig:'gnone', html:'<div class="none pad">More unlock as the yard grows.</div>' });
+      if (owned.length) rows2.push({ sig:'gown' + owned.length, html:'<div class="gdone">' + owned.map(q => '<span class="dchip" title="' + GEN[q].name + '">' + ic(GEN_ICON[q]) + ic('check', 'ck') + '</span>').join('') + '</div>' });
     }
-    foot = '<div class="foot"><span>Saved in this browser.</span>' + (resetArm ? '<button class="link danger" data-act="reset2">Yes, wipe my yard</button>' : '<button class="link" data-act="reset1">Start over</button>') + '</div>';
+    foot = '<div class="foot">' + (resetArm ? '<button class="link danger" data-act="reset2">Yes, wipe my yard</button>' : '<button class="link" data-act="reset1">Start over</button>') + '</div>';
   } else if (k === 'hive'){
     const H = S.hive;
-    if (!H.built){
-      title = 'Robot beehive'; sub = '';
-      rows.push(buyRow('Build a robot beehive', 'Robot bees sip nectar from the flowers, the hive turns it into honey, and the truck buys the jars at ' + money(honeyPrice()) + ' each.', 'hive', HIVE_COST, ''));
-    } else {
-      title = 'Robot beehive'; sub = 'The bees bring nectar and the hive turns it into honey. Robots with <b>Pack honey</b> on their list fill the jars at the crate (two can work there at once), and the truck buys the jars.'; live = 'hive';
+    title = 'Beehive';
+    if (!H.built){ head = 'honey'; rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', HIVE_COST, '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars')); }
+    else {
+      live = 'hive';
       const n = H.bees;
       if (n < MAX_BEES){
-        const cost = beeCost(), aff = S.cash + 1e-9 >= cost;
-        const spare = n && B.filter(b => b.st === 'loiter').length >= Math.max(2, n*0.3);
-        rows.push({ sig:'bee' + n + aff + cost + spare, html:'<div class="row"><div class="n">Robot bees <span class="gen">' + n + ' of ' + MAX_BEES + '</span></div><div class="d">' + (!n ? 'No bees yet. Each one fetches nectar from ' + (H.up.third ? 3 : 2) + ' flowers a trip.' : spare ? 'Your flowers are all busy: more bees won’t help much until there’s more land.' : 'More bees, more nectar, but they fly further out once the near flowers are sipped.') + '</div><div class="btn"><button class="buy" data-act="bee" aria-disabled="' + !aff + '">' + money(cost) + '</button></div></div>' });
-      } else rows.push({ sig:'beefull', html:'<div class="row"><div class="n">Robot bees <span class="gen">' + n + ' of ' + MAX_BEES + '</span></div><div class="d">The hive is buzzing at full strength.</div><div class="btn"><span class="maxed">full</span></div></div>' });
-      const floorNext = (S.lv.hiveTank + S.lv.hiveStore) % 2 === 0 ? '· adds a floor' : '';
+        const cost = beeCost(), spare = n && B.filter(b => b.st === 'loiter').length >= Math.max(2, n*0.3);
+        rows.push({ sig:'bee' + n + aff$(cost) + cost + spare, html: row({ icon: ic('bee'), name:'Robot bees', tip:'Each bee sips from ' + (H.up.third ? 3 : 2) + ' flowers a trip. Near flowers go first, so more bees fly further out.', val: meter('bee', n, MAX_BEES, 'Bees') + (spare ? xt(ic('flower') + 'all busy', 'Every flower is being sipped: more bees won’t help much until there’s more land') : ''), btn: coinBtn('bee', cost, { label:'Another bee' }) }) });
+      } else rows.push({ sig:'beefull', html: row({ icon: ic('bee'), name:'Robot bees', val: meter('bee', n, MAX_BEES), btn: stamp('full') }) });
+      const floorNext = (S.lv.hiveTank + S.lv.hiveStore) % 2 === 0 ? xt('+1 floor', 'This step adds a hive floor (more honey a minute)') : '';
       rows.push(upRow('hiveTank', S.lv.hiveTank < UP.hiveTank.max ? floorNext : ''));
       rows.push(upRow('hiveStore', S.lv.hiveStore < UP.hiveStore.max ? floorNext : ''));
       rows.push(upRow('honeyPrice'));
-      if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', 'The robot packing honey at the crate puts a cloth top, twine and a tag on every jar: a gift jar sells for <b>' + money(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b> instead of ' + money(honeyPrice()) + '. Wrapping takes a little longer.', 'honeyPack', HONEY_PACK_COST, '')); }
+      if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', ic('jar') + cash$(honeyPrice()) + arrow + ic('gift') + '<b>' + cash$(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b>', 'honeyPack', HONEY_PACK_COST, '', ic('gift'), 'The robot packing honey wraps every jar as a gift jar. Takes a little longer.')); }
       else rows.push(upRow('giftPrice'));
-      rows2.push({ sig:'hh', html:'<div class="sect">Hive upgrades</div><div class="cs" style="margin:2px 0 4px">All the same price, so pick whichever you like.</div>' });
+      rows.push(crewRow('jar', 'Packers', 'jar', ri => smeltSkillPack(ri)));
+      rows2.push({ sig:'hh', html:'<div class="sect">Hive upgrades <span>any order · same price</span></div>' });
+      let tiles = '';
       for (const key in HIVE_UP){
         const u = HIVE_UP[key], have = H.up[key];
-        let desc = u.desc;
-        if (have && u.bee && B.length){ const got = B.filter(b => b.up[key]).length; if (got < B.length) desc += ' <b>' + got + ' of ' + B.length + '</b> bees have it so far.'; }
-        const row = buyRow(u.name, desc, 'hiveUp:' + key, hiveUpCost(), have ? 'done' : '');
-        row.sig += desc.length; rows2.push(row);
+        let note = '';
+        if (have && u.bee && B.length){ const got = B.filter(b => b.up[key]).length; if (got < B.length) note = '<em>' + got + '/' + B.length + ' bees</em>'; }
+        tiles += '<div class="tile' + (have ? ' got' : '') + '" title="' + u.desc.replace(/<[^>]+>/g, '') + '">' + ic(HIVE_ICON[key], 'tic') + '<div class="tn2">' + u.name + '</div><div class="td">' + HIVE_SHORT[key] + note + '</div>' +
+          (have ? stamp(ic('check'), 'ok') : coinBtn('hiveUp:' + key, hiveUpCost(), { label: u.name })) + '</div>';
       }
+      rows2.push({ sig:'tiles' + tiles.length + Object.keys(H.up).filter(q => H.up[q]).join() + aff$(hiveUpCost()), html:'<div class="tiles">' + tiles + '</div>' });
       if (!n){
         // no bees yet: everything else can be looked at, but not bought
-        const lockIt = r => { r.html = r.html.replace(/aria-disabled="(true|false)"/g, 'aria-disabled="true" data-lock="bee"').replace('<div class="row">', '<div class="row locked">'); r.sig += 'L'; return r; };
+        const lockIt = r => { r.html = r.html.replace(/aria-disabled="(true|false)"/g, 'aria-disabled="true" data-lock="bee"').replace(/class="(row|tiles)/, 'class="$1 locked'); r.sig += 'L'; return r; };
         for (let q=1; q<rows.length; q++) lockIt(rows[q]);
         rows2.forEach(lockIt);
-        rows.splice(1, 0, { sig:'needbee', html:'<div class="lockline">Buy your first bee to unlock the hive upgrades.</div>' });
+        rows.splice(1, 0, { sig:'needbee', html:'<div class="lockline">' + ic('lock') + 'Get your first bee to start upgrading</div>' });
       }
-      foot = '<div class="foot"><span>A sipped flower takes about ten seconds to bloom again. Each floor of the hive turns nectar into honey, and the hive stops when its honey store is full.</span></div>';
     }
   } else if (k === 'bagger'){
-    if (!S.bag.built){ title = 'Bagging table'; sub = ''; rows.push(bagBuildRow()); }
+    title = 'Bagging table';
+    if (!S.bag.built) rows.push(bagBuildRow());
     else {
-      title = 'Bagging table'; sub = 'Robots bag ' + BAG_SIZE + ' loose leaves at a time; the bags wait in the bin for the truck.'; live = 'bagger';
-      rows.push(upRow('bagPrice', '· ' + money(bagPrice()/BAG_SIZE) + ' a leaf'));
-      const who = STN.bag.filter(v => v != null).map(ri => STYLES[ri].name), on = S.robots.map((c, ri) => taskOn(c, 'bag') ? STYLES[ri].name : null).filter(Boolean);
-      rows.push({ sig:'bw' + who.join() + on.join(), html:'<div class="row"><div class="n">Who bags</div><div class="d">' + (on.length ? on.join(', ') + (on.length === 1 ? ' has' : ' have') + ' Bag leaves on the list.' : 'Nobody yet: drag <b>Bag leaves</b> into a robot’s Do list.') + ' Two can work here at once; <b>Packing</b> makes a robot bag faster.</div><div class="btn"></div></div>' });
+      live = 'bagger';
+      rows.push(upRow('bagPrice', xt(cash$(bagPrice()/BAG_SIZE) + '/' + ic('leaf'), 'Per leaf, bagged')));
+      rows.push(crewRow('bag', 'Baggers', 'bag', ri => smeltSkillPack(ri)));
     }
   } else if (k === 'plant'){
-    if (!S.plant.built){ title = 'Smelting plant'; sub = ''; rows.push(plantBuildRow()); }
+    title = 'Smelting plant';
+    if (!S.plant.built) rows.push(plantBuildRow());
     else {
-      title = 'Smelting plant'; sub = 'Three furnace doors. A robot smelts faster the better its <b>Packing</b> and its <b>Drill</b>, so an old miner makes a good smelter.'; live = 'plant';
-      rows.push(upRow('smeltSpeed')); rows.push(upRow('slag')); rows.push(upRow('ingotGrade', '· ' + money(ingotPrice()*(1 + val('slag'))/ORE_PER_INGOT) + ' a metal'));
-      rows2.push(upRow('hopper'));
-      const sm = S.robots.map((c, ri) => taskOn(c, 'smelt') ? STYLES[ri].name + ' ' + smeltSkill(ri).toFixed(1) + '×' : null).filter(Boolean), ha = S.robots.map((c, ri) => taskOn(c, 'haul') ? STYLES[ri].name + ' (' + ingotCarry(ri) + ')' : null).filter(Boolean);
-      rows2.push({ sig:'pw' + sm.join() + '|' + ha.join(), html:'<div class="row"><div class="n">Who works here</div><div class="d">Smelting: ' + (sm.length ? sm.join(', ') : '<b>nobody</b>') + '. Hauling (ingots a trip): ' + (ha.length ? ha.join(', ') : '<b>nobody</b>') + '. Drag <b>Smelt ingots</b> or <b>Haul ingots</b> on a robot’s list.</div><div class="btn"></div></div>' });
-      const sk = stoker();
-      rows2.push({ sig:'stk' + (sk ? sk.idx : '-') + S.blowers.some(b => b.lv.stoke > 0), html:'<div class="row"><div class="n">Bellows</div><div class="d">' + (sk ? BLOWER_STYLES[sk.idx].name + ' is blowing into the furnaces: <b>+' + Math.round(hv(sk, 'stoke')*100) + '%</b> smelting speed.' : S.blowers.some(b => b.lv.stoke > 0) ? 'No blower here right now. Put Work the bellows on a blower’s list.' : S.blowers.length ? 'Blowers can learn to work the bellows (Bellows, on a blower’s card).' : 'Build a blower in the workshop; it can learn to work the bellows.') + '</div><div class="btn"></div></div>' });
-      foot = '<div class="foot"><span>Miners fill the hopper first, then the metal tub; smelters fetch from the tub when the hopper runs low. Haulers take the ingots from the rack to the pallet by the road, and a bigger basket carries more of them. A bigger metal tub (on the bin) also makes the pallet bigger.</span></div>';
+      live = 'plant';
+      rows.push(upRow('smeltSpeed')); rows.push(upRow('slag')); rows.push(upRow('ingotGrade', xt(cash$(ingotPrice()*(1 + val('slag'))/ORE_PER_INGOT) + '/' + ic('ore'), 'Per chunk of metal, smelted')));
+      rows.push(upRow('hopper'));
+      rows2.push(crewRow('smelt', 'Smelters', 'smelt', ri => smeltSkill(ri).toFixed(1) + '×'));
+      rows2.push(crewRow('haul', 'Haulers', 'haul', ri => ingotCarry(ri) + '<small>/trip</small>'));
+      const sk = stoker(), learnt = S.blowers.some(b => b.lv.stoke > 0);
+      rows2.push({ sig:'stk' + (sk ? sk.idx + hv(sk, 'stoke') : '-') + learnt + S.blowers.length, html: row({ icon: ic('stoke'), name:'Bellows', cls:'crewrow',
+        val: sk ? BLOWER_STYLES[sk.idx].name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + 'Bellows</span> to a blower' : S.blowers.length ? 'a blower can learn it (Bellows, on its card)' : 'build a blower to work it') + '</span>',
+        tip:'A blower working the bellows makes every smelter faster' }) });
     }
   } else if (k === 'sound'){
     const P = SND.prefs;
-    title = 'Sounds'; sub = 'Rustling leaves, little robot beeps, and a slow waltz now and then.';
-    top = '<div class="seg" role="group" aria-label="Sound"><button data-act="snd:on1" class="' + (P.on ? 'on' : '') + '">Sound on</button><button data-act="snd:on0" class="' + (P.on ? '' : 'on') + '">Off</button></div>';
-    rows.push({ sig:'vol', html:'<div class="row vol"><label class="n" for="sndVol">Volume</label><input type="range" id="sndVol" min="0" max="100" step="1" value="' + Math.round(P.vol*100) + '"></div>' });
-    const tog = (key, name, desc) => ({ sig: key + P[key], html: '<div class="row"><div class="n">' + name + '</div><div class="d">' + desc + '</div><div class="btn"><button class="tog' + (P[key] ? ' on' : '') + '" data-act="snd:' + key + '" aria-pressed="' + P[key] + '">' + (P[key] ? 'On' : 'Off') + '</button></div></div>' });
-    rows.push(tog('amb', 'Leaves &amp; wind', 'Rustling, gusts, the compost truck'));
-    rows.push(tog('sfx', 'Beeps &amp; chimes', 'Robot chatter, the truck paying'));
-    rows.push(tog('music', 'Music', 'A quiet waltz that comes and goes'));
-    foot = '<div class="foot"><span>Press M to mute or unmute.</span></div>';
+    title = 'Sounds';
+    top = '<div class="seg" role="group" aria-label="Sound"><button data-act="snd:on1" class="' + (P.on ? 'on' : '') + '">On</button><button data-act="snd:on0" class="' + (P.on ? '' : 'on') + '">Off</button></div>';
+    rows.push({ sig:'vol', html:'<div class="row vol"><div class="ri">' + ic('sound') + '</div><label class="n" for="sndVol">Volume</label><input type="range" id="sndVol" min="0" max="100" step="1" value="' + Math.round(P.vol*100) + '"></div>' });
+    const tog = (key, icon, name, tip) => ({ sig: key + P[key], html: row({ icon: ic(icon), name, tip, btn: '<button class="tog' + (P[key] ? ' on' : '') + '" data-act="snd:' + key + '" aria-pressed="' + P[key] + '">' + (P[key] ? 'On' : 'Off') + '</button>' }) });
+    rows.push(tog('amb', 'leaf', 'Leaves &amp; wind', 'Rustling, gusts, the compost truck'));
+    rows.push(tog('sfx', 'robot', 'Beeps &amp; chimes', 'Robot chatter, the truck paying'));
+    rows.push(tog('music', 'note', 'Music', 'A quiet waltz that comes and goes'));
+    foot = '<div class="foot"><span><kbd>M</kbd> mutes</span></div>';
   } else if (k === 'sale'){
     const A = AREAS[S.land + 1], cur = AREAS[S.land], newSpots = SPOTS.filter(p => p.land === S.land + 1).length;
-    title = 'Land for sale'; sub = 'The ' + A.name.toLowerCase() + ' next door. More room means more leaves, but longer trips to the bin.';
-    rows.push(buyRow('Buy the ' + A.name.toLowerCase(), 'About ' + Math.round(A.w*A.h/(cur.w*cur.h)) + '× the space · ' + newSpots + ' more metal veins', 'land', A.cost, ''));
+    title = 'For sale';
+    rows.push(buyRow('The ' + A.name.toLowerCase(), '<b>' + Math.round(A.w*A.h/(cur.w*cur.h)) + '×</b> room' + (newSpots ? ' · +' + newSpots + ic('vein') : '') + ' · more ' + ic('leaf') + ic('flower'), 'land', A.cost, '', ic('land'), 'More room means more leaves and flowers' + (newSpots ? ' and a metal vein' : '') + ', but longer trips to the bin'));
   } else if (k === 'spot'){
-    const i = cardOpen.i, p = SPOTS[i];
+    const i = cardOpen.i, p = SPOTS[i], vw = veinWord(i).replace(/^an? /, '');
+    tag = '<span class="tag" title="Richer veins give chunks faster">' + vw + '</span>';
+    head = 'vein';
     if (p.land > S.land){
-      title = 'Metal vein'; sub = 'Looks like ' + veinWord(i) + '.';
-      rows.push({ sig:'far', html:'<div class="row"><div class="n">Not your land yet</div><div class="d">Buy this land when the For Sale sign goes up.</div><div class="btn"></div></div>' });
+      title = 'Metal vein';
+      rows.push({ sig:'far', html: row({ icon: ic('land'), cls:'soon', name:'Not your land yet', val:'buy it when the For Sale sign goes up' }) });
     } else if (S.miners.includes(i)){
       const shaft = S.shafts.includes(i), room = slotsAt(i);
-      title = shaft ? 'Mine shaft' : 'Miner'; sub = (shaft ? 'Two robots can work it at once. ' : 'A robot has to work it. ') + 'It’s ' + veinWord(i) + '.';
+      title = shaft ? 'Mine shaft' : 'Miner'; head = shaft ? 'shaft' : 'vein';
       const ws = minerWorkers(i);
-      for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1), html:'<div class="row"><div class="n">' + STYLES[w].name + ' is working here</div><div class="d">' + drillTimeAt(w, i).toFixed(1) + 's per chunk · carries ' + metalCarry(w) + (doubleChance(w) > 0 ? ' · ' + Math.round(doubleChance(w)*100) + '% double' : '') + '</div><div class="btn"><button class="buy" data-act="release:' + w + '" title="Moves Mine metal to Don’t on ' + STYLES[w].name + '’s task list">Stop</button></div></div>' });
+      for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1) + metalCarry(w) + doubleChance(w), html: '<div class="row crewrow"><div class="ri">' + crewBot(w) + '</div><div class="rm"><div class="n">' + STYLES[w].name + '</div><div class="v">' +
+        drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small>×2</small>', 'Chance of double metal') : '') + '</div></div>' +
+        '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + STYLES[w].name + '’s task list">Stop</button></div></div>' });
       if (ws.length < room){
         const any = R.some(r => S.robots[r.id].miner == null);
-        rows.push({ sig:'nw' + any + ws.length, html:'<div class="row"><div class="n">' + (ws.length ? 'Room for one more' : 'No robot here') + '</div><div class="d">' + (any ? 'Put Mine metal at the top of the closest free robot’s list.' : 'Every robot is busy at a miner.') + '</div><div class="btn"><button class="buy" data-act="send" aria-disabled="' + !any + '">Send one</button></div></div>' });
+        rows.push({ sig:'nw' + any + ws.length, html: row({ icon: ic('robot'), cls:'soon', name: ws.length ? 'Room for one more' : 'Nobody mining', val: any ? 'sends the nearest free robot' : 'every robot is at a mine', btn:'<button class="buy ghost" data-act="send" aria-disabled="' + !any + '">Send one</button>' }) });
       }
-      if (!shaft && shaftShown()) rows.push(buyRow('Dig a mine shaft', 'A deeper, richer vein: chunks come <b>35% faster</b> and <b>two robots</b> can work it. Blowers can learn to excavate a shaft.' + (S.shafts.length ? ' Half price: you’ve dug one before.' : ''), 'shaft', shaftCost(), ''));
+      if (!shaft && shaftShown()) rows.push(buyRow('Dig a shaft', '<span class="gain">+35%</span> speed · 2' + ic('robot') + (S.shafts.length ? xt('½ price', 'You’ve dug one before') : ''), 'shaft', shaftCost(), '', ic('shaft'), 'A deeper, richer vein: chunks come 35% faster and two robots can work it. Blowers can learn to excavate a shaft.'));
       if (shaft){
-        const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i);
-        rows.push({ sig:'ex' + (ex ? ex.idx : '-') + S.blowers.some(b => b.lv.dig > 0), html:'<div class="row"><div class="n">Excavator</div><div class="d">' + (ex ? BLOWER_STYLES[ex.idx].name + ' is sucking the dirt out: <b>+' + Math.round(hv(ex, 'dig')*100) + '%</b> mining here.' : S.blowers.some(b => b.lv.dig > 0) ? 'No blower here right now. Put Excavate shafts on a blower’s list.' : S.blowers.length ? 'Blowers can learn to excavate (Excavate, on a blower’s card).' : 'Build a blower in the workshop; it can learn to excavate.') + '</div><div class="btn"></div></div>' });
+        const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i), learnt = S.blowers.some(b => b.lv.dig > 0);
+        rows.push({ sig:'ex' + (ex ? ex.idx + hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A blower sucking the dirt out makes mining here faster',
+          val: ex ? BLOWER_STYLES[ex.idx].name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + 'Dig</span> to a blower' : S.blowers.length ? 'a blower can learn it (Excavate, on its card)' : 'build a blower to dig here') + '</span>' }) });
       }
     } else {
-      title = 'Metal vein'; sub = 'It’s ' + veinWord(i) + (SPOTS[i].rich < 0.9 ? ': chunks come slowly here.' : SPOTS[i].rich > 1.02 ? ': chunks come quicker here.' : '.');
+      title = 'Metal vein';
       if (!S.metalSlot){
         // the metal slot can be bought right here as well as on the bin
-        if (metalSlotShown()) rows.push(buyRow('Add a metal slot', 'Puts a metal tub beside the bin so the truck buys metal too, at ' + money(metalPrice()) + ' a chunk. After that, each miner costs ' + money(MINER_COST) + ' and needs a robot to work it.', 'metalSlot', METAL_SLOT_COST, ''));
-        else rows.push({ sig:'locked', html:'<div class="row"><div class="n">Needs a metal slot</div><div class="d">The truck doesn’t buy metal yet. A metal slot for the bin shows up once you’ve held ' + money(METAL_SLOT_COST*0.25) + '.</div><div class="btn"></div></div>' });
+        if (metalSlotShown()) rows.push(metalSlotRow());
+        else rows.push({ sig:'locked', html: row({ icon: ic('lock'), cls:'soon', name:'Needs a metal slot', val:'on the bin, once you’ve held ' + cash$(METAL_SLOT_COST*0.25) }) });
       }
-      else rows.push(buyRow('Build a miner', 'Metal sells for ' + money(metalPrice()) + ' a chunk. A robot works it.', 'miner', MINER_COST, ''));
+      else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a robot', 'miner', MINER_COST, '', ic('vein'), 'A robot with Mine metal on its list works it'));
     }
   }
-  return { title, sub, rows, rows2, top, foot, live };
+  return { title, tag, rows, rows2, top, foot, live, tabs, head };
 }
-function liveText(kind){
+// packing speed, for the bagger and packer crews
+const smeltSkillPack = ri => rv(ri, 'pack').toFixed(1) + '×';
+
+// ── the live line under the title: what's happening right now, as pictures and meters
+function liveHTML(kind){
   if (kind === 'robot'){
     const i = cardOpen.i, r = R[i]; if (!r) return '';
-    const bits = [];
-    if (r.carryL) bits.push(r.carryL + '/' + leafCap(i) + ' leaves');
-    if (r.carryM) bits.push(r.carryM + '/' + metalCarry(i) + (r.ore ? ' ore' : ' metal'));
-    if (r.carryI) bits.push(r.carryI + (r.carryI === 1 ? ' ingot' : ' ingots'));
-    return robotDoing(r) + (bits.length ? ' · carrying ' + bits.join(', ') : '');
+    const [t, label, warn] = robotDoing(r);
+    // what's in the basket: "4🍂 3⛏ / 12🧺"
+    // the basket's room depends on what's going in it: leaves, metal chunks or ingots
+    const mode = r.carryL ? 'leaf' : r.carryM || r.st === 'mine' || r.st === 'toMine' || r.st === 'toTub' || r.st === 'smelt' ? 'ore' : r.carryI || r.st === 'toRack' || r.st === 'toPallet' ? 'ingot' : 'leaf';
+    const cap = mode === 'ore' ? metalCarry(i) : mode === 'ingot' ? ingotCarry(i) : leafCap(i);
+    let items = '';
+    if (r.carryL) items += '<span>' + r.carryL + ic('leaf') + '</span>';
+    if (r.carryM) items += '<span>' + r.carryM + ic('ore') + '</span>';
+    if (r.carryI) items += '<span>' + r.carryI + ic('ingot') + '</span>';
+    if (!items) items = '<span class="dim">0' + ic(mode) + '</span>';
+    const n = (r.carryL || 0) + (r.carryM || 0) + (r.carryI || 0);
+    return '<span class="st' + (warn ? ' warn' : '') + '">' + ic(t) + label + '</span><span class="bk' + (n >= cap ? ' full' : '') + '" title="In its basket">' + items + '<span class="sl">/</span>' + cap + ic('basket') + '</span>';
   }
   if (kind === 'helper'){
     const h = HB.find(q => q.kind === cardOpen.kind && q.idx === cardOpen.i); if (!h) return '';
-    if (h.kind === 'blower' && h.st === 'stoke') return 'Working the bellows at the smelting plant: +' + Math.round(hv(h, 'stoke')*100) + '% smelting speed';
-    if (h.kind === 'blower' && h.st === 'go' && h.task === 'stoke') return 'Heading to the smelting plant';
-    if (h.kind === 'blower') return h.st === 'dig' ? 'Excavating the mine shaft: +' + Math.round(hv(h, 'dig')*100) + '% mining there' : h.st === 'go' && h.task === 'dig' ? 'Heading to a mine shaft' : h.st === 'lap' ? (h.lap ? 'Sweeping lap ' + (h.lap + 1) + ', blowing leaves toward the bin' : 'Sweeping along the fence, blowing leaves toward the bin') : h.st === 'go' ? 'Heading to the next lap' : 'Waiting for more leaves to land';
-    if (h.st === 'snip') return 'Deadheading a flower';
-    if (h.st === 'go' && h.target && h.target.type === 'flower') return 'Scuttling over to a spent flower';
-    if (h.st === 'shake') return h.target.type === 'tree' ? 'Shaking a tree' : 'Shaking a bush';
-    if (h.st === 'go') return h.target && h.target.type === 'bush' ? 'Scuttling over to a bush' : 'Scuttling over to a tree';
-    return tooManyLeaves() ? 'Plenty of leaves down already, taking a break' : 'Waiting for the trees to fill up again';
+    let s;
+    if (h.kind === 'blower'){
+      s = h.st === 'stoke' ? ['stoke', 'Bellows <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', 'Excavating <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
+        : h.st === 'go' && h.task === 'stoke' ? ['stoke', 'To the plant'] : h.st === 'go' && h.task === 'dig' ? ['dig', 'To a shaft'] : h.st === 'lap' ? ['blow', h.lap ? 'Blowing · lap ' + (h.lap + 1) : 'Blowing along the fence']
+        : h.st === 'go' ? ['blow', 'To the next lap'] : ['clock', 'Waiting for leaves'];
+    } else {
+      s = h.st === 'snip' ? ['snip', 'Deadheading'] : h.st === 'go' && h.target && h.target.type === 'flower' ? ['snip', 'To a flower'] : h.st === 'shake' ? ['shake', h.target.type === 'tree' ? 'Shaking a tree' : 'Shaking a bush']
+        : h.st === 'go' ? ['shake', h.target && h.target.type === 'bush' ? 'To a bush' : 'To a tree'] : ['clock', tooManyLeaves() ? 'Plenty down already' : 'Trees refilling'];
+    }
+    return '<span class="st">' + ic(s[0]) + s[1] + '</span>';
   }
   if (kind === 'hive'){
     const H = S.hive, idle = B.filter(b => b.st === 'loiter').length, q = B.filter(b => b.st === 'queue').length, out = B.length - idle - q - B.filter(b => b.st === 'in').length;
-    const bits = [H.bees + (H.bees === 1 ? ' bee' : ' bees')];
-    if (H.bees) bits.push(out + ' out' + (idle ? ', ' + idle + ' waiting for flowers' : '') + (q ? ', ' + q + ' waiting for tank room' : ''));
-    bits.push('nectar ' + Math.floor(H.nectar) + '/' + tankCap());
-    bits.push('honey in the hive ' + Math.floor(H.honey) + '/' + honeyCap());
-    bits.push('crate ' + crateJars() + '/' + crateCap() + (H.packing ? ' (' + H.gift + ' gift)' : '') + ' jars');
-    return bits.join(' · ');
+    return '<span class="st" title="Bees out on the flowers">' + ic('bee') + out + ' <small>out</small>' + (idle ? '<small>&nbsp;· ' + idle + ' idle</small>' : '') + (q ? ' <b class="warnc">&nbsp;' + q + ' queuing</b>' : '') + '</span>' +
+      meter('nectar', H.nectar, tankCap(), 'Nectar in the tank') + meter('honey', H.honey, honeyCap(), 'Honey in the hive, waiting to be jarred') + meter('jar', crateJars(), crateCap(), 'Jars in the crate' + (H.packing ? ' (' + H.gift + ' gift)' : ''));
   }
-  if (kind === 'bagger') return S.binLeaves + ' loose leaves and ' + S.bag.bags + '/' + bagCap() + ' bags in the bin · ' + busyIn('bag') + ' bagging now';
-  if (kind === 'plant') return 'Hopper ' + Math.floor(S.plant.ore) + '/' + hopperCap() + ' ore · rack ' + S.plant.rack + '/' + RACK_CAP + ' · pallet ' + S.ingots + '/' + palletCap() + ' · ' + busyIn('smelt') + ' smelting';
-  if (kind === 'bin') return S.binLeaves + ' / ' + binCap() + ' leaves' + (S.bag.built ? ' · ' + S.bag.bags + ' / ' + bagCap() + ' bags' : '') + (S.metalSlot ? ' · ' + S.binMetal + ' / ' + metalCap() + ' metal' : '') + (S.plant.built ? ' · ' + S.ingots + ' / ' + palletCap() + ' ingots' : '') + ' · ' + money(leafPrice()) + ' a leaf';
-  if (kind === 'truck') return (truckHere() ? 'The truck is here now' : 'Next truck in ' + mmss(S.truckT)) + (S.lv.cleanup ? ' · next bonus in ' + (100 - (S.cleanN | 0)) + ' leaves' : '') + (S.hive.built ? ' · honey ' + money(honeyPrice()) + ' a jar' : '');
+  if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), 'Bags in the bin') + slots('bag', busyIn('bag'), 2, 'Bagging now');
+  if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, RACK_CAP, 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road') + slots('flame', busyIn('smelt'), 3, 'Furnaces working');
+  if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), 'Bags') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
+  if (kind === 'truck'){
+    let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
+    if (S.lv.cleanup) h += meter('cleanup', S.cleanN | 0, 100, 'Leaves toward the next cleanup bonus', 'green');
+    return h;
+  }
   return '';
 }
 function renderCard(force){
   if (!cardOpen) return;
   const m = cardModel();
-  const sig = cardOpen.kind + (cardOpen.i ?? '') + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
+  const sig = cardOpen.kind + (cardOpen.i ?? '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
   if ((sig !== cardSig || force) && !tdrag && !sliding){
     cardSig = sig;
     const two = m.rows2.length > 0, body = m.rows.map(r => r.html).join('');
-    card.classList.toggle('wide', two);
-    card.innerHTML = '<div class="ch"><div class="ct">' + m.title + '</div><button class="x" data-act="close" aria-label="Close">×</button></div>' +
-      '<div class="cs">' + m.sub + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') +
-      '<div style="height:6px"></div>' + m.top +
+    cardOpen.tabsOn = !!m.tabs;
+    card.classList.toggle('wide', m.tabs ? !!m.tabs.wide : two);
+    const medal = m.head === 'portrait' ? '<canvas id="cardPortrait" width="128" height="128"></canvas>' : m.head ? ic(m.head) : '';
+    card.innerHTML = '<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
+      '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div><button class="x" data-act="close" aria-label="Close">' +
+      '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
+      (m.tabs ? '<div class="tabs" role="tablist"><button role="tab" data-act="tab:up" class="' + (cardTab !== 'tasks' ? 'on' : '') + '">' + ic('wrench') + 'Upgrades</button><button role="tab" data-act="tab:tasks" class="' + (cardTab === 'tasks' ? 'on' : '') + '">' + ic('list') + 'Tasks<span class="peek">' + m.tabs.peek + '</span></button></div>' : '') +
+      '<div class="cbody">' + m.top +
       (two ? '<div class="cols"><div class="col">' + body + '</div><div class="col">' + m.rows2.map(r => r.html).join('') + '</div></div>' : body) +
-      (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot;
+      (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot + '</div>';
+    card.querySelectorAll('.live').forEach(n => { n._t = ''; });
     placeCard();
   }
-  const lv = $('cardLive'); if (lv){ const t = liveText(m.live); if (lv.textContent !== t) lv.textContent = t; }
+  const lv = $('cardLive'); if (lv){ const t = liveHTML(m.live); if (lv._t !== t){ lv._t = t; lv.innerHTML = t; } }
+  const pc = $('cardPortrait'); if (pc) drawPortrait(pc, cardOpen.kind, cardOpen.i);
+  // the "saving up" fill on buttons you can't afford yet
+  if (--fillT <= 0){ fillT = 6; for (const b of card.querySelectorAll('[data-cost]')){ const p = pfill(+b.dataset.cost); if (b.style.getPropertyValue('--p') !== p) b.style.setProperty('--p', p); } }
 }
+
 // V7: cards sit near the middle of the screen (beside the thing you tapped when there's room), are never taller than
 // the visible area (the height comes from the real window size, not CSS 100vh, which is taller on phones and in frames),
 // and scroll inside themselves when their content is taller than that.
@@ -4570,7 +4765,8 @@ function openCard(kind, i){
   resetArm = false; cardNote = ''; cardSig = '';
   card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
   if (kind !== 'sound') S.flags.opened = true;
-  if (kind === 'robot'){ dismissHint('unlock'); if (tasksPanel('robot', i)) dismissHint('tasks'); }
+  // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
+  if (kind === 'robot'){ dismissHint('unlock'); if (tasksPanel('robot', i)){ if (!hintDone('tasks') && !S.flags.taskHint) cardTab = 'tasks'; dismissHint('tasks'); } }
   if (kind === 'hive' && S.hive.built) dismissHint('bees');
   if (kind === 'spot' && S.metalSlot) dismissHint('miner');
   sfx('paper');
@@ -4583,6 +4779,7 @@ card.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'close'){ closeCard(); return; }
+  if (act.startsWith('tab:')){ cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
   if (act.startsWith('snd:')){ const k = act.slice(4); if (k === 'on1' || k === 'on0') SND.set('on', k === 'on1'); else SND.toggle(k); renderCard(true); return; }
   if (b.dataset.lock === 'bee'){ cardNote = 'Get your first bee before the hive upgrades.'; renderCard(true); }
   if (b.getAttribute('aria-disabled') === 'true'){ sfx('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
@@ -4959,6 +5156,7 @@ window.__leafYard = {
   },
   state: () => S,
   open: (kind, i) => openCard(kind, i),
+  portrait: (kind, i, cv, z) => drawPortrait(cv, kind, i, z),
   buy: o => buy(o),
   fn: () => ({ UP, GEN, offers, binCap, metalCap, hopperCap, honeyCap, tankCap, palletCap, truckEvery, bagCap, upCost, rCost, allPlan, binRoom, tubRoom, hopperRoom, plainJars, crateCap, crateJars }),   // for balance tests
   stations: () => STN,
