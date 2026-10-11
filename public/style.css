@@ -1,0 +1,176 @@
+/* Layout: one full-bleed canvas yard; HUD pinned top-left; upgrade cards float beside the thing you tapped. */
+:root{
+  --paper:#f6ead4; --paper-2:#ecdcbf; --ink:#4a3226; --ink-soft:#7c5d47;
+  --accent:#d4672a; --accent-dk:#9e4719; --moss:#5f7232; --grass:#6c7a37;
+  --chalk:#2f3a34;
+  --font-ui:"Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-hand:"Caveat", "Segoe Print", "Bradley Hand", cursive;
+  color-scheme: light;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--grass);color:var(--ink);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;display:block;touch-action:none}
+#hud{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:3}
+.stat{display:flex;align-items:center;gap:7px;background:rgba(246,234,212,.86);border-radius:999px;padding:3px 13px 3px 7px;box-shadow:0 2px 10px rgba(50,25,8,.18);font-weight:700;font-size:17px;line-height:1.5;font-variant-numeric:tabular-nums;width:max-content;transition:transform .15s}
+.stat.cash{pointer-events:auto;cursor:default}
+.stat svg{width:20px;height:20px;flex:none}
+.stat.bump{transform:scale(1.08)}
+.stat.cash{font-size:19px}
+#card{position:fixed;z-index:6;width:min(304px,calc(100vw - 24px));background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px 8px;box-shadow:0 14px 34px rgba(40,18,4,.38),inset 0 0 0 1.5px rgba(110,74,48,.22);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.94) translateY(6px);opacity:0}to{transform:none;opacity:1}}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ct{font-family:var(--font-hand);font-weight:700;font-size:30px;line-height:.95;text-wrap:balance}
+.cs{font-size:13px;color:var(--ink-soft);line-height:1.35;margin:3px 0 6px}
+.live{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.x{border:0;background:transparent;color:var(--ink-soft);font:700 20px/1 var(--font-ui);cursor:pointer;padding:2px 6px;border-radius:8px}
+.x:hover{background:var(--paper-2)}
+.row{display:grid;grid-template-columns:1fr auto;column-gap:10px;row-gap:1px;align-items:center;padding:9px 0;border-top:1.5px dashed rgba(110,74,48,.22)}
+.row .n{font-weight:700;font-size:15px;line-height:1.2;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row .d{font-size:12.5px;color:var(--ink-soft);line-height:1.3;min-width:0}
+.row .d b{color:var(--ink);font-weight:700}
+.row .btn{grid-column:2;grid-row:1 / span 2}
+.pips{display:inline-flex;gap:3px}
+.pip{width:6px;height:6px;border-radius:50%;background:rgba(110,74,48,.2)}
+.pip.on{background:var(--accent)}
+.buy{font:700 14px/1 var(--font-ui);border:0;border-radius:10px;padding:8px 11px 7px;background:var(--accent);color:#fff6e8;cursor:pointer;box-shadow:0 2px 0 var(--accent-dk);min-width:68px;font-variant-numeric:tabular-nums}
+.buy:hover{filter:brightness(1.06)}
+.buy:active{transform:translateY(1px);box-shadow:0 1px 0 var(--accent-dk)}
+.buy[aria-disabled="true"]{background:var(--paper-2);color:#93765e;box-shadow:0 2px 0 #d3bf9c;cursor:default}
+.buy.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.maxed{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--moss)}
+.seg{display:flex;gap:4px;background:var(--paper-2);border-radius:11px;padding:3px;margin:2px 0 8px}
+.seg button{flex:1;border:0;background:transparent;font:700 13.5px/1 var(--font-ui);color:var(--ink-soft);padding:8px 6px 7px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(60,30,10,.2)}
+.foot{font-size:12px;color:var(--ink-soft);padding:6px 0 2px;border-top:1.5px dashed rgba(110,74,48,.22);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.link{border:0;background:none;color:var(--ink-soft);font:600 12px var(--font-ui);text-decoration:underline;cursor:pointer;padding:2px}
+.link.danger{color:#a8361d}
+.note{font-size:12.5px;color:#a8361d;font-weight:600;min-height:0}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#toast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:10px 18px 9px;border-radius:14px;box-shadow:0 10px 26px rgba(40,18,4,.32);font-family:var(--font-hand);font-weight:700;font-size:24px;line-height:1.1;text-align:center;z-index:7;max-width:calc(100vw - 40px);transition:opacity .6s}
+#toast small{display:block;font-family:var(--font-ui);font-size:13px;font-weight:600;color:var(--ink-soft);margin-top:3px}
+
+
+#card{max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain}
+.gen{font-size:11.5px;font-weight:600;color:var(--ink-soft);background:var(--paper-2);border-radius:6px;padding:0 6px;line-height:1.6}
+.pipgap{width:4px}
+.lock{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#a08670}
+.buy s{opacity:.6;font-weight:600;margin-right:5px;font-size:12px}
+.sect{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-dk);padding:10px 0 2px;border-top:1.5px dashed rgba(110,74,48,.22)}
+#recenter{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:4;width:42px;height:42px;border-radius:50%;border:0;background:rgba(246,234,212,.9);color:var(--ink);box-shadow:0 3px 12px rgba(50,25,8,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+#recenter svg{width:22px;height:22px}
+#recenter:hover{background:var(--paper)}
+#c{cursor:grab}
+
+/* sound button and card */
+#soundBtn{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:4;width:42px;height:42px;border-radius:50%;border:0;background:rgba(246,234,212,.9);color:var(--ink);box-shadow:0 3px 12px rgba(50,25,8,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+#soundBtn svg{width:22px;height:22px}
+#soundBtn:hover{background:var(--paper)}
+#soundBtn .sx{display:none}
+#soundBtn.off{color:#a08670}
+#soundBtn.off .sw{display:none}
+#soundBtn.off .sx{display:inline}
+.tog{font:700 13px/1 var(--font-ui);border:0;border-radius:999px;padding:7px 12px 6px;min-width:54px;background:var(--paper-2);color:#93765e;cursor:pointer;box-shadow:inset 0 0 0 1.5px rgba(110,74,48,.18)}
+.tog.on{background:var(--moss);color:#f6ead4;box-shadow:0 2px 0 #46561f}
+.row.vol{grid-template-columns:auto 1fr;column-gap:14px}
+.row.vol input{width:100%;accent-color:var(--accent);margin:0;cursor:pointer}
+
+/* workshop: two columns once yard-wide upgrades show up */
+#card.wide{width:min(640px,calc(100vw - 24px))}
+.cols{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-items:start}
+.col{min-width:0}
+.gdone{font-size:12px;padding:6px 0 4px;border-top:1.5px dashed rgba(110,74,48,.22)}
+@media (max-width:560px){ .cols{grid-template-columns:1fr} }
+
+/* "upgrade every robot" button under each robot upgrade */
+.row .btn{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.buy.all{font-size:12px;padding:5px 9px 4px;background:var(--moss);box-shadow:0 2px 0 #46561f;white-space:nowrap}
+.buy.all:active{box-shadow:0 1px 0 #46561f}
+.buy.all[aria-disabled="true"]{background:var(--paper-2);color:#93765e;box-shadow:0 2px 0 #d3bf9c}
+
+/* full screen button, top right */
+#fsBtn{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));top:calc(12px + env(safe-area-inset-top,0px));z-index:4;width:40px;height:40px;border-radius:50%;border:0;background:rgba(246,234,212,.9);color:var(--ink);box-shadow:0 3px 12px rgba(50,25,8,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+#fsBtn svg{width:20px;height:20px}
+#fsBtn:hover{background:var(--paper)}
+#fsBtn .fs-out{display:none}
+#fsBtn.on .fs-in{display:none}
+#fsBtn.on .fs-out{display:inline}
+
+/* phones: smaller card text; on a narrow screen the card sits at the bottom like a sheet (placed in game.js) */
+@media (max-width:640px), (max-height:500px){
+  #card{padding:9px 11px 6px;border-radius:14px}
+  .ct{font-size:24px}
+  .cs{font-size:11.5px;margin:2px 0 4px}
+  .live{font-size:12px}
+  .row{padding:6px 0;column-gap:8px}
+  .row .n{font-size:13px;gap:6px}
+  .row .d{font-size:11px}
+  .buy{font-size:12.5px;padding:7px 9px 6px;min-width:58px;border-radius:9px}
+  .buy.all{font-size:11px;padding:4px 7px 3px}
+  .buy s{font-size:10.5px}
+  .sect{font-size:10px;padding:7px 0 1px}
+  .gen{font-size:10.5px}
+  .foot{font-size:11px}
+  .seg button{font-size:12.5px;padding:7px 5px 6px}
+  .stat{font-size:15px}
+  .stat.cash{font-size:16px}
+  #soundBtn,#recenter{width:38px;height:38px}
+  #fsBtn{width:36px;height:36px}
+}
+@media (max-width:640px){
+  #card{max-height:62vh}
+  .cols{column-gap:14px}
+}
+
+/* "unlock more tiers" button, next to a track's level dots (unlocks it for every robot) */
+.unlock{font:700 11.5px/1 var(--font-ui);border:1.5px solid #4f7c84;color:#2c5a62;background:#e2ece6;border-radius:999px;padding:4px 9px 3px;cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.unlock:hover{background:#d3e4dd}
+.unlock[aria-disabled="true"]{border-color:#c9b799;color:#a08670;background:transparent;cursor:default}
+.unlock.shake{animation:shake .3s}
+@media (max-width:640px), (max-height:500px){ .unlock{font-size:10.5px;padding:3px 7px 2px} }
+
+/* V6: a robot's task list (drag chips between priority rows and the Don't pile) */
+.tasks{background:var(--paper-2);border-radius:12px;padding:7px 8px 8px;margin:2px 0 8px}
+.tasks .th{display:flex;align-items:baseline;gap:8px;font-size:11.5px;color:var(--ink-soft);margin:0 2px 4px;flex-wrap:wrap}
+.tasks .th b{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-dk)}
+.tasks .th.off{margin-top:7px}
+.tasks .th.off b{color:#93765e}
+.tdo{display:flex;flex-direction:column;gap:4px}
+.trow{display:flex;align-items:center;gap:5px;min-height:32px;padding:3px 4px;border-radius:9px;background:rgba(255,250,240,.55);box-shadow:inset 0 0 0 1.5px rgba(110,74,48,.12);position:relative}
+.trow .tn{width:16px;flex:none;text-align:center;font-weight:800;font-size:12px;color:var(--accent-dk)}
+.tslot{flex:1;min-height:24px;border-radius:7px;border:1.5px dashed rgba(110,74,48,.18)}
+.tslot.wide{display:flex;align-items:center;padding:0 8px;font-size:11.5px;color:#a08670}
+.toff{display:flex;flex-wrap:wrap;align-content:flex-start;gap:5px;min-height:58px;padding:5px;border-radius:9px;border:1.5px dashed rgba(110,74,48,.25)}
+.trow.tnew{background:rgba(255,250,240,.3);box-shadow:inset 0 0 0 1.5px rgba(110,74,48,.08)}
+.trow.tnew .tn{opacity:.55}
+.tasks .th.off{align-items:center}
+.toffall{margin-left:auto;font:700 11px/1 var(--font-ui);color:var(--ink-soft);background:transparent;border:1.5px solid rgba(110,74,48,.3);border-radius:999px;padding:3px 8px 2px;cursor:pointer}
+.toffall:hover{background:var(--paper);color:var(--ink)}
+.tempty{font-size:11.5px;color:#a08670;align-self:center;padding:0 4px}
+.chip{display:inline-flex;align-items:center;gap:5px;font:700 12.5px/1 var(--font-ui);color:var(--ink);background:var(--paper);border-radius:8px;padding:6px 9px 5px 7px;box-shadow:0 1.5px 0 rgba(110,74,48,.25);border-left:3px solid var(--tc);cursor:grab;touch-action:none;white-space:nowrap;flex:1;min-width:0}
+.toff .chip{flex:none;opacity:.72;border-left-color:rgba(110,74,48,.35)}
+.chip svg{width:14px;height:14px;flex:none}
+.chip:hover{filter:brightness(1.04)}
+.chip.lifted{opacity:.3}
+.chip.ghost{position:fixed;z-index:20;pointer-events:none;box-shadow:0 8px 18px rgba(40,18,4,.35);transform:rotate(-2deg);opacity:.96;cursor:grabbing}
+.tasks.dragging .trow.drop-join{box-shadow:inset 0 0 0 2px var(--accent);background:rgba(255,236,200,.8)}
+.tasks.dragging .trow.drop-top::before,.tasks.dragging .trow.drop-bottom::after{content:"";position:absolute;left:4px;right:4px;height:3px;border-radius:2px;background:var(--accent)}
+.tasks.dragging .trow.drop-top::before{top:-4px}
+.tasks.dragging .trow.drop-bottom::after{bottom:-4px}
+.tasks.dragging .toff.drop-off{border-color:var(--accent);background:rgba(255,236,200,.6)}
+@media (max-width:640px), (max-height:500px){
+  .chip{font-size:11.5px;padding:5px 7px 4px 6px}
+  .trow{min-height:28px}
+  .toff{min-height:50px}
+  .tasks .th{font-size:10.5px}
+}
+
+/* V6.1: hive upgrades wait for the first bee */
+.lockline{font-size:12.5px;font-weight:700;color:#8a5a1e;background:#fbe9bf;border-radius:8px;padding:5px 9px;margin:4px 0 2px}
+.row.locked .n,.row.locked .d{opacity:.6}
+
+/* V6.2: keep-line sliders on the bin card */
+.row.keep{grid-template-columns:1fr}
+.row.keep .d{grid-column:1}
+.row.keep input{grid-column:1;width:100%;margin:4px 0 0;accent-color:var(--accent);cursor:pointer}

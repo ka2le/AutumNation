@@ -1,0 +1,2136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leaf Yard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Caveat:wght@600;700&display=swap">
+<style>
+/* Layout: one full-bleed canvas yard; HUD pinned top-left; upgrade cards float beside the thing you tapped. */
+:root{
+  --paper:#f6ead4; --paper-2:#ecdcbf; --ink:#4a3226; --ink-soft:#7c5d47;
+  --accent:#d4672a; --accent-dk:#9e4719; --moss:#5f7232; --grass:#6c7a37;
+  --chalk:#2f3a34;
+  --font-ui:"Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --font-hand:"Caveat", "Segoe Print", "Bradley Hand", cursive;
+  color-scheme: light;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--grass);color:var(--ink);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:border-box}
+#c{position:fixed;inset:0;display:block;touch-action:manipulation}
+#hud{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:3}
+.stat{display:flex;align-items:center;gap:7px;background:rgba(246,234,212,.86);border-radius:999px;padding:3px 13px 3px 7px;box-shadow:0 2px 10px rgba(50,25,8,.18);font-weight:700;font-size:17px;line-height:1.5;font-variant-numeric:tabular-nums;width:max-content;transition:transform .15s}
+.stat.cash{pointer-events:auto;cursor:default}
+.stat svg{width:20px;height:20px;flex:none}
+.stat.bump{transform:scale(1.08)}
+.stat.cash{font-size:19px}
+#card{position:fixed;z-index:6;width:min(304px,calc(100vw - 24px));background:var(--paper);color:var(--ink);border-radius:16px;padding:12px 14px 8px;box-shadow:0 14px 34px rgba(40,18,4,.38),inset 0 0 0 1.5px rgba(110,74,48,.22);animation:pop .16s ease-out}
+@keyframes pop{from{transform:scale(.94) translateY(6px);opacity:0}to{transform:none;opacity:1}}
+.ch{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ct{font-family:var(--font-hand);font-weight:700;font-size:30px;line-height:.95;text-wrap:balance}
+.cs{font-size:13px;color:var(--ink-soft);line-height:1.35;margin:3px 0 6px}
+.live{font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.x{border:0;background:transparent;color:var(--ink-soft);font:700 20px/1 var(--font-ui);cursor:pointer;padding:2px 6px;border-radius:8px}
+.x:hover{background:var(--paper-2)}
+.row{display:grid;grid-template-columns:1fr auto;column-gap:10px;row-gap:1px;align-items:center;padding:9px 0;border-top:1.5px dashed rgba(110,74,48,.22)}
+.row .n{font-weight:700;font-size:15px;line-height:1.2;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row .d{font-size:12.5px;color:var(--ink-soft);line-height:1.3;min-width:0}
+.row .d b{color:var(--ink);font-weight:700}
+.row .btn{grid-column:2;grid-row:1 / span 2}
+.pips{display:inline-flex;gap:3px}
+.pip{width:6px;height:6px;border-radius:50%;background:rgba(110,74,48,.2)}
+.pip.on{background:var(--accent)}
+.buy{font:700 14px/1 var(--font-ui);border:0;border-radius:10px;padding:8px 11px 7px;background:var(--accent);color:#fff6e8;cursor:pointer;box-shadow:0 2px 0 var(--accent-dk);min-width:68px;font-variant-numeric:tabular-nums}
+.buy:hover{filter:brightness(1.06)}
+.buy:active{transform:translateY(1px);box-shadow:0 1px 0 var(--accent-dk)}
+.buy[aria-disabled="true"]{background:var(--paper-2);color:#93765e;box-shadow:0 2px 0 #d3bf9c;cursor:default}
+.buy.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.maxed{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--moss)}
+.seg{display:flex;gap:4px;background:var(--paper-2);border-radius:11px;padding:3px;margin:2px 0 8px}
+.seg button{flex:1;border:0;background:transparent;font:700 13.5px/1 var(--font-ui);color:var(--ink-soft);padding:8px 6px 7px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(60,30,10,.2)}
+.foot{font-size:12px;color:var(--ink-soft);padding:6px 0 2px;border-top:1.5px dashed rgba(110,74,48,.22);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.link{border:0;background:none;color:var(--ink-soft);font:600 12px var(--font-ui);text-decoration:underline;cursor:pointer;padding:2px}
+.link.danger{color:#a8361d}
+.note{font-size:12.5px;color:#a8361d;font-weight:600;min-height:0}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#toast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:10px 18px 9px;border-radius:14px;box-shadow:0 10px 26px rgba(40,18,4,.32);font-family:var(--font-hand);font-weight:700;font-size:24px;line-height:1.1;text-align:center;z-index:7;max-width:calc(100vw - 40px);transition:opacity .6s}
+#toast small{display:block;font-family:var(--font-ui);font-size:13px;font-weight:600;color:var(--ink-soft);margin-top:3px}
+
+
+#card{max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain}
+.gen{font-size:11.5px;font-weight:600;color:var(--ink-soft);background:var(--paper-2);border-radius:6px;padding:0 6px;line-height:1.6}
+.pipgap{width:4px}
+.lock{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#a08670}
+.buy s{opacity:.6;font-weight:600;margin-right:5px;font-size:12px}
+.sect{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-dk);padding:10px 0 2px;border-top:1.5px dashed rgba(110,74,48,.22)}
+#recenter{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:4;width:42px;height:42px;border-radius:50%;border:0;background:rgba(246,234,212,.9);color:var(--ink);box-shadow:0 3px 12px rgba(50,25,8,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+#recenter svg{width:22px;height:22px}
+#recenter:hover{background:var(--paper)}
+#c{cursor:grab}
+
+/* sound button and card */
+#soundBtn{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:4;width:42px;height:42px;border-radius:50%;border:0;background:rgba(246,234,212,.9);color:var(--ink);box-shadow:0 3px 12px rgba(50,25,8,.25);cursor:pointer;display:grid;place-items:center;padding:0}
+#soundBtn svg{width:22px;height:22px}
+#soundBtn:hover{background:var(--paper)}
+#soundBtn .sx{display:none}
+#soundBtn.off{color:#a08670}
+#soundBtn.off .sw{display:none}
+#soundBtn.off .sx{display:inline}
+.tog{font:700 13px/1 var(--font-ui);border:0;border-radius:999px;padding:7px 12px 6px;min-width:54px;background:var(--paper-2);color:#93765e;cursor:pointer;box-shadow:inset 0 0 0 1.5px rgba(110,74,48,.18)}
+.tog.on{background:var(--moss);color:#f6ead4;box-shadow:0 2px 0 #46561f}
+.row.vol{grid-template-columns:auto 1fr;column-gap:14px}
+.row.vol input{width:100%;accent-color:var(--accent);margin:0;cursor:pointer}
+
+/* workshop: two columns once yard-wide upgrades show up */
+#card.wide{width:min(640px,calc(100vw - 24px))}
+.cols{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-items:start}
+.col{min-width:0}
+.gdone{font-size:12px;padding:6px 0 4px;border-top:1.5px dashed rgba(110,74,48,.22)}
+@media (max-width:560px){ .cols{grid-template-columns:1fr} }
+
+/* "upgrade every robot" button under each robot upgrade */
+.row .btn{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.buy.all{font-size:12px;padding:5px 9px 4px;background:var(--moss);box-shadow:0 2px 0 #46561f;white-space:nowrap}
+.buy.all:active{box-shadow:0 1px 0 #46561f}
+.buy.all[aria-disabled="true"]{background:var(--paper-2);color:#93765e;box-shadow:0 2px 0 #d3bf9c}
+
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Leaf Yard game area"></canvas>
+
+<div id="hud" aria-live="polite">
+  <div class="stat cash" id="hCash" title="Cash">
+    <svg viewBox="-12 -12 24 24" aria-hidden="true"><circle r="10" fill="#c9922c"/><circle r="8.2" fill="#e8b84e"/><circle r="5.6" fill="none" stroke="#c9922c" stroke-width="1.3"/><path d="M-4.5,-3.5 A5.6,5.6 0 0 1 1,-5.4" stroke="#fbe3a0" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+    <span id="vCash">$0.00</span>
+  </div>
+</div>
+
+<div id="card" hidden role="dialog" aria-modal="false"></div>
+<div id="toast" hidden></div>
+<button id="soundBtn" hidden aria-label="Sound settings" title="Sound"><svg viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-8.5,-3.2 H-4.5 L0.5,-7.5 V7.5 L-4.5,3.2 H-8.5 Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><g class="sw" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.8,-3.6 A5,5 0 0 1 3.8,3.6"/><path d="M6.4,-7 A9.6,9.6 0 0 1 6.4,7"/></g><g class="sx" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.2,-3.4 L10,3.4 M10,-3.4 L4.2,3.4"/></g></svg></button>
+<button id="recenter" hidden aria-label="Back to the yard" title="Back to the yard (Home)"><svg viewBox="-12 -12 24 24" aria-hidden="true"><circle r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><circle r="2" fill="currentColor"/><path d="M0,-11 V-7 M0,7 V11 M-11,0 H-7 M7,0 H11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+
+<script src="audio.js"></script>
+<script>
+// Leaf Yard — game logic and rendering.
+// Dev URL options: ?fresh (play without loading or saving)  ?speed=4 (fast-forward, 0.25–20)
+(() => {
+'use strict';
+// ───────────────────────── utils
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rand = (a, b) => a + Math.random() * (b - a);
+const lerp = (a, b, t) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+function mulberry(s){ return function(){ s|=0; s=s+0x6D2B79F5|0; let t=Math.imul(s^s>>>15,1|s); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function cellRnd(i, j, salt){ return mulberry(((i*73856093) ^ (j*19349663) ^ (salt*83492791)) >>> 0); }
+function rr(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function ell(c,x,y,rx,ry){ c.beginPath(); c.ellipse(x,y,Math.max(0,rx),Math.max(0,ry),0,0,TAU); }
+function money(v){ if (v < 0.1) return '$' + v.toFixed(3); if (v < 10000) return '$' + v.toFixed(2); return '$' + Math.round(v).toLocaleString('en-US'); }
+function cash2(v){ return '$' + (v < 10000 ? v.toFixed(2) : Math.round(v).toLocaleString('en-US')); }
+function niceCost(v){ if (v < 1) return Math.round(v*20)/20; if (v < 20) return Math.round(v*4)/4; return Math.round(v); }
+function mmss(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+function shade(hex, k){ const n = parseInt(hex.slice(1), 16); const r = clamp(Math.round((n>>16)*k),0,255), g = clamp(Math.round((n>>8&255)*k),0,255), b = clamp(Math.round((n&255)*k),0,255); return 'rgb('+r+','+g+','+b+')'; }
+const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+
+const PARAMS = new URLSearchParams(location.search);
+const TIME_SCALE = clamp(+PARAMS.get('speed') || 1, 0.25, 20);
+const FRESH = PARAMS.has('fresh');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ───────────────────────── world layout (world units; the curb is y = 0, your land is y < 0)
+const ROAD = 84, LANE = 56, VERGE = 30;
+const BIN = { x: 0, y: -12 }, TUB = { x: 58, y: -12 }, SIGN = { x: -82, y: -8 }, SHED = { x: -205, y: -22 }, PARK = 22;
+const AREAS = [
+  { w: 580,  h: 380,  name: 'Cottage plot', spawn: 1.4, cap: 70 },
+  { w: 1280, h: 720,  name: 'Meadow',       spawn: 3.4, cap: 230, cost: 25 },
+  { w: 2000, h: 1150, name: 'Old orchard',  spawn: 6.5, cap: 400, cost: 700 },
+];
+// Metal veins: one very close to the bin, one fairly close, the rest a long walk away.
+const SPOTS = [
+  { x: 165,  y: -112, land: 0 },
+  { x: 425,  y: -175, land: 1 },
+  { x: -525, y: -570, land: 1 },
+  { x: -870, y: -430, land: 2 },
+  { x: 760,  y: -985, land: 2 },
+];
+const TREES = [
+  { x: -300, y: -440, r: 135, seed: 11 }, { x: 310, y: -420, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
+  { x: -770, y: -820, r: 190, seed: 41 }, { x: 770, y: -770, r: 185, seed: 53 }, { x: -90, y: -905, r: 170, seed: 61 },
+  { x: -1130, y: -330, r: 190, seed: 71 }, { x: 1140, y: -1060, r: 200, seed: 83 }, { x: -560, y: -1310, r: 190, seed: 97 },
+  { x: 560, y: -1335, r: 180, seed: 101 }, { x: 1150, y: -330, r: 170, seed: 113 }, { x: -1180, y: -1060, r: 190, seed: 127 },
+];
+const owned = (lvl = S.land) => { const A = AREAS[lvl]; return { x0: -A.w/2, x1: A.w/2, y0: -A.h, y1: -VERGE }; };
+const salePos = () => { const A = AREAS[S.land]; return { x: Math.round(A.w*0.18), y: -A.h + 44 }; };
+
+// ───────────────────────── economy
+const UP = {
+  // the bin starts small: the first few sizes are cheap, after that each one is a real purchase
+  bin:        { obj:'bin',  name:'Bigger bin',        max:8,  costs:[0.4, 0.8, 1.5, 4, 15, 50, 150, 400], vals:[15, 22, 32, 48, 72, 110, 165, 250, 380], val:l=>UP.bin.vals[l], show:v=>v+' leaves' },
+  leafPrice:  { obj:'bin',  name:'Sort & bag leaves', max:10, base:0.8, mul:1.7, val:l=>0.1*Math.pow(1.2,l),  show:v=>money(v)+' / leaf' },
+  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6,  base:8,   mul:1.8, val:l=>1.2*Math.pow(1.25,l),  show:v=>money(v)+' / metal' },
+  // more pickups is a big lever (it makes bin size matter less), so it starts dearer and climbs faster
+  truck:      { obj:'sign', name:'Book more pickups', max:7,  base:1.25, mul:2.3, val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
+};
+// Per-robot upgrade tracks. Generation 0 needs no research; later generations are unlocked at the workshop.
+const TRACKS = {
+  speed: { label:'Wheels', gens:[
+      { name:'Old wheels', n:3, cost:[0.3, 0.6, 1.2] },
+      { tech:'treads', name:'Rubber treads', n:4, cost:[2, 3, 4.5, 6.5] },
+      { tech:'hubs', name:'Ball-bearing hubs', n:4, cost:[15, 22, 32, 46] } ],
+    vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.48,2.74,3.0,3.3], show:v=>v.toFixed(2)+'× speed' },
+  carry: { label:'Basket', gens:[
+      { name:'Tin basket', n:3, cost:[0.25, 0.5, 1] },
+      { tech:'hamper', name:'Wicker hamper', n:4, cost:[1.8, 2.7, 4, 6] },
+      { tech:'hopper', name:'Spring hopper', n:4, cost:[14, 20, 30, 44] } ],
+    vals:[3,5,7,9, 12,15,18,21, 25,29,33,38], show:v=>v+' leaves' },
+  pick: { label:'Pickup', gens:[
+      { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
+      { tech:'servos', name:'Quick servos', n:4, cost:[2.2, 3.3, 5, 7.5] } ],
+    vals:[1.3,1.05,0.85,0.7, 0.56,0.46,0.38,0.32], show:v=>v.toFixed(2)+'s a grab' },
+  grab: { label:'Claw', gens:[
+      { name:'Single pincer', n:0, cost:[] },
+      { tech:'claw', name:'Claw rake', n:5, cost:[3, 9, 28, 62, 125] } ],   // small steps first, then big ones worth saving for
+    vals:[1,2,3,5,8,12], show:v=>v === 1 ? '1 leaf a grab' : v+' leaves a grab' },
+  reach: { label:'Reach', gens:[
+      { name:'Stubby arm', n:0, cost:[] },
+      { tech:'arm', name:'Telescoping arm', n:5, cost:[2.5, 8, 24, 55, 111] } ],
+    vals:[20,30,44,64,92,125], show:v=>v+' cm reach' },
+  drill: { label:'Drill', gens:[
+      { name:'Hand drill', n:3, cost:[6, 9, 13], needsMetal:true },
+      { tech:'diamond', name:'Diamond bit', n:4, cost:[24, 34, 48, 68] } ],
+    vals:[4,3.4,2.9,2.5, 2.1,1.8,1.55,1.35], show:v=>v.toFixed(1)+'s per chunk' },
+  magnet: { label:'Magnet', gens:[
+      { name:'Fridge magnet', n:3, cost:[10, 15, 22], needsMetal:true },
+      { tech:'horseshoe', name:'Horseshoe magnet', n:4, cost:[32, 45, 62, 85] },
+      { tech:'electro', name:'Electromagnet', n:4, cost:[130, 180, 250, 340] } ],
+    vals:[0, .06,.11,.16, .22,.28,.34,.40, .48,.56,.64,.72], show:v=>v ? Math.round(v*100)+'% double metal' : 'no double metal' },
+};
+const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet'];
+const TECH = {
+  treads:  { name:'Rubber treads',     track:'speed', cost:3,   desc:'Four new wheel upgrades for every robot.' },
+  hamper:  { name:'Wicker hamper',     track:'carry', cost:3.5, desc:'Four new basket upgrades for every robot.' },
+  servos:  { name:'Quick servos',      track:'pick',  cost:4,   desc:'Four faster pickup upgrades for every robot.' },
+  claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Five claw upgrades, up to 12 leaves.' },
+  arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Five reach upgrades. Pairs well with the claw rake.' },
+  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:45,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
+  hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Basket upgrades 8 to 11.' },
+  diamond: { name:'Diamond drill bit', track:'drill', cost:90,  needsMiner:true, desc:'Four faster drill upgrades for every robot.' },
+  horseshoe:{ name:'Horseshoe magnet', track:'magnet', cost:70, needsMiner:true, desc:'Magnet upgrades 4 to 7: a better chance of double metal.' },
+  electro: { name:'Electromagnet',     track:'magnet', cost:320, needs:'horseshoe', desc:'Magnet upgrades 8 to 11: up to 72% double metal.' },
+};
+// Yard-wide upgrades (workshop, right column). They show up once you have $10. Not every one is a plain boost:
+// some change the rules a little, like how much a copied robot upgrade costs.
+const GEN = {
+  oil:      { name:'Grease every axle',  max:3, cost:[20, 110, 520],  desc:l=>'All robots drive <b>'+(20*(l+1))+'%</b> faster'+(l ? ' (now '+(20*l)+'%)' : '')+'.' },
+  basket:   { name:'Shared basket plans', max:1, cost:[35],  desc:()=>'Basket upgrades another robot already has cost <b>10%</b> instead of 50%.' },
+  // Parked for now to keep the list short; good ideas to bring back later. Their effects switch off while commented out.
+  // servo:    { name:'Oil the servos',     max:2, cost:[45, 240], desc:l=>'Every grab is <b>'+(15*(l+1))+'%</b> quicker'+(l ? ' (now '+(15*l)+'%)' : '')+'.' },
+  // bulk:     { name:'Bulk robot parts',   max:1, cost:[60],  desc:()=>'New robots cost <b>25%</b> less.' },
+  fingers:  { name:'Wider claw fingers', max:2, cost:[55, 260], needs:()=>S.tech.claw, desc:l=>'Claws spread <b>'+(30*(l+1))+'%</b> wider and pick from a bigger patch.' },
+  blueprint:{ name:'Copy the blueprints', max:1, cost:[150], desc:()=>'Any upgrade another robot already has costs <b>30%</b> instead of 50%.' },
+  cutting:  { name:'Cutting oil',        max:2, cost:[80, 380], needs:()=>S.miners.length > 0, desc:l=>'All drills run <b>'+(15*(l+1))+'%</b> faster.' },
+  market:   { name:'Market stall',       max:3, cost:[140, 600, 2400], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
+  charm:    { name:'Lucky horseshoe',    max:1, cost:[260], needs:()=>S.miners.length > 0, desc:()=>'Every robot gets <b>+8%</b> double-metal chance on top of its magnet.' },
+};
+const GEN_UNLOCK = 10;
+const gl = k => (GEN[k] && S.gen && S.gen[k]) || 0;   // parked (commented-out) upgrades count as 0
+const genCost = k => GEN[k].cost[gl(k)];
+const genAvail = k => gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) && seenPrice(genCost(k));
+const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
+const ROBOT_COST = [0, 6, 50, 200, 600];
+const MINER_COST = 30;   // every miner costs the same; far veins are already worth less
+const METAL_SLOT_COST = 40;
+const DISCOUNT = 0.5;
+
+const STYLES = [
+  { name:'Tinker',  blurb:'The original yard bot. Dusty, squeaky, never complains.', body:'#d6c9ab', body2:'#a39376', head:'#e0d4b8', head2:'#b4a586', band:'#5f8f88', bw:24, bh:22, hw:18, hh:13, tw:28, rust:.8, dust:true },
+  { name:'Pip',     blurb:'Slim and quick. Rebuilt from a lawnmower and a toaster.', body:'#e8e2d1', body2:'#bcb39d', head:'#efe9d9', head2:'#c5bca6', band:'#d9a43a', bw:18, bh:26, hw:16, hh:14, tw:22, rust:.3, slim:true },
+  { name:'Clunk',   blurb:'Built like a mailbox. Heavy treads, steady pace.',        body:'#c9b99b', body2:'#8c7b5f', head:'#d3c5a8', head2:'#a29173', band:'#b8452d', bw:32, bh:21, hw:21, hh:13, tw:38, rust:.6, chunky:true },
+  { name:'Rivet',   blurb:'Patched together from three other robots. Rough, but it works.', body:'#bbb4a2', body2:'#7d7668', head:'#c7c0ae', head2:'#8b8474', band:'#6f7d3c', bw:25, bh:22, hw:18, hh:13, tw:28, rust:1, patches:true },
+  { name:'Juniper', blurb:'Round, polished, and a little proud of it.',              body:'#f0e5cc', body2:'#c4b08e', head:'#f4ebd7', head2:'#cfbd9c', band:'#7a4d6e', bw:24, bh:21, hw:19, hh:14, tw:26, rust:0, round:true },
+];
+
+const upCost = k => UP[k].costs ? UP[k].costs[S.lv[k]] : niceCost(UP[k].base * Math.pow(UP[k].mul, S.lv[k]));
+const val = k => UP[k].val(S.lv[k]);
+const binCap = () => val('bin');
+const metalCap = () => Math.round(binCap()*0.4);
+const sellMul = () => 1 + 0.1*gl('market');
+const leafPrice = () => val('leafPrice')*sellMul();
+const metalPrice = () => val('metalPrice')*sellMul();
+const truckEvery = () => val('truck');
+const rv = (ri, k) => TRACKS[k].vals[S.robots[ri].lv[k]];
+const leafCap = ri => rv(ri, 'carry');
+const metalCarry = ri => 2 + Math.floor(S.robots[ri].lv.carry/2);
+
+function trackCap(k){
+  let n = 0;
+  for (const g of TRACKS[k].gens){ if (g.tech && !S.tech[g.tech]) break; if (g.needsMetal && !S.metalSlot) break; n += g.n; }
+  return n;
+}
+const trackMax = k => TRACKS[k].vals.length - 1;
+function trackVisible(k){ if (k === 'grab') return !!S.tech.claw; if (k === 'reach') return !!S.tech.arm; if (k === 'drill' || k === 'magnet') return S.metalSlot; return true; }
+function genAt(k, level){ let acc = 0; const gens = TRACKS[k].gens; for (let gi=0; gi<gens.length; gi++){ const g = gens[gi]; if (level < acc + g.n) return { gi, g, idx: level - acc }; acc += g.n; } return null; }
+function genNameAt(k, level){ let acc = 0, name = TRACKS[k].gens[0].name; for (const g of TRACKS[k].gens){ if (g.n > 0 && level > acc) name = g.name; acc += g.n; } return name; }
+function rCost(ri, k){
+  const L = S.robots[ri].lv[k], ge = genAt(k, L);
+  if (!ge) return null;
+  const full = ge.g.cost[ge.idx];
+  const disc = S.robots.some((r, j) => j !== ri && r.lv[k] > L);
+  return { cost: disc ? niceCost(full*discFor(k)) : full, full, disc };
+}
+// what a level another robot already has costs, as a share of the full price
+function discFor(k){ let d = DISCOUNT; if (gl('blueprint')) d = 0.3; if (k === 'carry' && gl('basket')) d = 0.1; return d; }
+const robotCost = n => niceCost(ROBOT_COST[n]*(gl('bulk') ? 0.75 : 1));
+// "Upgrade all" on a track: first it brings every robot up to the best robot's level (all copied, so all discounted);
+// once they match, it adds one level to everyone: one at full price, the rest at the copied-level price.
+function allPlan(k){
+  const n = S.robots.length;
+  if (n < 2 || !trackVisible(k)) return null;
+  const lv = S.robots.map(r => r.lv[k]), top = Math.max(...lv), cap = trackCap(k);
+  const price = (L, disc) => { const ge = genAt(k, L); if (!ge) return null; const f = ge.g.cost[ge.idx]; return disc ? niceCost(f*discFor(k)) : f; };
+  let cost = 0, full = 0, target;
+  if (lv.some(l => l < top)){
+    target = top;
+    for (const l of lv) for (let L=l; L<top; L++){ cost += price(L, true); full += price(L, false); }
+  } else {
+    if (top >= cap || top >= trackMax(k)) return null;
+    target = top + 1;
+    const f = price(top, false); cost = f + (n - 1)*price(top, true); full = f*n;
+  }
+  const behind = lv.filter(l => l < target).length;
+  return { cost: Math.round(cost*100)/100, full, target, catchUp: target === top, behind };
+}
+function techAvailable(id){ const t = TECH[id]; if (S.tech[id]) return false; if (t.needs && !S.tech[t.needs]) return false; if (t.needsMiner && !S.miners.length) return false; return ALWAYS_SHOWN.includes(id) || seenPrice(t.cost); }
+// Unlocks stay hidden until you've once held a quarter of their price (S.peak is the most cash you've ever had).
+const ALWAYS_SHOWN = ['treads', 'hamper', 'servos'];
+const seenPrice = cost => (S.peak || 0) >= cost*0.25;
+const metalSlotShown = () => seenPrice(METAL_SLOT_COST);
+
+function newRobotCfg(){ return { job:'leaf', miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0 } }; }
+function freshState(){
+  return {
+    v:2, t:0, cash:0, peak:0, binLeaves:0, binMetal:0, land:0,
+    lv:{ bin:0, leafPrice:0, metalPrice:0, truck:0 },
+    tech:{}, gen:{}, metalSlot:false, robots:[newRobotCfg()], miners:[],
+    truckT:28,
+    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0 },
+    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true }
+  };
+}
+let S = freshState();
+
+// ───────────────────────── canvas & camera
+const cv = $('c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const cam = { z:1, ox:0, oy:0 };
+let camAnim = null, userCam = false, camMovedT = 0;
+let groundCv = null, groundCam = { z:1, ox:0, oy:0, mx:0, my:0, rs:1 }, vignetteCv = null, canopyCvs = [];
+
+function camTarget(level){
+  const A = AREAS[level], vw = A.w + 80, vh = A.h + ROAD + 84;
+  const z = Math.min(W/vw, H/vh, 1.9);
+  return { z, ox: W/2, oy: H - ROAD*z };
+}
+const w2s = (x, y) => ({ x: cam.ox + x*cam.z, y: cam.oy + y*cam.z });
+const s2w = (x, y) => ({ x: (x - cam.ox)/cam.z, y: (y - cam.oy)/cam.z });
+const visRect = (c = cam) => ({ x0: -c.ox/c.z, x1: (W - c.ox)/c.z, y0: -c.oy/c.z, y1: (H - c.oy)/c.z });
+
+function resize(){
+  const center = W ? s2w(W/2, H/2) : null, z = cam.z;
+  W = innerWidth; H = innerHeight; DPR = Math.min(2, devicePixelRatio || 1);
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  if (userCam && center){ cam.z = z; cam.ox = W/2 - center.x*z; cam.oy = H/2 - center.y*z; clampCam(); }
+  else Object.assign(cam, camTarget(S.land));
+  camAnim = null;
+  buildGround(cam); buildVignette();
+  closeCard();
+}
+// ── player camera: wheel / pinch zoom, drag to pan, WASD or arrow keys, Home to recenter
+// The camera may wander a little past your fence, but never far down the road or off your land.
+function camBounds(z = cam.z){
+  const A = AREAS[S.land], O = owned();
+  const mx = 120 + 0.05*A.w, my = 110 + 0.05*A.h;
+  // zoomed in, the road may fill at most about a fifth of the screen
+  const y1 = clamp(0.22*H/z - VERGE, 20, ROAD + 6);
+  return { x0: O.x0 - mx, x1: O.x1 + mx, y0: O.y0 - my, y1 };
+}
+function zoomLimits(){ const fit = camTarget(S.land).z; return [fit*0.85, Math.max(2.8, fit*1.7)]; }
+function clampCam(){
+  const [zmin, zmax] = zoomLimits();
+  const c = s2w(W/2, H/2);
+  cam.z = clamp(cam.z, zmin, zmax);
+  const B = camBounds(), hw = W/2/cam.z, hh = H/2/cam.z;
+  // along each axis: keep the view inside the bounds; if the view is bigger than the bounds,
+  // centre it sideways, and pin the road to the bottom edge vertically (extra room shows the woods instead)
+  const cx = 2*hw >= B.x1 - B.x0 ? (B.x0 + B.x1)/2 : clamp(c.x, B.x0 + hw, B.x1 - hw);
+  const cy = 2*hh >= B.y1 - B.y0 ? B.y1 - hh : clamp(c.y, B.y0 + hh, B.y1 - hh);
+  cam.ox = W/2 - cx*cam.z; cam.oy = H/2 - cy*cam.z;
+}
+function zoomAt(sx, sy, f){
+  const w = s2w(sx, sy), [zmin, zmax] = zoomLimits();
+  const nz = clamp(cam.z*f, zmin, zmax);
+  cam.z = nz; cam.ox = sx - w.x*nz; cam.oy = sy - w.y*nz;
+  clampCam(); userMoved();
+}
+function userMoved(){
+  userCam = true; camAnim = null; camMovedT = performance.now();
+  $('recenter').hidden = false;
+  if (cardOpen) placeCard();
+}
+function recenter(){
+  userCam = false; camAnim = null; $('recenter').hidden = true;
+  Object.assign(cam, camTarget(S.land)); buildGround(cam);
+  if (cardOpen) placeCard();
+}
+function groundCovers(){
+  const G = groundCam; if (Math.abs(cam.z/G.z - 1) > 0.12) return false;
+  const V = visRect();
+  return V.x0 >= -(G.ox + G.mx)/G.z && V.x1 <= (W + G.mx - G.ox)/G.z && V.y0 >= -(G.oy + G.my)/G.z && V.y1 <= (H + G.my - G.oy)/G.z;
+}
+
+// ───────────────────────── leaves
+const LEAFC = [
+  { c:'#c0392b', v:'#7f2318', w:.2 },
+  { c:'#d4532a', v:'#8c3215', w:.14 },
+  { c:'#e07b2e', v:'#9a4d17', w:.24 },
+  { c:'#eaa23a', v:'#a8691b', w:.15 },
+  { c:'#9aa53f', v:'#5d6524', w:.17, sp:true },
+  { c:'#b0662f', v:'#6e3c18', w:.10 },
+];
+function pickColor(){ let r = Math.random(); for (let i=0;i<LEAFC.length;i++){ r -= LEAFC[i].w; if (r <= 0) return i; } return 0; }
+const MAPLE = (() => { const h = [[0,-1],[0.12,-0.62],[0.38,-0.8],[0.32,-0.42],[0.74,-0.52],[0.58,-0.2],[0.98,-0.02],[0.62,0.1],[0.7,0.32],[0.3,0.24],[0.08,0.42],[0,0.5]]; const p = h.slice(); for (let i=h.length-2;i>0;i--) p.push([-h[i][0], h[i][1]]); return p; })();
+function leafPath(c, shape){
+  c.beginPath();
+  if (shape === 1){ c.moveTo(MAPLE[0][0], MAPLE[0][1]); for (let i=1;i<MAPLE.length;i++) c.lineTo(MAPLE[i][0], MAPLE[i][1]); c.closePath(); }
+  else { c.moveTo(0,-1); c.bezierCurveTo(0.62,-0.7,0.6,0.5,0,0.82); c.bezierCurveTo(-0.6,0.5,-0.62,-0.7,0,-1); c.closePath(); }
+}
+function drawLeaf(c, x, y, s, rot, ci, shape, flipX, squash, alpha, dark){
+  const col = LEAFC[ci];
+  c.save(); c.translate(x, y); if (squash !== 1) c.scale(1, squash); c.rotate(rot); c.scale(s*flipX, s);
+  if (alpha !== 1) c.globalAlpha *= alpha;
+  leafPath(c, shape);
+  c.fillStyle = col.c; c.fill();
+  if (dark){ c.fillStyle = 'rgba(60,20,5,'+dark+')'; c.fill(); }
+  c.lineWidth = 0.09; c.strokeStyle = col.v; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(0, shape===1?0.45:0.8); c.lineTo(0, 1.12);
+  c.moveTo(0, 0.5); c.lineTo(0, -0.78);
+  if (shape === 1){ c.moveTo(0,0.3); c.lineTo(0.55,-0.38); c.moveTo(0,0.3); c.lineTo(-0.55,-0.38); c.moveTo(0,0.38); c.lineTo(0.72,0.05); c.moveTo(0,0.38); c.lineTo(-0.72,0.05); }
+  else { c.moveTo(0,-0.2); c.lineTo(0.3,-0.45); c.moveTo(0,-0.2); c.lineTo(-0.3,-0.45); c.moveTo(0,0.2); c.lineTo(0.32,0.0); c.moveTo(0,0.2); c.lineTo(-0.32,0.0); }
+  c.stroke();
+  if (col.sp){ c.fillStyle = '#5a6322'; ell(c,0.22,-0.3,0.08,0.08); c.fill(); ell(c,-0.2,0.15,0.07,0.07); c.fill(); ell(c,0.12,0.35,0.06,0.06); c.fill(); c.fillStyle='#c98a35'; ell(c,-0.25,-0.45,0.07,0.07); c.fill(); ell(c,0.3,0.12,0.06,0.06); c.fill(); }
+  c.restore();
+}
+
+let leaves = [], fgLeaves = [];
+let groundN = 0;
+
+function landingOK(x, y){
+  const O = owned();
+  if (x < O.x0 + 8 || x > O.x1 - 8 || y < O.y0 + 6 || y > O.y1 - 4) return false;
+  if (Math.abs(x - SHED.x) < 60 && y > SHED.y - 72) return false;
+  if (x > BIN.x - 46 && x < BIN.x + 82 && y > BIN.y - 56) return false;
+  return true;
+}
+function newLeaf(x, y, ly, collect){
+  return { x, y, ly, s: rand(8, 11), rot: rand(0, TAU), vr: rand(-1.6, 1.6), ci: pickColor(), sh: Math.random() < 0.55 ? 1 : 0,
+    st: 'fall', vy: rand(26, 44), ph: rand(0, TAU), phs: rand(1.6, 3.2), sw: rand(14, 30), wf: rand(0.6, 1.2),
+    flip: 1, claim: null, collect, a: 1, kx: 0, ky: 0, t: 0 };
+}
+function spawnCollectable(onGround){
+  const O = owned();
+  let x, ly;
+  for (let k=0;k<10;k++){ x = rand(O.x0 + 10, O.x1 - 10); ly = rand(O.y0 + 8, O.y1 - 6); if (landingOK(x, ly)) break; }
+  const fallH = rand(220, 420);
+  const l = newLeaf(x, ly - fallH, ly, true);
+  if (onGround){ l.y = ly; l.st = 'ground'; }
+  else l.x -= wind * l.wf * fallH / l.vy;   // start upwind so it drifts onto its spot
+  leaves.push(l);
+  return l;
+}
+// Now and then a big tree over your land lets go of a whole load at once, leaving a thick pile under it.
+const treeShake = TREES.map(() => 0);
+let dropT = 45;
+function treeDropSpots(t){
+  // landing spots along the lower edge of the canopy (so the pile isn't hidden under it), denser in the middle
+  const out = [];
+  for (let k=0;k<60;k++){ const a = rand(0, TAU), d = Math.pow(Math.random(), 0.8); const x = t.x + Math.cos(a)*d*t.r*0.45, y = t.y + t.r*1.12 + Math.sin(a)*d*t.r*0.16; if (landingOK(x, y)) out.push({ x, y }); }
+  return out;
+}
+function treeDrop(force){
+  const A = AREAS[S.land];
+  const opts = [];
+  TREES.forEach((t, i) => { const spots = treeDropSpots(t); if (spots.length >= 12) opts.push({ t, i, spots, w: t.r*spots.length }); });
+  if (!opts.length) return false;
+  let pick = Math.random()*opts.reduce((a, o) => a + o.w, 0), o = opts[0];
+  for (const q of opts){ pick -= q.w; if (pick <= 0){ o = q; break; } }
+  const n = Math.round(rand(0.13, 0.2)*A.cap + o.t.r*0.08);
+  if (!force && groundN + n > A.cap*1.3) return false;
+  for (let k=0;k<n;k++){
+    const p = o.spots[Math.floor(Math.random()*o.spots.length)], x = p.x + rand(-6, 6), ly = p.y + rand(-4, 4);
+    if (!landingOK(x, ly)) continue;
+    const fall = rand(70, 190), l = newLeaf(x, ly - fall, ly, true);
+    l.vy = rand(55, 85); l.sw = rand(6, 14);           // a heavy shower: falls faster and straighter
+    l.x -= wind*l.wf*fall/l.vy;
+    if (simMode){ l.y = ly; l.x = x; l.st = 'ground'; }
+    else l.y -= rand(0, 1.4)*l.vy;                     // spread the shower over about a second and a half
+    leaves.push(l);
+  }
+  treeShake[o.i] = 1.6; S.totals.drops = (S.totals.drops || 0) + 1;
+  if (!simMode){
+    pop(o.t.x, o.t.y - o.t.r*0.55, 'whoosh!', 'note', 20);
+    for (let k=0;k<4;k++) spawnFg();
+    const a = sndAt(o.t.x, o.t.y); sfx('kick', 14, a.pan);
+  }
+  return true;
+}
+function spawnAmbient(){
+  const V = visRect();
+  let x, y;
+  if (Math.random() < 0.7){
+    const vis = TREES.filter(t => t.x + t.r > V.x0 && t.x - t.r < V.x1 && t.y + t.r > V.y0 && t.y - t.r < V.y1);
+    if (vis.length){ const t = vis[Math.floor(Math.random()*vis.length)]; const a = rand(0, TAU), d = Math.sqrt(Math.random())*t.r*0.85; x = t.x + Math.cos(a)*d; y = t.y + Math.sin(a)*d*0.7; }
+  }
+  if (x === undefined){ x = rand(V.x0, V.x1); y = V.y0 - 20; }
+  const ly = Math.min(y + rand(100, 420), -6);
+  if (ly <= y) return;
+  leaves.push(newLeaf(x, y, ly, false));
+}
+function spawnFg(){
+  fgLeaves.push({ x: rand(-60, W*0.9), y: -40, s: rand(20, 28), rot: rand(0,TAU), vr: rand(-2,2), ci: pickColor(), sh: Math.random()<.6?1:0, vy: rand(70, 115), ph: rand(0,TAU), phs: rand(1.5,2.6), sw: rand(30,60) });
+}
+
+// ───────────────────────── runtime objects
+let R = [];
+const truck = { st:'away', x:0, v:0, timer:0, fill:0, rot:0, takeL:0, takeM:0 };
+let parts = [], pops = [], bubbles = [];
+let wind = 0, gust = 0, gustT = 8;
+let spawnAcc = 0, ambAcc = 0, fgAcc = 0;
+let bumpBin = 0, cashBumpT = 0, saleAppearT = -10;
+const treeAlpha = TREES.map(() => 0.96);
+let simMode = false;
+
+function newRobot(i){
+  return { id:i, x: SHED.x + rand(-6,6), y: SHED.y + 12, st:'idle', carryL:0, carryM:0, face:1, anim:Math.random()*5, moving:false,
+    mineP:0, timer:0, plan:null, fingers:null, blinkT: rand(1,4), blink:0, wx:0, wy:0, full:false, hammer:0, armTo:null };
+}
+function syncRobots(){ while (R.length < S.robots.length) R.push(newRobot(R.length)); }
+
+const robotSpeed = ri => 58 * rv(ri, 'speed') * (1 + 0.2*gl('oil'));
+const pickTime = ri => rv(ri, 'pick') * (1 - 0.15*gl('servo'));
+const drillTime = ri => rv(ri, 'drill') * (1 - 0.15*gl('cutting'));
+const doubleChance = ri => Math.min(0.9, rv(ri, 'magnet') + (gl('charm') ? 0.08 : 0));
+// how far the claw's fingers spread around the hand: a single pincer only takes the leaf under it
+const clawSpread = ri => { const g = rv(ri, 'grab'); return g <= 1 ? 0 : (12 + 5*g)*(1 + 0.3*gl('fingers')); };
+
+function moveTo(r, x, y, sp, dt){
+  const dx = x - r.x, dy = y - r.y, d = Math.hypot(dx, dy);
+  if (Math.abs(dx) > 1.5) r.face = dx > 0 ? 1 : -1;
+  if (d <= sp*dt + 0.5){ r.x = x; r.y = y; return true; }
+  r.x += dx/d*sp*dt; r.y += dy/d*sp*dt; r.moving = true; return false;
+}
+function binSpot(r){
+  if (r.carryM > 0 && r.carryL === 0) return { x: TUB.x + 2 + (r.id%3 - 1)*8, y: BIN.y + 15 };
+  return { x: BIN.x + ((r.id % 5) - 2)*15 - 4, y: BIN.y + 15 + (r.id % 2)*4 };
+}
+function claimMiner(r){
+  const cfg = S.robots[r.id];
+  if (cfg.job !== 'mine') return;
+  if (cfg.miner != null && S.miners.includes(cfg.miner) && minerWorker(cfg.miner) === r.id) return;
+  cfg.miner = null;
+  const free = S.miners.filter(s => minerWorker(s) < 0).sort((a, b) => Math.hypot(SPOTS[a].x - BIN.x, SPOTS[a].y - BIN.y) - Math.hypot(SPOTS[b].x - BIN.x, SPOTS[b].y - BIN.y));
+  if (free.length) cfg.miner = free[0];
+}
+const waitingToMine = r => S.robots[r.id].job === 'mine' && S.robots[r.id].miner == null && freeMiner() != null;
+function minerFor(r){
+  const cfg = S.robots[r.id];
+  if (cfg.job !== 'mine' || cfg.miner == null || !S.miners.includes(cfg.miner)) return null;
+  const p = SPOTS[cfg.miner]; return { x:p.x, y:p.y, wx: p.x - 30, wy: p.y + 7 };
+}
+// Plans a grab: a spot for the hand plus up to `grab` leaves the fingers can reach from it.
+// With a claw the robot looks for a patch of leaves, not just the nearest one.
+function freeLeaf(l, r){ return l.st === 'ground' && l.collect && (!l.claim || l.claim === r); }
+function pickTarget(r){
+  const grab = rv(r.id, 'grab'), spread = clawSpread(r.id);
+  const cand = [];
+  for (const l of leaves){
+    if (l.st !== 'ground' || !l.collect || l.claim) continue;
+    cand.push([Math.hypot(l.x - r.x, l.y - r.y) + 0.25*Math.hypot(l.x - BIN.x, l.y - BIN.y), l]);
+  }
+  if (!cand.length) return null;
+  if (grab <= 1){ let b = cand[0]; for (const c of cand) if (c[0] < b[0]) b = c; return { ls:[b[1]] }; }
+  cand.sort((a, b) => a[0] - b[0]);
+  const reach = rv(r.id, 'reach');
+  let best = null, bs = 1e18;
+  for (let i=0; i<Math.min(16, cand.length); i++){
+    const ls = patchAround(cand[i][1], grab, spread, cand);
+    const h = centroid(ls);
+    const walk = Math.max(0, Math.hypot(h.x - r.x, h.y - r.y) - reach*0.7) + 0.25*Math.hypot(h.x - BIN.x, h.y - BIN.y);
+    const sc = walk - 34*(ls.length - 1);
+    if (sc < bs){ bs = sc; best = ls; }
+  }
+  return { ls: best };
+}
+// the seed leaf plus its nearest neighbours that all fit inside one claw spread
+function patchAround(seed, grab, spread, cand){
+  const near = [];
+  for (const c of cand){ const m = c[1]; if (m === seed) continue; const dx = m.x - seed.x, dy = m.y - seed.y; if (Math.abs(dx) > spread*2 || Math.abs(dy) > spread*2) continue; const d = Math.hypot(dx, dy); if (d <= spread*2) near.push([d, m]); }
+  near.sort((a, b) => a[0] - b[0]);
+  let ls = [seed];
+  for (const [, m] of near){ if (ls.length >= grab) break; ls.push(m); }
+  // drop anything the fingers can't reach from the middle of the patch
+  for (let k=0; k<2 && ls.length > 1; k++){ const h = centroid(ls); ls = ls.filter(l => l === seed || Math.hypot(l.x - h.x, l.y - h.y) <= spread); }
+  return ls;
+}
+function centroid(ls){ let x = 0, y = 0; for (const l of ls){ x += l.x; y += l.y; } return { x: x/ls.length, y: y/ls.length }; }
+function planAlive(r){ if (!r.plan) return null; r.plan = r.plan.filter(l => l.st === 'ground' && l.claim === r); return r.plan.length ? centroid(r.plan) : null; }
+const hasLeaves = () => { for (const l of leaves) if (l.st === 'ground' && l.collect && !l.claim) return true; return false; };
+function release(r){ if (r.plan) for (const l of r.plan) if (l.claim === r) l.claim = null; r.plan = null; r.fingers = null; }
+
+function decide(r){
+  const cfg = S.robots[r.id];
+  claimMiner(r);
+  if (cfg.job === 'mine' && minerFor(r)){
+    if (r.carryL > 0 || r.carryM >= metalCarry(r.id)){ r.st = 'toBin'; return; }
+    r.st = 'toMine'; return;
+  }
+  if (r.carryM > 0){ r.st = 'toBin'; return; }
+  if (r.carryL >= leafCap(r.id)){ r.st = 'toBin'; return; }
+  const p = pickTarget(r);
+  if (p){ for (const l of p.ls) l.claim = r; r.plan = p.ls; r.st = 'seek'; return; }
+  if (r.carryL > 0){ r.st = 'toBin'; return; }
+  const O = owned();
+  r.wx = clamp(r.x + rand(-90, 90), O.x0 + 20, O.x1 - 20); r.wy = clamp(r.y + rand(-60, 60), O.y0 + 20, O.y1 + 10); r.st = 'wander';
+}
+
+// Called when the robot reaches its patch: top the plan up with any free leaf the fingers can reach, then aim the claw.
+function aimClaw(r, h){
+  const take = Math.min(rv(r.id, 'grab'), leafCap(r.id) - r.carryL), spread = clawSpread(r.id);
+  if (take > r.plan.length && spread > 0){
+    const near = [];
+    for (const l of leaves){ if (l.claim || !freeLeaf(l, r)) continue; const dx = l.x - h.x, dy = l.y - h.y; if (Math.abs(dx) > spread || Math.abs(dy) > spread) continue; const d = Math.hypot(dx, dy); if (d <= spread) near.push([d, l]); }
+    near.sort((a, b) => a[0] - b[0]);
+    for (const [, l] of near){ if (r.plan.length >= take) break; l.claim = r; r.plan.push(l); }
+  }
+  if (r.plan.length > take){ for (const l of r.plan.slice(take)) l.claim = null; r.plan.length = take; }
+  const c = centroid(r.plan);
+  r.armTo = { x: c.x, y: c.y };
+  r.fingers = r.plan.length > 1 ? r.plan.map(l => ({ x: l.x, y: l.y })) : null;
+}
+function grabLeaves(r){
+  const room = leafCap(r.id) - r.carryL;
+  const got = (r.plan || []).filter(l => l.st === 'ground' && l.claim === r).slice(0, Math.max(0, room));
+  for (const l of got){
+    l.st = 'gone'; l.claim = null; r.carryL++;
+    flyTo('leaf', l.x, l.y, r.x - r.face*8, r.y - 38, (r.pickDur || 0.5)*0.45 + 0.08 + Math.random()*0.1, 16, { ci:l.ci, sh:l.sh, s:l.s*0.75 });
+  }
+  for (const l of r.plan || []) if (l.claim === r) l.claim = null;
+  r.plan = null;   // the fingers stay drawn while the arm pulls back
+  if (got.length){ const a = sndAt(r.x, r.y); sfx('grab', got.length, a.pan, a.vol); }
+  if (got.length >= 2) pop(r.x, r.y - 70, '×' + got.length, 'note', 15);
+}
+
+function updRobot(r, dt){
+  const cfg = S.robots[r.id];
+  r.moving = false; r.anim += dt;
+  r.blinkT -= dt; if (r.blinkT < 0){ r.blink = 0.14; r.blinkT = rand(2, 5); } if (r.blink > 0) r.blink -= dt;
+  const sp = robotSpeed(r.id);
+  switch (r.st){
+    case 'idle': decide(r); break;
+    case 'seek': {
+      const l = planAlive(r);
+      if (!l){ release(r); r.st = 'idle'; break; }
+      if ((cfg.job === 'mine' && minerFor(r)) || waitingToMine(r)){ release(r); r.st = 'idle'; break; }
+      const reach = rv(r.id, 'reach');
+      const d = Math.hypot(l.x - r.x, l.y - r.y);
+      if (d <= Math.max(9, reach*0.8)){ r.st = 'pick'; r.pickDur = pickTime(r.id); r.timer = r.pickDur; r.grabbed = false; r.face = l.x >= r.x ? 1 : -1; aimClaw(r, l); break; }
+      const k = (d - reach*0.6) / d;
+      moveTo(r, r.x + (l.x - r.x)*k, r.y + (l.y - r.y)*k + 1, sp, dt);
+      break;
+    }
+    case 'pick': {
+      // the arm reaches out, grabs at full stretch, then pulls back
+      r.timer -= dt;
+      if (!r.grabbed && r.timer <= r.pickDur*0.45){ r.grabbed = true; grabLeaves(r); }
+      if (r.timer <= 0){ if (!r.grabbed) grabLeaves(r); r.armTo = null; r.fingers = null; r.st = 'idle'; }
+      break;
+    }
+    case 'toBin': { const p = binSpot(r); if (moveTo(r, p.x, p.y, sp, dt)){ r.st = 'dump'; r.timer = 0.32; r.face = 1; } break; }
+    case 'dump': r.timer -= dt; if (r.timer <= 0){ deposit(r); if (r.carryL || r.carryM){ r.st = 'wait'; r.timer = 0.5; if (Math.random() < 0.5) robotSays(r, 'hmm'); } else r.st = 'idle'; } break;
+    case 'wait': r.timer -= dt; if (r.timer <= 0){ deposit(r); r.timer = 0.5; if (!r.carryL && !r.carryM) r.st = 'idle'; } break;
+    case 'toMine': {
+      const m = minerFor(r); if (!m){ r.st = 'idle'; break; }
+      if (moveTo(r, m.wx, m.wy, sp, dt)){ r.st = 'mine'; r.face = 1; }
+      break;
+    }
+    case 'mine': {
+      const m = minerFor(r); if (!m){ r.st = 'idle'; r.mineP = 0; break; }
+      r.face = 1; r.hammer += dt;
+      r.mineP += dt / drillTime(r.id);
+      if (!simMode){
+        if (Math.random() < dt*9) parts.push({ k:'spark', x: m.x + rand(-6,6), y: m.y - rand(0,6), vx: rand(-40,40), vy: rand(-70,-20), g: 160, life: rand(.25,.45), t:0 });
+        if (Math.random() < dt*2.2) parts.push({ k:'dust', x: m.x + rand(-10,10), y: m.y, vx: rand(-8,8), vy: rand(-14,-6), g:0, life: rand(.8,1.4), t:0, r: rand(4,8) });
+      }
+      if (r.mineP >= 1){
+        // the magnet sometimes catches a second chunk (it may ride along one over the basket limit)
+        const lucky = Math.random() < doubleChance(r.id), n = lucky ? 2 : 1;
+        r.mineP -= 1; r.carryM += n;
+        if (lucky){ S.totals.lucky = (S.totals.lucky || 0) + 1; pop(m.x, m.y - 80, '+2 lucky!', 'metal', 17); }
+        else pop(m.x, m.y - 76, '+1', 'metal', 15);
+        { const a = sndAt(m.x, m.y); sfx('tink', a.pan, a.vol*0.7); if (lucky && !simMode) setTimeout(() => sfx('tink', a.pan, a.vol*0.8), 110); }
+        for (let i=0;i<n;i++) flyTo('metal', m.x + i*6, m.y - 4, r.x - 6, r.y - 38, 0.35 + i*0.08, 20 + i*8, {});
+        if (r.carryM >= metalCarry(r.id)){ r.st = 'toBin'; r.mineP = 0; }
+      }
+      break;
+    }
+    case 'wander': {
+      if (hasLeaves() || (cfg.job === 'mine' && minerFor(r)) || waitingToMine(r)){ r.st = 'idle'; break; }
+      if (moveTo(r, r.wx, r.wy, sp*0.4, dt)){ r.st = 'rest'; r.timer = rand(1, 2.4); }
+      break;
+    }
+    case 'rest': r.timer -= dt; if (r.timer <= 0 || hasLeaves() || waitingToMine(r)) r.st = 'idle'; break;
+  }
+  if (!simMode && STYLES[r.id].dust && r.moving && Math.random() < dt*2.5) parts.push({ k:'dust', x: r.x - r.face*10, y: r.y - 2, vx: -r.face*rand(4,12), vy: rand(-10,-4), g:0, life: rand(.6,1), t:0, r: rand(2.5,4.5) });
+}
+
+function deposit(r){
+  if (r.carryL > 0){
+    const n = Math.min(r.carryL, binCap() - S.binLeaves);
+    if (n > 0){
+      S.binLeaves += n; r.carryL -= n; S.totals.leaves += n;
+      pop(BIN.x - 8, BIN.y - 74, '+' + n, 'leaf', 19);
+      for (let i=0;i<Math.min(n,6);i++) flyTo('leaf', r.x, r.y - 36, BIN.x + rand(-20,20), BIN.y - 46, 0.32 + i*0.05, 26, { ci: pickColor(), sh: Math.random()<.5?1:0, s: 5 });
+      bumpBin = 0.25;
+      { const a = sndAt(BIN.x, BIN.y); sfx('dump', n, a.pan, a.vol); if (Math.random() < 0.12) robotSays(r, Math.random() < .6 ? 'happy' : 'chat'); }
+    }
+  }
+  if (r.carryM > 0 && S.metalSlot){
+    const n = Math.min(r.carryM, metalCap() - S.binMetal);
+    if (n > 0){
+      S.binMetal += n; r.carryM -= n; S.totals.metal += n;
+      pop(TUB.x, TUB.y - 60, '+' + n, 'metal', 19);
+      for (let i=0;i<Math.min(n,5);i++) flyTo('metal', r.x, r.y - 36, TUB.x + rand(-8,8), TUB.y - 28, 0.3 + i*0.05, 22, {});
+      { const a = sndAt(TUB.x, TUB.y); sfx('clink', n, a.pan, a.vol); }
+    }
+  }
+  r.full = (r.carryL > 0 || r.carryM > 0);
+}
+
+// ───────────────────────── truck
+function updTruck(dt){
+  const T = truck, V = visRect();
+  if (T.st === 'away'){
+    S.truckT -= dt;
+    if (S.truckT <= 0){ T.st = 'arrive'; T.x = Math.max(V.x1 + 110, PARK + 200); T.fill = 0; sfx('truckIn', sndAt(PARK + 30, LANE).pan, 2.6); }
+  } else if (T.st === 'arrive'){
+    const dx = T.x - PARK, v = Math.max(34, dx*2.1);
+    const mv = Math.min(dx, v*dt); T.x -= mv; T.rot -= mv/10;
+    puffExhaust(T, dt, 1);
+    if (dx <= 0.6){
+      T.x = PARK; T.st = 'load'; T.timer = 2.3;
+      T.takeL = S.binLeaves; T.takeM = S.binMetal; S.binLeaves = 0; S.binMetal = 0;
+      { const a = sndAt(PARK + 30, LANE); sfx('horn', a.pan); sfx('pour', T.takeL, T.takeM, sndAt(BIN.x, BIN.y).pan); }
+      for (let i=0;i<Math.min(T.takeL, 26);i++) flyTo('leaf', BIN.x + rand(-22,22), BIN.y - 44, T.x + rand(0,58), LANE - 48, 0.5 + i*0.055, 50, { ci: pickColor(), sh: Math.random()<.5?1:0, s: 5.5 });
+      for (let i=0;i<Math.min(T.takeM, 10);i++) flyTo('metal', TUB.x, TUB.y - 26, T.x + rand(0,58), LANE - 48, 0.55 + i*0.08, 55, {});
+    }
+  } else if (T.st === 'load'){
+    T.timer -= dt;
+    T.fill = (T.takeL + T.takeM) > 0 ? clamp((2.3 - T.timer)/1.8, 0, 1) * clamp((T.takeL + T.takeM*3)/80, 0.25, 1) : 0;
+    puffExhaust(T, dt, 0.25);
+    if (T.timer <= 0){
+      const amt = T.takeL*leafPrice() + T.takeM*metalPrice();
+      if (T.takeL + T.takeM > 0){
+        S.cash += amt; S.totals.cash += amt; S.totals.trucks++;
+        sfx('coins', amt);
+        pop(BIN.x, BIN.y - 126, '+' + cash2(amt), 'cash', 26);
+        const bits = [];
+        if (T.takeL) bits.push(T.takeL + (T.takeL === 1 ? ' leaf' : ' leaves'));
+        if (T.takeM) bits.push(T.takeM + ' metal');
+        pop(BIN.x, BIN.y - 102, bits.join(' · '), 'note', 15, 0.15);
+        if (!simMode){
+          const hc = $('hCash').getBoundingClientRect(), tgt = s2w(hc.left + 18, hc.top + hc.height/2);
+          for (let i=0;i<Math.min(12, 3 + Math.floor(amt*2));i++) flyTo('coin', BIN.x + rand(-20,20), BIN.y - 112, tgt.x, tgt.y, 0.7 + i*0.06, 120, { hud:true });
+        }
+      } else pop(BIN.x, BIN.y - 104, 'nothing to take today', 'note', 16);
+      T.st = 'leave'; T.v = 10;
+      sfx('truckOut', sndAt(PARK + 30, LANE).pan);
+    }
+  } else if (T.st === 'leave'){
+    T.v = Math.min(T.v + 240*dt, 360); T.x -= T.v*dt; T.rot -= T.v*dt/10;
+    puffExhaust(T, dt, 1.4);
+    if (T.x < Math.min(V.x0 - 140, PARK - 300)){ T.st = 'away'; S.truckT = truckEvery(); T.fill = 0; }
+  }
+}
+function puffExhaust(T, dt, k){
+  if (!simMode && Math.random() < dt*6*k) parts.push({ k:'dust', x: T.x + 74, y: LANE - 10, vx: rand(10,30), vy: rand(-16,-8), g:0, life: rand(.7,1.2), t:0, r: rand(3,6), gray:true });
+}
+
+// ───────────────────────── particles & popups
+function flyTo(kind, x0, y0, x1, y1, dur, arc, o){ if (simMode) return; parts.push(Object.assign({ k:'fly', kind, x0, y0, x1, y1, dur, arc, t:0, life:dur, rot: rand(0,TAU) }, o)); }
+function pop(x, y, text, kind, size, delay){ if (simMode) return; pops.push({ x, y, text, kind, size: size || 18, t: -(delay||0), life: kind === 'cash' ? 2.2 : 1.7 }); }
+function sparkle(x, y){ if (simMode) return; for (let i=0;i<14;i++){ const a = rand(0,TAU), v = rand(40,110); parts.push({ k:'star', x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - 30, g: 90, life: rand(.5,.9), t:0 }); } }
+function updParts(dt){
+  for (const p of parts){
+    p.t += dt;
+    if (p.k === 'fly'){ if (p.t >= p.life && p.hud) cashBumpT = 0.18; continue; }
+    p.vy += (p.g||0)*dt; p.x += p.vx*dt; p.y += p.vy*dt;
+  }
+  parts = parts.filter(p => p.t < p.life);
+  for (const p of pops) p.t += dt;
+  pops = pops.filter(p => p.t < p.life);
+}
+
+// ───────────────────────── sound glue (audio.js makes the sounds; this only says when and where)
+const SND = window.LeafSound || null;
+// stereo position and loudness for something in the world, from where it sits on screen
+function sndAt(x, y){
+  const s = w2s(x, y), pan = clamp((s.x / (W || 1))*2 - 1, -1, 1)*0.75;
+  const off = s.x < -60 || s.x > W + 60 || s.y < -60 || s.y > H + 60;
+  return { pan, vol: (off ? 0.3 : 1) * clamp(0.55 + cam.z*0.35, 0.6, 1) };
+}
+function sfx(name, ...a){ if (!SND || simMode) return; try { SND[name](...a); } catch(e){} }
+function robotSays(r, mood, force){ const a = sndAt(r.x, r.y); sfx('beep', r.id, mood, a.pan, a.vol, force); }
+// every so often one of the robots mutters something to itself
+let chatT = 10;
+function ambientChatter(dt){
+  chatT -= dt; if (chatT > 0) return;
+  chatT = rand(16, 38);
+  if (!R.length) return;
+  const r = R[Math.floor(Math.random()*R.length)];
+  robotSays(r, (r.st === 'rest' || r.st === 'wander') ? (Math.random() < .5 ? 'sleepy' : 'chat') : r.st === 'mine' ? 'ok' : 'chat');
+}
+
+// ───────────────────────── leaf world update
+function updLeaves(dt){
+  gustT -= dt; if (gustT < 0){ gust = rand(18, 40)*(Math.random()<.5?-1:1); gustT = rand(9, 18); }
+  gust *= Math.pow(0.55, dt);
+  wind = 12*Math.sin(S.t*0.13) + 7*Math.sin(S.t*0.41 + 1) + gust;
+  const A = AREAS[S.land];
+  spawnAcc += dt*A.spawn;
+  while (spawnAcc >= 1){ spawnAcc -= 1; if (groundN < A.cap) spawnCollectable(false); }
+  dropT -= dt;
+  if (dropT <= 0){ dropT = treeDrop() ? rand(75, 150) : rand(15, 30); }
+  for (let i=0;i<treeShake.length;i++) if (treeShake[i] > 0) treeShake[i] = Math.max(0, treeShake[i] - dt);
+  if (!simMode){
+    ambAcc += dt*(reduceMotion ? 0.25 : 0.5 + 0.25*S.land);
+    while (ambAcc >= 1){ ambAcc -= 1; spawnAmbient(); }
+    fgAcc += dt*(reduceMotion ? 0.03 : 0.2);
+    while (fgAcc >= 1){ fgAcc -= 1; spawnFg(); }
+  }
+  let n = 0;
+  for (const l of leaves){
+    if (l.st === 'fall'){
+      l.ph += dt*l.phs; l.y += l.vy*dt; l.x += (wind*l.wf + Math.cos(l.ph)*l.sw)*dt; l.rot += l.vr*dt;
+      if (l.y >= l.ly){
+        l.y = l.ly;
+        if (l.collect && !landingOK(l.x, l.y)){ const O = owned(); l.x = clamp(l.x, O.x0 + 10, O.x1 - 10); if (!landingOK(l.x, l.y)) l.collect = false; }
+        l.st = l.collect ? 'ground' : 'fade'; l.flip = Math.cos(l.ph) < 0 ? -1 : 1; l.t = 0;
+      }
+    } else if (l.st === 'ground'){
+      if (l.kx || l.ky){ const O = owned(); l.x += l.kx*dt; l.y += l.ky*dt; l.rot += l.kx*0.04*dt; const d = Math.pow(0.02, dt); l.kx *= d; l.ky *= d; if (Math.abs(l.kx)+Math.abs(l.ky) < 1){ l.kx = l.ky = 0; } l.x = clamp(l.x, O.x0 + 8, O.x1 - 8); l.y = clamp(l.y, O.y0 + 6, O.y1 - 4); }
+    } else if (l.st === 'fade'){
+      l.t += dt; l.a = clamp(1 - (l.t - 2.5)/1.5, 0, 1); if (l.a <= 0) l.st = 'gone';
+    }
+    if (l.collect && (l.st === 'ground' || l.st === 'fall')) n++;
+  }
+  groundN = n;
+  leaves = leaves.filter(l => l.st !== 'gone');
+  for (const f of fgLeaves){ f.ph += dt*f.phs; f.y += f.vy*dt; f.x += (wind*2.4 + Math.cos(f.ph)*f.sw)*dt; f.rot += f.vr*dt; }
+  fgLeaves = fgLeaves.filter(f => f.y < H + 60 && f.x < W + 80);
+}
+
+// ───────────────────────── main step
+function step(dt){
+  S.t += dt;
+  updLeaves(dt);
+  syncRobots();
+  for (const r of R) updRobot(r, dt);
+  updTruck(dt);
+  updParts(dt);
+  if (bumpBin > 0) bumpBin -= dt;
+  if (S.cash > (S.peak || 0)) S.peak = S.cash;
+  if (!S.flags.general && S.cash >= GEN_UNLOCK){
+    S.flags.general = true;
+    pop(SHED.x, SHED.y - 130, 'Yard-wide upgrades in the workshop', 'note', 18, 0.2); sparkle(SHED.x, SHED.y - 60);
+  }
+  // the For Sale sign goes up once you have half the price
+  const nxt = S.land + 1;
+  if (nxt < AREAS.length && S.flags.saleShown < nxt && S.cash >= AREAS[nxt].cost*0.5){
+    S.flags.saleShown = nxt; saleAppearT = S.t;
+    const p = salePos(); sparkle(p.x, p.y - 30); pop(p.x, p.y - 84, 'Land for sale next door', 'note', 18, 0.3); sfx('chime', 'sale');
+  }
+  if (!S.flags.finished && S.robots.length >= 5 && S.miners.length >= SPOTS.length){
+    S.flags.finished = true;
+    if (!simMode) showToast('The yard hums along nicely.', 'That’s the whole early game for now. More is on the way.', 9);
+  }
+}
+const saleVisible = () => S.land + 1 < AREAS.length && S.flags.saleShown >= S.land + 1;
+
+// ───────────────────────── offers / buying
+function offers(all){
+  const o = [];
+  const up = k => ({ id:'up', key:k, obj: UP[k].obj, cost: upCost(k), maxed: S.lv[k] >= UP[k].max });
+  o.push(up('bin'), up('leafPrice'), up('truck'));
+  if (!S.metalSlot){ if (metalSlotShown()) o.push({ id:'metalSlot', obj:'bin', cost: METAL_SLOT_COST }); }
+  else o.push(up('metalPrice'));
+  S.robots.forEach((cfg, ri) => {
+    for (const k of TRACK_ORDER){
+      if (!trackVisible(k) || cfg.lv[k] >= trackCap(k)) continue;
+      const c = rCost(ri, k); if (!c) continue;
+      o.push({ id:'rup', ri, key:k, obj:'robot'+ri, cost:c.cost });
+    }
+  });
+  for (const id in TECH) if (techAvailable(id)) o.push({ id:'tech', key:id, obj:'shed', cost: TECH[id].cost });
+  if (genVisible()) for (const k in GEN) if (genAvail(k)) o.push({ id:'gen', key:k, obj:'shed', cost: genCost(k) });
+  if (S.robots.length < 5) o.push({ id:'robot', obj:'shed', cost: robotCost(S.robots.length) });
+  if (S.metalSlot) SPOTS.forEach((p, i) => { if (p.land <= S.land && !S.miners.includes(i)) o.push({ id:'miner', arg:i, obj:'spot'+i, cost: MINER_COST }); });
+  if (S.land + 1 < AREAS.length && (all || saleVisible())) o.push({ id:'land', obj:'sale', cost: AREAS[S.land + 1].cost });
+  return o.filter(x => !x.maxed);
+}
+function objPos(obj){
+  if (obj === 'bin') return { x: BIN.x, y: BIN.y - 66 };
+  if (obj === 'sign') return { x: SIGN.x, y: SIGN.y - 84 };
+  if (obj === 'shed') return { x: SHED.x, y: SHED.y - 106 };
+  if (obj === 'sale'){ const p = salePos(); return { x: p.x, y: p.y - 86 }; }
+  if (obj.startsWith('robot')){ const r = R[+obj.slice(5)]; return r ? { x: r.x, y: r.y - 72 } : null; }
+  if (obj.startsWith('spot')){ const i = +obj.slice(4), p = SPOTS[i]; return { x: p.x, y: p.y - (S.miners.includes(i) ? 86 : 44) }; }
+  return null;
+}
+
+function buy(o){
+  if (o.maxed || S.cash + 1e-9 < o.cost) return false;
+  S.cash -= o.cost;
+  if (o.id === 'up'){
+    S.lv[o.key]++;
+    const p = objPos(o.obj); if (p){ pop(p.x, p.y, UP[o.key].name + '!', 'note', 16); sparkle(p.x, p.y + 20); }
+    if (o.key === 'truck') S.truckT = Math.min(S.truckT, truckEvery());
+  } else if (o.id === 'rall'){
+    S.robots.forEach(c => { c.lv[o.key] = Math.max(c.lv[o.key], o.target); });
+    for (const r of R){ sparkle(r.x, r.y - 30); }
+    const p = objPos(o.obj); if (p) pop(p.x, p.y - 4, 'Every robot: ' + TRACKS[o.key].label + ' ' + o.target, 'note', 16);
+  } else if (o.id === 'rup'){
+    S.robots[o.ri].lv[o.key]++;
+    const r = R[o.ri]; if (r){ pop(r.x, r.y - 76, TRACKS[o.key].label + ' upgraded', 'note', 16); sparkle(r.x, r.y - 30); }
+  } else if (o.id === 'tech'){
+    S.tech[o.key] = true; S.flags.research = true;
+    pop(SHED.x, SHED.y - 112, TECH[o.key].name + ' researched', 'note', 17); sparkle(SHED.x, SHED.y - 60);
+  } else if (o.id === 'gen'){
+    S.gen[o.key] = gl(o.key) + 1;
+    pop(SHED.x, SHED.y - 112, GEN[o.key].name + '!', 'note', 17); sparkle(SHED.x, SHED.y - 60);
+  } else if (o.id === 'metalSlot'){
+    S.metalSlot = true;
+    pop(TUB.x, TUB.y - 72, 'Metal slot added', 'note', 17); sparkle(TUB.x, TUB.y - 30);
+  } else if (o.id === 'robot'){
+    const i = S.robots.length;
+    S.robots.push(newRobotCfg()); syncRobots();
+    pop(SHED.x, SHED.y - 112, STYLES[i].name + ' joins the yard', 'note', 17); sparkle(SHED.x, SHED.y);
+  } else if (o.id === 'miner'){
+    S.miners.push(o.arg);
+    const p = SPOTS[o.arg];
+    const near = (a, b) => Math.hypot(a.x-p.x,a.y-p.y) - Math.hypot(b.x-p.x,b.y-p.y);
+    const waiting = R.filter(r => S.robots[r.id].job === 'mine' && (S.robots[r.id].miner == null || !S.miners.includes(S.robots[r.id].miner))).sort(near);
+    const first = S.miners.length === 1 ? R.filter(r => S.robots[r.id].job !== 'mine').sort(near)[0] : null;
+    const who = waiting[0] || first;
+    if (who){ assign(who.id, o.arg); pop(p.x, p.y - 100, STYLES[who.id].name + ' heads over to mine', 'note', 16, 0.3); }
+    else pop(p.x, p.y - 100, 'Tap a robot and pick Focus on mining', 'note', 16, 0.3);
+    sparkle(p.x, p.y - 20);
+    if (!simMode) for (let i=0;i<10;i++) parts.push({ k:'dust', x:p.x+rand(-24,24), y:p.y, vx:rand(-20,20), vy:rand(-25,-5), g:0, life:rand(.8,1.4), t:0, r:rand(5,9) });
+  } else if (o.id === 'land'){
+    const from = salePos(), old = owned();
+    S.land++;
+    const A = AREAS[S.land], O = owned();
+    for (let i=0, n=0; i<A.cap*3 && n < A.cap*0.45; i++){
+      const x = rand(O.x0 + 10, O.x1 - 10), y = rand(O.y0 + 8, O.y1 - 6);
+      if (x > old.x0 && x < old.x1 && y > old.y0) continue;
+      if (!landingOK(x, y)) continue;
+      const l = newLeaf(x, y, y, true); l.st = 'ground'; leaves.push(l); n++;
+    }
+    if (!simMode){
+      sparkle(from.x, from.y - 30);
+      pop(from.x, from.y - 60, 'The yard grew!', 'note', 22);
+      closeCard();
+      const to = camTarget(S.land);
+      camAnim = { from: { z: cam.z, ox: cam.ox, oy: cam.oy }, to, t: 0, dur: 2.6 };
+      userCam = false; $('recenter').hidden = true;
+      buildGround(to);
+    }
+  }
+  // buying things is silent on purpose; only a new robot says hello
+  if (o.id === 'robot'){ const r = R[R.length - 1]; if (r && !simMode) setTimeout(() => robotSays(r, 'hello', true), 450); }
+  save();
+  return true;
+}
+function assign(ri, spot){
+  const cfg = S.robots[ri];
+  cfg.job = 'mine'; cfg.miner = spot;
+  const r = R[ri]; if (r){ release(r); if (r.st !== 'dump' && r.st !== 'wait') r.st = 'idle'; }
+  S.flags.sentHint = true;
+}
+function unassign(ri){
+  const cfg = S.robots[ri]; cfg.job = 'leaf'; cfg.miner = null;
+  const r = R[ri]; if (r && (r.st === 'mine' || r.st === 'toMine')){ r.st = 'idle'; r.mineP = 0; }
+}
+const minerWorker = spot => S.robots.findIndex(c => c.job === 'mine' && c.miner === spot);
+const freeMiner = () => S.miners.find(s => minerWorker(s) < 0);
+
+// ───────────────────────── static art: ground, canopies, vignette
+function buildGround(c){
+  const mx = Math.round(W*0.35), my = Math.round(H*0.35);
+  const rs = Math.min(DPR, Math.sqrt(9e6/((W + 2*mx)*(H + 2*my))));
+  groundCam = { z: c.z, ox: c.ox, oy: c.oy, mx, my, rs };
+  groundCv = document.createElement('canvas');
+  groundCv.width = Math.ceil((W + 2*mx)*rs); groundCv.height = Math.ceil((H + 2*my)*rs);
+  const g = groundCv.getContext('2d');
+  g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
+  const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
+  const O = owned();
+  const gr = g.createLinearGradient(0, V.y0, 0, 0);
+  gr.addColorStop(0, '#66753a'); gr.addColorStop(0.6, '#74823e'); gr.addColorStop(1, '#7e8a43');
+  g.fillStyle = gr; g.fillRect(V.x0, V.y0, V.x1 - V.x0, -V.y0 + 2);
+  const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
+  const patch = ['#86924a','#62713a','#8f8a46','#707f3c','#94914c','#5d6b36'];
+  const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    const rnd = cellRnd(i, j, 1);
+    const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 60 + rnd()*120, col = patch[Math.floor(rnd()*patch.length)];
+    const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0, col+'88'); rg.addColorStop(1, col+'00'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2);
+  }
+  for (const t of TREES){ const x = t.x + t.r*0.22, y = t.y + t.r*0.5, r = t.r*1.12; const rg = g.createRadialGradient(x,y,r*0.2,x,y,r); rg.addColorStop(0,'rgba(30,35,10,.32)'); rg.addColorStop(1,'rgba(30,35,10,0)'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); }
+  g.lineCap = 'round';
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    const rnd = cellRnd(i, j, 2);
+    for (let k=0;k<62;k++){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS, h = 3 + rnd()*5, lean = (rnd()-0.5)*3, tone = rnd();
+      if (y > -VERGE) continue;
+      g.strokeStyle = tone < 0.5 ? 'rgba(52,66,24,.45)' : 'rgba(150,160,80,.38)';
+      g.lineWidth = 1.1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + lean, y - h); g.stroke();
+    }
+    for (let k=0;k<3;k++){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS, ci = Math.floor(rnd()*LEAFC.length), s = 3 + rnd()*3, rot = rnd()*TAU, sh = rnd() < .5 ? 1 : 0, a = 0.16 + rnd()*0.16;
+      if (y > -VERGE - 4) continue;
+      g.globalAlpha = a; drawLeaf(g, x, y, s, rot, ci, sh, 1, 0.7, 1, 0.25); g.globalAlpha = 1;
+    }
+    if (rnd() < 0.35){ const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 20 + rnd()*60; if (y < -VERGE){ const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0,'rgba(255,226,150,.16)'); rg.addColorStop(1,'rgba(255,226,150,0)'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); } }
+    if (rnd() < 0.22){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS, kind = rnd(), s = 0.9 + rnd()*0.5, red = rnd() < .5;
+      if (y < -VERGE - 10){
+        if (kind < 0.55){ g.fillStyle = 'rgba(40,30,15,.25)'; ell(g, x+1, y+2, 5, 2.4); g.fill(); g.fillStyle = '#a49c8c'; ell(g, x, y, 4.5, 3); g.fill(); g.fillStyle = '#c4bcab'; ell(g, x-1, y-1, 2.4, 1.4); g.fill(); }
+        else { g.fillStyle = '#e8dcc2'; g.fillRect(x - 1.2*s, y - 5*s, 2.4*s, 5*s); g.fillStyle = red ? '#b5452d' : '#c88b4a'; g.beginPath(); g.ellipse(x, y - 5*s, 5*s, 3.4*s, 0, Math.PI, 0); g.fill(); g.fillStyle = '#f4ead5'; ell(g, x - 2*s, y - 6.5*s, .9*s, .9*s); g.fill(); }
+      }
+    }
+  }
+  SPOTS.forEach((p, i) => drawRockBed(g, p.x, p.y, 100 + i));
+  // wild land beyond the fence: darker, overgrown
+  g.save();
+  g.beginPath(); g.rect(V.x0, V.y0, V.x1 - V.x0, -VERGE - V.y0); g.rect(O.x0, O.y0, O.x1 - O.x0, O.y1 - O.y0);
+  g.fillStyle = 'rgba(40,42,14,.26)'; g.fill('evenodd');
+  g.restore();
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    const rnd = cellRnd(i, j, 3);
+    for (let k=0;k<5;k++){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS, tone = rnd() < .5 ? '#56622c' : '#8a8a46';
+      if (y > -VERGE - 6 || inOwned(x, y, 14)) continue;
+      g.strokeStyle = tone; g.lineWidth = 1.5;
+      for (let m=0;m<6;m++){ const a = -Math.PI/2 + (m - 2.5)*0.22; g.beginPath(); g.moveTo(x + m*1.4, y); g.quadraticCurveTo(x + m*1.4 + Math.cos(a)*6, y - 7, x + m*1.4 + Math.cos(a)*12, y - 14 - (m%2)*3); g.stroke(); }
+    }
+    if (rnd() < 0.42){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS;
+      if (!(y > -VERGE - 20 || inOwned(x, y, 30))) drawBush(g, x, y, 0.85 + rnd()*0.5, cellRnd(i, j, 6));
+    }
+  }
+  drawFence(g, O);
+  // gravel verge
+  const vy = -VERGE;
+  g.fillStyle = '#b9a98a'; g.fillRect(V.x0, vy, V.x1 - V.x0, VERGE);
+  const vg = g.createLinearGradient(0, vy - 6, 0, vy + 6); vg.addColorStop(0, 'rgba(118,132,63,1)'); vg.addColorStop(1, 'rgba(118,132,63,0)'); g.fillStyle = vg; g.fillRect(V.x0, vy - 6, V.x1 - V.x0, 12);
+  for (let i=i0;i<i1;i++){
+    const rnd = cellRnd(i, 0, 4);
+    for (let k=0;k<120;k++){ const x = (i + rnd())*CS, y = vy + 3 + rnd()*(VERGE - 4), ci = Math.floor(rnd()*4), rx = 1 + rnd()*1.6, ry = 0.8 + rnd()*1.1; g.fillStyle = ['#a2937a','#cdbfa3','#988a72','#d8ccb3'][ci]; ell(g, x, y, rx, ry); g.fill(); }
+    for (let k=0;k<14;k++){ const x = (i + rnd())*CS, tone = rnd(), dx = (rnd()-.5)*4, h = 2 + rnd()*5; g.strokeStyle = tone < .5 ? '#5f6e33' : '#7b8a45'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, vy + 2); g.lineTo(x + dx, vy + 2 + h); g.stroke(); }
+  }
+  // road
+  g.fillStyle = '#d2c4a8'; g.fillRect(V.x0, 0, V.x1 - V.x0, 6);
+  g.fillStyle = '#a99a80'; g.fillRect(V.x0, 6, V.x1 - V.x0, 2);
+  const rg2 = g.createLinearGradient(0, 8, 0, ROAD + 40); rg2.addColorStop(0, '#5d5550'); rg2.addColorStop(1, '#4f4742');
+  g.fillStyle = rg2; g.fillRect(V.x0, 8, V.x1 - V.x0, V.y1 - 8);
+  for (let i=i0;i<i1;i++){
+    const rnd = cellRnd(i, 1, 5);
+    for (let k=0;k<70;k++){ const x = (i + rnd())*CS, y = 9 + rnd()*(ROAD + 10), light = rnd() < .5; g.fillStyle = light ? 'rgba(255,240,220,.05)' : 'rgba(0,0,0,.08)'; g.fillRect(x, y, 1.6, 1.6); }
+    for (let k=0;k<2;k++){ const x = (i + rnd())*CS, y = 14 + rnd()*(ROAD - 18), rot = rnd()*TAU, ci = Math.floor(rnd()*LEAFC.length); g.globalAlpha = .5; drawLeaf(g, x, y, 5, rot, ci, 1, 1, .7, 1, .35); g.globalAlpha = 1; }
+  }
+  g.fillStyle = 'rgba(232,214,160,.75)';
+  for (let x = Math.floor(V.x0/54)*54; x < V.x1; x += 54){ rr(g, x, LANE + 18, 28, 3.2, 1.5); g.fill(); }
+}
+
+// A rounded autumn shrub: one colour family, clumps piled into a mound, lit from the top left.
+const bushFams = () => [FOLIAGE.olive, FOLIAGE.rust, FOLIAGE.red, ['#3e4a1c','#56632a','#6f7d34','#8e9a45','#b3b862'], FOLIAGE.orange];
+function drawBush(g, x, y, s, rnd){
+  const F = bushFams(), P = F[Math.floor(rnd()*F.length)], W = 22*s;
+  g.fillStyle = 'rgba(25,22,8,.32)'; ell(g, x + 5*s, y + 3*s, W*1.25, 7*s); g.fill();
+  const cl = [];
+  for (let m=0;m<8;m++){ const bx = (rnd() - 0.5)*2*W*0.8, hump = 1 - Math.abs(bx)/W; cl.push({ x: bx, y: -hump*12*s - rnd()*6*s, r: (6 + hump*6 + rnd()*4)*s }); }
+  cl.sort((a, b) => a.y - b.y);
+  g.fillStyle = P[0]; for (const k of cl){ ell(g, x + k.x + 1, y + k.y + 2, k.r + 2, k.r*0.86 + 2); g.fill(); }
+  for (const k of cl){
+    const lit = clamp(Math.round(2 - k.x/W - (k.y/(14*s)) * 0.6 + (rnd() - 0.5)), 1, 3);
+    g.fillStyle = P[lit - 1]; ell(g, x + k.x + k.r*0.1, y + k.y + k.r*0.12, k.r, k.r*0.86); g.fill();
+    g.fillStyle = P[lit]; ell(g, x + k.x - k.r*0.08, y + k.y - k.r*0.08, k.r*0.86, k.r*0.74); g.fill();
+    g.globalAlpha = 0.7; g.fillStyle = P[lit + 1]; ell(g, x + k.x - k.r*0.32, y + k.y - k.r*0.32, k.r*0.38, k.r*0.3); g.fill(); g.globalAlpha = 1;
+    for (let q=0;q<2;q++) leafBlob(g, x + k.x + (rnd() - 0.5)*k.r*1.2, y + k.y + (rnd() - 0.5)*k.r, 1.8 + rnd()*1.4, rnd()*TAU, P[clamp(lit + (rnd() < .5 ? 1 : -1), 0, 4)]);
+  }
+  if (rnd() < 0.3){ g.fillStyle = '#c23a2a'; for (let q=0;q<6;q++){ ell(g, x + (rnd() - 0.5)*W*1.3, y - rnd()*16*s, 1.6*s, 1.6*s); g.fill(); } }
+}
+
+function drawFence(g, O){
+  const post = (x, y) => {
+    g.fillStyle = 'rgba(30,22,10,.28)'; ell(g, x + 2, y + 1, 5, 2); g.fill();
+    g.fillStyle = '#6e4a30'; rr(g, x - 2.5, y - 15, 5, 16, 1.5); g.fill();
+    g.fillStyle = '#8f6845'; g.fillRect(x - 2.5, y - 15, 5, 2.5);
+  };
+  g.lineCap = 'round';
+  g.strokeStyle = '#8a6040'; g.lineWidth = 2.4;
+  g.beginPath(); g.moveTo(O.x0, O.y0 - 11); g.lineTo(O.x1, O.y0 - 11); g.moveTo(O.x0, O.y0 - 5); g.lineTo(O.x1, O.y0 - 5); g.stroke();
+  for (const x of [O.x0, O.x1]){ g.beginPath(); g.moveTo(x - 1, O.y0 - 11); g.lineTo(x - 1, O.y1 - 10); g.moveTo(x + 1, O.y0 - 5); g.lineTo(x + 1, O.y1 - 4); g.stroke(); }
+  const nTop = Math.max(2, Math.round((O.x1 - O.x0)/40));
+  for (let k=0;k<=nTop;k++) post(lerp(O.x0, O.x1, k/nTop), O.y0);
+  const nSide = Math.max(2, Math.round((O.y1 - O.y0)/40));
+  for (let k=1;k<=nSide;k++){ const y = lerp(O.y0, O.y1, k/nSide); post(O.x0, y); post(O.x1, y); }
+}
+
+function drawRockBed(g, x, y, seed){
+  const rnd = mulberry(seed);
+  g.save(); g.translate(x, y);
+  const rg = g.createRadialGradient(0, 0, 4, 0, 0, 44); rg.addColorStop(0, 'rgba(92,78,58,.55)'); rg.addColorStop(1, 'rgba(92,78,58,0)'); g.fillStyle = rg; ell(g, 0, 0, 46, 22); g.fill();
+  const rocks = [[-20,-2,13],[3,-9,15],[19,1,11],[-6,7,10],[12,10,8],[-25,10,6]];
+  for (const [rx, ry, rs] of rocks){
+    g.fillStyle = 'rgba(30,25,15,.3)'; ell(g, rx + 2, ry + rs*0.45, rs*1.05, rs*0.42); g.fill();
+    g.beginPath();
+    for (let k=0;k<8;k++){ const a = k/8*TAU, d = rs*(0.82 + rnd()*0.3); const px = rx + Math.cos(a)*d, py = ry + Math.sin(a)*d*0.72 - rs*0.18; k ? g.lineTo(px, py) : g.moveTo(px, py); }
+    g.closePath();
+    const gg = g.createLinearGradient(rx, ry - rs, rx, ry + rs*0.6); gg.addColorStop(0, '#a4a49f'); gg.addColorStop(1, '#666861');
+    g.fillStyle = gg; g.fill();
+    g.fillStyle = 'rgba(255,255,240,.18)'; ell(g, rx - rs*0.25, ry - rs*0.45, rs*0.45, rs*0.2); g.fill();
+    for (let k=0;k<3;k++){ g.fillStyle = rnd() < .5 ? '#d9bf72' : '#c5ccd1'; const sx = rx + (rnd()-.5)*rs*1.1, sy = ry - rs*0.2 + (rnd()-.5)*rs*0.6; g.beginPath(); g.moveTo(sx, sy - 1.6); g.lineTo(sx + 1.4, sy); g.lineTo(sx, sy + 1.6); g.lineTo(sx - 1.4, sy); g.fill(); }
+  }
+  g.restore();
+}
+
+// Tree canopies: each tree has its own autumn colour family, built from leafy clumps on a dome that is lit from the
+// top left (where the sun is). A short trunk shows below the crown; the tree sways from its base.
+const FOLIAGE = {
+  red:    ['#5e1d14','#8a2a1c','#b23b25','#d65a33','#ef8a52'],
+  orange: ['#6b2f12','#9c4718','#cc6a22','#ea9134','#f8bd5c'],
+  gold:   ['#6d4a14','#9c6c1c','#c99428','#e8bd42','#f8de7a'],
+  rust:   ['#5a2516','#83391f','#ab5728','#cf7e38','#eaa95a'],
+  olive:  ['#4d5220','#717a2c','#9c9a36','#c9b346','#ecd570'],
+};
+const TREE_FAMS = [['orange','gold'],['red','orange'],['gold','olive'],['rust','red'],['orange','red'],['gold','orange'],
+                   ['red','rust'],['olive','gold'],['orange','rust'],['rust','gold'],['gold','red'],['red','orange']];
+function scallop(g, x, y, r, rnd){
+  const n = 7 + Math.floor(rnd()*3), a0 = rnd()*TAU;
+  g.beginPath();
+  for (let i=0;i<=n;i++){
+    const a = a0 + i/n*TAU, px = x + Math.cos(a)*r*0.8, py = y + Math.sin(a)*r*0.8;
+    if (!i) g.moveTo(px, py);
+    else { const am = a - Math.PI/n, k = r*(1.08 + rnd()*0.12); g.quadraticCurveTo(x + Math.cos(am)*k, y + Math.sin(am)*k, px, py); }
+  }
+  g.closePath();
+}
+function leafBlob(g, x, y, s, rot, col){ g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s); leafPath(g, 1); g.fillStyle = col; g.fill(); g.restore(); }
+function buildCanopies(){
+  const RES = 2;
+  canopyCvs = TREES.map((t, ti) => {
+    const R0 = t.r, pad = 34, ox = R0 + pad, oy = R0 + pad, w = 2*(R0 + pad), h = R0 + pad + R0*1.25 + 24;
+    const c = document.createElement('canvas'); c.width = Math.ceil(w*RES); c.height = Math.ceil(h*RES);
+    const g = c.getContext('2d'); g.scale(RES, RES); g.translate(ox, oy);
+    const rnd = mulberry(t.seed);
+    const [fa, fb] = TREE_FAMS[ti % TREE_FAMS.length], A = FOLIAGE[fa], B = FOLIAGE[fb];
+    // trunk and roots, mostly hidden by the crown
+    const base = R0*1.16, tw = Math.max(9, R0*0.075);
+    g.fillStyle = 'rgba(30,22,10,.35)'; ell(g, tw*0.6, base + 2, tw*3.2, tw*0.8); g.fill();
+    const tg = g.createLinearGradient(-tw*1.6, 0, tw*1.6, 0); tg.addColorStop(0, '#7a5236'); tg.addColorStop(0.45, '#5c3b26'); tg.addColorStop(1, '#3a2418');
+    g.fillStyle = tg; g.beginPath();
+    g.moveTo(-tw*0.8, R0*0.45); g.lineTo(-tw, base - tw*1.2); g.quadraticCurveTo(-tw*1.2, base - tw*0.2, -tw*2.4, base + 1);
+    g.lineTo(tw*2.6, base + 1); g.quadraticCurveTo(tw*1.2, base - tw*0.2, tw, base - tw*1.2); g.lineTo(tw*0.8, R0*0.45); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(30,18,10,.45)'; g.lineWidth = 1.2; g.lineCap = 'round';
+    for (let k=0;k<4;k++){ const bx = (rnd()-0.5)*tw*1.2; g.beginPath(); g.moveTo(bx, R0*0.62 + rnd()*R0*0.1); g.lineTo(bx + (rnd()-0.5)*3, base - tw*0.8 - rnd()*6); g.stroke(); }
+    // crown: clumps on a dome
+    const L = [-0.5, -0.68, 0.54], clumps = [];
+    const add = (cx, cy, cr) => {
+      const nx = cx/R0, ny = cy/R0, nz = Math.sqrt(Math.max(0.05, 1 - nx*nx - ny*ny));
+      const lum = nx*L[0] + ny*L[1] + nz*L[2] + (rnd() - 0.5)*0.35;
+      clumps.push({ x: cx, y: cy, r: cr, z: nz, tone: clamp(Math.round((lum + 0.15)*3.1), 0, 4), pal: rnd() < 0.22 ? B : A });
+    };
+    for (let k=0;k<16;k++){ const a = k/16*TAU + rnd()*0.25, d = R0*(0.7 + rnd()*0.1); add(Math.cos(a)*d, Math.sin(a)*d*0.9, R0*(0.21 + rnd()*0.07)); }
+    const n = Math.round(R0*0.2);
+    for (let k=0;k<n;k++){ const a = rnd()*TAU, d = R0*0.62*Math.sqrt(rnd()); add(Math.cos(a)*d, Math.sin(a)*d*0.9 - R0*0.05, R0*(0.2 + rnd()*0.1)*(1 - d/R0*0.3)); }
+    clumps.sort((p, q) => (p.z - q.z) || (p.y - q.y));
+    // dark outline first, so the crown edge reads against the grass
+    g.fillStyle = A[0];
+    for (const k of clumps) if (k.z < 0.75){ scallop(g, k.x + 2, k.y + 3, k.r + 3, rnd); g.fill(); }
+    for (const k of clumps){
+      const P = k.pal, tn = k.tone, lo = P[Math.max(0, tn - 1)], hi = P[Math.min(4, tn + 1)];
+      // a lumpy, cauliflower-edged clump shaded across from light to dark, then textured with little leaves
+      scallop(g, k.x + k.r*0.08, k.y + k.r*0.12, k.r, rnd); g.fillStyle = P[Math.max(0, tn - 2)]; g.fill();
+      const gr = g.createLinearGradient(k.x - k.r*0.7, k.y - k.r*0.8, k.x + k.r*0.6, k.y + k.r*0.7);
+      gr.addColorStop(0, hi); gr.addColorStop(0.45, P[tn]); gr.addColorStop(1, lo);
+      scallop(g, k.x, k.y, k.r*0.93, rnd); g.fillStyle = gr; g.fill();
+      for (let m=0;m<11;m++){
+        const a = rnd()*TAU, d = Math.sqrt(rnd())*k.r*0.85, lx = Math.cos(a)*d, ly = Math.sin(a)*d;
+        const side = (lx*L[0] + ly*L[1])/k.r;   // leaves on the sunny side are lighter
+        leafBlob(g, k.x + lx, k.y + ly, 2.4 + rnd()*2.4, rnd()*TAU, side > 0.15 ? hi : side < -0.25 ? lo : (rnd() < 0.5 ? P[tn] : hi));
+      }
+    }
+    // soft sun from the top left, shade toward the bottom right
+    g.globalCompositeOperation = 'source-atop';
+    const sun = g.createRadialGradient(-R0*0.45, -R0*0.55, R0*0.05, -R0*0.3, -R0*0.35, R0*1.25);
+    sun.addColorStop(0, 'rgba(255,236,170,.30)'); sun.addColorStop(0.5, 'rgba(255,220,150,.06)'); sun.addColorStop(1, 'rgba(60,20,8,.30)');
+    g.fillStyle = sun; g.fillRect(-ox, -oy, w, R0*0.98 + oy);   // stops above the trunk
+    g.globalCompositeOperation = 'source-over';
+    // a few loose leaves around the edge of the crown
+    for (let k=0;k<46;k++){ const a = rnd()*TAU, d = R0*(0.9 + rnd()*0.12); const P = rnd() < 0.3 ? B : A; leafBlob(g, Math.cos(a)*d, Math.sin(a)*d*0.94, 3 + rnd()*2.4, a + Math.PI/2 + (rnd()-0.5), P[1 + Math.floor(rnd()*3)]); }
+    return { c, ox, oy, w, h, base };
+  });
+}
+
+function buildVignette(){
+  vignetteCv = document.createElement('canvas'); vignetteCv.width = cv.width; vignetteCv.height = cv.height;
+  const g = vignetteCv.getContext('2d'); g.scale(DPR, DPR);
+  const rg = g.createRadialGradient(W*0.5, H*0.48, Math.min(W,H)*0.35, W*0.5, H*0.5, Math.hypot(W,H)*0.62);
+  rg.addColorStop(0, 'rgba(60,25,5,0)'); rg.addColorStop(1, 'rgba(50,20,5,.42)');
+  g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  const sun = g.createRadialGradient(W*0.08, -H*0.1, 10, W*0.08, -H*0.1, Math.hypot(W,H)*0.75);
+  sun.addColorStop(0, 'rgba(255,205,120,.22)'); sun.addColorStop(1, 'rgba(255,205,120,0)');
+  g.fillStyle = sun; g.fillRect(0, 0, W, H);
+}
+
+// ───────────────────────── drawing: objects (world units)
+function chalk(c, text, x, y, size, color){ c.font = '700 ' + size + 'px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = color; c.fillText(text, x, y); }
+
+function drawBin(){
+  const c = ctx, x = BIN.x, y = BIN.y;
+  const sq = bumpBin > 0 ? 1 + Math.sin(bumpBin/0.25*Math.PI)*0.04 : 1;
+  c.save(); c.translate(x, y); c.scale(sq, 1/sq);
+  c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 2, 2, 46, 8); c.fill();
+  c.fillStyle = '#3e2718'; rr(c, -36, -52, 72, 12, 4); c.fill();
+  const f = clamp(S.binLeaves / binCap(), 0, 1);
+  if (S.binLeaves > 0){
+    const h = 3 + f*20;
+    c.save(); c.beginPath(); c.moveTo(-35, -44); c.bezierCurveTo(-26, -46 - h*1.2, 26, -46 - h*1.2, 35, -44); c.closePath(); c.clip();
+    c.fillStyle = '#b8582a'; c.fillRect(-36, -50 - h*1.3, 72, h*1.4 + 8);
+    const rnd = mulberry(5);
+    for (let i=0;i<46;i++){ const px = -32 + rnd()*64, py = -44 - rnd()*h*1.1; drawLeaf(c, px, py, 4 + rnd()*2, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 0.8, 1, 0); }
+    c.restore();
+  }
+  const boards = ['#a86c3e','#9a6037','#a2683b'];
+  for (let i=0;i<3;i++){ c.fillStyle = boards[i]; rr(c, -38, -46 + i*15.3, 76, 14.5, 2); c.fill(); c.fillStyle = 'rgba(255,230,190,.12)'; c.fillRect(-36, -45 + i*15.3, 72, 2); }
+  c.fillStyle = '#734428'; rr(c, -40, -50, 7, 50, 2); c.fill(); rr(c, 33, -50, 7, 50, 2); c.fill();
+  c.fillStyle = '#4a2c1a'; for (const yy of [-41, -26, -10]){ ell(c, -36.5, yy, 1.1, 1.1); c.fill(); ell(c, 36.5, yy, 1.1, 1.1); c.fill(); }
+  c.fillStyle = '#734428'; rr(c, -24, -38, 48, 23, 4); c.fill();
+  c.fillStyle = '#2f3a34'; rr(c, -21.5, -35.5, 43, 18, 3); c.fill();
+  chalk(c, S.binLeaves + '/' + binCap(), 0, -26, binCap() >= 100 ? 14 : 16, S.binLeaves >= binCap() ? '#ffb38a' : '#efe8d8');
+  c.restore();
+
+  if (S.metalSlot){
+    c.save(); c.translate(TUB.x, TUB.y);
+    c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 1, 2, 20, 5); c.fill();
+    const g = c.createLinearGradient(-17, 0, 17, 0); g.addColorStop(0, '#5b6368'); g.addColorStop(.45, '#8c959a'); g.addColorStop(1, '#565e63');
+    c.fillStyle = g; rr(c, -17, -32, 34, 32, 5); c.fill();
+    c.fillStyle = '#2a2d2f'; ell(c, 0, -32, 16, 4.5); c.fill();
+    if (S.binMetal > 0){
+      const mf = clamp(S.binMetal / metalCap(), 0, 1), rnd = mulberry(9);
+      c.save(); ell(c, 0, -32, 16, 4.5); c.rect(-16, -46, 32, 14); c.clip();
+      for (let i=0;i<Math.ceil(4 + mf*14);i++){ nugget(c, -12 + rnd()*24, -32 - rnd()*mf*10, 3 + rnd()*1.5, rnd()*TAU); }
+      c.restore();
+    }
+    c.strokeStyle = '#a3abaf'; c.lineWidth = 2; c.beginPath(); c.ellipse(0, -32, 16, 4.5, 0, 0, Math.PI); c.stroke();
+    c.fillStyle = '#3d4245'; for (const yy of [-24, -6]){ ell(c, -13, yy, 1, 1); c.fill(); ell(c, 13, yy, 1, 1); c.fill(); }
+    c.fillStyle = '#2f3a34'; rr(c, -14, -22, 28, 13, 2.5); c.fill();
+    chalk(c, S.binMetal + '/' + metalCap(), 0, -15.5, metalCap() >= 100 ? 11 : 12.5, S.binMetal >= metalCap() ? '#ffb38a' : '#efe8d8');
+    c.restore();
+  }
+}
+function nugget(c, x, y, s, rot){
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(s/8, s/8);
+  c.fillStyle = '#7d868c'; c.beginPath(); c.moveTo(-8,3); c.lineTo(-5,-6); c.lineTo(3,-8); c.lineTo(9,-2); c.lineTo(7,6); c.lineTo(-2,8); c.closePath(); c.fill();
+  c.fillStyle = '#aeb6bb'; c.beginPath(); c.moveTo(-5,-6); c.lineTo(3,-8); c.lineTo(1,-1); c.closePath(); c.fill();
+  c.fillStyle = '#5c6469'; c.beginPath(); c.moveTo(1,-1); c.lineTo(9,-2); c.lineTo(7,6); c.closePath(); c.fill();
+  c.fillStyle = '#e2c77d'; ell(c, -2, 2, 1.7, 1.7); c.fill();
+  c.restore();
+}
+
+function drawSign(){
+  const c = ctx; c.save(); c.translate(SIGN.x, SIGN.y);
+  c.fillStyle = 'rgba(35,25,10,.28)'; ell(c, 3, 1, 10, 3); c.fill();
+  c.fillStyle = '#6e4a30'; rr(c, -2.5, -52, 5, 52, 2); c.fill();
+  c.rotate(Math.sin(S.t*1.3)*0.012);
+  c.fillStyle = '#6e4a30'; rr(c, -27, -71, 54, 26, 5); c.fill();
+  c.fillStyle = '#efe2c6'; rr(c, -25, -69, 50, 22, 4); c.fill();
+  c.save(); c.translate(-15, -58); c.scale(0.85, 0.85);
+  c.fillStyle = '#5e8a86'; rr(c, -7, -4, 6, 6, 1.5); c.fill(); c.fillStyle = '#7c5a3c'; rr(c, -1, -5, 9, 7, 1); c.fill();
+  c.fillStyle = '#2a2624'; ell(c, -4, 3, 1.8, 1.8); c.fill(); ell(c, 5, 3, 1.8, 1.8); c.fill();
+  c.restore();
+  c.font = '700 14px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
+  c.fillText(truck.st === 'away' ? mmss(S.truckT) : 'now', 8, -57);
+  c.restore();
+}
+
+function drawSaleSign(){
+  if (!saleVisible()) return;
+  const p = salePos(), c = ctx, cost = AREAS[S.land + 1].cost;
+  const k = clamp((S.t - saleAppearT)/0.5, 0, 1), sc = k < 1 ? 0.4 + 0.6*(1 - Math.pow(1 - k, 3)) + Math.sin(k*Math.PI)*0.12 : 1;
+  c.save(); c.translate(p.x, p.y); c.scale(sc, sc);
+  c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 2, 2, 30, 5); c.fill();
+  c.fillStyle = '#6e4a30'; rr(c, -24, -44, 5, 45, 2); c.fill(); rr(c, 19, -44, 5, 45, 2); c.fill();
+  c.rotate(Math.sin(S.t*1.1)*0.015);
+  c.fillStyle = '#5a3b26'; rr(c, -34, -76, 68, 40, 5); c.fill();
+  c.fillStyle = '#f3e7cf'; rr(c, -32, -74, 64, 36, 4); c.fill();
+  c.fillStyle = '#b8452d'; rr(c, -32, -74, 64, 14, 4); c.fill(); c.fillRect(-32, -66, 64, 6);
+  c.font = '800 10px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fbefd9';
+  c.fillText('FOR SALE', 0, -66.5);
+  c.font = '800 14px "Baloo 2", sans-serif'; c.fillStyle = '#4a3226'; c.fillText(money(cost), 0, -50);
+  c.restore();
+}
+
+function drawShed(){
+  const c = ctx; c.save(); c.translate(SHED.x, SHED.y);
+  c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 4, 2, 58, 10); c.fill();
+  c.fillStyle = '#9b4e35'; rr(c, -44, -62, 88, 62, 3); c.fill();
+  c.strokeStyle = '#7f3c27'; c.lineWidth = 1.2; for (let x=-36; x<44; x+=8){ c.beginPath(); c.moveTo(x, -60); c.lineTo(x, -1); c.stroke(); }
+  c.fillStyle = '#ecdfc6'; c.fillRect(-44, -62, 4, 62); c.fillRect(40, -62, 4, 62);
+  c.fillStyle = '#ecdfc6'; rr(c, -15, -44, 30, 44, 3); c.fill();
+  c.fillStyle = '#6c3523'; rr(c, -12.5, -41.5, 25, 41.5, 2); c.fill();
+  c.strokeStyle = '#ecdfc6'; c.lineWidth = 2; c.beginPath(); c.moveTo(-12, -40); c.lineTo(12, -2); c.moveTo(12, -40); c.lineTo(-12, -2); c.stroke();
+  c.fillStyle = '#d9b55a'; ell(c, 8, -20, 1.6, 1.6); c.fill();
+  c.fillStyle = '#ecdfc6'; rr(c, -38, -52, 19, 16, 2); c.fill();
+  const flick = 0.85 + Math.sin(S.t*3.1)*0.05 + Math.sin(S.t*7.3)*0.03;
+  c.fillStyle = 'rgba(246,190,96,'+flick+')'; c.fillRect(-36, -50, 15, 12);
+  c.fillStyle = '#ecdfc6'; c.fillRect(-29, -50, 1.5, 12); c.fillRect(-36, -44.7, 15, 1.5);
+  c.fillStyle = '#e9dcc0'; rr(c, 18, -55, 22, 15, 3); c.fill();
+  c.save(); c.translate(29, -47.5); c.rotate(-0.7); c.fillStyle = '#5f6a6e'; c.fillRect(-1.2, -5, 2.4, 9); ell(c, 0, -5.5, 3.2, 3.2); c.fill(); c.fillStyle = '#e9dcc0'; c.fillRect(-1, -8.5, 2, 3.5); c.restore();
+  c.fillStyle = '#4d3a34'; c.beginPath(); c.moveTo(-54, -58); c.lineTo(0, -96); c.lineTo(54, -58); c.closePath(); c.fill();
+  c.strokeStyle = '#3c2d28'; c.lineWidth = 1.5;
+  for (let i=1;i<5;i++){ const yy = -58 - i*7.6, half = 54 - i*10.8; c.beginPath(); c.moveTo(-half, yy); c.lineTo(half, yy); c.stroke(); }
+  for (const [lx, ly, ci] of [[-20,-66,2],[12,-74,0],[30,-62,3],[-6,-84,4]]) drawLeaf(c, lx, ly, 4, lx*0.1, ci, 1, 1, 0.8, 1, 0);
+  c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3);
+  c.restore();
+}
+
+function drawPumpkins(){
+  const c = ctx, bx = SHED.x + 60, by = SHED.y + 4;
+  for (const [dx, dy, s, col] of [[0, 0, 11, '#d9732a'], [15, 4, 8, '#e48a35'], [-6, 8, 6, '#c9652a']]){
+    c.save(); c.translate(bx + dx, by + dy);
+    c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 1, 1, s*1.2, s*0.35); c.fill();
+    c.fillStyle = shade(col, 0.82); ell(c, -s*0.45, -s*0.75, s*0.62, s*0.75); c.fill(); ell(c, s*0.45, -s*0.75, s*0.62, s*0.75); c.fill();
+    c.fillStyle = col; ell(c, 0, -s*0.78, s*0.6, s*0.8); c.fill();
+    c.fillStyle = 'rgba(255,230,180,.25)'; ell(c, -s*0.2, -s*1.1, s*0.18, s*0.28); c.fill();
+    c.strokeStyle = '#5b4a26'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(0, -s*1.5); c.quadraticCurveTo(1, -s*1.8, 3, -s*1.85); c.stroke();
+    c.restore();
+  }
+}
+
+function drawSpotGlints(){
+  const c = ctx;
+  SPOTS.forEach((p, i) => {
+    if (S.miners.includes(i) || p.land > S.land) return;
+    for (let k=0;k<3;k++){
+      const ph = S.t*1.4 + i*2.1 + k*2.3, a = Math.pow(Math.max(0, Math.sin(ph)), 6) * (S.metalSlot ? 1 : 0.6);
+      if (a < 0.02) continue;
+      const gx = p.x + [-18, 4, 18][k], gy = p.y + [-8, -14, -3][k], s = 3 + a*4;
+      c.save(); c.globalAlpha = a; c.fillStyle = '#fff6d8'; c.translate(gx, gy);
+      c.beginPath(); c.moveTo(0, -s); c.lineTo(s*0.25, -s*0.25); c.lineTo(s, 0); c.lineTo(s*0.25, s*0.25); c.lineTo(0, s); c.lineTo(-s*0.25, s*0.25); c.lineTo(-s, 0); c.lineTo(-s*0.25, -s*0.25); c.closePath(); c.fill();
+      c.restore();
+    }
+  });
+}
+
+function drawMiner(i){
+  const p = SPOTS[i], c = ctx;
+  const wi = minerWorker(i), working = wi >= 0 && R[wi] && R[wi].st === 'mine';
+  const t = S.t;
+  c.save(); c.translate(p.x, p.y);
+  c.strokeStyle = '#6a4630'; c.lineWidth = 4; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(0, -66); c.lineTo(4, -2); c.stroke();
+  const bob = working ? Math.sin(t*16)*2.2 : 0;
+  c.fillStyle = '#9aa0a4'; c.fillRect(-2.2, -34 + bob, 4.4, 30);
+  c.fillStyle = '#6c7378'; c.beginPath(); c.moveTo(-4, -6 + bob); c.lineTo(4, -6 + bob); c.lineTo(0, 3 + bob); c.closePath(); c.fill();
+  c.fillStyle = '#4e7672'; rr(c, -16, -56, 32, 22, 4); c.fill();
+  c.fillStyle = '#5f8c87'; rr(c, -16, -56, 32, 9, 4); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(-13, -54, 12, 2);
+  c.save(); c.translate(-8, -42); c.rotate(working ? t*5 : 0); c.fillStyle = '#d1a54a';
+  for (let k=0;k<8;k++){ c.rotate(TAU/8); c.fillRect(-1.3, -6.2, 2.6, 3); }
+  ell(c, 0, 0, 4.6, 4.6); c.fill(); c.fillStyle = '#7a5a1e'; ell(c, 0, 0, 1.6, 1.6); c.fill(); c.restore();
+  c.fillStyle = working ? (Math.sin(t*6) > 0 ? '#ffd36b' : '#f0a640') : '#7d6a4a'; ell(c, 8, -44, 2.6, 2.6); c.fill();
+  if (working){ c.fillStyle = 'rgba(255,211,107,.25)'; ell(c, 8, -44, 6, 6); c.fill(); }
+  c.fillStyle = '#3d3734'; rr(c, 6, -66, 6, 11, 1.5); c.fill();
+  c.strokeStyle = '#7a5236'; c.lineWidth = 4.5;
+  c.beginPath(); c.moveTo(0, -66); c.lineTo(-24, 6); c.moveTo(0, -66); c.lineTo(24, 6); c.stroke();
+  c.strokeStyle = '#8a6040'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(-14, -22); c.lineTo(14, -22); c.stroke();
+  c.fillStyle = '#5a3b26'; ell(c, 0, -66, 3.5, 3.5); c.fill();
+  c.restore();
+  if (working && !simMode && Math.random() < 0.06) parts.push({ k:'dust', x: p.x + 9, y: p.y - 66, vx: rand(4,14), vy: rand(-22,-12), g:0, life: rand(1,1.6), t:0, r: rand(3,5), gray:true });
+}
+
+function drawRobot(r){
+  const c = ctx, st = STYLES[r.id];
+  const bw = st.bw, bh = st.bh, hw = st.hw, hh = st.hh, tw = st.tw;
+  const top = -8 - bh;
+  c.save(); c.translate(r.x, r.y);
+  c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, tw*0.55, 4.5); c.fill();
+  const bob = r.moving ? -Math.abs(Math.sin(r.anim*(st.chunky ? 8 : st.slim ? 13 : 11)))*(st.chunky ? 1 : 1.6) : Math.sin(r.anim*2 + r.id)*0.3;
+  c.scale(r.face, 1);
+  // treads
+  const th = st.chunky ? 12 : 10;
+  c.fillStyle = '#3b3430'; rr(c, -tw/2, -th + 1, tw, th, th/2); c.fill();
+  c.fillStyle = '#5a524b'; const off = r.moving ? (r.anim*28) % 6 : 0;
+  for (let i=-tw/2 + 2 + off; i<tw/2 - 2; i+=6) c.fillRect(i, -th + 2, 2, th - 2);
+  c.fillStyle = '#26201d'; const hub = st.chunky ? 3.6 : 3; ell(c, -tw/2 + 5, -th/2 + 1, hub, hub); c.fill(); ell(c, tw/2 - 5, -th/2 + 1, hub, hub); c.fill();
+  c.translate(0, bob);
+  // body
+  const g = c.createLinearGradient(0, top, 0, -8); g.addColorStop(0, st.body); g.addColorStop(1, st.body2);
+  c.fillStyle = g;
+  if (st.round){ ell(c, 0, top + bh/2, bw/2, bh/2 + 1); c.fill(); }
+  else { rr(c, -bw/2, top, bw, bh, st.slim ? 6 : st.chunky ? 4 : 5); c.fill(); }
+  c.fillStyle = st.band;
+  if (st.round){ c.save(); ell(c, 0, top + bh/2, bw/2, bh/2 + 1); c.clip(); c.fillRect(-bw/2, top + bh*0.38, bw, 4); c.restore(); }
+  else c.fillRect(-bw/2, top + bh*0.38, bw, st.chunky ? 4.5 : 3.5);
+  if (st.rust){ c.fillStyle = 'rgba(152,82,40,' + (0.85*st.rust) + ')'; ell(c, -bw*0.25, top + bh*0.8, 3.2, 2.1); c.fill(); ell(c, bw*0.3, top + bh*0.15, 2, 1.4); c.fill(); ell(c, -bw*0.38, top + bh*0.22, 1.4, 1.1); c.fill(); }
+  if (st.patches){
+    c.fillStyle = '#9aa3a6'; c.fillRect(-bw/2 + 2, top + bh*0.55, 9, 7); c.fillStyle = '#a4683f'; c.fillRect(bw/2 - 10, top + 2, 8, 6);
+    c.fillStyle = '#4c4840'; for (const [px, py] of [[-bw/2+3,top+bh*0.55+1],[-bw/2+10,top+bh*0.55+1],[-bw/2+3,top+bh*0.55+6],[bw/2-9,top+3],[bw/2-3,top+3]]){ ell(c, px, py, .8, .8); c.fill(); }
+    c.strokeStyle = 'rgba(60,50,40,.5)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(2, top + bh*0.6); c.lineTo(6, top + bh*0.75); c.lineTo(4, top + bh*0.9); c.stroke();
+  }
+  if (st.dust){
+    const rnd = mulberry(77);
+    c.fillStyle = 'rgba(120,96,64,.38)';
+    for (let i=0;i<16;i++){ ell(c, -bw/2 + rnd()*bw, top + rnd()*bh, 0.6 + rnd()*0.9, 0.6 + rnd()*0.7); c.fill(); }
+    const dg = c.createLinearGradient(0, top + bh*0.6, 0, -8); dg.addColorStop(0, 'rgba(110,86,54,0)'); dg.addColorStop(1, 'rgba(110,86,54,.35)');
+    c.fillStyle = dg; rr(c, -bw/2, top + bh*0.6, bw, bh*0.4, 4); c.fill();
+  }
+  if (!st.round && !st.patches){ c.fillStyle = shade(st.body2, 0.8); for (const [px, py] of [[-bw/2+3,top+2.5],[bw/2-2.5,-11],[-bw/2+3,-11]]){ ell(c, px, py, .9, .9); c.fill(); } }
+  // number plate
+  c.fillStyle = '#efe6d0'; rr(c, bw/2 - 9, -17, 7, 6, 1.2); c.fill();
+  c.font = '800 6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
+  c.save(); c.translate(bw/2 - 5.5, -13.8); c.scale(r.face, 1); c.fillText(String(r.id + 1), 0, 0.4); c.restore();
+  // basket on the back
+  const bx0 = -bw/2 - 2, by0 = top - 5;
+  c.fillStyle = '#6e4521'; rr(c, bx0, by0 - 2, 14, 9, 3); c.fill();
+  const n = Math.min(r.carryL, 9), m = Math.min(r.carryM, 6);
+  if (n || m){
+    const rnd = mulberry(r.id*31 + n + m*7);
+    for (let i=0;i<n;i++) drawLeaf(c, bx0 + 2 + rnd()*10, by0 - 2 - rnd()*(1 + n*0.6), 3.4, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 1, 1, 0);
+    for (let i=0;i<m;i++) nugget(c, bx0 + 3 + rnd()*8, by0 - 2 - rnd()*(1 + m*0.7), 2.6, rnd()*TAU);
+  }
+  c.fillStyle = '#8b5a2b'; rr(c, bx0 - 1, by0 + 1, 16, 7, 2.5); c.fill();
+  c.strokeStyle = '#6e4521'; c.lineWidth = 0.8; for (let i=bx0 + 2;i<bx0 + 15;i+=3){ c.beginPath(); c.moveTo(i, by0 + 1.5); c.lineTo(i+1.5, by0 + 7.5); c.stroke(); }
+  // arm (stretches out to the leaf when grabbing)
+  const sx = bw/2 - 2, sy = top + bh*0.5;
+  c.strokeStyle = '#4a423b'; c.lineWidth = 2.4; c.lineCap = 'round';
+  if (r.st === 'pick' && r.armTo){
+    const k = 1 - clamp(r.timer/r.pickDur, 0, 1), ext = k < 0.55 ? Math.sin(k/0.55*Math.PI/2) : Math.cos((k - 0.55)/0.45*Math.PI/2);
+    const lx = (r.armTo.x - r.x)*r.face, ly = r.armTo.y - r.y - bob;
+    const hx = sx + (lx - sx)*ext, hy = sy + (ly - sy)*ext;
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+    if (r.fingers){
+      // multi-grab: the hand goes to the middle of the patch and a finger stretches out to each leaf
+      const fe = clamp((ext - 0.35)/0.65, 0, 1);
+      c.fillStyle = '#4a423b'; ell(c, hx, hy, 2.6, 2.6); c.fill();
+      c.lineWidth = 1.5;
+      for (const f of r.fingers){
+        const fx = (f.x - r.x)*r.face, fy = f.y - r.y - bob;
+        const tx = hx + (fx - hx)*fe, ty = hy + (fy - hy)*fe, mx = (hx + tx)/2, my = (hy + ty)/2 - 3*fe;
+        c.strokeStyle = '#4a423b'; c.beginPath(); c.moveTo(hx, hy); c.quadraticCurveTo(mx, my, tx, ty); c.stroke();
+        const a = Math.atan2(ty - my, tx - mx);
+        c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + Math.cos(a + 2.4)*2.6, ty + Math.sin(a + 2.4)*2.6); c.moveTo(tx, ty); c.lineTo(tx + Math.cos(a - 2.4)*2.6, ty + Math.sin(a - 2.4)*2.6); c.stroke();
+      }
+    } else {
+      c.lineWidth = 1.6; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + 3, hy + 3); c.moveTo(hx, hy); c.lineTo(hx - 2, hy + 4); if (rv(r.id, 'grab') > 1){ c.moveTo(hx, hy); c.lineTo(hx + 4, hy); c.moveTo(hx, hy); c.lineTo(hx + 1, hy + 4.5); } c.stroke();
+    }
+  } else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
+  else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3.5, sy + 7); c.stroke(); }
+  // head
+  const hx0 = bw/2 - hw + 3, hy0 = top - 3 - hh;
+  c.fillStyle = '#4a423b'; c.fillRect(hx0 + hw*0.25, top - 4, 6, 5);
+  const hg = c.createLinearGradient(0, hy0, 0, hy0 + hh); hg.addColorStop(0, st.head); hg.addColorStop(1, st.head2);
+  c.fillStyle = hg;
+  if (st.round){ c.beginPath(); c.ellipse(hx0 + hw/2, hy0 + hh, hw/2, hh, 0, Math.PI, 0); c.closePath(); c.fill(); }
+  else { rr(c, hx0, hy0, hw, hh, st.slim ? 6 : 5); c.fill(); }
+  if (st.dust){ c.fillStyle = 'rgba(120,96,64,.35)'; for (const [px, py] of [[2,3],[5,9],[11,2],[3,10]]){ ell(c, hx0 + px, hy0 + py, .8, .7); c.fill(); } }
+  if (st.rust > 0.5){ c.fillStyle = 'rgba(152,82,40,.65)'; ell(c, hx0 + 3, hy0 + hh - 3, 1.6, 1.2); c.fill(); }
+  const ex = hx0 + hw*0.68, ey = hy0 + hh*0.55;
+  c.fillStyle = '#2a2420'; ell(c, ex, ey, 4.4, 4.4); c.fill();
+  const bl = r.blink > 0 ? 0.15 : 1;
+  c.fillStyle = 'rgba(255,196,87,.28)'; ell(c, ex + .6, ey, 6.5, 6.5*bl); c.fill();
+  c.fillStyle = r.full ? '#ff9a6b' : '#ffc457'; ell(c, ex + .6, ey, 2.6, 2.6*bl); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.7)'; ell(c, ex + 1.6, ey - 1.1, .8, .8*bl); c.fill();
+  if (st.patches){ c.strokeStyle = '#4c4840'; c.lineWidth = 1; c.beginPath(); c.moveTo(ex - 5, ey - 5.5); c.lineTo(ex + 5, ey - 4.5); c.stroke(); }
+  // antenna
+  const ax = hx0 + 5, ay = st.round ? hy0 + 2 : hy0, ah = st.slim ? 11 : 8;
+  c.strokeStyle = '#4a423b'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo(ax - 2, ay - 5, ax - 5, ay - ah); c.stroke();
+  const on = Math.sin(r.anim*3 + r.id) > 0.6;
+  c.fillStyle = on ? '#ff7a4d' : '#8a4a36'; ell(c, ax - 5, ay - ah - .5, 2.1, 2.1); c.fill();
+  if (on){ c.fillStyle = 'rgba(255,122,77,.3)'; ell(c, ax - 5, ay - ah - .5, 4.5, 4.5); c.fill(); }
+  c.restore();
+  if (r.st === 'mine'){
+    c.save(); c.translate(r.x, r.y + top - hh - 22); c.lineWidth = 3; c.lineCap = 'round';
+    c.strokeStyle = 'rgba(40,25,10,.35)'; c.beginPath(); c.arc(0, 0, 6, 0, TAU); c.stroke();
+    c.strokeStyle = '#f2d27a'; c.beginPath(); c.arc(0, 0, 6, -Math.PI/2, -Math.PI/2 + TAU*r.mineP); c.stroke();
+    c.restore();
+  }
+  if (r.full) bubbles.push({ x: r.x, y: r.y + top - hh - 18, t: r.carryM && !r.carryL ? 'metal full' : 'bin full' });
+}
+
+function drawTruck(){
+  const T = truck; if (T.st === 'away') return;
+  const c = ctx; c.save(); c.translate(T.x, LANE);
+  c.fillStyle = 'rgba(20,15,10,.35)'; rr(c, -80, -6, 156, 12, 6); c.fill();
+  c.fillStyle = '#7c5a3c'; rr(c, -18, -46, 88, 34, 3); c.fill();
+  c.strokeStyle = '#664830'; c.lineWidth = 1.4; for (let x=-10; x<70; x+=11){ c.beginPath(); c.moveTo(x, -45); c.lineTo(x, -13); c.stroke(); }
+  if (T.fill > 0){
+    const h = 4 + T.fill*18, rnd = mulberry(3);
+    c.save(); c.beginPath(); c.moveTo(-16, -46); c.bezierCurveTo(-4, -46 - h*1.3, 56, -46 - h*1.3, 68, -46); c.closePath(); c.clip();
+    c.fillStyle = '#b8582a'; c.fillRect(-16, -50 - h*1.4, 84, h*1.5);
+    for (let i=0;i<50;i++) drawLeaf(c, -14 + rnd()*80, -46 - rnd()*h*1.15, 4.5, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, .8, 1, 0);
+    if (T.takeM) for (let i=0;i<Math.min(8, T.takeM);i++) nugget(c, 6 + rnd()*44, -46 - rnd()*h*0.8, 3.4, rnd()*TAU);
+    c.restore();
+  }
+  c.fillStyle = '#5d412b'; c.fillRect(-18, -48, 88, 3.5);
+  c.fillStyle = '#f2e3c4'; rr(c, -8, -40, 68, S.metalSlot ? 24 : 16, 3); c.fill();
+  c.font = '700 10.5px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
+  c.fillText(money(leafPrice()) + ' / leaf', 26, -31.5);
+  if (S.metalSlot) c.fillText(money(metalPrice()) + ' / metal', 26, -21.5);
+  c.fillStyle = '#4f7774'; rr(c, -84, -32, 16, 20, 4); c.fill();
+  c.fillStyle = '#5f8c87'; rr(c, -74, -52, 58, 40, 7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.14)'; rr(c, -72, -50, 54, 5, 3); c.fill();
+  c.fillStyle = '#d4e6e2'; rr(c, -67, -47, 23, 16, 4); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.moveTo(-62, -47); c.lineTo(-56, -47); c.lineTo(-63, -31); c.lineTo(-67, -31); c.closePath(); c.fill();
+  c.strokeStyle = '#46696a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-40, -50); c.lineTo(-40, -14); c.stroke();
+  c.fillStyle = '#ffe39b'; ell(c, -83, -24, 2.3, 3); c.fill();
+  c.fillStyle = '#3a3633'; rr(c, -86, -15, 154, 6, 2); c.fill();
+  for (const wx of [-56, 42]){
+    c.save(); c.translate(wx, -6);
+    c.fillStyle = '#2a2624'; ell(c, 0, 0, 10.5, 10.5); c.fill();
+    c.fillStyle = '#b8ad9c'; ell(c, 0, 0, 5, 5); c.fill();
+    c.rotate(T.rot); c.strokeStyle = '#7d7466'; c.lineWidth = 1.5;
+    for (let k=0;k<3;k++){ c.rotate(TAU/3); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 4.6); c.stroke(); }
+    c.restore();
+  }
+  c.restore();
+}
+
+function drawParts(){
+  const c = ctx;
+  for (const p of parts){
+    const a = clamp(1 - p.t/p.life, 0, 1);
+    if (p.k === 'fly'){
+      const t = clamp(p.t/p.dur, 0, 1), e = t*t*(3 - 2*t);
+      const x = lerp(p.x0, p.x1, e), y = lerp(p.y0, p.y1, e) - Math.sin(t*Math.PI)*p.arc;
+      if (p.kind === 'leaf') drawLeaf(c, x, y, p.s || 5, p.rot + t*6, p.ci || 0, p.sh || 0, 1, 1, 1, 0);
+      else if (p.kind === 'metal') nugget(c, x, y, 4.5, p.rot + t*5);
+      else if (p.kind === 'coin'){ const k = 1/cam.z, sq = Math.abs(Math.cos(t*12)); c.fillStyle = '#d9a43a'; ell(c, x, y, 6*k, (6*sq + 1)*k); c.fill(); c.fillStyle = '#f2cd66'; ell(c, x, y, 4*k, (4*sq + .6)*k); c.fill(); }
+    } else if (p.k === 'spark'){ c.fillStyle = 'rgba(255,214,120,' + a + ')'; c.fillRect(p.x - 1, p.y - 1, 2.2, 2.2); }
+    else if (p.k === 'dust'){ const r = p.r*(1 + p.t/p.life*1.4); c.fillStyle = p.gray ? 'rgba(190,180,170,' + a*0.45 + ')' : 'rgba(170,140,100,' + a*0.4 + ')'; ell(c, p.x, p.y, r, r); c.fill(); }
+    else if (p.k === 'star'){ c.save(); c.translate(p.x, p.y); c.rotate(p.t*4); c.fillStyle = 'rgba(255,236,170,' + a + ')'; const s = 3.2; c.beginPath(); c.moveTo(0,-s); c.lineTo(s*.3,-s*.3); c.lineTo(s,0); c.lineTo(s*.3,s*.3); c.lineTo(0,s); c.lineTo(-s*.3,s*.3); c.lineTo(-s,0); c.lineTo(-s*.3,-s*.3); c.fill(); c.restore(); }
+    else if (p.k === 'ring'){ const r = p.r0 + (p.r1 - p.r0)*(p.t/p.life); c.strokeStyle = 'rgba(255,240,210,' + a*0.6 + ')'; c.lineWidth = 2; ell(c, p.x, p.y, r, r*0.55); c.stroke(); }
+  }
+}
+
+// ───────────────────────── screen-space overlays (stay readable at any zoom)
+const textScale = () => clamp(cam.z, 0.85, 1.3);
+function drawPops(){
+  const c = ctx;
+  for (const p of pops){
+    if (p.t < 0) continue;
+    const k = p.t/p.life, a = k < 0.75 ? 1 : 1 - (k - 0.75)/0.25;
+    const s = w2s(p.x, p.y);
+    const y = s.y - (1 - Math.pow(1 - Math.min(1, p.t/0.9), 3))*30;
+    const sc = p.t < 0.12 ? 0.6 + p.t/0.12*0.4 : 1;
+    c.save(); c.globalAlpha = a; c.translate(s.x, y); c.scale(sc, sc);
+    const size = Math.round(p.size*textScale());
+    c.font = (p.kind === 'note' ? '700 ' : '800 ') + size + 'px ' + (p.kind === 'note' ? 'Caveat, cursive' : '"Baloo 2", sans-serif');
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    const w = c.measureText(p.text).width;
+    const tx = (p.kind === 'leaf' || p.kind === 'metal') ? 9 : 0;
+    c.lineJoin = 'round'; c.lineWidth = Math.max(3, size*0.22); c.strokeStyle = 'rgba(55,30,14,.75)'; c.strokeText(p.text, tx, 0);
+    c.fillStyle = p.kind === 'cash' ? '#ffd56b' : p.kind === 'metal' ? '#dfe6ea' : p.kind === 'leaf' ? '#ffd7a8' : '#fff4e0';
+    c.fillText(p.text, tx, 0);
+    if (p.kind === 'leaf') drawLeaf(c, tx - w/2 - 10, 0, 7.5, 0.3, 1, 1, 1, 1, 1, 0);
+    if (p.kind === 'metal') nugget(c, tx - w/2 - 10, 0, 7, 0.2);
+    c.restore();
+  }
+}
+function drawBubbles(){
+  const c = ctx;
+  for (const b of bubbles){
+    const s = w2s(b.x, b.y), ts = textScale();
+    c.save(); c.font = '700 ' + Math.round(15*ts) + 'px Caveat, cursive';
+    const w = c.measureText(b.t).width + 14, h = 18*ts;
+    c.fillStyle = 'rgba(246,234,212,.95)'; rr(c, s.x - w/2, s.y - h/2, w, h, 8); c.fill();
+    c.beginPath(); c.moveTo(s.x - 4, s.y + h/2 - 1); c.lineTo(s.x, s.y + h/2 + 5); c.lineTo(s.x + 4, s.y + h/2 - 1); c.fill();
+    c.fillStyle = '#a8361d'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.t, s.x, s.y + 1);
+    c.restore();
+  }
+  bubbles = [];
+}
+function drawMarkers(){
+  const c = ctx, groups = {};
+  let bestRobot = null;
+  for (const o of offers()){
+    if (o.cost > S.cash + 1e-9) continue;
+    if (o.id === 'rup'){ if (!bestRobot || o.cost < bestRobot.cost) bestRobot = o; continue; }
+    groups[o.obj] = true;
+  }
+  if (bestRobot) groups[bestRobot.obj] = true;
+  if (cardOpen) groups[cardOpen.obj] = false;
+  for (const k in groups){
+    if (!groups[k]) continue;
+    const p = objPos(k); if (!p) continue;
+    const s = w2s(p.x, p.y), ts = textScale();
+    const y = s.y - 8 + Math.sin(S.t*3 + p.x)*2.5;
+    c.save(); c.translate(s.x, y); c.scale(ts, ts);
+    c.fillStyle = 'rgba(255,214,120,.28)'; ell(c, 0, 0, 13, 13); c.fill();
+    c.fillStyle = '#f6ead4'; ell(c, 0, 0, 8.5, 8.5); c.fill();
+    c.strokeStyle = '#d4672a'; c.lineWidth = 2.3; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(-3.6, 1.6); c.lineTo(0, -2.2); c.lineTo(3.6, 1.6); c.stroke();
+    c.restore();
+  }
+}
+function drawHints(){
+  let h = null;
+  if (!S.flags.opened && S.cash >= 0.25) h = { x: BIN.x, y: BIN.y - 106, t: 'tap things to upgrade them' };
+  else if (!S.flags.research && S.cash >= 3 && S.robots[0].lv.speed >= 3 && S.robots[0].lv.carry >= 3) h = { x: SHED.x, y: SHED.y - 132, t: 'new tech in the workshop' };
+  else if (S.metalSlot && !S.miners.length && S.cash >= MINER_COST*0.5){ const p = SPOTS[0]; h = { x: p.x, y: p.y - 74, t: 'build a miner on the rocks' }; }
+  else if (S.miners.length && !S.flags.sentHint && R[0]) h = { x: R[0].x, y: R[0].y - 98, t: 'tap a robot to send it mining' };
+  if (!h) return;
+  const c = ctx, s = w2s(h.x, h.y);
+  c.save();
+  const y = s.y + Math.sin(S.t*2.4)*3;
+  c.font = '700 ' + Math.round(21*textScale()) + 'px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineJoin = 'round'; c.lineWidth = 4; c.strokeStyle = 'rgba(55,30,14,.6)'; c.strokeText(h.t, s.x, y); c.fillStyle = '#fff4e0'; c.fillText(h.t, s.x, y);
+  c.restore();
+}
+
+function draw(){
+  const c = ctx;
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = '#5f6d33'; c.fillRect(0, 0, W, H);
+  const G = groundCam, k = cam.z/G.z;
+  c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
+  c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
+  const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
+  drawSpotGlints();
+  for (const l of leaves){
+    if ((l.st === 'ground' || l.st === 'fade') && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){
+      if (l.st === 'ground'){ c.fillStyle = 'rgba(40,30,10,.18)'; ell(c, l.x + 1.5, l.y + 1.5, l.s*0.75, l.s*0.4); c.fill(); }
+      drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, l.flip, 0.72, l.a, 0);
+    }
+  }
+  const list = [
+    { y: BIN.y, f: drawBin }, { y: SIGN.y, f: drawSign }, { y: SHED.y, f: drawShed }, { y: SHED.y + 4, f: drawPumpkins },
+    { y: salePos().y, f: drawSaleSign },
+  ];
+  for (const i of S.miners) list.push({ y: SPOTS[i].y, f: () => drawMiner(i) });
+  for (const r of R) list.push({ y: r.y, f: () => drawRobot(r) });
+  list.sort((a, b) => a.y - b.y);
+  for (const o of list) o.f();
+  drawTruck();
+  for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
+  drawParts();
+  TREES.forEach((t, i) => {
+    const cc = canopyCvs[i]; if (!cc) return;
+    if (t.x + t.r < V.x0 || t.x - t.r > V.x1 || t.y + t.r*1.3 < V.y0 || t.y - t.r > V.y1) return;
+    const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
+    // canopies fade when a robot or miner is underneath, so nothing gets lost under a tree
+    let under = R.some(r => Math.hypot(r.x - t.x, r.y - 30 - t.y) < t.r*0.92) || S.miners.some(m => Math.hypot(SPOTS[m].x - t.x, SPOTS[m].y - 30 - t.y) < t.r*0.92);
+    if (!under && saleVisible()){ const sp = salePos(); under = Math.hypot(sp.x - t.x, sp.y - 40 - t.y) < t.r*0.95; }
+    treeAlpha[i] = lerp(treeAlpha[i], under ? 0.42 : 0.96, 0.06);
+    c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(cc.c, -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
+  });
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  for (const f of fgLeaves){ const fx = Math.cos(f.ph); drawLeaf(c, f.x, f.y, f.s, f.rot, f.ci, f.sh, Math.abs(fx) < 0.15 ? 0.15 : fx, 1, 0.92, fx < 0 ? 0.2 : 0); }
+  c.drawImage(vignetteCv, 0, 0, W, H);
+  drawBubbles();
+  drawMarkers();
+  drawHints();
+  drawPops();
+}
+
+// ───────────────────────── HUD (cash only) + secret test money
+let dispCash = 0, lastHud = '';
+function updHud(dt){
+  dispCash = Math.abs(S.cash - dispCash) < 0.005 ? S.cash : lerp(dispCash, S.cash, 1 - Math.pow(0.002, dt));
+  const key = cash2(dispCash);
+  if (key !== lastHud){ lastHud = key; $('vCash').textContent = key; }
+  $('hCash').classList.toggle('bump', cashBumpT > 0);
+  if (cashBumpT > 0) cashBumpT -= dt;
+}
+// Tap the cash 3 times within 2 seconds: +$1,000. Keep tapping: +$10,000, then +$100,000 per tap.
+const cheat = { n: 0, first: 0, last: 0 };
+$('hCash').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  const now = performance.now();
+  if (now - cheat.last > 2000){ cheat.n = 0; cheat.first = now; }
+  cheat.n++; cheat.last = now;
+  if (cheat.n < 3) return;
+  if (cheat.n === 3 && now - cheat.first > 2000){ cheat.n = 1; cheat.first = now; return; }
+  const add = cheat.n === 3 ? 1000 : cheat.n === 4 ? 10000 : 100000;
+  S.cash += add; cashBumpT = 0.25;
+  sfx('coins', add);
+  const tgt = s2w(130, 76);
+  pop(tgt.x, tgt.y, '+' + cash2(add) + ' (test)', 'cash', 20);
+  save();
+});
+
+// ───────────────────────── cards
+const card = $('card');
+let cardOpen = null, cardSig = '', resetArm = false, cardNote = '';
+function pips(l, max, gens){
+  let s = '<span class="pips" aria-label="level ' + l + ' of ' + max + '">';
+  let acc = 0; const bounds = gens ? gens.map(g => (acc += g.n)) : [];
+  for (let i=0;i<max;i++){ if (i > 0 && bounds.includes(i)) s += '<span class="pipgap"></span>'; s += '<span class="pip' + (i < l ? ' on' : '') + '"></span>'; }
+  return s + '</span>';
+}
+function upRow(k, extraDesc){
+  const u = UP[k], l = S.lv[k], maxed = l >= u.max;
+  const from = u.show(u.val(l)), to = maxed ? '' : u.show(u.val(l + 1));
+  const cost = upCost(k), aff = S.cash + 1e-9 >= cost;
+  return { sig: k + l + aff, html:
+    '<div class="row"><div class="n">' + u.name + ' ' + pips(l, u.max) + '</div>' +
+    '<div class="d">' + (maxed ? '<b>' + from + '</b>' : from + ' → <b>' + to + '</b>') + (extraDesc ? ' ' + extraDesc : '') + '</div>' +
+    '<div class="btn">' + (maxed ? '<span class="maxed">maxed</span>' : '<button class="buy" data-act="up:' + k + '" aria-disabled="' + !aff + '">' + money(cost) + '</button>') + '</div></div>' };
+}
+function robotRow(ri, k){
+  const T = TRACKS[k], L = S.robots[ri].lv[k], cap = trackCap(k), max = trackMax(k);
+  const from = T.show(T.vals[L]);
+  let desc, btn, sig;
+  if (L >= max){ desc = '<b>' + from + '</b>'; btn = '<span class="maxed">maxed</span>'; sig = 'max'; }
+  else if (L >= cap){
+    desc = from + ' · research <b>' + genAt(k, L).g.name + '</b> in the workshop for more';
+    btn = '<span class="lock">locked</span>'; sig = 'lock' + L;
+  } else {
+    const c = rCost(ri, k), aff = S.cash + 1e-9 >= c.cost;
+    desc = from + ' → <b>' + T.show(T.vals[L + 1]) + '</b>' + (k === 'carry' && S.metalSlot ? ' · ' + (2 + Math.floor((L+1)/2)) + ' metal' : '');
+    btn = '<button class="buy" data-act="rup:' + k + '" aria-disabled="' + !aff + '">' + (c.disc ? '<s>' + money(c.full) + '</s>' : '') + money(c.cost) + '</button>';
+    sig = L + '' + aff + c.disc;
+  }
+  const ap = allPlan(k);
+  if (ap){
+    const aff = S.cash + 1e-9 >= ap.cost, n = S.robots.length;
+    const tip = ap.catchUp ? 'Bring ' + (ap.behind === 1 ? 'the robot that is behind' : 'the ' + ap.behind + ' robots that are behind') + ' up to level ' + ap.target + ' (copied levels, so discounted)'
+                           : 'Give all ' + n + ' robots level ' + ap.target + ': one at full price, the rest at ' + Math.round(discFor(k)*100) + '%';
+    btn += '<button class="buy all" data-act="rall:' + k + '" aria-disabled="' + !aff + '" title="' + tip + '" aria-label="' + tip + ', ' + money(ap.cost) + '">' + (ap.catchUp ? 'Match all ' : 'All +1 ') + money(ap.cost) + '</button>';
+    sig += '|a' + ap.target + aff + ap.cost;
+  }
+  return { sig: k + sig, html:
+    '<div class="row"><div class="n">' + T.label + ' <span class="gen">' + genNameAt(k, L) + '</span> ' + pips(L, Math.max(cap, 1), T.gens.filter(g => g.n > 0)) + '</div>' +
+    '<div class="d">' + desc + '</div><div class="btn">' + btn + '</div></div>' };
+}
+function buyRow(name, desc, act, cost, done){
+  const aff = S.cash + 1e-9 >= cost;
+  return { sig: act + aff + done, html: '<div class="row"><div class="n">' + name + '</div><div class="d">' + desc + '</div><div class="btn">' +
+    (done ? '<span class="maxed">' + done + '</span>' : '<button class="buy" data-act="' + act + '" aria-disabled="' + !aff + '">' + money(cost) + '</button>') + '</div></div>' };
+}
+function cardModel(){
+  const k = cardOpen.kind, rows = [], rows2 = [];
+  let title = '', sub = '', live = '', top = '', foot = '';
+  if (k === 'robot'){
+    const i = cardOpen.i, cfg = S.robots[i], st = STYLES[i];
+    title = st.name; sub = st.blurb; live = 'robot';
+    if (S.metalSlot) top = '<div class="seg" role="group" aria-label="Focus"><button data-act="job:leaf" class="' + (cfg.job === 'leaf' ? 'on' : '') + '">Focus on leaves</button><button data-act="job:mine" class="' + (cfg.job === 'mine' ? 'on' : '') + '">Focus on mining</button></div>';
+    for (const t of TRACK_ORDER) if (trackVisible(t)) rows.push(robotRow(i, t));
+    if (S.robots.length > 1){
+      const d = discFor('speed'), db = discFor('carry'), pct = v => Math.round(v*100) + '%';
+      foot = '<div class="foot"><span>Upgrades are for ' + st.name + ' only. A level another robot already has costs ' + (d === 0.5 ? 'half' : pct(d)) + (db !== d ? ' (baskets ' + pct(db) + ')' : '') + '. The green buttons upgrade every robot at once.</span></div>';
+    }
+  } else if (k === 'bin'){
+    title = 'Leaf bin'; sub = 'Robots drop what they find here. The truck empties it on every pickup.'; live = 'bin';
+    rows.push(upRow('bin', S.metalSlot ? '· ' + metalCap() + ' metal' : ''));
+    rows.push(upRow('leafPrice'));
+    if (!S.metalSlot){ if (metalSlotShown()) rows.push(buyRow('Add a metal slot', 'Lets the truck buy metal too, so you can build miners on the rocks. <b>Each miner costs ' + money(MINER_COST) + '</b> and needs a robot to work it.', 'metalSlot', METAL_SLOT_COST, '')); }
+    else rows.push(upRow('metalPrice'));
+  } else if (k === 'sign'){
+    title = 'Pickup schedule'; sub = 'The compost truck takes everything in the bin and pays on the spot.'; live = 'truck';
+    rows.push(upRow('truck'));
+  } else if (k === 'shed'){
+    title = 'Workshop'; sub = 'Spare parts, a warm lamp, and plans for better robots.';
+    const n = S.robots.length;
+    if (n < 5) rows.push(buyRow('Build ' + STYLES[n].name, 'Robot ' + (n + 1) + ' of 5. ' + STYLES[n].blurb, 'robot', robotCost(n), ''));
+    else rows.push({ sig:'full', html:'<div class="row"><div class="n">Five robots</div><div class="d">The workshop is full for now.</div><div class="btn"><span class="maxed">done</span></div></div>' });
+    const techs = Object.keys(TECH).filter(techAvailable).sort((a, b) => TECH[a].cost - TECH[b].cost);
+    if (techs.length) rows.push({ sig:'h', html:'<div class="sect">Research · each unlocks new upgrades for every robot</div>' });
+    for (const id of techs.slice(0, 5)) rows.push(buyRow(TECH[id].name, TECH[id].desc, 'tech:' + id, TECH[id].cost, ''));
+    if (genVisible()){
+      const ks = Object.keys(GEN).filter(genAvail).sort((a, b) => genCost(a) - genCost(b));
+      const owned = Object.keys(GEN).filter(k => gl(k) >= GEN[k].max).map(k => GEN[k].name);
+      rows2.push({ sig:'gh', html:'<div class="sect">Yard-wide upgrades · for every robot</div>' });
+      for (const k of ks.slice(0, 6)){
+        const g = GEN[k], l = gl(k), name = g.name + (g.max > 1 ? ' ' + pips(l, g.max) : '');
+        const row = buyRow(name, g.desc(l), 'gen:' + k, genCost(k), ''); row.sig += l; rows2.push(row);
+      }
+      if (!ks.length) rows2.push({ sig:'gnone', html:'<div class="row"><div class="n">All done for now</div><div class="d">More yard-wide upgrades unlock as the yard grows.</div><div class="btn"></div></div>' });
+      if (owned.length) rows2.push({ sig:'gown' + owned.length, html:'<div class="d gdone">Done: ' + owned.join(', ') + '</div>' });
+    }
+    const done = Object.keys(TECH).filter(id => S.tech[id]).map(id => TECH[id].name);
+    foot = '<div class="foot"><span>' + (done.length ? 'Researched: ' + done.join(', ') : 'Saved in this browser.') + '</span>' + (resetArm ? '<button class="link danger" data-act="reset2">Yes, wipe my yard</button>' : '<button class="link" data-act="reset1">Start over</button>') + '</div>';
+  } else if (k === 'sound'){
+    const P = SND.prefs;
+    title = 'Sounds'; sub = 'Rustling leaves, little robot beeps, and a slow waltz now and then.';
+    top = '<div class="seg" role="group" aria-label="Sound"><button data-act="snd:on1" class="' + (P.on ? 'on' : '') + '">Sound on</button><button data-act="snd:on0" class="' + (P.on ? '' : 'on') + '">Off</button></div>';
+    rows.push({ sig:'vol', html:'<div class="row vol"><label class="n" for="sndVol">Volume</label><input type="range" id="sndVol" min="0" max="100" step="1" value="' + Math.round(P.vol*100) + '"></div>' });
+    const tog = (key, name, desc) => ({ sig: key + P[key], html: '<div class="row"><div class="n">' + name + '</div><div class="d">' + desc + '</div><div class="btn"><button class="tog' + (P[key] ? ' on' : '') + '" data-act="snd:' + key + '" aria-pressed="' + P[key] + '">' + (P[key] ? 'On' : 'Off') + '</button></div></div>' });
+    rows.push(tog('amb', 'Leaves &amp; wind', 'Rustling, gusts, the compost truck'));
+    rows.push(tog('sfx', 'Beeps &amp; chimes', 'Robot chatter, the truck paying'));
+    rows.push(tog('music', 'Music', 'A quiet waltz that comes and goes'));
+    foot = '<div class="foot"><span>Press M to mute or unmute.</span></div>';
+  } else if (k === 'sale'){
+    const A = AREAS[S.land + 1], cur = AREAS[S.land], newSpots = SPOTS.filter(p => p.land === S.land + 1).length;
+    title = 'Land for sale'; sub = 'The ' + A.name.toLowerCase() + ' next door. More room means more leaves, but longer trips to the bin.';
+    rows.push(buyRow('Buy the ' + A.name.toLowerCase(), 'About ' + Math.round(A.w*A.h/(cur.w*cur.h)) + '× the space · ' + newSpots + ' more metal veins', 'land', A.cost, ''));
+  } else if (k === 'spot'){
+    const i = cardOpen.i, p = SPOTS[i];
+    if (p.land > S.land){
+      title = 'Metal vein'; sub = 'Bright flecks in the rocks, just past your fence.';
+      rows.push({ sig:'far', html:'<div class="row"><div class="n">Not your land yet</div><div class="d">Buy this land when the For Sale sign goes up.</div><div class="btn"></div></div>' });
+    } else if (S.miners.includes(i)){
+      title = 'Miner'; sub = 'A rattly drill on a metal vein. A robot has to work it.';
+      const w = minerWorker(i);
+      if (w >= 0) rows.push({ sig:'w' + w, html:'<div class="row"><div class="n">' + STYLES[w].name + ' is working here</div><div class="d">' + drillTime(w).toFixed(1) + 's per chunk · carries ' + metalCarry(w) + (doubleChance(w) > 0 ? ' · ' + Math.round(doubleChance(w)*100) + '% double' : '') + '</div><div class="btn"><button class="buy" data-act="release">Send back</button></div></div>' });
+      else {
+        const any = S.robots.some(c => c.job !== 'mine' || c.miner == null);
+        rows.push({ sig:'nw' + any, html:'<div class="row"><div class="n">No robot here</div><div class="d">' + (any ? 'Pull the closest leaf robot over.' : 'Every robot is busy at a miner.') + '</div><div class="btn"><button class="buy" data-act="send" aria-disabled="' + !any + '">Send one</button></div></div>' });
+      }
+    } else {
+      title = 'Metal vein'; sub = 'Old rocks with bright flecks of scrap metal in them.';
+      if (!S.metalSlot) rows.push({ sig:'locked', html:'<div class="row"><div class="n">Needs a metal slot</div><div class="d">Add one on the leaf bin so the truck will buy metal. After that, each miner costs ' + money(MINER_COST) + '.</div><div class="btn"></div></div>' });
+      else rows.push(buyRow('Build a miner', 'Metal sells for ' + money(metalPrice()) + ' a chunk. A robot works it.', 'miner', MINER_COST, ''));
+    }
+  }
+  return { title, sub, rows, rows2, top, foot, live };
+}
+function liveText(kind){
+  if (kind === 'robot'){
+    const i = cardOpen.i, r = R[i]; if (!r) return '';
+    const cfg = S.robots[i];
+    const what = r.carryM ? r.carryM + '/' + metalCarry(i) + ' metal' : r.carryL + '/' + leafCap(i) + ' leaves';
+    const doing = cfg.job === 'mine' && cfg.miner == null && r.st !== 'toBin' && r.st !== 'dump' ? 'Waiting for a free miner, gathering leaves' : r.st === 'mine' ? 'Mining' : r.st === 'toMine' ? 'Heading to the miner' : r.st === 'wait' ? 'Waiting for room in the bin' : (r.st === 'toBin' || r.st === 'dump') ? 'Heading to the bin' : (r.st === 'wander' || r.st === 'rest') ? 'Looking for leaves' : cfg.job === 'mine' ? 'Mining' : 'Gathering';
+    return doing + ' · carrying ' + what;
+  }
+  if (kind === 'bin') return S.binLeaves + ' / ' + binCap() + ' leaves' + (S.metalSlot ? ' · ' + S.binMetal + ' / ' + metalCap() + ' metal' : '') + ' · ' + money(leafPrice()) + ' a leaf';
+  if (kind === 'truck') return truck.st === 'away' ? 'Next truck in ' + mmss(S.truckT) : 'The truck is here now';
+  return '';
+}
+function renderCard(force){
+  if (!cardOpen) return;
+  const m = cardModel();
+  const sig = cardOpen.kind + (cardOpen.i ?? '') + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
+  if (sig !== cardSig || force){
+    cardSig = sig;
+    const two = m.rows2.length > 0, body = m.rows.map(r => r.html).join('');
+    card.classList.toggle('wide', two);
+    card.innerHTML = '<div class="ch"><div class="ct">' + m.title + '</div><button class="x" data-act="close" aria-label="Close">×</button></div>' +
+      '<div class="cs">' + m.sub + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') +
+      '<div style="height:6px"></div>' + m.top +
+      (two ? '<div class="cols"><div class="col">' + body + '</div><div class="col">' + m.rows2.map(r => r.html).join('') + '</div></div>' : body) +
+      (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot;
+    placeCard();
+  }
+  const lv = $('cardLive'); if (lv){ const t = liveText(m.live); if (lv.textContent !== t) lv.textContent = t; }
+}
+function placeCard(){
+  if (!cardOpen) return;
+  const a = cardAnchor(), cw = card.offsetWidth, ch = card.offsetHeight;
+  let x = a.x - cw/2, y = a.y - ch - 14;
+  if (y < 64) y = a.y + a.below + 12;
+  if (y + ch > H - 8) y = Math.max(8, H - ch - 8);
+  x = clamp(x, 12, W - cw - 12);
+  card.style.left = x + 'px'; card.style.top = y + 'px';
+}
+function cardAnchor(){
+  const k = cardOpen.kind;
+  let p, below;
+  if (k === 'robot'){ p = { x: cardOpen.ax, y: cardOpen.ay }; below = 70; }
+  else if (k === 'bin'){ p = { x: BIN.x + 10, y: BIN.y - 62 }; below = 70; }
+  else if (k === 'sign'){ p = { x: SIGN.x, y: SIGN.y - 76 }; below = 80; }
+  else if (k === 'shed'){ p = { x: SHED.x + 30, y: SHED.y - 100 }; below = 104; }
+  else if (k === 'sale'){ const s = salePos(); p = { x: s.x, y: s.y - 78 }; below = 80; }
+  else if (k === 'spot'){ const s = SPOTS[cardOpen.i]; p = { x: s.x, y: s.y - 74 }; below = 84; }
+  else if (k === 'sound'){ const b = sndBtn.getBoundingClientRect(); return { x: b.left + b.width/2 + 120, y: b.top, below: b.height }; }
+  else return { x: W/2, y: H/2, below: 0 };
+  const s = w2s(p.x, p.y);
+  return { x: s.x, y: s.y, below: below*cam.z };
+}
+function openCard(kind, i){
+  const obj = kind === 'robot' ? 'robot' + i : kind === 'spot' ? 'spot' + i : kind;
+  cardOpen = { kind, i, obj };
+  if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
+  resetArm = false; cardNote = ''; cardSig = '';
+  card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  if (kind !== 'sound') S.flags.opened = true;
+  sfx('paper');
+  renderCard(true);
+}
+function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; }
+
+card.addEventListener('pointerdown', e => e.stopPropagation());
+card.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'close'){ closeCard(); return; }
+  if (act.startsWith('snd:')){ const k = act.slice(4); if (k === 'on1' || k === 'on0') SND.set('on', k === 'on1'); else SND.toggle(k); renderCard(true); return; }
+  if (b.getAttribute('aria-disabled') === 'true'){ sfx('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
+  cardNote = '';
+  const i = cardOpen.i;
+  if (act.startsWith('up:')){ const k = act.slice(3); buy({ id:'up', key:k, obj:UP[k].obj, cost:upCost(k), maxed:S.lv[k] >= UP[k].max }); }
+  else if (act.startsWith('rall:')){ const k = act.slice(5), ap = allPlan(k); if (ap) buy({ id:'rall', key:k, target:ap.target, obj:'robot'+i, cost:ap.cost }); }
+  else if (act.startsWith('rup:')){ const k = act.slice(4), c = rCost(i, k); if (c && S.robots[i].lv[k] < trackCap(k)) buy({ id:'rup', ri:i, key:k, obj:'robot'+i, cost:c.cost }); }
+  else if (act.startsWith('tech:')){ const id = act.slice(5); if (techAvailable(id)) buy({ id:'tech', key:id, obj:'shed', cost:TECH[id].cost }); }
+  else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
+  else if (act === 'metalSlot') buy({ id:'metalSlot', obj:'bin', cost:METAL_SLOT_COST });
+  else if (act === 'robot') buy({ id:'robot', obj:'shed', cost:robotCost(S.robots.length) });
+  else if (act === 'miner') buy({ id:'miner', arg:i, obj:'spot'+i, cost:MINER_COST });
+  else if (act === 'land'){ buy({ id:'land', obj:'sale', cost:AREAS[S.land + 1].cost }); return; }
+  else if (act === 'job:leaf') unassign(i);
+  else if (act === 'job:mine'){ if (S.robots[i].job !== 'mine'){ const f = freeMiner(); if (f == null){ S.robots[i].job = 'mine'; S.robots[i].miner = null; S.flags.sentHint = true; cardNote = S.miners.length ? 'Every miner is busy. ' + STYLES[i].name + ' gathers leaves until one frees up.' : 'No miners yet. ' + STYLES[i].name + ' gathers leaves until you build one.'; } else assign(i, f); } }
+  else if (act === 'release'){ const w = minerWorker(i); if (w >= 0) unassign(w); }
+  else if (act === 'send'){ const p = SPOTS[i]; const cand = R.filter(r => S.robots[r.id].job !== 'mine' || S.robots[r.id].miner == null).sort((a,b) => Math.hypot(a.x-p.x,a.y-p.y) - Math.hypot(b.x-p.x,b.y-p.y))[0]; if (cand) assign(cand.id, i); }
+  else if (act === 'reset1') resetArm = true;
+  else if (act === 'reset2'){ hardReset(); return; }
+  save();
+  if (cardOpen) renderCard(true);
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
+
+// ───────────────────────── input
+function hit(x, y){
+  for (const r of [...R].sort((a,b) => b.y - a.y)){ const st = STYLES[r.id]; if (Math.abs(x - r.x) < st.tw/2 + 8 && y < r.y + 10 && y > r.y - 62) return ['robot', r.id]; }
+  if (saleVisible()){ const p = salePos(); if (Math.abs(x - p.x) < 38 && y > p.y - 80 && y < p.y + 6) return ['sale']; }
+  if (truck.st !== 'away' && x > truck.x - 88 && x < truck.x + 76 && y > LANE - 56 && y < LANE + 8) return ['sign'];
+  if (x > BIN.x - 44 && x < BIN.x + (S.metalSlot ? 80 : 44) && y > BIN.y - 64 && y < BIN.y + 8) return ['bin'];
+  if (Math.abs(x - SIGN.x) < 30 && y > SIGN.y - 74 && y < SIGN.y + 6) return ['sign'];
+  if (Math.abs(x - SHED.x) < 58 && y > SHED.y - 98 && y < SHED.y + 8) return ['shed'];
+  for (let i=0;i<SPOTS.length;i++){ const p = SPOTS[i], built = S.miners.includes(i); if (Math.abs(x - p.x) < 40 && y > p.y - (built ? 72 : 30) && y < p.y + 22) return ['spot', i]; }
+  return null;
+}
+function tap(sx, sy){
+  const w = s2w(sx, sy);
+  const h = hit(w.x, w.y);
+  if (h){ if (cardOpen && cardOpen.kind === h[0] && cardOpen.i === h[1]) closeCard(); else openCard(h[0], h[1]); return; }
+  closeCard();
+  parts.push({ k:'ring', x: w.x, y: w.y, r0: 4, r1: 46, life: 0.5, t: 0 });
+  let kicked = 0;
+  for (const l of leaves){ if (l.st !== 'ground') continue; const dx = l.x - w.x, dy = l.y - w.y, d = Math.hypot(dx, dy); if (d < 60 && d > 0.1){ kicked++; const f = (1 - d/60)*160; l.kx += dx/d*f; l.ky += dy/d*f*0.7; } }
+  { const a = sndAt(w.x, w.y); sfx('kick', kicked, a.pan); }
+}
+const ptrs = new Map(); let drag = null, pinch = null;
+cv.addEventListener('pointerdown', e => {
+  try { cv.setPointerCapture(e.pointerId); } catch(_){}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
+  if (ptrs.size === 1) drag = { id: e.pointerId, moved: false };
+  else if (ptrs.size === 2){ drag = null; const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x)/2, my: (a.y + b.y)/2 }; }
+});
+cv.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p){ if (e.pointerType === 'mouse'){ const w = s2w(e.clientX, e.clientY); cv.style.cursor = hit(w.x, w.y) ? 'pointer' : 'grab'; } return; }
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  if (pinch && ptrs.size >= 2){
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y) || 1, mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+    cam.ox += mx - pinch.mx; cam.oy += my - pinch.my;
+    zoomAt(mx, my, d/pinch.d);
+    pinch.d = d; pinch.mx = mx; pinch.my = my;
+    return;
+  }
+  if (drag && drag.id === e.pointerId){
+    if (!drag.moved && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 6){ drag.moved = true; cv.style.cursor = 'grabbing'; }
+    if (drag.moved){ cam.ox += dx; cam.oy += dy; clampCam(); userMoved(); }
+  }
+});
+function endPtr(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (drag && drag.id === e.pointerId){ if (!drag.moved && e.type === 'pointerup') tap(e.clientX, e.clientY); drag = null; }
+  if (ptrs.size < 2) pinch = null;
+  if (!ptrs.size && e.pointerType === 'mouse') cv.style.cursor = 'grab';
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const dy = e.deltaMode === 1 ? e.deltaY*30 : e.deltaY;
+  zoomAt(e.clientX, e.clientY, Math.exp(-dy*(e.ctrlKey ? 0.01 : 0.0015)));
+}, { passive: false });
+const keys = new Set();
+const PAN_KEYS = ['arrowleft','arrowright','arrowup','arrowdown','a','d','w','s'];
+addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (PAN_KEYS.includes(k)){ keys.add(k); e.preventDefault(); }
+  else if (k === '+' || k === '='){ zoomAt(W/2, H/2, 1.2); }
+  else if (k === '-' || k === '_'){ zoomAt(W/2, H/2, 1/1.2); }
+  else if (k === 'home' || k === '0'){ recenter(); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+addEventListener('blur', () => keys.clear());
+function panKeys(dt){
+  if (!keys.size) return;
+  let kx = 0, ky = 0;
+  if (keys.has('arrowleft') || keys.has('a')) kx += 1;
+  if (keys.has('arrowright') || keys.has('d')) kx -= 1;
+  if (keys.has('arrowup') || keys.has('w')) ky += 1;
+  if (keys.has('arrowdown') || keys.has('s')) ky -= 1;
+  if (!kx && !ky) return;
+  const sp = 620*dt;
+  cam.ox += kx*sp; cam.oy += ky*sp; clampCam(); userMoved();
+}
+$('recenter').addEventListener('click', recenter);
+
+// ───────────────────────── sound button (bottom left) and unlocking audio on the first tap
+const sndBtn = $('soundBtn');
+function sndIcon(){ const on = !SND || SND.prefs.on; sndBtn.classList.toggle('off', !on); sndBtn.title = on ? 'Sound (M to mute)' : 'Sound is off (M to turn on)'; }
+if (SND){
+  const unlock = () => SND.unlock();
+  addEventListener('pointerdown', unlock, true);
+  addEventListener('keydown', unlock, true);
+  SND.onChange(sndIcon); sndIcon();
+  sndBtn.hidden = false;
+  sndBtn.addEventListener('click', () => { SND.unlock(); if (cardOpen && cardOpen.kind === 'sound') closeCard(); else openCard('sound'); });
+  addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'm') return;
+    SND.toggle('on'); if (cardOpen && cardOpen.kind === 'sound') renderCard(true);
+  });
+  card.addEventListener('input', e => { if (e.target.id === 'sndVol') SND.set('vol', e.target.value/100); });
+  card.addEventListener('change', e => { if (e.target.id === 'sndVol' && !SND.prefs.on && +e.target.value > 0){ SND.set('on', true); renderCard(true); } });
+}
+
+// ───────────────────────── toast
+let toastTimer = 0;
+function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = main + (small ? '<small>' + small + '</small>' : ''); t.hidden = false; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 700); }, secs*1000); }
+
+// ───────────────────────── save / load
+const KEY = 'leaf-yard-save-v2';
+function save(){ if (simMode || FRESH) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+function merge(base, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && base[k] && typeof base[k] === 'object') merge(base[k], src[k]); else if (k in base) base[k] = src[k]; } return base; }
+function load(data){
+  let src = data && data.S;
+  if (!src && !FRESH){ try { const raw = localStorage.getItem(KEY); if (raw) src = JSON.parse(raw); } catch(e){} }
+  if (src && src.v === 2){
+    S = merge(freshState(), src);
+    S.tech = Object.assign({}, src.tech || {});
+    S.gen = Object.assign({}, src.gen || {});
+    S.robots = (src.robots || []).slice(0, 5).map(r => ({ job: r.job || 'leaf', miner: r.miner ?? null, lv: Object.assign(newRobotCfg().lv, r.lv || {}) }));
+    if (!(src.flags && src.flags.bin9)){
+      // older saves had a 7-step bin starting at 25: move to the new size closest to what they had
+      const old = Math.round(25*Math.pow(1.5, clamp(S.lv.bin | 0, 0, 7))), nv = UP.bin.vals;
+      let best = 0; nv.forEach((v, i) => { if (Math.abs(v - old) < Math.abs(nv[best] - old)) best = i; });
+      S.lv.bin = best;
+    }
+    S.flags.bin9 = true;
+    if (!(src.flags && src.flags.tiers5)){
+      // older saves had 8 claw and 8 reach levels; move each robot to the new level with the closest value it already had
+      const OLD = { grab:[1,2,3,4,5,6,8,10,12], reach:[20,32,44,56,68,82,96,110,125] };
+      for (const c of S.robots) for (const k in OLD){ const v = OLD[k][clamp(c.lv[k] | 0, 0, 8)], nv = TRACKS[k].vals; let L = 0; while (L + 1 < nv.length && nv[L + 1] <= v) L++; c.lv[k] = L; }
+      S.flags.tiers5 = true;
+    }
+    if (!src.peak) S.peak = Math.max(S.cash, 0);
+    if (!S.robots.length) S.robots = [newRobotCfg()];
+    S.land = clamp(S.land | 0, 0, AREAS.length - 1);
+  }
+}
+function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
+function hardReset(){
+  try { localStorage.removeItem(KEY); } catch(e){}
+  S = freshState(); R = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0;
+  closeCard(); syncRobots(); seedLeaves();
+  userCam = false; $('recenter').hidden = true;
+  Object.assign(cam, camTarget(0)); camAnim = null; buildGround(cam);
+}
+setInterval(save, 5000);
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+
+// ───────────────────────── loop
+let last = 0;
+function frame(ts){
+  const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
+  const n = Math.ceil(TIME_SCALE);
+  for (let i=0;i<n;i++) step(dt*TIME_SCALE/n);
+  if (camAnim){
+    camAnim.t += dt;
+    const e = ease(clamp(camAnim.t/camAnim.dur, 0, 1));
+    cam.z = lerp(camAnim.from.z, camAnim.to.z, e); cam.ox = lerp(camAnim.from.ox, camAnim.to.ox, e); cam.oy = lerp(camAnim.from.oy, camAnim.to.oy, e);
+    if (camAnim.t >= camAnim.dur) camAnim = null;
+    if (cardOpen) placeCard();
+  }
+  panKeys(dt);
+  if (!camAnim && performance.now() - camMovedT > 140 && !groundCovers()) buildGround({ z: cam.z, ox: cam.ox, oy: cam.oy });
+  updHud(dt);
+  if (SND){ SND.update(dt, wind); ambientChatter(dt); }
+  if (cardOpen) renderCard(false);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+// ───────────────────────── headless pacing simulation (balancing helper)
+window.__leafYard = {
+  sim(seconds, opts){
+    opts = opts || {};
+    simMode = true;
+    const keep = { S, R, leaves, parts, pops, tst: truck.st };
+    S = freshState(); R = []; truck.st = 'away'; parts = []; pops = []; seedLeaves();
+    const log = [], dtS = 1/20; let next = 0, nextMark = 60;
+    const MILE = ['robot','land','metalSlot','miner','tech'];
+    for (let t=0; t<seconds; t+=dtS){
+      step(dtS);
+      if (S.t >= next){
+        next = S.t + 1;
+        let o = offers(true);
+        if (opts.priority){
+          const pr = o.filter(x => MILE.includes(x.id)).sort((a,b) => a.cost - b.cost);
+          if (pr.length) o = o.filter(x => MILE.includes(x.id) ? x === pr[0] : x.cost < pr[0].cost*0.2);
+        }
+        o = o.filter(x => x.cost <= S.cash).sort((a,b) => a.cost - b.cost);
+        for (const sp of S.miners){ if (minerWorker(sp) >= 0) continue; const leafers = S.robots.map((c, j) => j).filter(j => S.robots[j].job !== 'mine'); if (leafers.length > (S.robots.length > 2 ? 1 : 0)) assign(leafers[leafers.length - 1], sp); }
+        if (o.length){ const b = o[0]; buy(b); log.push(Math.round(S.t) + 's ' + b.id + (b.key ? ':' + b.key : '') + (b.ri != null ? '#' + b.ri : '') + (b.id === 'land' ? ':' + S.land : '') + ' $' + b.cost); }
+      }
+      if (S.t >= nextMark){ nextMark += 60; log.push('@' + Math.round(S.t/60) + 'm leaves=' + S.totals.leaves + ' metal=' + S.totals.metal + ' earned=' + S.totals.cash.toFixed(1) + ' ground=' + groundN); }
+    }
+    const out = { log, t:S.t, cash:S.cash, land:S.land, robots:S.robots.map(r => r.lv), miners:S.miners.length, totals:S.totals, tech:Object.keys(S.tech), jobs:S.robots.map(r=>r.job) };
+    S = keep.S; R = keep.R; leaves = keep.leaves; parts = keep.parts; pops = keep.pops; truck.st = keep.tst; simMode = false;
+    return out;
+  },
+  state: () => S,
+  treeDrop: () => treeDrop(true),
+  bounds: () => ({ view: visRect(), bounds: camBounds() }),
+  cam: () => ({ ...cam }),
+  robots: () => R,
+  w2s,
+};
+
+function start(data){
+  load(data);
+  W = innerWidth; H = innerHeight;
+  buildCanopies();
+  resize();
+  syncRobots();
+  seedLeaves();
+  for (let i=0;i<10;i++) spawnAmbient();
+  dispCash = S.cash;
+  addEventListener('resize', resize);
+  if (window.claude && window.claude.hot && window.claude.hot.snapshot){ try { window.claude.hot.snapshot(() => ({ S })); } catch(e){} }
+  requestAnimationFrame(ts => { last = ts; requestAnimationFrame(frame); });
+}
+const go = () => window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+if (document.fonts && document.fonts.load) Promise.race([Promise.all([document.fonts.load('700 16px Caveat'), document.fonts.load('700 14px "Baloo 2"')]), new Promise(r => setTimeout(r, 1500))]).then(go, go);
+else go();
+})();
+
+</script>
+</body>
+</html>
+

@@ -1,0 +1,11 @@
+{
+  "name": "autumnation",
+  "version": "0.8.0",
+  "private": true,
+  "description": "AutumNation: a cozy autumn idle game. Robots rake leaves, keep bees and mine metal; a truck buys it all.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "serve": "node server.js --no-open"
+  }
+}
