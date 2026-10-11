@@ -3,3 +3,5 @@ node_modules/
 Thumbs.db
 *.log
 Claude outputs/
+# balance test output (tools/balance)
+runs/

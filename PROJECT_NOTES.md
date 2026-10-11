@@ -6,6 +6,10 @@ This workspace contains **AutumNation** (code and saves still say Leaf Yard in p
 
 The game is a browser-only canvas experience. One robot gathers falling leaves into a bin; a truck sells the collected resources; upgrades expand the yard operation into additional robots and metal mining. The UI displays the resource and cash totals with upgrade cards rendered by the game logic.
 
+**Single-file snapshots are retired.** The `AutumNationV*.html` files (one HTML file with the CSS and JS inlined) were how versions got passed around before the game was published from `public/` with GitHub Pages. They no longer need updating: `AutumNationV15.html` (V9) is the last one, and the live game is whatever is in `public/`. Don't make new ones unless asked. The old ones can stay as history or be deleted.
+
+**Balance:** `BALANCE.md` is the reference for tuning and for pricing new things: the goals (including the 5-minute payback rule), the formulas, how to measure with the headless tools in `tools/balance/`, the current numbers, and pitfalls. Read it before any balance change and update its section 5 after one.
+
 ## Project layout
 
 - `public/index.html` provides the page shell and HUD elements.
@@ -62,6 +66,8 @@ Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves
 - **Camera:** scroll or pinch to zoom, drag or WASD/arrow keys to pan, Home/0 or the round button to recenter. The ground texture is rebuilt shortly after the view stops moving. Since V4, `camBounds` keeps the view within a modest margin around your land (120 units + 5% of the plot), never lets the road fill more than about a fifth of the screen when zoomed in, and the zoom-out limit is 85% of the framed view.
 
 ## Tuning pointers
+
+See `BALANCE.md` first; this section is the older list of where prices live.
 
 Prices live in `AREAS`, `UP` (including `UP.cleanup`), `TRACKS`, `TECH`, `GEN`, `ROBOT_COST`, `BLOWER_COST`, `SHAKER_COST`, `MINER_COST` and `METAL_SLOT_COST` in `public/game.js`, plus the V6 constants (`BAG_SIZE`, `BAG_SPACE`, `BAGGER_COST`, `HONEY_PACK_COST`, `PLANT_COST`, `SHAFT_COST`, `HOPPER_CAP`, `RACK_CAP`, `BAG_TIME`, `JAR_TIME`, `SMELT_TIME`) and the V7 ones (`NO_DISCOUNT`, `INGOT_SPACE`, `smeltSkill`, `SPOTS[].rich`, `FLOWER_N`, `jarNectar`, `FLOOR_RATE`, `BEE_SPEED`, `SIP_TIME`, `beeCost`, `HIVE_UP_COSTS`, `SALE_HOLD`/`SALE_STEP`, `HINT_SECS`, `treeYieldMul`, `BUSH_YIELD`, `palletCap`). Balance checks used for V7 (run from a headless browser, see the V7 section): honey per stage, mining vs smelting throughput, and smelter capacity with unlimited ore. Leaf flow is set by each area's `spawn` and `cap`. Run `__leafYard.sim(2400, { priority: true })` in the browser console to see when the milestones land (`mile: [...]` picks which buys count as milestones, `setup: S => …` and `noBuy: true` let you compare set-ups, `probe` is called every step). At V5.1, a player who goes straight for robots, land, helpers and metal gets robot 2 at about 6 minutes, the first blower at 9, the first shaker at 10, the Meadow at about 28 and the metal slot at about 45; one who also buys every research first gets the Meadow at about 44 and metal at about 60. (The sim buys the $20 cleanup program late because it isn't a milestone; a real player will usually take it around 15–20 minutes.) The start is deliberately slow: base speed 58, a 3-leaf basket and a 1.3s grab.
 
