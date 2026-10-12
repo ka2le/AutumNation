@@ -408,3 +408,8 @@ The Rainy hollow (formerly the `location3` test copy) is now the third **lot** (
   - Punnets are cans: Can mushrooms (chip "Can"), Canners, Tight packing (was Snug punnets).
   - Gift wrapping is **D.O.P. certification**: a Certify task (chip "Certify"), Certifiers, D.O.P. cans, D.O.P. seals / Gold D.O.P. seals (the ribbons), Keep for certifying.
   - The art is a tin can with a red mushroom on the label (`drawJar`). A D.O.P. can has a ribbon band and a wax seal, red, then blue, then gold with the seals upgrades (`drawGiftJar`). The can, D.O.P. can and seal icons changed to match.
+
+### V15.2 (Oct 12): new favicon and app icon
+- **App icon** (`public/icons/icon.svg`, `icon-maskable.svg` are the sources; PNGs 192/512, maskable 192/512, apple-touch 180): a portrait of Tinker as drawn in the game (bucket hat with the antenna light poking through, the big amber eye, the teal band and number plate, the wicker basket full of maple leaves) on a deep teal background with a warm glow behind its head and a few falling leaves. The maskable version is full-bleed with Tinker smaller, inside the safe zone; the apple-touch icon is full-bleed at the normal size.
+- **Favicon** (`public/favicon.svg`, `favicon.ico` 16/32/48, `icons/favicon-32.png`): a simplified Tinker head on a rounded teal tile: bucket hat, a maple leaf on the antenna instead of the light, the amber eye, teal-banded shoulders. Big flat shapes so it still reads at 16 px.
+- The icon links in `index.html` and the manifest's icon URLs have `?v=2` so browsers and installed apps pick up the new pictures; `sw.js` VERSION is 5.
