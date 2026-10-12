@@ -97,7 +97,7 @@ by ~94 minutes.
   steps near 4–5 minute payback, not 1–2.
 - **Things that keep growth linear (good):** leaves near the bin go first (trips get longer), each source has its own
   multipliers (upgrading honey does nothing for leaves), robots have to be split between jobs, and there are caps on
-  robots (10), helpers (4 + 4), veins (3) and bees (60).
+  robots (10), helpers (3 + 3 since V16), veins (3) and bees (60).
 
 ### 2.5 Price a step against the stage it belongs to
 
@@ -435,3 +435,8 @@ yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` a
   6 → 38 leaves), and a gentler price climb: blow $8 / 15, turbine $60 / 95 / 140, jet $300 / 420 / 600; shake $7 / 13,
   pincers $50 / 80 / 120, rumble $260 / 360 / 520 (unlocks unchanged: $70 / 420, $65 / 360). The full track now costs
   about half what it did. Not re-measured with the test player yet.
+- **V16:** at most 3 blowers and 3 shakers on every lot (was 4 + 4). Every helper skill is cheap to the top with a slow
+  climb (blow and shake tracks ~$350 each, were ~$2,100; excavate, bellows and umbrella cut by 75–85%). Drying (the
+  hollow) has a third tier, Drying tunnel, to 6.5× (11 levels, ~$540, was 7 levels to 3.5×, ~$1,400). The hollow's
+  Gourmet labels are $80 → 900 (were $90 → 2,800) and D.O.P. seals $400 / 800, through the new `LOT.UP` price override.
+  Not re-measured with the test player; helpers are now a small, quick buy rather than a long ladder.

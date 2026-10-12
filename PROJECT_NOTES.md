@@ -413,3 +413,19 @@ The Rainy hollow (formerly the `location3` test copy) is now the third **lot** (
 - **App icon** (`public/icons/icon.svg`, `icon-maskable.svg` are the sources; PNGs 192/512, maskable 192/512, apple-touch 180): a portrait of Tinker as drawn in the game (bucket hat with the antenna light poking through, the big amber eye, the teal band and number plate, the wicker basket full of maple leaves) on a deep teal background with a warm glow behind its head and a few falling leaves. The maskable version is full-bleed with Tinker smaller, inside the safe zone; the apple-touch icon is full-bleed at the normal size.
 - **Favicon** (`public/favicon.svg`, `favicon.ico` 16/32/48, `icons/favicon-32.png`): a simplified Tinker head on a rounded teal tile: bucket hat, a maple leaf on the antenna instead of the light, the amber eye, teal-banded shoulders. Big flat shapes so it still reads at 16 px.
 - The icon links in `index.html` and the manifest's icon URLs have `?v=2` so browsers and installed apps pick up the new pictures; `sw.js` VERSION is 5.
+
+## V16: three helpers of each, cheap helper skills, a longer drying track, gentler mushroom labels (Oct 12)
+
+Only prices, caps and one new tier; no other effects changed.
+
+- **Three blowers and three shakers on every lot** (`HELPER_MAX` 3, was 4). Build prices are blowers $9 / 25 / 50 and shakers $12 / 30 / 60; the $700 / $800 fourth is gone. Saves with a fourth one lose it on load (`capHelpers`: dropped from the end, never one that's away on another lot); no refund, per the old-saves rule.
+- **Helper skills are cheap all the way up** and climb slowly (old in brackets):
+  - Blower: Desk fan $6 / 10 (8 / 15), Leaf turbine unlock $30 (70) then $20 / 26 / 34 (60 / 95 / 140), Jet nozzle unlock $60 (420) then $45 / 55 / 70 (300 / 420 / 600). Whole track ~$350 (was ~$2,100).
+  - Shaker: Gentle wiggle $5 / 9 (7 / 13), Hydraulic pincers unlock $28 (65) then $18 / 24 / 32 (50 / 80 / 120), Rumble claws unlock $55 (360) then $40 / 50 / 65 (260 / 360 / 520). Garden shears $25 (40).
+  - Excavate: Dirt hose $30 / 40 / 50 (70 / 120 / 200), Grit cyclone unlock $90 (450) then $60 / 70 / 85 / 100 (320 / 460 / 650 / 900).
+  - Bellows: Air hose $40 / 55 / 70 (150 / 260 / 420), Forge blast unlock $120 (900) then $85 / 100 / 120 / 140 (600 / 850 / 1,200 / 1,700).
+  - Wood umbrella $150 (900).
+  - **Drying** (the hollow): Warm air $10 / 15 / 20 (25 / 45 / 80), Hot-air stove unlock $40 (180) then $25 / 30 / 36 / 42 (140 / 210 / 300 / 420), and a new third tier **Drying tunnel** (`TECH.tunnel`, needs the stove, unlock $75) with 4 more levels at $50 / 58 / 66 / 75: drying speed 3.5× → 4.1 / 4.8 / 5.6 / 6.5×. 11 levels, ~$540 in all (was 7 levels, ~$1,400).
+  - The usual copied-level discount still applies, so the second and third helper's levels cost half.
+- **Lots can reprice upgrades** (`LOT.UP = { key: { costs } }`, applied right after `UP`). The Rainy hollow uses it for the mushroom price ladder: **Gourmet labels** $80 / 130 / 190 / 270 / 480 / 900 (were the honey labels' $90 / 300 / 650 / 1,000 / 1,800 / 2,800), slow at first with the last two steps the bigger ones, and **D.O.P. seals** $400 / 800 (were 700 / 1,500). Honey labels and gift ribbons in the first yard and on the prairie keep their prices.
+- **Checks** (headless): 1-hour sims on all three lots with no errors; the first yard's sim buys three of each helper and maxes the blow and shake tracks by ~45 min; a hollow sim maxes Drying (all 11 levels) on two blowers by ~13 min. An old save with four blowers (one away in the hollow) and four shakers loads with three of each, keeping the away blower, and Drying levels above 11 clamp to 11. The blower card shows the Drying track's third tier (faint nuts and the Unlock tag).

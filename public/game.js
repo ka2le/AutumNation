@@ -189,6 +189,8 @@ const UP = {
   slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[450, 1100, 2800], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
   hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[80, 260, 700], vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
 };
+// V16: a lot can reprice upgrades (the Rainy hollow's mushroom labels and D.O.P. seals): LOT.UP = { key: { costs } }
+if (LOT.UP) for (const k in LOT.UP) if (UP[k]) Object.assign(UP[k], LOT.UP[k]);
 // V7: the ingot pallet no longer has a size of its own (ingots share the metal tub's room); old saves get its price back
 const OLD_PALLET_COSTS = [60, 200, 600];
 // V6 refinement: buildings and constants
@@ -236,18 +238,19 @@ const TRACKS = {
     vals:[0, .06,.11,.16, .22,.28,.34,.40, .48,.56,.64,.72], show:v=>v ? Math.round(v*100)+'% double metal' : 'no double metal' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
   // V13.7: 8 levels instead of 11 (2 + 3 + 3) over the same range, and a gentler price climb (~75× first to last, was ~190×)
+  // V16: helper skills are cheap all the way to the top and climb slowly (~12× first to last; the whole track ~$350, was ~$2,100)
   blow: { label:'Blower', gens:[
-      { name:'Desk fan', n:2, cost:[8, 15] },
-      { tech:'turbine', name:'Leaf turbine', n:3, cost:[60, 95, 140] },
-      { tech:'jet', name:'Jet nozzle', n:3, cost:[300, 420, 600] } ],
+      { name:'Desk fan', n:2, cost:[6, 10] },
+      { tech:'turbine', name:'Leaf turbine', n:3, cost:[20, 26, 34] },
+      { tech:'jet', name:'Jet nozzle', n:3, cost:[45, 55, 70] } ],
     vals:[1, 1.35, 1.75, 2.2, 2.75, 3.4, 4.1, 4.9, 5.8], show:v=>v.toFixed(2)+'× blow power' },
   shake: { label:'Shake', gens:[
-      { name:'Gentle wiggle', n:2, cost:[7, 13] },
-      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[50, 80, 120] },
-      { tech:'rumble', name:'Rumble claws', n:3, cost:[260, 360, 520] } ],
+      { name:'Gentle wiggle', n:2, cost:[5, 9] },
+      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[18, 24, 32] },
+      { tech:'rumble', name:'Rumble claws', n:3, cost:[40, 50, 65] } ],
     vals:[6, 8, 10, 13, 16, 20, 25, 31, 38], show:v=>v+' leaves from a big tree' },
   // shakers with shears can deadhead spent flowers so a fresh bloom pops up for the bees right away
-  snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[40] } ],
+  snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[25] } ],
     vals:[0, 1], show:v=>v ? 'can deadhead flowers' : 'trees only' },
   // V6: packing & refining: how fast a robot bags leaves, fills honey jars and smelts ingots.
   // V7: a robot starts clumsier, every level is bought at full price (no copied-level discount), and the last tier is
@@ -267,22 +270,24 @@ const TRACKS = {
     vals:[1, 2, 4, 16], show:v=>v+'× research' },
   // V6: blowers at a mine shaft suck up dirt so the robots mining there get on faster. Level 1 teaches it.
   dig: { label:'Excavate', gens:[
-      { name:'Dirt hose', n:3, cost:[70, 120, 200], needsShaft:true },
-      { tech:'cyclone', name:'Grit cyclone', n:4, cost:[320, 460, 650, 900] } ],
+      { name:'Dirt hose', n:3, cost:[30, 40, 50], needsShaft:true },
+      { tech:'cyclone', name:'Grit cyclone', n:4, cost:[60, 70, 85, 100] } ],
     vals:[0, .25, .35, .45, .58, .7, .82, .95], show:v=>v ? '+' + Math.round(v*100) + '% mining at a shaft' : 'can’t excavate yet' },
   // V6.2: blowers can work the bellows at the smelting plant: blowing into the furnace makes every smelter faster
   stoke: { label:'Bellows', gens:[
-      { name:'Air hose', n:3, cost:[150, 260, 420], needsPlant:true },
-      { tech:'forge', name:'Forge blast', n:4, cost:[600, 850, 1200, 1700] } ],
+      { name:'Air hose', n:3, cost:[40, 55, 70], needsPlant:true },
+      { tech:'forge', name:'Forge blast', n:4, cost:[85, 100, 120, 140] } ],
     vals:[0, .15, .22, .3, .4, .5, .6, .7], show:v=>v ? '+' + Math.round(v*100) + '% smelting speed' : 'can’t work the bellows yet' },
   // V14 (the Rainy hollow, WET_WOOD): a blower can learn to carry a big wooden umbrella over a robot hauling dry wood
-  brolly: { label:'Umbrella', gens:[ { name:'Wood umbrella', n:1, cost:[900], needsPlant:true } ],
+  brolly: { label:'Umbrella', gens:[ { name:'Wood umbrella', n:1, cost:[150], needsPlant:true } ],
     vals:[0, 1], show:v=>v ? 'carries the wood umbrella' : 'no umbrella yet' },
   // V15 (DRY_BENCH): a blower blows warm air over the leaves on the drying bench. Level 1 teaches it; every level dries faster
+  // V16: much cheaper with a slow climb, and a third tier (Drying tunnel, 4 more levels up to 6.5×); ~$540 in all, was ~$1,400
   dry: { label:'Drying', gens:[
-      { name:'Warm air', n:3, cost:[25, 45, 80], needsBench:true },
-      { tech:'kiln', name:'Hot-air stove', n:4, cost:[140, 210, 300, 420] } ],
-    vals:[0, 1, 1.3, 1.6, 2, 2.45, 2.95, 3.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
+      { name:'Warm air', n:3, cost:[10, 15, 20], needsBench:true },
+      { tech:'kiln', name:'Hot-air stove', n:4, cost:[25, 30, 36, 42] },
+      { tech:'tunnel', name:'Drying tunnel', n:4, cost:[50, 58, 66, 75] } ],
+    vals:[0, 1, 1.3, 1.6, 2, 2.45, 2.95, 3.5, 4.1, 4.8, 5.6, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
 };
 
 const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet','pack','study'];
@@ -299,15 +304,16 @@ const TECH = {
   diamond: { name:'Diamond drill bit', track:'drill', cost:350, needsMiner:true, desc:'Four faster drill upgrades.' },
   horseshoe:{ name:'Horseshoe magnet', track:'magnet', cost:260, needsMiner:true, desc:'Magnet upgrades 4 to 7: a better chance of double metal.' },
   electro: { name:'Electromagnet',     track:'magnet', cost:1200, needs:'horseshoe', desc:'Magnet upgrades 8 to 11: up to 72% double metal.' },
-  turbine: { name:'Leaf turbine',      track:'blow',  cost:70,  needsKind:'blowers', desc:'Three stronger blower upgrades: a wider, stronger breeze.' },
-  jet:     { name:'Jet nozzle',        track:'blow',  cost:420, needs:'turbine', desc:'Blower upgrades 6 to 8.' },
-  pincers: { name:'Hydraulic pincers', track:'shake', cost:65,  needsKind:'shakers', desc:'Three stronger shake upgrades: more leaves from every tree and bush.' },
-  rumble:  { name:'Rumble claws',      track:'shake', cost:360, needs:'pincers', desc:'Shake upgrades 6 to 8.' },
+  turbine: { name:'Leaf turbine',      track:'blow',  cost:30,  needsKind:'blowers', desc:'Three stronger blower upgrades: a wider, stronger breeze.' },
+  jet:     { name:'Jet nozzle',        track:'blow',  cost:60, needs:'turbine', desc:'Blower upgrades 6 to 8.' },
+  pincers: { name:'Hydraulic pincers', track:'shake', cost:28,  needsKind:'shakers', desc:'Three stronger shake upgrades: more leaves from every tree and bush.' },
+  rumble:  { name:'Rumble claws',      track:'shake', cost:55, needs:'pincers', desc:'Shake upgrades 6 to 8.' },
   jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc:'Four faster packing upgrades: bagging, honey jars, gift wrapping and smelting.' },
   precision:{ name:'Precision tools',  track:'pack',  cost:700, needs:'jig', desc:'Packing upgrades 8 to 11.' },
-  cyclone: { name:'Grit cyclone',      track:'dig',   cost:450, needsShaft:true, desc:'Four stronger excavating upgrades for blowers at a mine shaft.' },
-  forge:   { name:'Forge blast',       track:'stoke', cost:900, needsPlantBlower:true, desc:'Four stronger bellows upgrades for blowers at the smelting plant.' },
-  kiln:    { name:'Hot-air stove',     track:'dry',   cost:180, needsDryBlower:true, desc:'Four faster drying upgrades for blowers at the drying bench.' },
+  cyclone: { name:'Grit cyclone',      track:'dig',   cost:90, needsShaft:true, desc:'Four stronger excavating upgrades for blowers at a mine shaft.' },
+  forge:   { name:'Forge blast',       track:'stoke', cost:120, needsPlantBlower:true, desc:'Four stronger bellows upgrades for blowers at the smelting plant.' },
+  kiln:    { name:'Hot-air stove',     track:'dry',   cost:40,  needsDryBlower:true, desc:'Four faster drying upgrades for blowers at the drying bench.' },
+  tunnel:  { name:'Drying tunnel',     track:'dry',   cost:75,  needs:'kiln', desc:'Drying upgrades 8 to 11: a covered tunnel of hot air over the tray.' },
 };
 // Yard-wide upgrades (workshop, right column). They show up once you have $10. Not every one is a plain boost:
 // some change the rules a little, like how much a copied robot upgrade costs.
@@ -337,10 +343,11 @@ const ROBOT_COST = [0, 6, 12, 30, 70, 140, 240, 380, 560, 800, 1100, 1500];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 const MINER_COST = 100;   // every miner costs the same; far veins are already worth less
 const METAL_SLOT_COST = 160;
-// helper robots: up to four of each (V7; five in V6.1). The second costs about twice the first, then the steps get bigger.
-const HELPER_MAX = 4;
-const BLOWER_COST = [9, 18, 140, 700];
-const SHAKER_COST = [12, 24, 160, 800];
+// helper robots: up to three of each (V16; four in V7, five in V6.1), on every lot. The second costs about twice the
+// first, the third more. Their skills are cheap all the way up (V16), so a full set of three is affordable to max out.
+const HELPER_MAX = 3;
+const BLOWER_COST = [9, 25, 50];
+const SHAKER_COST = [12, 30, 60];
 const OLD_HELPER5 = { blower: 4500, shaker: 5000 };   // what a fifth helper cost before V7 (refunded on load)
 const DISCOUNT = 0.5;
 const NO_DISCOUNT = ['pack'];   // V7: packing levels are always bought at full price
@@ -7929,7 +7936,9 @@ function load(data){
     let v7back = 0;
     const firstV7 = !(src.flags && src.flags.v7);
     if (firstV7) for (const kind of ['blower', 'shaker']) if ((src[KIND_LIST[kind]] || []).length > HELPER_MAX) v7back += OLD_HELPER5[kind];
-    for (const kind of ['blower', 'shaker']) S[KIND_LIST[kind]] = (src[KIND_LIST[kind]] || []).slice(0, HELPER_MAX).map(h => {
+    // V16: at most HELPER_MAX of each; extra ones are dropped from the end, keeping any that are away on another lot
+    const capHelpers = a => { a = (a || []).slice(); while (a.length > HELPER_MAX){ let i = a.map(h => !!(h && h.away)).lastIndexOf(false); if (i < 0) i = a.length - 1; a.splice(i, 1); } return a; };
+    for (const kind of ['blower', 'shaker']) S[KIND_LIST[kind]] = capHelpers(src[KIND_LIST[kind]]).map(h => {
       const c = newHelperCfg(kind); Object.assign(c.lv, h.lv || {});
       for (const k in c.lv) if (TRACKS[k]) c.lv[k] = clamp(c.lv[k] | 0, 0, TRACKS[k].vals.length - 1);   // V13.7: blow/shake have fewer levels now
       if (Array.isArray(h.prio)){ c.prio = h.prio; c.off = Array.isArray(h.off) ? h.off : []; }
