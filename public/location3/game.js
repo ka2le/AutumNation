@@ -78,13 +78,20 @@ const TREES = [
 // (drawPuddles) so it can reflect the robots, trees and buildings beside it and ripple in the rain. Robots that drive
 // through one splash and leave wet tracks. Two lie on the road, where the truck drives through them.
 const PUDDLES = [
-  { x: -70,  y: -118, rx: 44, ry: 15 }, { x: 62, y: -92, rx: 28, ry: 10 }, { x: -192, y: -150, rx: 34, ry: 12 }, { x: 176, y: -236, rx: 30, ry: 11 },
-  { x: -230, y: -330, rx: 58, ry: 19 }, { x: 250, y: -330, rx: 50, ry: 16 }, { x: -20, y: -470, rx: 46, ry: 15 }, { x: -385, y: -175, rx: 40, ry: 13 },
-  { x: 520,  y: -560, rx: 40, ry: 13 }, { x: -470, y: -420, rx: 52, ry: 16 },
-  { x: -650, y: -760, rx: 60, ry: 20 }, { x: 700, y: -650, rx: 70, ry: 22 }, { x: 200, y: -860, rx: 55, ry: 18 }, { x: -300, y: -960, rx: 50, ry: 16 }, { x: 850, y: -250, rx: 48, ry: 15 },
-  { x: -300, y: 50, rx: 72, ry: 11, road: true }, { x: 330, y: 64, rx: 58, ry: 9, road: true },
+  // the first plot
+  { x: -70,  y: -118, rx: 58, ry: 19 }, { x: 64, y: -94, rx: 38, ry: 13 }, { x: -195, y: -152, rx: 46, ry: 15 }, { x: 172, y: -238, rx: 40, ry: 14 },
+  { x: 246, y: -108, rx: 34, ry: 12 }, { x: -40, y: -350, rx: 42, ry: 14 },
+  // the meadow
+  { x: -275, y: -352, rx: 72, ry: 23 }, { x: 290, y: -400, rx: 66, ry: 21 }, { x: -20, y: -472, rx: 62, ry: 20 }, { x: -385, y: -178, rx: 54, ry: 17 },
+  { x: 520,  y: -565, rx: 52, ry: 17 }, { x: -470, y: -418, rx: 70, ry: 21 }, { x: -560, y: -110, rx: 50, ry: 16 }, { x: 455, y: -125, rx: 56, ry: 18 },
+  { x: 120,  y: -640, rx: 58, ry: 18 }, { x: 560, y: -690, rx: 46, ry: 15 }, { x: -430, y: -295, rx: 40, ry: 13 }, { x: 590, y: -470, rx: 36, ry: 12 },
+  // the misty woods
+  { x: -700, y: -665, rx: 72, ry: 23 }, { x: 700, y: -650, rx: 90, ry: 28 }, { x: 200, y: -860, rx: 72, ry: 23 }, { x: -300, y: -960, rx: 66, ry: 21 }, { x: 850, y: -250, rx: 64, ry: 20 },
+  { x: -440, y: -1110, rx: 60, ry: 19 }, { x: 430, y: -1060, rx: 66, ry: 21 }, { x: -20, y: -770, rx: 54, ry: 17 }, { x: -930, y: -300, rx: 58, ry: 18 }, { x: 930, y: -480, rx: 56, ry: 18 },
+  // on the road, where the truck drives through
+  { x: -300, y: 50, rx: 86, ry: 13, road: true }, { x: 330, y: 64, rx: 70, ry: 11, road: true }, { x: -60, y: 70, rx: 62, ry: 10, road: true },
   // a few out in the wild, beyond the fence
-  { x: -720, y: -140, rx: 46, ry: 14 }, { x: 760, y: -110, rx: 40, ry: 13 }, { x: 1180, y: -700, rx: 60, ry: 18 }, { x: -1200, y: -720, rx: 56, ry: 18 },
+  { x: -720, y: -140, rx: 60, ry: 18 }, { x: 760, y: -110, rx: 52, ry: 17 }, { x: 1180, y: -700, rx: 78, ry: 24 }, { x: -1200, y: -720, rx: 72, ry: 23 }, { x: 1185, y: -180, rx: 60, ry: 19 }, { x: -1000, y: -1190, rx: 66, ry: 21 },
 ].map((p, i) => Object.assign(p, { seed: 301 + i*7 }));
 // the outline of a puddle: a wobbly ellipse
 function puddlePts(p, grow){
@@ -518,7 +525,7 @@ const cv = $('c'); let ctx = cv.getContext('2d'); const mainCtx = ctx;   // let:
 let W = 0, H = 0, DPR = 1;
 const cam = { z:1, ox:0, oy:0 };
 let camAnim = null, userCam = false, camMovedT = 0;
-let groundCv = null, groundCam = { z:1, ox:0, oy:0, mx:0, my:0, rs:1 }, vignetteCv = null, canopyCvs = [];
+let groundCv = null, groundTopCv = null, groundCam = { z:1, ox:0, oy:0, mx:0, my:0, rs:1 }, vignetteCv = null, canopyCvs = [];
 
 function camTarget(level){
   const A = AREAS[level], vw = A.w + (W < 640 ? 16 : 80), vh = A.h + ROAD + 84;   // phones: let the yard use the full width
@@ -2748,8 +2755,12 @@ function buildGround(c){
   groundCam = { z: c.z, ox: c.ox, oy: c.oy, mx, my, rs };
   groundCv = document.createElement('canvas');
   groundCv.width = Math.ceil((W + 2*mx)*rs); groundCv.height = Math.ceil((H + 2*my)*rs);
-  const g = groundCv.getContext('2d');
-  g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
+  // the ground comes in two layers: the flat earth (with the puddles' beds) under the puddle water, and everything that
+  // stands up out of it (fence, wood piles, mushrooms, bracken, logs, wild shrubs) on top of the water
+  groundTopCv = document.createElement('canvas'); groundTopCv.width = groundCv.width; groundTopCv.height = groundCv.height;
+  const gBase = groundCv.getContext('2d'), gTop = groundTopCv.getContext('2d');
+  for (const q of [gBase, gTop]) q.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
+  let g = gBase;
   const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
   const O = owned();
   const gr = g.createLinearGradient(0, V.y0, 0, 0);
@@ -2827,19 +2838,20 @@ function buildGround(c){
       g.fillStyle = 'rgba(235,240,245,.45)'; ell(g, x - s*0.3, y - s*0.28, s*0.32, s*0.16); g.fill();
     }
   }
-  drawDecoFlowers(g, V);
-  SPOTS.forEach((p, i) => drawRockBed(g, p.x, p.y, 100 + i));
   // wild land beyond the fence: darker and overgrown
   g.save();
   g.beginPath(); g.rect(V.x0, V.y0, V.x1 - V.x0, -VERGE - V.y0); g.rect(O.x0, O.y0, O.x1 - O.x0, O.y1 - O.y0);
   g.fillStyle = 'rgba(22,18,10,.26)'; g.fill('evenodd');
   g.restore();
+  g = gTop;
+  drawDecoFlowers(g, V);
+  SPOTS.forEach((p, i) => drawRockBed(g, p.x, p.y, 100 + i));
   for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
     const rnd = cellRnd(i, j, 3);
     // dead bracken: rust-brown fern fronds
     for (let k=0;k<4;k++){
       const x = (i + rnd())*CS, y = (j + rnd())*CS, s = 0.8 + rnd()*0.6, col = ['#8a4a22', '#9c5a28', '#6e3c1c', '#7a6a30'][Math.floor(rnd()*4)];
-      if (y > -VERGE - 8 || inOwned(x, y, 16)) continue;
+      if (y > -VERGE - 8 || inOwned(x, y, 16) || puddleAt(x, y, 14)) continue;
       for (let f=0;f<5;f++){
         const a = -Math.PI/2 + (f - 2)*0.42 + (rnd() - 0.5)*0.2, L = (16 + rnd()*8)*s;
         const ex = x + Math.cos(a)*L, ey = y + Math.sin(a)*L*0.8;
@@ -2851,25 +2863,26 @@ function buildGround(c){
     // wet tall grass, bent over
     for (let k=0;k<5;k++){
       const x = (i + rnd())*CS, y = (j + rnd())*CS, dry = rnd() < .5;
-      if (y > -VERGE - 6 || inOwned(x, y, 14)) continue;
+      if (y > -VERGE - 6 || inOwned(x, y, 14) || puddleAt(x + 4, y, 10)) continue;
       for (let m=0;m<7;m++){ const a = -Math.PI/2 + (m - 3)*0.22 + 0.25, h = 13 + (m%3)*4; g.strokeStyle = dry ? (m%2 ? '#8f8050' : '#74683e') : (m%2 ? '#5d6a30' : '#4a5626'); g.lineWidth = 1.2; g.beginPath(); g.moveTo(x + m*1.3, y); g.quadraticCurveTo(x + m*1.3 + Math.cos(a)*7, y - 8, x + m*1.3 + Math.cos(a)*16, y - h + 3); g.stroke(); }
     }
     // a fairy ring of little mushrooms now and then
     if (rnd() < 0.16){
       const cx = (i + rnd())*CS, cy = (j + rnd())*CS, R0 = 14 + rnd()*14, n = 9 + Math.floor(rnd()*6), ty = Math.floor(rnd()*MUSH_DECO.length);
-      if (!(cy > -VERGE - 30 || inOwned(cx, cy, R0 + 20))) for (let m=0;m<n;m++){ const a = m/n*TAU + rnd()*0.3; drawTinyMush(g, cx + Math.cos(a)*R0, cy + Math.sin(a)*R0*0.5, 0.8 + rnd()*0.4, MUSH_DECO[ty]); }
+      if (!(cy > -VERGE - 30 || inOwned(cx, cy, R0 + 20) || puddleAt(cx, cy, R0 + 10))) for (let m=0;m<n;m++){ const a = m/n*TAU + rnd()*0.3; drawTinyMush(g, cx + Math.cos(a)*R0, cy + Math.sin(a)*R0*0.5, 0.8 + rnd()*0.4, MUSH_DECO[ty]); }
     }
     // a fallen log, mossy, with shelf fungus
     if (rnd() < 0.12){
       const x = (i + rnd())*CS, y = (j + rnd())*CS;
-      if (!(y > -VERGE - 24 || inOwned(x, y, 50))) drawFallenLog(g, x, y, 0.8 + rnd()*0.5, rnd);
+      if (!(y > -VERGE - 24 || inOwned(x, y, 50) || puddleAt(x, y, 40))) drawFallenLog(g, x, y, 0.8 + rnd()*0.5, rnd);
     }
     if (rnd() < 0.42){
       const x = (i + rnd())*CS, y = (j + rnd())*CS;
-      if (!(y > -VERGE - 20 || inOwned(x, y, 30))) drawBush(g, x, y, 0.85 + rnd()*0.5, cellRnd(i, j, 6));
+      if (!(y > -VERGE - 20 || inOwned(x, y, 30) || puddleAt(x, y, 24))) drawBush(g, x, y, 0.85 + rnd()*0.5, cellRnd(i, j, 6));
     }
   }
   drawFence(g, O);
+  g = gBase;
   // the verge: wet dark gravel with a fringe of tired grass and a few leaves
   const vy = -VERGE;
   g.fillStyle = '#7c7262'; g.fillRect(V.x0, vy, V.x1 - V.x0, VERGE);
@@ -4699,6 +4712,8 @@ function drawPuddles(V){
     // the water: a cool tint, darker at the rim, a soft sheen near the far edge, rain rings and wakes
     c.save(); puddleTrace(c, p, 0); c.clip();
     c.fillStyle = p.road ? 'rgba(28,34,44,.26)' : 'rgba(44,54,66,.24)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
+    // out in the wild the ground is drawn a little darker, and so is the water there
+    if (!p.road){ const O = owned(); if (!(p.x > O.x0 && p.x < O.x1 && p.y > O.y0 && p.y < -VERGE)){ c.fillStyle = 'rgba(22,18,10,.26)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8); } }
     c.save(); c.translate(p.x, p.y); c.scale(1, p.ry/p.rx);
     const fr = c.createRadialGradient(0, 0, p.rx*0.55, 0, 0, p.rx*1.05); fr.addColorStop(0, 'rgba(30,24,18,0)'); fr.addColorStop(1, 'rgba(30,24,18,.45)');
     c.fillStyle = fr; ell(c, 0, 0, p.rx*1.1, p.rx*1.1); c.fill(); c.restore();
@@ -4766,7 +4781,12 @@ function draw(){
   c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
   const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
-  drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V); drawSplashes(V);   // RAINY HOLLOW
+  drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);   // RAINY HOLLOW
+  // the standing part of the ground (fence, piles, mushrooms, bracken...) goes on top of the puddle water
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.drawImage(groundTopCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
+  c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
+  drawSplashes(V);
   drawSpotGlints();
   for (const l of leaves){
     if ((l.st === 'ground' || l.st === 'fade') && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){
