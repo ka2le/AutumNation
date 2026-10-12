@@ -222,8 +222,9 @@ const TRACKS = {
   study: { label:'Research', gens:[
       { name:'Squinting at pictures', n:0, cost:[], needsBook:true },
       { name:'Reading glasses', n:1, cost:[5] },
-      { name:'Speed reading', n:1, cost:[80] } ],
-    vals:[1, 2, 4], show:v=>v+'× research' },
+      { name:'Speed reading', n:1, cost:[80] },
+      { name:'Photographic memory', n:1, cost:[200] } ],   // V13.1: up to 16 × 4 = 64 research a second for the reader
+    vals:[1, 2, 4, 16], show:v=>v+'× research' },
   // V6: blowers at a mine shaft suck up dirt so the robots mining there get on faster. Level 1 teaches it.
   dig: { label:'Excavate', gens:[
       { name:'Dirt hose', n:3, cost:[70, 120, 200], needsShaft:true },
@@ -1196,7 +1197,8 @@ function aimClaw(r, h){
 function grabLeaves(r){
   const room = leafCap(r.id) - r.carryL;
   const got = (r.plan || []).filter(l => l.st === 'ground' && l.claim === r).slice(0, Math.max(0, room));
-  if (got.length && S.story.armed && !S.story.found) findBook(r, got[0]);
+  // V13.1: the find is only under a leaf above the workshop's roofline, further from the road where it's easy to see
+  if (got.length && S.story.armed && !S.story.found){ const fl = got.find(l => l.y < FIND_ABOVE); if (fl) findBook(r, fl); }
   for (const l of got){
     l.st = 'gone'; l.claim = null; r.carryL++;
     flyTo('leaf', l.x, l.y, r.x - r.face*8, r.y - 38, (r.pickDur || 0.5)*0.45 + 0.08 + Math.random()*0.1, 16, { ci:l.ci, sh:l.sh, s:l.s*0.75 });
@@ -1388,13 +1390,16 @@ function deposit(r){
 // V13: each one belongs to a lot (lot: 'home', 'prairie'), so every place has its own story.
 const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the first yard has earned this much in all,
 const LETTER_HELD = 200;     // or once you've held this much at one time (S.peak), whichever comes first
+// (V13.1: and only once the robots have worked out the old picture book)
+const FIND_ABOVE = -122;     // finds (the book, the bee) only turn up under leaves higher up than the workshop's roof
+const LOT_START_CASH = 10;   // what you have when your robot first arrives on a new lot
 const BEE_LEAVES = 320;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
 const HONEY_JARS = 30;       // jars of honey the prairie's hive makes before the driver offers a ride back
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
   { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
-  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD), on: () => postLetter('newLot') },
+  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => (S.story.item || 'book') === 'book' && S.story.done ? Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD) : 0, on: () => postLetter('newLot') },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
   { id:'bee', lot:'prairie', hidden:true, name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; } },
   { id:'honey', lot:'prairie', hidden:true, name:'Sweet success', goal:'Make ' + HONEY_JARS + ' jars of honey', prog: () => (S.totals.honey || 0)/HONEY_JARS, on: () => postLetter('goHome') },
@@ -1632,7 +1637,7 @@ function updResearch(dt){
 // game carries on in the other lot (travel(), then arrive() on the next page). For a new beat: a milestone, a LETTERS
 // entry and, for a new place, a lot file in public/lots/.
 const LETTERS = {
-  newLot: { at: () => ({ x: -80, y: -5 }), title: 'A letter', sign: 'your truck driver',
+  newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }),   // (V13.1: where the beehive will go, so it stands out) title: 'A letter', sign: 'your truck driver',
     text: 'We found another spot that could use some cleanup, send your best cleanup robot.', open: () => openTrip({ to: 'prairie' }) },
   goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'your truck driver',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
@@ -1774,7 +1779,7 @@ function arrive(a, wasNew){
   S.flags.hints = Object.assign({}, a.hints || {}, S.flags.hints || {});
   for (const k in (a.know || {})) if (a.know[k]) S.flags[k] = true;   // tips you've already had
   // the robot that came along keeps its looks, its upgrades and its task list
-  if (wasNew && !home) S.robots = [];
+  if (wasNew && !home){ S.robots = []; S.cash = S.peak = LOT_START_CASH; }
   let ri = home ? a.home : S.robots.findIndex(c => c.home === a.home);
   if (!(ri >= 0 && S.robots[ri])){ ri = S.robots.length; S.robots.push(newRobotCfg()); }
   const b = a.bot || {}, cfg = S.robots[ri];
@@ -6394,6 +6399,7 @@ function devTraveller(){
   const c = S.robots[0] || (S.robots[0] = newRobotCfg());
   c.home = 0; Object.assign(c.lv, DEV_TRAVELLER.lv);
   for (const k of DEV_TRAVELLER.tech) S.tech[k] = true;
+  S.cash = S.peak = LOT_START_CASH;
   S.lv.truck = DEV_TRAVELLER.truck; S.lv.cleanup = DEV_TRAVELLER.cleanup; S.flags.helpers = true; S.flags.research = true;
 }
 function start(data){

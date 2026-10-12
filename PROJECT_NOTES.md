@@ -305,3 +305,9 @@ The prairie (formerly the `location2` test copy) is now part of the main game as
 - **Dev:** `?fresh&lot=prairie` starts a new prairie with a robot like one sent at $900 (`DEV_TRAVELLER`). In `?fresh` games a trip hands everything to the next page once through sessionStorage (`leaf-yard-hop`). `__leafYard.setCam(x, y, z)` and `__leafYard.world()`. Start over wipes every lot and goes back to the first yard.
 - **Checks:** headless journeys (first yard → letter → ride → prairie → dead bee → hive → letter → ride home with a bee → $60 hive) with no errors; an old V12 save with a hive loads and gets the letter; the test player's 1-hour run has no errors (robot 2 ~14, bagging table ~13, metal ~30, Meadow ~42, plant ~47: a little earlier than V12.1 because nothing goes to bees). The balance player can't make the trip (it plays one page), so its runs no longer include honey.
 - `public/location2/` is still there as the old test copy; the prairie in the main game replaces it.
+
+### V13.1 (Oct 12)
+- The new-lot letter only comes once the old picture book has been researched (then $900 earned or $200 held), and the driver puts it down where the beehive will go (`HIVE`), so it stands out.
+- A new lot starts with $10 (`LOT_START_CASH`).
+- Research has a fourth level: Photographic memory, $200, 16× (the reader does 64 research a second).
+- Finds (the book, the dead bee) only turn up under leaves above the workshop's roofline (`FIND_ABOVE` = -122), away from the road.
