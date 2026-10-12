@@ -45,6 +45,7 @@ The service worker only removes old AutumNation caches and reads offline assets 
 | `http://localhost:8080/?fresh` | Starts a new game without touching your save |
 | `http://localhost:8080/?speed=4` | Runs the game 4× faster (0.25 to 20) |
 | `?fresh&speed=10` | Both |
+| `?fresh&lot=prairie` | Starts a new game on the Wildflower prairie (the second lot), with a robot like one you'd send there |
 
 Progress saves in the browser's localStorage (key `leaf-yard-save-v2`). The Workshop card has a "Start over" button.
 

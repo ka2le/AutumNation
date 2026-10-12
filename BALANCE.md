@@ -360,6 +360,14 @@ Old orchard ~79, last price step ~94.
 - Honey: ~60–65 jars a minute with 2 packers (flowers allow a bit more). Before V9's split packers it was ~45.
 - Ore: 3 veins with shafts → ~33 ingots a minute fully upgraded.
 
+### V13: the hive moved into the story
+The first yard no longer offers the beehive: it comes after the trip to the Wildflower prairie (see `PROJECT_NOTES.md`,
+V13). The test player plays a single page, so it never makes the trip, never gets honey in the first yard, and the numbers
+above (which include honey) are now only a reference for that part. Without the hive the test player reaches metal ~30,
+Meadow ~42 and the plant ~47 min. The letter about the new lot comes at $900 earned (~27 min). On the prairie, the dead
+bee turns up at 320 petals (~5 min with the robot you bring) and takes 2,000 research units (one plain robot: ~8 min; up
+to three robots can work on it).
+
 ### Open questions and weak spots
 - **The late game is short.** Everything is bought ~15 minutes after the Old orchard. If we want a longer late game, it
   needs content (2.3), not dearer prices.

@@ -25,6 +25,43 @@ const TIME_SCALE = clamp(+PARAMS.get('speed') || 1, 0.25, 20);
 const FRESH = PARAMS.has('fresh');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// ───────────────────────── lots, and the trips between them (V13)
+// The game can be played in more than one place (a "lot"). Each lot keeps its own save; WORLD remembers which one
+// you're on, and hands things over when a robot rides the truck to another lot (see travel() and arrive()). Going
+// somewhere reloads the page: a lot's layout and look (land, trees, veins, flowers, colours) are fixed when the page
+// starts. 'home' is the first yard and is described right here in game.js; every other lot has a file of its own in
+// public/lots/ (loaded before game.js) that says what's different about it.
+const WORLD_KEY = 'leaf-yard-world-v1', HOP_KEY = 'leaf-yard-hop';
+const BASE_KEY = 'leaf-yard-save-v2' + (window.LOCATION ? '-' + window.LOCATION : '');
+const lotKey = id => BASE_KEY + (id && id !== 'home' ? '-' + id : '');
+// ?fresh never saves; a trip in a ?fresh game hands everything to the next page once, through sessionStorage
+const HOP = (() => {
+  if (!FRESH) return null;
+  try { const h = sessionStorage.getItem(HOP_KEY); sessionStorage.removeItem(HOP_KEY); return h ? JSON.parse(h) : null; } catch(e){ return null; }
+})();
+const WORLD = (() => {
+  let w = null;
+  if (HOP) w = HOP.world;
+  else if (!FRESH){ try { w = JSON.parse(localStorage.getItem(WORLD_KEY) || 'null'); } catch(e){} }
+  if (!w || typeof w !== 'object') w = {};
+  if (FRESH && !HOP && PARAMS.get('lot')) w.cur = PARAMS.get('lot');   // dev: ?fresh&lot=prairie starts a new game on another lot
+  if (!w.cur || (w.cur !== 'home' && !(window.LOTS && window.LOTS[w.cur]))) w.cur = 'home';
+  return w;
+})();
+const LOT_ID = WORLD.cur;
+const LH = {};   // the game's helpers for lot files (filled in just before the game starts)
+const LOT = LOT_ID === 'home' ? { id: 'home', name: 'Cottage yard' } : window.LOTS[LOT_ID](LH);
+const FRESH_SAVES = (HOP && HOP.saves) || {};   // ?fresh: the other lots' states, carried from page to page
+// a lot's saved state (parsed), or null
+function readLot(id){
+  try { const raw = FRESH ? FRESH_SAVES[lotKey(id)] : localStorage.getItem(lotKey(id)); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+}
+function saveWorld(){ if (FRESH) return; try { localStorage.setItem(WORLD_KEY, JSON.stringify(WORLD)); } catch(e){} }
+// the words a lot uses for things (the prairie's "leaves" are petals): applied to card text, pops and toasts
+const WORDS = LOT.words || null;
+const sayT = WORDS ? s => String(s).replace(/\b(leaf|leaves|Leaf|Leaves|LEAVES)\b/g, w => WORDS[w] || w) : s => s;
+const sayH = WORDS ? h => String(h).replace(/(<[^>]*>)|([^<]+)/g, (m, tag, txt) => tag ? tag.replace(/(title|aria-label)="([^"]*)"/g, (a, k, v) => k + '="' + sayT(v) + '"') : sayT(txt)) : h => h;
+
 // ───────────────────────── world layout (world units; the curb is y = 0, your land is y < 0)
 const ROAD = 84, LANE = 56, VERGE = 30;
 // V6: the road row is spaced out, with room for small work buildings: the bagging table between the pickup sign and the
@@ -34,11 +71,11 @@ const BAGGER = { x: -48, y: -14 };  // the bagging table (built later) between t
 const PALLET = { x: 138, y: -12 };  // the ingot pallet (where haulers drop ingots for the truck), right of the metal tub
 const HIVE = { x: 250, y: -20 };   // the robot beehive stands at the right end of the row
 const CRATE = { x: 190, y: -12 };  // the honey crate (jars waiting for the truck) sits between the ingot pallet and the hive
-const PLANT = { x: 190, y: -240 }; // the smelting plant, up in the right half of the cottage plot
+const PLANT = LOT.PLANT || { x: 190, y: -240 }; // the smelting plant, up in the right half of the cottage plot
 // V7: land costs more, and the cottage plot runs short sooner (its small trees give shakers fewer leaves, see
 // treeYieldMul), so you feel the need for the meadow before you can buy it. Leaves sell for a little more to keep the
 // overall pace about where it was.
-const AREAS = [
+const AREAS = LOT.AREAS || [
   { w: 580,  h: 380,  name: 'Cottage plot', spawn: 1.0, cap: 60 },
   { w: 1280, h: 720,  name: 'Meadow',       spawn: 2.8, cap: 220, cost: 300 },
   { w: 2000, h: 1150, name: 'Old orchard',  spawn: 5.6, cap: 380, cost: 3800 },
@@ -47,14 +84,17 @@ const AREAS = [
 // V7: veins differ in richness (chunks come that much faster): the one on the cottage plot is thin, so the meadow's
 // veins are worth having, and the far orchard veins pay for the long walk.
 // V9: one vein per plot (three in all). Saves from before V9 had five; `OLD_SPOT_MAP` moves their miners over.
-const SPOTS = [
+const SPOTS = LOT.SPOTS || [
   { x: 128,  y: -118, land: 0, rich: 0.85 },
   { x: 425,  y: -175, land: 1, rich: 1 },
   { x: -870, y: -430, land: 2, rich: 1.2 },
 ];
+// V13: a lot can keep its metal for later land (the prairie's only vein is in the meadow)
+const MINE_LAND = LOT.MINE_LAND || 0;
+const metalOpen = () => S.land >= MINE_LAND;
 const OLD_SPOT_MAP = { 0: 0, 1: 1, 3: 2 };   // old vein index -> new one; old veins 2 and 4 are gone (refunded)
 const veinWord = sp => { const v = SPOTS[sp].rich || 1; return v < 0.9 ? 'a thin vein' : v > 1.15 ? 'a rich vein' : v > 1.02 ? 'a good vein' : 'a fair vein'; };
-const TREES = [
+const TREES = LOT.TREES || [
   { x: -300, y: -440, r: 135, seed: 11 }, { x: 352, y: -472, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
   { x: -770, y: -820, r: 190, seed: 41 }, { x: 770, y: -770, r: 185, seed: 53 }, { x: -90, y: -905, r: 170, seed: 61 },
   { x: -1130, y: -330, r: 190, seed: 71 }, { x: 1140, y: -1060, r: 200, seed: 83 }, { x: -560, y: -1310, r: 190, seed: 97 },
@@ -64,7 +104,7 @@ const TREES = [
   { x: -30, y: -255, r: 62, seed: 131, fam: ['gold','orange'] }, { x: -256, y: -208, r: 52, seed: 137, fam: ['red','rust'] },
 ];
 // shrubs on your own land (wild ones beyond the fence are baked into the ground); shakers can shake these too
-const BUSHES = [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 } ];
+const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 } ];
 const trunkBase = t => t.y + t.r*1.16;
 const owned = (lvl = S.land) => { const A = AREAS[lvl]; return { x0: -A.w/2, x1: A.w/2, y0: -A.h, y1: -VERGE }; };
 const salePos = () => { const A = AREAS[S.land]; return { x: Math.round(A.w*0.18), y: -A.h + 44 }; };
@@ -74,7 +114,7 @@ const UP = {
   // the bin starts small: the first few sizes are cheap, after that each one is a real purchase
   bin:        { obj:'bin',  name:'Bigger bin',        max:8,  costs:[0.4, 0.8, 1.5, 4, 15, 60, 190, 520], vals:[15, 22, 32, 48, 72, 110, 180, 320, 600], val:l=>UP.bin.vals[l], show:v=>v+' leaves' },
   // V6: sorting is only a few steps now; after that the bagging table (and the robots working it) takes over
-  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:5,  base:0.8, mul:1.7, val:l=>0.13*Math.pow(1.2,l), show:v=>money(v)+' / leaf' },
+  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:5,  base:0.8, mul:1.7, val:l=>0.13*Math.pow(1.2,l)*pressMul(), show:v=>money(v)+' / leaf' },
   // bags: a tied bag of BAG_SIZE leaves is worth more than the same leaves loose, and better bags are worth more again
   // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top). V9: priced against what
   // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
@@ -233,8 +273,12 @@ const GEN = {
   market:   { name:'Market stall',       max:3, cost:[140, 600, 2400], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
   charm:    { name:'Lucky horseshoe',    max:1, cost:[950], needs:()=>S.miners.length > 0, desc:()=>'Every robot gets <b>+8%</b> double-metal chance on top of its magnet.' },
 };
+if (LOT.GEN) Object.assign(GEN, LOT.GEN);   // a lot's own yard-wide upgrades (the prairie's flower upgrades)
 const GEN_UNLOCK = 10;
 const gl = k => (GEN[k] && S.gen && S.gen[k]) || 0;   // parked (commented-out) upgrades count as 0
+// the prairie's flower upgrades (0 everywhere else): Petal press, and Sweet clover for faster regrowing flowers
+const pressMul = () => 1 + 0.15*gl('press');
+const regrowMul = () => 1 + 0.3*gl('clover');
 const genCost = k => GEN[k].cost[gl(k)];
 const genAvail = k => gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) && seenPrice(genCost(k));
 const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
@@ -266,6 +310,11 @@ const STYLES = [
   { name:'Kettle',  blurb:'Round in the middle, with a little steam whistle on its head that toots when it’s pleased.', body:'#e8e0cc', body2:'#b9ae95', head:'#8fb2c2', head2:'#5f8495', band:'#3f6f8f', bw:27, bh:23, hw:18, hh:14, tw:28, rust:.2, kettle:true },
   { name:'Lantern', blurb:'Tall and careful. Carries its own lantern on a hook, for the dark autumn evenings.', body:'#efe7d3', body2:'#c2b79e', head:'#f2ebdb', head2:'#c8bea6', band:'#4f6b3a', bandW:5, bw:18, bh:27, hw:16, hh:14, tw:22, rust:.1, slim:true, lantern:true },
 ];
+// V13: a robot keeps its look wherever it goes (cfg.sty, when it isn't simply its place in the list); robots built on
+// another lot take the looks that are still free there
+const styleIdx = ri => { const c = S.robots[ri]; return c && c.sty != null ? c.sty : ri; };
+const styleOf = ri => STYLES[styleIdx(ri)] || STYLES[0];
+function nextStyle(){ const used = new Set(S.robots.map((c, i) => c.sty != null ? c.sty : i)); for (let k=0;k<STYLES.length;k++) if (!used.has(k)) return k; return S.robots.length % STYLES.length; }
 // Blowers: yard robots built like a low robot vacuum, with a hose trunk and hinged flaps on the head.
 const BLOWER_STYLES = [
   { name:'Puff',   blurb:'A low, wide robot with a hose for a trunk. Blows far-off leaves toward the bin.', body:'#d3cab2', body2:'#a2957a', head:'#ddd4be', head2:'#b2a68b', band:'#4f7c84', bw:30, bh:13, hw:15, hh:12, tw:30, trunk:1,    flap:1,    rust:.6 },
@@ -375,7 +424,7 @@ function techAvailable(id){ const t = TECH[id]; if (S.tech[id]) return false; if
 // Unlocks stay hidden until you've once held a quarter of their price (S.peak is the most cash you've ever had).
 const ALWAYS_SHOWN = ['treads', 'hamper', 'servos'];
 const seenPrice = cost => (S.peak || 0) >= cost*0.25;
-const metalSlotShown = () => seenPrice(METAL_SLOT_COST);
+const metalSlotShown = () => metalOpen() && seenPrice(METAL_SLOT_COST);
 
 // ───────────────────────── tasks (V6)
 // Every robot has a priority list of tasks: rows in "Do" (top row first; two tasks side by side share a priority)
@@ -396,8 +445,10 @@ const TASKS = {
   // V12: studying whatever the robots have found (for now, the old picture book). When there's nothing to research the
   // task stays on the list under another name, so it can sit at the top of a robot's list without getting in the way.
   research: { get name(){ return researchOpen() ? 'Research' : 'Research - unavailable'; }, get short(){ return researchOpen() ? 'Research' : 'Research - unavailable'; }, col:'#4d6a9c', kind:'robot' },
+  // V13: riding the truck to another lot. Only there while a letter has opened a trip, and only one robot can take it.
+  travel: { get name(){ return S.trip && S.trip.to === 'home' ? 'Go back to original lot' : 'Go to new lot'; }, get short(){ return S.trip && S.trip.to === 'home' ? 'Go back' : 'New lot'; }, col:'#2f6f8f', kind:'robot' },
 };
-const KIND_TASKS = { robot:['leaves','mine','bag','jar','wrap','smelt','haul','research'], blower:['blow','dig','stoke'], shaker:['shake','snip'] };
+const KIND_TASKS = { robot:['leaves','mine','bag','jar','wrap','smelt','haul','research','travel'], blower:['blow','dig','stoke'], shaker:['shake','snip'] };
 // is the task there at all yet (its building bought, the skill learned)?
 function taskOpen(t, cfg){
   switch (t){
@@ -410,9 +461,14 @@ function taskOpen(t, cfg){
     case 'stoke': return !!(cfg && cfg.lv.stoke > 0) && S.plant.built;
     case 'snip': return !!(cfg && cfg.lv.snip > 0) && S.hive.built;
     case 'research': return S.story.found;
+    case 'travel': { if (!tripFor(cfg)) return false; const h = tripHolder(); return !h || h === cfg; }
   }
   return true;
 }
+// V13: a trip is open (a letter said so). Going back home is only for the robot that came from there; while one robot
+// has the trip in its Do list, it's gone from everybody else's.
+const tripFor = cfg => !!(S.trip && cfg && !cfg.away && (S.trip.to !== 'home' || cfg.home != null));
+const tripHolder = () => S.robots.find(c => tripFor(c) && taskOn(c, 'travel')) || null;
 function tasksFix(cfg, kind){
   // every task of this kind appears exactly once, in Do or in Don't; rows hold at most two
   const all = KIND_TASKS[kind], seen = new Set();
@@ -433,7 +489,7 @@ function putOff(cfg, t){ taskRemove(cfg, t); cfg.off.push(t); }
 // they go in its Don't pile instead. Robots that still do everything get them, in their usual place.
 const kindOfCfg = cfg => S.blowers.includes(cfg) ? 'blower' : S.shakers.includes(cfg) ? 'shaker' : 'robot';
 // (Research starts in everyone's Off pile, so it doesn't count as a change the player made)
-const hasDont = (cfg, kind, fresh) => cfg.off.some(x => x !== 'research' && !fresh.includes(x) && taskOpen(x, cfg));
+const hasDont = (cfg, kind, fresh) => cfg.off.some(x => x !== 'research' && x !== 'travel' && !fresh.includes(x) && taskOpen(x, cfg));
 function putBeside(cfg, t, main){
   if (taskOn(cfg, t)) return;
   if (hasDont(cfg, kindOfCfg(cfg), [t])){ putOff(cfg, t); return; }
@@ -463,7 +519,8 @@ function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio(
 const helperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[cfgsOf(kind).length];
 // a helper shows up in the workshop once you've held a quarter of its price (or already own one of that kind)
 // V12: and only once the robots have worked out the old picture book (an elephant that blows, a crab that shakes)
-const helpersKnown = () => S.story.done || S.blowers.length > 0 || S.shakers.length > 0;
+// (V13: a robot that rode to another lot brings what it knows: S.flags.helpers)
+const helpersKnown = () => (S.story.done && (S.story.item || 'book') === 'book') || S.flags.helpers || S.blowers.length > 0 || S.shakers.length > 0;
 const helperShown = kind => helpersKnown() && cfgsOf(kind).length < HELPER_MAX && (cfgsOf(kind).length > 0 || seenPrice(helperCost(kind)));
 function freshState(){
   return {
@@ -474,10 +531,14 @@ function freshState(){
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
     totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, nectar:0, bags:0, gifts:0, ingots:0 },
-    // V12: hidden milestones (id -> game second it was reached) and the story of the old picture book
+    // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
+    // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
-    story:{ armed:false, found:false, x:0, y:0, prog:0, done:false, opened:false, foundT:-1, doneT:-1, cam:false },
-    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{} }
+    story:{ item: LOT.find || 'book', armed:false, found:false, x:0, y:0, prog:0, done:false, opened:false, foundT:-1, doneT:-1, cam:false },
+    // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
+    post:[], letters:[], trip:null,
+    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
+      hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false }
   };
 }
 let S = freshState();
@@ -554,7 +615,8 @@ function groundCovers(){
 }
 
 // ───────────────────────── leaves
-const LEAFC = [
+// (V13: a lot can bring its own: the prairie's are mostly flower petals, marked petal:true)
+const LEAFC = LOT.LEAFC || [
   { c:'#c0392b', v:'#7f2318', w:.2 },
   { c:'#d4532a', v:'#8c3215', w:.14 },
   { c:'#e07b2e', v:'#9a4d17', w:.24 },
@@ -567,14 +629,34 @@ const MAPLE = (() => { const h = [[0,-1],[0.12,-0.62],[0.38,-0.8],[0.32,-0.42],[
 function leafPath(c, shape){
   c.beginPath();
   if (shape === 1){ c.moveTo(MAPLE[0][0], MAPLE[0][1]); for (let i=1;i<MAPLE.length;i++) c.lineTo(MAPLE[i][0], MAPLE[i][1]); c.closePath(); }
+  else if (shape === 2){
+    // V13 (petals): a cherry petal with a notched tip
+    c.moveTo(0, 0.95); c.bezierCurveTo(0.38, 0.72, 0.86, 0.05, 0.76, -0.55); c.bezierCurveTo(0.68, -0.95, 0.24, -1.02, 0, -0.7);
+    c.bezierCurveTo(-0.24, -1.02, -0.68, -0.95, -0.76, -0.55); c.bezierCurveTo(-0.86, 0.05, -0.38, 0.72, 0, 0.95); c.closePath();
+  } else if (shape === 3){
+    // a round petal
+    c.moveTo(0, 0.95); c.bezierCurveTo(0.62, 0.66, 1.02, -0.2, 0.72, -0.74); c.quadraticCurveTo(0.36, -1.06, 0, -0.9);
+    c.quadraticCurveTo(-0.36, -1.06, -0.72, -0.74); c.bezierCurveTo(-1.02, -0.2, -0.62, 0.66, 0, 0.95); c.closePath();
+  }
   else { c.moveTo(0,-1); c.bezierCurveTo(0.62,-0.7,0.6,0.5,0,0.82); c.bezierCurveTo(-0.6,0.5,-0.62,-0.7,0,-1); c.closePath(); }
 }
 function drawLeaf(c, x, y, s, rot, ci, shape, flipX, squash, alpha, dark){
-  const col = LEAFC[ci];
+  const col = LEAFC[ci] || LEAFC[0];
+  if (col.petal) shape = 2 + (shape & 1);
   c.save(); c.translate(x, y); if (squash !== 1) c.scale(1, squash); c.rotate(rot); c.scale(s*flipX, s);
   if (alpha !== 1) c.globalAlpha *= alpha;
   leafPath(c, shape);
   c.fillStyle = col.c; c.fill();
+  if (col.petal){
+    // a soft blush toward the base, a sheen on one side and two faint veins
+    const a0 = c.globalAlpha;
+    if (dark){ c.fillStyle = 'rgba(90,30,60,'+dark+')'; c.fill(); }
+    c.globalAlpha = a0*0.4; c.fillStyle = col.v; ell(c, 0, 0.55, 0.34, 0.42); c.fill();
+    c.globalAlpha = a0*0.35; c.fillStyle = '#fff'; ell(c, -0.3, -0.3, 0.2, 0.36); c.fill();
+    c.globalAlpha = a0*0.5; c.lineWidth = 0.05; c.strokeStyle = col.v; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(0, 0.85); c.lineTo(0, -0.5); c.moveTo(0, 0.6); c.quadraticCurveTo(0.34, 0.1, 0.42, -0.5); c.moveTo(0, 0.6); c.quadraticCurveTo(-0.34, 0.1, -0.42, -0.5); c.stroke();
+    c.restore(); return;
+  }
   if (dark){ c.fillStyle = 'rgba(60,20,5,'+dark+')'; c.fill(); }
   c.lineWidth = 0.09; c.strokeStyle = col.v; c.lineCap = 'round';
   c.beginPath(); c.moveTo(0, shape===1?0.45:0.8); c.lineTo(0, 1.12);
@@ -605,7 +687,8 @@ function landingOK(x, y){
   return true;
 }
 function newLeaf(x, y, ly, collect){
-  return { x, y, ly, s: rand(8, 11), rot: rand(0, TAU), vr: rand(-1.6, 1.6), ci: pickColor(), sh: Math.random() < 0.55 ? 1 : 0,
+  const ci = pickColor();   // (petals are bigger than leaves)
+  return { x, y, ly, s: rand(8, 11)*(LEAFC[ci].petal ? 1.3 : 1), rot: rand(0, TAU), vr: rand(-1.6, 1.6), ci, sh: Math.random() < 0.55 ? 1 : 0,
     st: 'fall', vy: rand(26, 44), ph: rand(0, TAU), phs: rand(1.6, 3.2), sw: rand(14, 30), wf: rand(0.6, 1.2),
     flip: 1, claim: null, collect, a: 1, kx: 0, ky: 0, t: 0 };
 }
@@ -690,7 +773,7 @@ function newRobot(i){
     mineP:0, timer:0, plan:null, fingers:null, blinkT: rand(1,4), blink:0, wx:0, wy:0, full:false, hammer:0, armTo:null,
     task:null, lastTask:null, streak:0, mslot:0, spot:-1, ore:false, workP:0, workDur:1, at:null, look:0 };
 }
-function syncRobots(){ while (R.length < S.robots.length) R.push(newRobot(R.length)); }
+function syncRobots(){ while (R.length < S.robots.length){ const r = newRobot(R.length); if (S.robots[r.id].away) r.st = 'gone'; R.push(r); } }
 
 const robotSpeed = ri => 58 * rv(ri, 'speed') * (1 + 0.2*gl('oil'));
 const pickTime = ri => rv(ri, 'pick') * (1 - 0.15*gl('servo'));
@@ -904,7 +987,8 @@ function taskWork(r, t){
       if (!S.plant.built || stationFree('smelt', r) < 0 || S.plant.rack + busyIn('smelt') >= RACK_CAP) return false;
       return S.plant.ore + r.carryM >= metalPerIngot() - 1e-9 || (r.carryM > 0 && hopperRoom() > 0) || (S.binMetal > 0 && hopperRoom() > 0);
     case 'haul': return S.plant.built && palletRoom() > 0 && (r.carryI > 0 || S.plant.rack - claimedRack(r) > 0);
-    case 'research': return researchOpen();
+    case 'research': return researchOpen() && researchRoom(r);
+    case 'travel': return tripFor(S.robots[r.id]);
   }
   return false;
 }
@@ -928,6 +1012,7 @@ function unitDone(who, t){ if (who.lastTask === t) who.streak = (who.streak || 0
 // a robot with Bag leaves bags; when the metal tub is full (or it's holding enough metal and the hopper is full), a
 // robot with Smelt ingots smelts. So a robot that gathers and bags bags its own leaves before picking new ones.
 function urgentTask(r, cfg){
+  if (S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg)) return 'travel';   // V13: in Do at all means: go
   if (S.bag.built && taskOn(cfg, 'bag') && (binRoom() <= 0 || r.carryL >= Math.min(BAG_SIZE, leafCap(r.id))) && taskWork(r, 'bag')) return 'bag';
   if (S.hive.built && taskOn(cfg, 'jar') && S.hive.honey >= honeyCap() - 1e-6 && taskWork(r, 'jar')) return 'jar';
   if (S.plant.built && taskOn(cfg, 'smelt') && ((S.metalSlot && tubRoom() <= 0) || (r.carryM >= oreNeed() && hopperRoom() <= 0)) && taskWork(r, 'smelt')) return 'smelt';
@@ -1022,6 +1107,7 @@ function startTask(r, t){
   }
   if (t === 'haul'){ r.st = (r.carryI >= ingotCarry(r.id) || S.plant.rack <= claimedRack(r)) ? 'toPallet' : 'toRack'; return; }
   if (t === 'research'){ startResearch(r); return; }
+  if (t === 'travel'){ r.st = 'toCurb'; return; }
   idleWander(r);
 }
 // a robot arrives at its station and starts on one bag / gift jar / ingot, if the makings are there
@@ -1127,6 +1213,15 @@ function updRobot(r, dt){
   const sp = robotSpeed(r.id);
   switch (r.st){
     case 'idle': decide(r); break;
+    // V13: off to another lot: wait at the curb, hop into the back of the truck at the next pickup, ride along
+    case 'toCurb': if (moveTo(r, CURB.x, CURB.y, sp, dt)){ r.st = 'curb'; r.face = 1; r.look = 0.5; } break;
+    case 'curb':
+      if (truck.st === 'load' && truck.rider == null && !driver){ startHop(r, 'in'); break; }
+      r.look -= dt; if (r.look <= 0){ r.look = 0.5; if (robotTask(r) !== 'travel') r.st = 'idle'; else if (Math.random() < 0.08) robotSays(r, 'hmm'); }
+      break;
+    case 'hopIn': case 'hopOut': updHop(r, dt); break;
+    case 'ride': r.x = truck.x + RIDE.dx; r.y = RIDE.y; r.hz = 0; break;
+    case 'gone': break;   // away on another lot
     case 'seek': {
       const l = planAlive(r);
       if (!l){ release(r); r.st = 'idle'; break; }
@@ -1249,7 +1344,7 @@ function updRobot(r, dt){
     case 'toBook': case 'pickBook': case 'toStudy': case 'study': case 'toAssist': case 'assist': updResearchBot(r, dt, sp); break;
   }
   r.full = (r.st === 'wait' || r.st === 'waitI') && (r.carryL > 0 || r.carryM > 0 || r.carryI > 0);
-  if (!simMode && STYLES[r.id].dust && r.moving && Math.random() < dt*2.5) parts.push({ k:'dust', x: r.x - r.face*10, y: r.y - 2, vx: -r.face*rand(4,12), vy: rand(-10,-4), g:0, life: rand(.6,1), t:0, r: rand(2.5,4.5) });
+  if (!simMode && styleOf(r.id).dust && r.moving && Math.random() < dt*2.5) parts.push({ k:'dust', x: r.x - r.face*10, y: r.y - 2, vx: -r.face*rand(4,12), vy: rand(-10,-4), g:0, life: rand(.6,1), t:0, r: rand(2.5,4.5) });
 }
 
 function deposit(r){
@@ -1290,13 +1385,22 @@ function deposit(r){
 // Hidden for now: each one is a point the yard reaches (S.miles[id] = the game second it happened). They lay the
 // groundwork for achievements / goals the player can work toward later; for now they only start story beats.
 // prog() is how far along it is (1 = reached), so a later goal list can show progress bars.
+// V13: each one belongs to a lot (lot: 'home', 'prairie'), so every place has its own story.
+const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the first yard has earned this much in all
+const BEE_LEAVES = 320;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
+const HONEY_JARS = 30;       // jars of honey the prairie's hive makes before the driver offers a ride back
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
-  { id:'book', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
+  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
+  // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
+  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED, prog: () => (S.totals.cash || 0)/LETTER_EARNED, on: () => postLetter('newLot') },
+  // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
+  { id:'bee', lot:'prairie', hidden:true, name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; } },
+  { id:'honey', lot:'prairie', hidden:true, name:'Sweet success', goal:'Make ' + HONEY_JARS + ' jars of honey', prog: () => (S.totals.honey || 0)/HONEY_JARS, on: () => postLetter('goHome') },
 ];
 function updMilestones(){
   for (const m of MILESTONES){
-    if (S.miles[m.id] != null || m.prog() < 1) continue;
+    if ((m.lot || 'home') !== LOT_ID || S.miles[m.id] != null || m.prog() < 1) continue;
     S.miles[m.id] = Math.round(S.t);
     if (m.on) m.on();
   }
@@ -1308,6 +1412,17 @@ function updMilestones(){
 // walks over, picks the book up, carries it to just in front of the workshop and studies it there; others with Research
 // stand beside it and help. When it's done, blowers (the elephant) and shakers (the crab) can be built in the workshop.
 const RESEARCH_NEED = 600;                  // research units in the book
+// V13: what can be found and researched. crew: how many robots can work on it at once (0: any number)
+const FINDS = {
+  book: { need: RESEARCH_NEED, crew: 0, title: 'Old picture book', story: 'Two pages salvaged from a wet children’s book. Maybe it can be useful.',
+    found: ['Something was hiding under that leaf…', 'A soggy old picture book. New task available: Research'], holding: 'the book' },
+  bee:  { need: 2000, crew: 3, title: 'A dead bee', story: 'A dead bee. Maybe it can be useful.',
+    found: ['Something was hiding under that petal…', 'A little dead bee. New task available: Research'], holding: 'the bee' },
+};
+const FIND = () => FINDS[S.story.item] || FINDS.book;
+const researchNeed = () => FIND().need;
+// is there room for robot r on the research? (the bee only has room for three around it)
+const researchRoom = r => !FIND().crew || RESEARCH_STATES.includes(r.st) || researchers().length < FIND().crew;
 const RESEARCH_MAIN = 4, RESEARCH_HELP = 1; // units a second: the robot holding the book, and each robot helping (× its Research level)
 const STUDY = { x: SHED.x - 12, y: SHED.y + 16 };   // where the book gets studied: just in front of the workshop door
 // where helpers stand around the reader (it faces right): beside it, then over its shoulder, then in a ring
@@ -1326,13 +1441,13 @@ function researchRate(){
   for (const q of R) if (q !== h && q.st === 'assist') v += RESEARCH_HELP*studyMul(q.id);
   return v;
 }
-const researchLeft = () => Math.max(0, RESEARCH_NEED - S.story.prog);
+const researchLeft = () => Math.max(0, researchNeed() - S.story.prog);
 // time left at the current pace; while nobody is studying it shows what one robot on its own would take
 const researchETA = () => { const v = researchRate(); return researchLeft()/(v > 0 ? v : RESEARCH_MAIN); };
 const researchers = () => R.filter(q => RESEARCH_STATES.includes(q.st));
 // where the book is in the world while a robot holds it (matches drawRobot's hands)
 function bookHand(r){
-  const st = STYLES[r.id], top = -8 - st.bh;
+  const st = styleOf(r.id), top = -8 - st.bh;
   const lx = r.st === 'study' ? st.bw/2 + 9 : st.bw/2 + 6, ly = r.st === 'study' ? top + st.bh*0.15 : top + st.bh*0.5 - 1;
   return { x: r.x + r.face*lx, y: r.y + ly };
 }
@@ -1349,7 +1464,7 @@ function claimAssist(r){
   let k = 0; while (used.has(k)) k++;
   r.aspot = k;
 }
-// The very first leaf picked up after the milestone has the book under it
+// The very first leaf picked up after the milestone has the book (or the bee) under it
 function findBook(r, l){
   const O = owned();
   S.story.found = true; S.story.foundT = S.t;
@@ -1362,7 +1477,7 @@ function findBook(r, l){
     pop(r.x, r.y - 78, '!', 'note', 30);
     pop(S.story.x, S.story.y - 46, 'New task available: Research', 'note', 18, 0.9, 4);
     robotSays(r, 'hmm', true); sfx('chime', 'sale');
-    setTimeout(() => showToast('Something was hiding under that leaf…', 'A soggy old picture book. New task available: Research', 9), 700);
+    const F = FIND(); setTimeout(() => showToast(F.found[0], F.found[1], 9), 700);
   }
   save();
 }
@@ -1469,11 +1584,12 @@ function updCamFollow(dt){
   if (cardOpen) placeCard();
 }
 function finishResearch(){
-  S.story.prog = RESEARCH_NEED; S.story.done = true; S.story.doneT = S.t;
+  S.story.prog = researchNeed(); S.story.done = true; S.story.doneT = S.t;
   const h = bookHolder(), from = h && bookRt.held ? bookHand(h) : { x: S.story.x, y: S.story.y - 3 };
   bookRt.by = null; bookRt.held = false;
   if (cardOpen && cardOpen.kind === 'book') closeCard();
   for (const q of R) if (RESEARCH_STATES.includes(q.st)){ q.st = 'idle'; q.aspot = -1; unitDone(q, 'research'); }
+  if (S.story.item === 'bee'){ finishBee(from); save(); return; }
   if (!simMode){
     // the book goes up on the workshop shelf; blowers and shakers can be built now
     flyTo('book', from.x, from.y, SHED.x - 28, SHED.y - 46, 1.0, 46, { rot: 0 });
@@ -1486,14 +1602,211 @@ function finishResearch(){
   }
   save();
 }
+// V13: the robots work out the dead bee: a robot beehive can be built here now
+function finishBee(from){
+  S.flags.hiveKnown = true; S.flags.hiveShown = true; hiveRt.shownT = S.t;
+  if (simMode) return;
+  flyTo('book', from.x, from.y, HIVE.x - 6, HIVE.y - 30, 1.1, 60, { rot: 0 });
+  setTimeout(() => sparkle(HIVE.x, HIVE.y - 30), 1100);
+  pop(HIVE.x + 10, HIVE.y - 84, 'New: a robot beehive', 'note', 19, 1.1, 4);
+  sfx('chime', 'sale');
+  for (const q of R) if (Math.hypot(q.x - STUDY.x, q.y - STUDY.y) < 120){ pop(q.x, q.y - 76, '!', 'note', 24, rand(0, 0.3)); robotSays(q, 'happy', true); }
+  setTimeout(() => showToast('A tiny flying worker!', 'The robots worked out how the bee works. A robot beehive can now be built.', 11), 600);
+}
 function updResearch(dt){
   if (!researchOpen()) return;
   const v = researchRate();
-  if (v > 0){ S.story.prog = Math.min(RESEARCH_NEED, S.story.prog + v*dt); if (S.story.prog >= RESEARCH_NEED - 1e-9) finishResearch(); }
+  if (v > 0){ S.story.prog = Math.min(researchNeed(), S.story.prog + v*dt); if (S.story.prog >= researchNeed() - 1e-9) finishResearch(); }
   // while someone holds the book, the save keeps it where they are (a reload finds it on the ground there)
   const h = bookRt.held ? bookHolder() : null;
   if (h){ S.story.x = h.x + h.face*15; S.story.y = Math.min(h.y + 3, 2); }
   else if (bookRt.held || (bookRt.by != null && !bookHolder())){ bookRt.held = false; bookRt.by = null; }
+}
+
+// ───────────────────────── story beats: letters from the truck driver, and trips to other lots (V13)
+// A beat starts with a hidden milestone (MILESTONES). The truck driver brings a letter on the next pickup (S.post holds
+// the ones waiting for the truck): it steps out of the cab, puts the letter down in the yard (S.letters) and drives on.
+// Reading a letter can open a trip: the travel task ("Go to new lot"), which starts in everyone's Off pile and only one
+// robot can take. That robot waits at the curb, hops into the back of the truck at the next pickup and rides away; the
+// game carries on in the other lot (travel(), then arrive() on the next page). For a new beat: a milestone, a LETTERS
+// entry and, for a new place, a lot file in public/lots/.
+const LETTERS = {
+  newLot: { at: () => ({ x: -80, y: -5 }), title: 'A letter', sign: 'your truck driver',
+    text: 'We found another spot that could use some cleanup, send your best cleanup robot.', open: () => openTrip({ to: 'prairie' }) },
+  goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'your truck driver',
+    text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
+};
+const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
+// the truck driver: a robot like yours, with a brown band and a brown cap, and no basket
+const DRIVER = { name:'Driver', body:'#dcd1b8', body2:'#a89c80', head:'#e6dcc6', head2:'#b7ab92', band:'#7a5232', bandW:5, bw:23, bh:22, hw:18, hh:13, tw:26, rust:0, driver:true };
+const DRIVER_CFG = { lv:{ speed:4, carry:0, study:0 }, prio:[] };
+const CURB = { x: PARK + 26, y: 5 };      // where a robot waits for the truck
+const RIDE = { dx: 34, y: LANE - 56 };    // where it stands in the back of the truck (x is from the truck; its treads are below the sides)
+const HOME_EARNED = 200;                  // what the first yard made while you were away
+// dev (?fresh&lot=prairie): about what the robot you'd send has when the letter comes ($900 earned in the first yard)
+const DEV_TRAVELLER = { lv:{ speed:7, carry:10, pick:7, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
+const HIVE_DEAL = 60;                     // the beehive back home, once a bee has come along
+function postLetter(id){ if (!S.post.includes(id) && !S.letters.some(l => l.id === id)) S.post.push(id); }
+// runtime: the driver while it's out of the cab, the bee riding along, and whether we're on our way somewhere
+let driver = null, travelling = false;
+const guest = { on: false, mode: 'hover', x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0, anim: 0, ph: 0, face: 1, carry: 0, i: 0, st: 'fly', up: {} };
+function startDriver(){
+  const id = S.post.shift(), L = LETTERS[id]; if (!L) return;
+  const p = L.at();
+  if (simMode){ S.letters.push({ id, x: p.x, y: p.y, read: false }); return; }
+  const sx = truck.x - 92, side = sx < p.x ? -1 : 1;
+  driver = { id: -1, driver: true, sty: DRIVER, cfg: DRIVER_CFG, x: sx, y: LANE + 4, face: -1, anim: 0, moving: false, st: 'out', letter: id,
+    tx: p.x, ty: p.y, sx: p.x + side*14, sy: p.y + 1, side, timer: 0, blink: 0, blinkT: 1.5, hz: 0, carryL: 0, carryM: 0, carryI: 0 };
+  robotSays(driver, 'hello', true);
+}
+function updDriver(dt){
+  const d = driver; if (!d) return;
+  d.moving = false; d.anim += dt;
+  d.blinkT -= dt; if (d.blinkT < 0){ d.blink = 0.14; d.blinkT = rand(2, 5); } if (d.blink > 0) d.blink -= dt;
+  if (d.st === 'out'){ if (moveTo(d, d.sx, d.sy, 52, dt)){ d.st = 'drop'; d.timer = 0.8; d.face = -d.side; } }
+  else if (d.st === 'drop'){
+    d.timer -= dt;
+    if (d.letter && d.timer < 0.45){
+      S.letters.push({ id: d.letter, x: d.tx, y: d.ty, read: false });
+      flyTo('letter', d.x + d.face*8, d.y - 26, d.tx, d.ty - 2, 0.35, 8, {});
+      pop(d.tx, d.ty - 40, 'A letter!', 'note', 18, 0.35); robotSays(d, 'chat', true);
+      d.letter = null; save();
+    }
+    if (d.timer <= 0) d.st = 'back';
+  } else if (moveTo(d, truck.x - 92, LANE + 4, 58, dt)) driver = null;
+}
+// a letter is read for the first time: whatever it starts, starts
+function readLetter(i){ const l = S.letters[i]; if (!l || l.read) return; l.read = true; const L = LETTERS[l.id]; if (L && L.open) L.open(); save(); }
+// a trip opens: the travel task goes in the Off pile of every robot that could take it
+function openTrip(t){
+  S.trip = { to: t.to, bee: !!t.bee };
+  for (const c of S.robots) if (tripFor(c) && !taskOn(c, 'travel')){ taskRemove(c, 'travel'); c.off.push('travel'); }
+  if (simMode) return;
+  const who = S.robots.findIndex(tripFor), name = who >= 0 ? styleOf(who).name : 'a robot';
+  if (t.to === 'home') setTimeout(() => showToast('A ride home', 'New task: Go back to original lot. Drag it into ' + name + '’s Do list: it waits at the curb and rides back with the next pickup, and a bee comes along.', 12), 400);
+  else setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into your best robot’s Do list: it waits at the curb and rides along with the next pickup.', 12), 400);
+}
+// hopping into (dir 'in') or out of (dir 'out') the back of the truck
+function startHop(r, dir){
+  release(r); leaveResearch(r); releaseStations(r);
+  r.hop = { t: 0, dur: 0.9, dir, x0: r.x, y0: r.y }; r.st = dir === 'in' ? 'hopIn' : 'hopOut';
+  if (dir === 'in') truck.rider = r.id;
+  robotSays(r, 'happy', true);
+}
+function updHop(r, dt){
+  const h = r.hop, k = clamp((h.t += dt)/h.dur, 0, 1), inT = { x: truck.x + RIDE.dx, y: RIDE.y };
+  const a = h.dir === 'in' ? { x: h.x0, y: h.y0 } : inT, b = h.dir === 'in' ? inT : CURB;
+  r.x = lerp(a.x, b.x, k); r.y = lerp(a.y, b.y, k); r.hz = Math.sin(k*Math.PI)*36; r.face = b.x >= a.x ? 1 : -1; r.moving = true;
+  if (k < 1) return;
+  r.hz = 0; r.hop = null; r.moving = false;
+  if (h.dir === 'in'){
+    r.st = 'ride'; r.face = -1;
+    pop(r.x, RIDE.y - 70, 'All aboard!', 'note', 17); sparkle(r.x, RIDE.y - 30);
+    if (S.trip && S.trip.bee) beeAboard();
+  } else {
+    r.st = 'idle'; truck.rider = null; sparkle(r.x, r.y - 20);
+    if (guest.on && guest.mode === 'ride') guestLeaves();
+  }
+}
+// the truck waits while the driver is out, while someone hops in or out, or while a robot at the curb is about to
+const truckBusy = () => !!driver || R.some(q => q.st === 'hopIn' || q.st === 'hopOut') || (truck.rider == null && R.some(q => q.st === 'curb')) || (guest.on && guest.mode === 'toTruck');
+// a bee from the hive comes along for the ride home (one bee less in this hive, if it has more than one)
+function beeAboard(){
+  let from = { x: HIVE.x, y: HIVE.y, z: 30 };
+  if (S.hive.built && S.hive.bees > 1){ const b = B.pop(); S.hive.bees--; if (b){ if (b.tgt && b.tgt.claim === b) b.tgt.claim = null; from = { x: b.x, y: b.y, z: b.z }; } }
+  Object.assign(guest, { on: true, mode: 'toTruck', x: from.x, y: from.y, z: from.z });
+  if (!simMode) pop(from.x, from.y - from.z - 20, 'bzz!', 'note', 15);
+}
+// back home: the bee flies off the truck to where the hive will be (or straight in, if there's a hive already)
+function guestLeaves(){ guest.mode = S.hive.built ? 'join' : 'toHive'; }
+const GUEST_SPOT = () => ({ x: HIVE.x + 30, y: HIVE.y + 4, z: 26 });
+function updGuest(dt){
+  const g = guest; if (!g.on) return;
+  g.anim += dt;
+  const fly = (tx, ty, tz, sp) => { const dx = tx - g.x, dy = ty - g.y, dz = tz - g.z, d = Math.hypot(dx, dy, dz); if (Math.abs(dx) > 0.5) g.face = dx > 0 ? 1 : -1; if (d < sp*dt + 0.5){ g.x = tx; g.y = ty; g.z = tz; return true; } g.x += dx/d*sp*dt; g.y += dy/d*sp*dt; g.z += dz/d*sp*dt; return false; };
+  if (g.mode === 'ride'){ g.x = truck.x + RIDE.dx + 16 + Math.sin(g.anim*1.7)*5; g.y = RIDE.y + 2; g.z = 44 + Math.sin(g.anim*2.6)*3; g.face = -1; }
+  else if (g.mode === 'toTruck'){ if (fly(truck.x + RIDE.dx + 16, RIDE.y + 2, 44, 90)) g.mode = 'ride'; }
+  else if (g.mode === 'toHive'){ const p = GUEST_SPOT(); if (fly(p.x, p.y, p.z, 70)) g.mode = 'hover'; }
+  else if (g.mode === 'hover'){
+    const p = GUEST_SPOT();
+    g.x = lerp(g.x, p.x + Math.sin(g.anim*0.9)*14, 1 - Math.pow(0.1, dt)); g.y = lerp(g.y, p.y + Math.sin(g.anim*1.3)*5, 1 - Math.pow(0.1, dt)); g.z = p.z + Math.sin(g.anim*2.2)*4;
+    g.face = Math.cos(g.anim*0.9) > 0 ? 1 : -1;
+    if (S.hive.built) g.mode = 'join';
+  } else if (g.mode === 'join'){ if (fly(DOOR.x, DOOR.y, DOOR.z, 70)){ g.on = false; if (!simMode) sparkle(DOOR.x, DOOR.y - DOOR.z); } }
+}
+// leaving: everything this lot hands on goes into WORLD.arrive, this lot is saved as it is, and the page reloads into
+// the other lot (it stays paused until you come back)
+function travel(){
+  const T = truck, ri = T.rider, cfg = S.robots[ri], trip = S.trip || { to: 'prairie' };
+  if (!cfg){ T.rider = null; return; }
+  travelling = true;
+  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, bot: JSON.parse(JSON.stringify(cfg)), sty: styleIdx(ri), home: cfg.home != null ? cfg.home : ri,
+    tech: Object.assign({}, S.tech), truck: S.lv.truck, cleanup: S.lv.cleanup, helpers: helpersKnown(), seen: Object.assign({}, S.seen),
+    hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
+  cfg.away = trip.to; cfg.miner = null; taskRemove(cfg, 'travel'); cfg.off.push('travel');
+  S.trip = null; S.letters = S.letters.filter(l => !l.read);
+  T.rider = null; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 2);
+  WORLD.cur = trip.to; WORLD.arrive = carry;
+  const json = JSON.stringify(S);
+  if (FRESH){ FRESH_SAVES[KEY] = json; try { sessionStorage.setItem(HOP_KEY, JSON.stringify({ world: WORLD, saves: FRESH_SAVES })); } catch(e){} }
+  else { try { localStorage.setItem(KEY, json); } catch(e){} saveWorld(); }
+  closeCard();
+  lotFade(true, 'Off to ' + lotTitle(trip.to) + '…');
+  setTimeout(() => location.reload(), 1300);
+}
+// a full-screen curtain while the truck drives between lots
+function lotFade(on, text, instant){
+  let el = $('lotFade');
+  if (!el){ el = document.createElement('div'); el.id = 'lotFade'; el.innerHTML = '<div class="lf"></div>'; document.body.appendChild(el); }
+  if (text != null) el.firstChild.textContent = sayT(text);
+  if (on && instant){ el.style.transition = 'none'; el.classList.add('show', 'on'); void el.offsetWidth; el.style.transition = ''; }
+  else if (on){ el.classList.add('show'); void el.offsetWidth; el.classList.add('on'); }
+  else { el.classList.remove('on'); setTimeout(() => el.classList.remove('show'), 1000); }
+}
+// arriving (on the new page): what came along from the other lot. Returns what the start of the game should set up.
+function arrive(a, wasNew){
+  const home = LOT_ID === 'home';
+  for (const k in (a.tech || {})) S.tech[k] = true;
+  S.lv.truck = Math.max(S.lv.truck | 0, a.truck | 0); S.lv.cleanup = Math.max(S.lv.cleanup | 0, a.cleanup | 0);
+  if (a.helpers) S.flags.helpers = true;
+  S.seen = Object.assign({}, a.seen || {}, S.seen);
+  S.flags.hints = Object.assign({}, a.hints || {}, S.flags.hints || {});
+  for (const k in (a.know || {})) if (a.know[k]) S.flags[k] = true;   // tips you've already had
+  // the robot that came along keeps its looks, its upgrades and its task list
+  if (wasNew && !home) S.robots = [];
+  let ri = home ? a.home : S.robots.findIndex(c => c.home === a.home);
+  if (!(ri >= 0 && S.robots[ri])){ ri = S.robots.length; S.robots.push(newRobotCfg()); }
+  const b = a.bot || {}, cfg = S.robots[ri];
+  cfg.lv = Object.assign(newRobotCfg().lv, b.lv || {});
+  cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); cfg.miner = null;
+  delete cfg.away; delete cfg.sty; delete cfg.home;
+  if (a.sty !== ri) cfg.sty = a.sty;
+  if (!home) cfg.home = a.home;
+  taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, 'robot');
+  if (home){
+    S.cash += HOME_EARNED; S.totals.cash += HOME_EARNED;
+    if (a.bee){
+      S.flags.hiveKnown = true; S.flags.hiveShown = true;
+      if (S.hive.built) S.hive.bees = Math.min(MAX_BEES, S.hive.bees + 1); else { S.flags.hiveDeal = true; S.flags.guestBee = true; }
+    }
+  }
+  return { ri, bee: !!a.bee, home };
+}
+// the truck pulls in with the robot (and maybe a bee) in the back; it hops off at the curb
+function arriveScene(A){
+  const r = R[A.ri]; if (!r) return;
+  r.st = 'ride'; r.x = truck.x + RIDE.dx; r.y = RIDE.y; r.face = -1;
+  truck.rider = A.ri; truck.arriving = true; truck.st = 'arrive'; truck.fill = 0;
+  truck.x = Math.max(visRect().x1 + 110, PARK + 200);
+  if (A.bee){ Object.assign(guest, { on: true, mode: 'ride' }); }
+  sfx('truckIn', sndAt(PARK + 30, LANE).pan, 2.6);
+  const name = styleOf(A.ri).name;
+  if (A.home){
+    setTimeout(() => {
+      pop(BIN.x, BIN.y - 110, '+' + cash2(HOME_EARNED) + ' earned while you were away', 'cash', 20, 0, 4);
+      showToast('Back home!', 'The yard kept going without you and made ' + money(HOME_EARNED) + '.' + (A.bee ? ' The bee is looking for a home: build it a beehive.' : ''), 11);
+    }, 1800);
+  } else if (LOT.arrive) setTimeout(() => showToast(LOT.arrive.title, LOT.arrive.text(name), 10), 1500);
 }
 
 // ───────────────────────── helper robots: blowers and shakers
@@ -1642,8 +1955,8 @@ function snipTarget(h){
   const sp = helperSpeed(h);
   let best = null, bs = 0;
   FLOWERS.forEach((f, i) => {
-    if (f.full || f.land > S.land || shakeCD.flower[i] > 0) return;
-    const left = f.regrow - f.t; if (left < 6) return;
+    if (f.full || !flowerOn(f) || shakeCD.flower[i] > 0) return;
+    const left = (f.regrow - f.t)/regrowMul(); if (left < 6) return;
     if (HB.some(q => q !== h && q.target && q.target.type === 'flower' && q.target.i === i)) return;
     const d = Math.hypot(f.x - 16 - h.x, f.y + 3 - h.y), sc = left/(d/sp + SNIP_TIME + 1.5);
     if (sc > bs){ bs = sc; best = { type:'flower', i, x: f.x - 15, y: f.y + 3 }; }
@@ -1846,9 +2159,14 @@ function updTruck(dt){
       { const a = sndAt(PARK + 30, LANE); sfx('horn', a.pan); sfx('pour', T.takeL, T.takeM, sndAt(BIN.x, BIN.y).pan); }
       for (let i=0;i<Math.min(T.takeL, 26);i++) flyTo('leaf', BIN.x + rand(-22,22), BIN.y - 44, T.x + rand(0,58), LANE - 64, 0.5 + i*0.055, 50, { ci: pickColor(), sh: Math.random()<.5?1:0, s: 5.5 });
       for (let i=0;i<Math.min(T.takeM, 10);i++) flyTo('metal', TUB.x, TUB.y - 26, T.x + rand(0,58), LANE - 64, 0.55 + i*0.08, 55, {});
+      // V13: someone arriving hops off; the driver brings any letters
+      if (T.arriving && T.rider != null && R[T.rider] && R[T.rider].st === 'ride') startHop(R[T.rider], 'out');
+      T.arriving = false;
+      if (S.post.length) startDriver();
     }
   } else if (T.st === 'load'){
     T.timer -= dt;
+    if (T.timer <= 0 && truckBusy()) T.timer = 0.001;   // V13: the truck waits for the driver and anyone hopping on or off
     const any = T.takeL + T.takeM + T.takeH + T.takeB + T.takeI + T.takeG;
     T.fill = any > 0 ? clamp((2.3 - T.timer)/1.8, 0, 1) * clamp((T.takeL + T.takeB*BAG_SIZE + T.takeM*3 + T.takeI*8 + (T.takeH + T.takeG)*2)/80, 0.25, 1) : 0;
     puffExhaust(T, dt, 0.25);
@@ -1875,7 +2193,7 @@ function updTruck(dt){
           sale.sort((a, b) => a.x - b.x);
           const tx = T.x + 26, ty = LANE - 70;
           sale.forEach((q, n) => {
-            pops.push({ kind:'sale', x: q.x, y: q.y, oy: 0, tx, ty, text: '+' + cash2(q.v), sub: q.sub, res: q.res, icon: q.icon, size: 19, t: -n*SALE_STEP, life: SALE_HOLD + SALE_FLY });
+            pops.push({ kind:'sale', x: q.x, y: q.y, oy: 0, tx, ty, text: '+' + cash2(q.v), sub: sayT(q.sub), res: q.res, icon: q.icon, size: 19, t: -n*SALE_STEP, life: SALE_HOLD + SALE_FLY });
           });
           T.st = 'pay'; T.timer = (sale.length - 1)*SALE_STEP + SALE_HOLD + SALE_FLY + 0.05; T.payAmt = amt;
         }
@@ -1901,7 +2219,10 @@ function updTruck(dt){
   } else if (T.st === 'leave'){
     T.v = Math.min(T.v + 240*dt, 360); T.x -= T.v*dt; T.rot -= T.v*dt/10; S.truckT -= dt;
     puffExhaust(T, dt, 1.4);
-    if (T.x < Math.min(V.x0 - 140, PARK - 300)){ T.st = 'away'; S.truckT = Math.max(S.truckT, 2); T.fill = 0; }
+    if (T.x < Math.min(V.x0 - 140, PARK - 300)){
+      T.st = 'away'; S.truckT = Math.max(S.truckT, 2); T.fill = 0;
+      if (T.rider != null && R[T.rider] && R[T.rider].st === 'ride' && !simMode) travel();   // V13: off to the other lot
+    }
   }
 }
 // the pickup sign says "now" only while the truck pulls in and loads; once it's loaded the clock for the next one runs
@@ -1912,7 +2233,7 @@ function puffExhaust(T, dt, k){
 
 // ───────────────────────── particles & popups
 function flyTo(kind, x0, y0, x1, y1, dur, arc, o){ if (simMode) return; parts.push(Object.assign({ k:'fly', kind, x0, y0, x1, y1, dur, arc, t:0, life:dur, rot: rand(0,TAU) }, o)); }
-function pop(x, y, text, kind, size, delay, life){ if (simMode) return; pops.push({ x, y, text, kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'note' ? 2.6 : 1.7) }); }
+function pop(x, y, text, kind, size, delay, life){ if (simMode) return; pops.push({ x, y, text: sayT(text), kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'note' ? 2.6 : 1.7) }); }
 function sparkle(x, y){ if (simMode) return; for (let i=0;i<14;i++){ const a = rand(0,TAU), v = rand(40,110); parts.push({ k:'star', x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - 30, g: 90, life: rand(.5,.9), t:0 }); } }
 function updParts(dt){
   for (const p of parts){
@@ -1934,8 +2255,8 @@ function sndAt(x, y){
   return { pan, vol: (off ? 0.3 : 1) * clamp(0.55 + cam.z*0.35, 0.6, 1) };
 }
 function sfx(name, ...a){ if (!SND || simMode) return; try { SND[name](...a); } catch(e){} }
-const robotVoice = id => id < 5 ? id : id === 5 ? 7 : id + 2;   // 5 and 6 are the blowers' and shakers' voices
-function robotSays(r, mood, force){ const a = sndAt(r.x, r.y); sfx('beep', robotVoice(r.id), mood, a.pan, a.vol, force); }
+const robotVoice = sty => sty < 5 ? sty : sty === 5 ? 7 : sty + 2;   // 5 and 6 are the blowers' and shakers' voices (V13: by look, so a robot keeps its voice on another lot)
+function robotSays(r, mood, force){ const a = sndAt(r.x, r.y); sfx('beep', r.driver ? 3 : robotVoice(r.sty ? 0 : styleIdx(r.id)), mood, a.pan, a.vol, force); }
 // every so often one of the robots mutters something to itself
 let chatT = 10;
 function ambientChatter(dt){
@@ -2038,28 +2359,49 @@ function flowerSpotOK(x, y, lvl){
   for (let L=0; L<AREAS.length - 1; L++){ const A = AREAS[L], sx = Math.round(A.w*0.18), sy = -A.h + 44; if (Math.abs(x - sx) < 42 && y > sy - 34 && y < sy + 12) return false; }
   return true;
 }
+// V13 (from the prairie): a lot can also have flowers that Wildflower seeding sows (tier 1–3, hidden until sown), and
+// lots of flowers just for looks (DECO), painted into the ground so they cost nothing to draw
+let DECO = [];
 function buildFlowers(){
-  FLOWERS = [];
-  for (let L=0; L<AREAS.length; L++){
-    const rnd = mulberry(900 + L*17), O = owned(L);
+  FLOWERS = []; DECO = [];
+  const clash = (list, x, y, dx, dy) => list.some(f => Math.abs(f.x - x) < dx && Math.abs(f.y - y) < dy);
+  const place = (L, count, rnd, mk, deco) => {
+    const O = owned(L), list = deco ? DECO : FLOWERS;
     let n = 0, tries = 0;
-    while (n < FLOWER_N[L] && tries++ < 4000){
+    while (n < count && tries++ < (deco ? 6000 : 4000)){
       const cx = O.x0 + rnd()*(O.x1 - O.x0), cy = O.y0 + rnd()*(O.y1 - O.y0);
       if (!flowerSpotOK(cx, cy, L)) continue;
       const ty = Math.floor(rnd()*FLOWER_TYPES.length), ty2 = Math.floor(rnd()*FLOWER_TYPES.length);
-      const k = 2 + Math.floor(rnd()*4);
-      for (let m=0, t2=0; m<k && n < FLOWER_N[L] && t2 < 30; t2++){
-        const a = rnd()*TAU, d = m ? 8 + rnd()*22 : 0, x = cx + Math.cos(a)*d, y = cy + Math.sin(a)*d*0.6;
-        if (!flowerSpotOK(x, y, L) || FLOWERS.some(f => Math.abs(f.x - x) < 9 && Math.abs(f.y - y) < 6)) continue;
-        const s = 1.1 + rnd()*0.4;
-        FLOWERS.push({ x, y, ty: rnd() < 0.75 ? ty : ty2, s, land: L, ph: rnd()*TAU, full: true, t: 0, regrow: FLOWER_REGROW*(0.85 + rnd()*0.3), claim: null, bob: 0 });
+      const k = deco ? 3 + Math.floor(rnd()*6) : 2 + Math.floor(rnd()*4);
+      for (let m=0, t2=0; m<k && n < count && t2 < 30; t2++){
+        const a = rnd()*TAU, d = m ? (deco ? 6 + rnd()*18 : 8 + rnd()*22) : 0, x = cx + Math.cos(a)*d, y = cy + Math.sin(a)*d*0.6;
+        if (!flowerSpotOK(x, y, L) || clash(FLOWERS, x, y, 9, 6) || (deco && clash(DECO, x, y, 6, 4))) continue;
+        list.push(mk(x, y, rnd() < 0.75 ? ty : ty2, rnd));
         m++; n++;
       }
     }
+  };
+  const tiers = GEN.seeding ? GEN.seeding.max : 0, share = LOT.seedShare || 0.4;
+  for (let L=0; L<AREAS.length; L++){
+    const rnd = mulberry(900 + L*17);
+    for (let tier=0; tier<=tiers; tier++)
+      place(L, tier ? Math.round(FLOWER_N[L]*share) : FLOWER_N[L], rnd, (x, y, ty, r) => { const s = 1.1 + r()*0.4; return { x, y, ty, s, land: L, tier, ph: r()*TAU, full: true, t: 0, regrow: FLOWER_REGROW*(0.85 + r()*0.3), claim: null, bob: 0 }; });
+    if (LOT.decoN) place(L, LOT.decoN[L], mulberry(1300 + L*29), (x, y, ty, r) => ({ x, y, ty, s: 0.75 + r()*0.4, land: L }), true);
   }
   FLOWERS.sort((a, b) => a.y - b.y);
+  DECO.sort((a, b) => a.y - b.y);
   shakeCD.flower = FLOWERS.map(() => 0);
 }
+function drawDecoFlowers(g, V){
+  for (const f of DECO){
+    if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 || f.y > V.y1) continue;
+    const sp = flowerSpr[f.ty], T = FLOWER_TYPES[f.ty]; if (!sp) continue;
+    g.drawImage(sp.stem, f.x - sp.sox*f.s, f.y - sp.soy*f.s, sp.sw*f.s, sp.sh*f.s);
+    const hs = sp.hw*f.s; g.drawImage(sp.head, f.x - hs/2, f.y - T.h*f.s - hs/2, hs, hs);
+  }
+}
+// a flower bees can use: on your land, and (for the extra ones Wildflower seeding sows) already sown
+const flowerOn = f => f.land <= S.land && (f.tier || 0) <= gl('seeding');
 const flowerHead = f => FLOWER_TYPES[f.ty].h*f.s;
 // a flower only opens its head when a bee can sip it again; until then the bud swells (V7: it used to look open too early)
 const bloomOf = f => f.full ? 1 : clamp((f.t/f.regrow - 0.75)/0.25, 0, 1)*0.3;
@@ -2067,13 +2409,13 @@ function updFlowers(dt){
   for (const f of FLOWERS){
     if (f.bob > 0) f.bob = Math.max(0, f.bob - dt);
     if (f.full) continue;
-    f.t += dt;
+    f.t += dt*regrowMul();
     if (f.t >= f.regrow){ f.full = true; f.t = 0; }
   }
 }
 
 // ── flower art: one sprite for the stem and leaves (with a closed bud on top) and one for the open head
-const FLOWER_TYPES = [
+const FLOWER_TYPES = LOT.FLOWER_TYPES || [
   { name:'aster',     h: 12 },
   { name:'goldenrod', h: 14 },
   { name:'sedum',     h: 9  },
@@ -2089,17 +2431,20 @@ function buildFlowerSprites(){
     const sw = 22, sh = T.h + 10, sox = 11, soy = T.h + 6;
     const sc = document.createElement('canvas'); sc.width = sw*RES; sc.height = sh*RES;
     const g = sc.getContext('2d'); g.scale(RES, RES); g.translate(sox, soy);
-    g.fillStyle = 'rgba(30,25,10,.22)'; ell(g, 1.5, 0.5, 4, 1.3); g.fill();
-    g.strokeStyle = '#56652c'; g.lineWidth = 1.1; g.lineCap = 'round';
+    const FS = LOT.flowerStem;   // V13: a lot's own stem colours (the prairie's are fresher, with a coloured bud)
+    g.fillStyle = FS ? FS.shadow : 'rgba(30,25,10,.22)'; ell(g, 1.5, 0.5, 4, 1.3); g.fill();
+    g.strokeStyle = FS ? FS.stem : '#56652c'; g.lineWidth = 1.1; g.lineCap = 'round';
     g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(1.2, -T.h*0.5, 0, -T.h); g.stroke();
     for (const [ly, side] of [[-T.h*0.3, -1], [-T.h*0.55, 1]]){
-      g.save(); g.translate(0.4, ly); g.rotate(side*0.9); g.fillStyle = side < 0 ? '#6c7a37' : '#7e8a43'; ell(g, side*3, 0, 3.2, 1.2); g.fill(); g.restore();
+      g.save(); g.translate(0.4, ly); g.rotate(side*0.9); g.fillStyle = FS ? FS.leaf[side < 0 ? 0 : 1] : side < 0 ? '#6c7a37' : '#7e8a43'; ell(g, side*3, 0, FS ? FS.leafW(T) : 3.2, 1.2); g.fill(); g.restore();
     }
-    g.save(); g.translate(0, -T.h); g.rotate(0.35); g.fillStyle = '#7d7a3e'; ell(g, 0, -1.2, 1.5, 2.3); g.fill(); g.fillStyle = 'rgba(150,100,60,.6)'; ell(g, 0, -2.4, 0.9, 0.9); g.fill(); g.restore();
+    if (FS){ g.save(); g.translate(0, -T.h); g.rotate(0.35); g.fillStyle = FS.bud; ell(g, 0, -1.2, 1.5, 2.3); g.fill(); g.fillStyle = T.bud; g.globalAlpha = 0.75; ell(g, 0, -2.4, 1, 1.1); g.fill(); g.restore(); }
+    else { g.save(); g.translate(0, -T.h); g.rotate(0.35); g.fillStyle = '#7d7a3e'; ell(g, 0, -1.2, 1.5, 2.3); g.fill(); g.fillStyle = 'rgba(150,100,60,.6)'; ell(g, 0, -2.4, 0.9, 0.9); g.fill(); g.restore(); }
     // open head: origin at its centre
     const hw = 18, hc = document.createElement('canvas'); hc.width = hw*RES; hc.height = hw*RES;
     const q = hc.getContext('2d'); q.scale(RES, RES); q.translate(hw/2, hw/2);
-    if (T.name === 'aster'){
+    if (LOT.drawFlowerHead) LOT.drawFlowerHead(q, T, rnd);
+    else if (T.name === 'aster'){
       for (let k=0;k<13;k++){ q.save(); q.rotate(k/13*TAU); q.fillStyle = k%2 ? '#7d5bb0' : '#9e7ad0'; ell(q, 0, -3.3, 1.1, 2.6); q.fill(); q.restore(); }
       q.fillStyle = '#f2c14e'; ell(q, 0, 0, 2, 2); q.fill(); q.fillStyle = '#c98a2a'; ell(q, 0.5, 0.5, 0.9, 0.9); q.fill();
     } else if (T.name === 'goldenrod'){
@@ -2119,8 +2464,9 @@ function buildFlowerSprites(){
   });
 }
 function drawFlowers(V){
-  const c = ctx, active = S.hive.built;
+  const c = ctx, active = S.hive.built, sown = gl('seeding');
   for (const f of FLOWERS){
+    if ((f.tier || 0) > sown) continue;   // not sown yet (Wildflower seeding)
     if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 - 20 || f.y > V.y1 + 20) continue;
     const sp = flowerSpr[f.ty]; if (!sp) continue;
     const wild = f.land > S.land, b = wild || !active ? 1 : bloomOf(f);
@@ -2152,7 +2498,11 @@ const HIVE_UP = {
 };
 const HIVE_UP_COST = 180;
 const hiveUpCost = () => HIVE_UP_COST;
-const hiveShown = () => S.hive.built || S.flags.hiveShown;
+// V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
+// prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.
+const hiveKnown = () => S.hive.built || !!S.flags.hiveKnown;
+const hiveShown = () => S.hive.built || (hiveKnown() && !!S.flags.hiveShown);
+const hiveCost = () => S.flags.hiveDeal ? HIVE_DEAL : HIVE_COST;
 const beeCost = (n = S.hive.bees) => niceCost(4*Math.pow(1.18, n)*(S.hive.up.nursery ? 0.7 : 1));
 const tankCap = () => val('hiveTank');
 const honeyCap = () => val('hiveStore');
@@ -2194,7 +2544,7 @@ function beeMove(b, sp, dt){
 function findFlower(b){
   let best = null, bs = 1e18;
   for (const f of FLOWERS){
-    if (!f.full || f.claim || f.land > S.land) continue;
+    if (!f.full || f.claim || !flowerOn(f)) continue;
     const s = Math.hypot(f.x - b.x, f.y - b.y) + 0.35*Math.hypot(f.x - HIVE.x, f.y - HIVE.y);
     if (s < bs){ bs = s; best = f; }
   }
@@ -2210,8 +2560,8 @@ function nextBloom(b){
   const sp = beeSpeed(b);
   let best = null, bs = 1e18;
   for (const f of FLOWERS){
-    if (f.full || f.claim || f.land > S.land) continue;
-    const left = f.regrow - f.t; if (left > BEE_WAIT_MAX) continue;
+    if (f.full || f.claim || !flowerOn(f)) continue;
+    const left = (f.regrow - f.t)/regrowMul(); if (left > BEE_WAIT_MAX) continue;
     const trip = Math.hypot(f.x - b.x, f.y - b.y)/sp, s = Math.max(left, trip) + 0.3*trip;
     if (s < bs){ bs = s; best = f; }
   }
@@ -2261,7 +2611,7 @@ function updBee(b, dt){
       // nothing free and nothing about to bloom: buzz about the hive, and look again twice a second
       if (beeMove(b, sp*0.45, dt)){ b.z += Math.sin(b.anim*5 + b.ph)*0.15; if (Math.random() < dt*0.8) beeLeg(b, HIVE.x + rand(-30, 46), HIVE.y + rand(2, 18), rand(18, hiveTopZ()*0.85)); }
       b.timer -= dt;
-      if (b.timer <= 0){ b.timer = 0.5; if (!tankFull() && (FLOWERS.some(f => f.full && !f.claim && f.land <= S.land) || nextBloom(b))) beeSetOff(b); }
+      if (b.timer <= 0){ b.timer = 0.5; if (!tankFull() && (FLOWERS.some(f => f.full && !f.claim && flowerOn(f)) || nextBloom(b))) beeSetOff(b); }
       break;
     }
     case 'fly': case 'toWait': {
@@ -2288,7 +2638,7 @@ function updBee(b, dt){
       const f = b.tgt;
       if (f){ f.full = false; f.t = 0; f.claim = null; f.bob = 0.4; }
       b.tgt = null; b.carry += beeSip(b); b.visits++;
-      if (b.visits < beeTrip(b)){ const g = findFlower(b); if (g){ goFlower(b, g); break; } const w = nextBloom(b); if (w && w.regrow - w.t < 4){ goWait(b, w); break; } }
+      if (b.visits < beeTrip(b)){ const g = findFlower(b); if (g){ goFlower(b, g); break; } const w = nextBloom(b); if (w && (w.regrow - w.t)/regrowMul() < 4){ goWait(b, w); break; } }
       beeHome(b);
       break;
     }
@@ -2575,6 +2925,12 @@ function drawBeeDrone(c, b, fl, glow){
 }
 function drawBees(V){
   const c = ctx;
+  if (guest.on){
+    // V13: the bee that comes along with your robot (a brass one, like the hive's first bee)
+    const g = guest, y = g.y - g.z;
+    if (g.mode !== 'ride' && g.mode !== 'toTruck'){ c.fillStyle = 'rgba(30,22,8,.18)'; ell(c, g.x, g.y + 1, 2.6, 1.1); c.fill(); }
+    c.save(); c.translate(g.x, y); c.scale(g.face*1.3, 1.3); drawBeeBrass(c, g, Math.abs(Math.sin(g.anim*60)), 0); c.restore();
+  }
   for (const b of B){
     if (b.st === 'in') continue;
     const wob = (b.st === 'fly' || b.st === 'home' || b.st === 'toWait') ? Math.sin(b.anim*7 + b.ph)*2.2 : Math.sin(b.anim*3 + b.ph)*1.2;
@@ -2611,6 +2967,7 @@ function step(dt){
   updHive(dt);
   updResearch(dt);
   updTruck(dt);
+  updDriver(dt); updGuest(dt);
   updParts(dt);
   updMilestones();
   if (bumpBin > 0) bumpBin -= dt;
@@ -2620,7 +2977,7 @@ function step(dt){
     pop(SHED.x, SHED.y - 130, 'Yard-wide upgrades in the workshop', 'note', 18, 0.2); sparkle(SHED.x, SHED.y - 60);
   }
   // the beehive plot shows up once you've held a quarter of its price
-  if (!S.flags.hiveShown && seenPrice(HIVE_COST)){
+  if (!S.flags.hiveShown && hiveKnown() && seenPrice(hiveCost())){
     S.flags.hiveShown = true; hiveRt.shownT = S.t;
     sparkle(HIVE.x, HIVE.y - 30); pop(HIVE.x + 20, HIVE.y - 70, 'New: a robot beehive', 'note', 18, 0.3); sfx('chime', 'sale');
   }
@@ -2638,7 +2995,7 @@ function step(dt){
   const nxt = S.land + 1;
   if (nxt < AREAS.length && S.flags.saleShown < nxt && S.cash >= AREAS[nxt].cost*0.5){
     S.flags.saleShown = nxt; saleAppearT = S.t;
-    const p = salePos(); sparkle(p.x, p.y - 30); pop(p.x, p.y - 84, 'Land for sale next door', 'note', 18, 0.3); sfx('chime', 'sale');
+    const p = salePos(); sparkle(p.x, p.y - 30); pop(p.x, p.y - 84, MINE_LAND && nxt === MINE_LAND ? 'Land for sale: finally a chance to mine!' : 'Land for sale next door', 'note', 18, 0.3); sfx('chime', 'sale');
   }
   if (!S.flags.finished && S.robots.length >= ROBOT_MAX && S.miners.length >= SPOTS.length && S.plant.built){
     S.flags.finished = true;
@@ -2663,6 +3020,7 @@ function offers(all){
   if (!S.metalSlot){ if (metalSlotShown()) o.push({ id:'metalSlot', obj:'bin', cost: METAL_SLOT_COST }); }
   else o.push(up('metalPrice'), up('metalBin'));
   S.robots.forEach((cfg, ri) => {
+    if (cfg.away) return;
     for (const k of TRACK_ORDER){
       if (!trackVisible(k) || cfg.lv[k] >= trackCap(k)) continue;
       const c = rCost(ri, k); if (!c) continue;
@@ -2689,7 +3047,7 @@ function offers(all){
   else o.push(up('smeltSpeed'), up('ingotGrade'), up('slag'), up('hopper'));
   if (all ? S.miners.length : shaftShown()) for (const sp of S.miners) if (!S.shafts.includes(sp)) o.push({ id:'shaft', arg:sp, obj:'spot'+sp, cost: shaftCost() });
   if (S.land + 1 < AREAS.length && (all || saleVisible())) o.push({ id:'land', obj:'sale', cost: AREAS[S.land + 1].cost });
-  if (!S.hive.built){ if (all || hiveShown()) o.push({ id:'hive', obj:'hive', cost: HIVE_COST }); }
+  if (!S.hive.built){ if (all ? hiveKnown() : hiveShown()) o.push({ id:'hive', obj:'hive', cost: hiveCost() }); }
   else {
     if (S.hive.bees < MAX_BEES) o.push({ id:'bee', obj:'hive', cost: beeCost() });
     if (S.hive.bees > 0){
@@ -2707,6 +3065,7 @@ function objPos(obj){
   if (obj === 'hive') return { x: HIVE.x, y: HIVE.y - (S.hive.built ? hiveTopZ() + 60 : 58) };
   if (obj === 'bagger') return { x: BAGGER.x, y: BAGGER.y - 64 };
   if (obj === 'book'){ const b = bookPos(); return { x: b.x, y: b.y - 26 }; }
+  if (obj.startsWith('letter')){ const l = S.letters[+obj.slice(6)]; return l ? { x: l.x, y: l.y - 24 } : null; }
   if (obj === 'plant') return { x: PLANT.x, y: PLANT.y - (S.plant.built ? 150 : 64) };
   if (obj.startsWith('robot')){ const r = R[+obj.slice(5)]; return r ? { x: r.x, y: r.y - 72 } : null; }
   if (obj.startsWith('blower') || obj.startsWith('shaker')){ const kind = obj.slice(0, 6), i = +obj.slice(6), h = HB.find(q => q.kind === kind && q.idx === i); return h ? { x: h.x, y: h.y - (kind === 'blower' ? 52 : 58) } : null; }
@@ -2750,8 +3109,11 @@ function buy(o){
   } else if (o.id === 'gen'){
     S.gen[o.key] = gl(o.key) + 1;
     pop(SHED.x, SHED.y - 112, GEN[o.key].name + '!', 'note', 17); sparkle(SHED.x, SHED.y - 60);
+    if (o.key === 'seeding'){ let k = 0; for (const f of FLOWERS) if (f.tier === gl('seeding') && f.land <= S.land && k++ % 3 === 0) sparkle(f.x, f.y - 8); }
   } else if (o.id === 'hive'){
     S.hive.built = true; S.flags.hiveShown = true; hiveRt.builtT = S.t; openTasks(['jar']);
+    // V13: the bee that came home with your robot moves in
+    if (S.flags.guestBee){ S.flags.guestBee = false; S.flags.hiveDeal = false; S.hive.bees = Math.max(1, S.hive.bees + 1); syncBees(); if (B[0]) B[0].timer = 3; }
     pop(HIVE.x, HIVE.y - 120, 'Robot beehive built!', 'note', 19, 0.6); sparkle(HIVE.x, HIVE.y - 60);
     autoAssign('jar', CRATE, 'will fill the honey jars');
     if (!simMode) for (let i=0;i<12;i++) parts.push({ k:'dust', x: HIVE.x + rand(-30,30), y: HIVE.y + rand(-2, 6), vx: rand(-24,24), vy: rand(-22,-5), g:0, life: rand(.8,1.4), t:0, r: rand(5,9), gray:true });
@@ -2785,9 +3147,10 @@ function buy(o){
     S.metalSlot = true; openTasks(['mine']);
     pop(TUB.x, TUB.y - 72, 'Metal slot added', 'note', 17); sparkle(TUB.x, TUB.y - 30);
   } else if (o.id === 'robot'){
-    const i = S.robots.length;
-    S.robots.push(newRobotCfg()); syncRobots();
-    pop(SHED.x, SHED.y - 112, STYLES[i].name + ' joins the yard', 'note', 17); sparkle(SHED.x, SHED.y);
+    const i = S.robots.length, cfg = newRobotCfg(), k = nextStyle();
+    if (k !== i) cfg.sty = k;
+    S.robots.push(cfg); syncRobots();
+    pop(SHED.x, SHED.y - 112, styleOf(i).name + ' joins the yard', 'note', 17); sparkle(SHED.x, SHED.y);
   } else if (o.id === 'miner'){
     S.miners.push(o.arg);
     const p = SPOTS[o.arg];
@@ -2797,7 +3160,7 @@ function buy(o){
     // the first miner pulls over the nearest robot that has Mine metal anywhere on its list (never one that has it in Don't)
     const first = S.miners.length === 1 ? R.filter(r => taskOn(S.robots[r.id], 'mine') && S.robots[r.id].miner == null).sort(near)[0] : null;
     const who = waiting[0] || first;
-    if (who){ assign(who.id, o.arg); pop(p.x, p.y - 100, STYLES[who.id].name + ' heads over to mine', 'note', 16, 0.3); }
+    if (who){ assign(who.id, o.arg); pop(p.x, p.y - 100, styleOf(who.id).name + ' heads over to mine', 'note', 16, 0.3); }
     else pop(p.x, p.y - 100, 'Tap a robot and drag Mine metal into its Do list', 'note', 16, 0.3);
     sparkle(p.x, p.y - 20);
     if (!simMode) for (let i=0;i<10;i++) parts.push({ k:'dust', x:p.x+rand(-24,24), y:p.y, vx:rand(-20,20), vy:rand(-25,-5), g:0, life:rand(.8,1.4), t:0, r:rand(5,9) });
@@ -2848,7 +3211,7 @@ function autoAssign(t, at, says){
   const r = R.filter(q => taskOn(S.robots[q.id], t)).sort(near)[0];
   if (!r){ pop(at.x, at.y - 110, 'Drag ' + TASKS[t].name + ' into a robot’s Do list', 'note', 16, 0.9); return null; }
   if (r.st === 'wander' || r.st === 'rest' || r.st === 'seek'){ release(r); r.st = 'idle'; }
-  pop(at.x, at.y - 110, STYLES[r.id].name + ' ' + says, 'note', 16, 0.9);
+  pop(at.x, at.y - 110, styleOf(r.id).name + ' ' + says, 'note', 16, 0.9);
   return r.id;
 }
 
@@ -2863,12 +3226,18 @@ function buildGround(c){
   g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
   const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
   const O = owned();
+  const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
+  const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
+  // V13: each lot paints its own ground (the prairie's is in public/lots/prairie.js)
+  (LOT.paintGround || paintGroundHome)({ g, V, O, CS, i0, i1, j0, j1, inOwned });
+}
+// the first yard: autumn grass, fallen leaves, toadstools; dark, overgrown land beyond the fence; a gravel verge
+function paintGroundHome(G){
+  const { g, V, O, CS, i0, i1, j0, j1, inOwned } = G;
   const gr = g.createLinearGradient(0, V.y0, 0, 0);
   gr.addColorStop(0, '#66753a'); gr.addColorStop(0.6, '#74823e'); gr.addColorStop(1, '#7e8a43');
   g.fillStyle = gr; g.fillRect(V.x0, V.y0, V.x1 - V.x0, -V.y0 + 2);
-  const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
   const patch = ['#86924a','#62713a','#8f8a46','#707f3c','#94914c','#5d6b36'];
-  const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
   for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
     const rnd = cellRnd(i, j, 1);
     const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 60 + rnd()*120, col = patch[Math.floor(rnd()*patch.length)];
@@ -2943,7 +3312,10 @@ function buildGround(c){
 
 // A rounded autumn shrub: one colour family, clumps piled into a mound, lit from the top left.
 const bushFams = () => [FOLIAGE.olive, FOLIAGE.rust, FOLIAGE.red, ['#3e4a1c','#56632a','#6f7d34','#8e9a45','#b3b862'], FOLIAGE.orange];
-function drawBush(g, x, y, s, rnd){
+// V13: a lot can have its own shrubs and fence (own: one of your bushes, drawn live, rather than a wild one)
+function drawBush(g, x, y, s, rnd, own){ if (LOT.drawBush) LOT.drawBush(g, x, y, s, rnd, own); else drawBushHome(g, x, y, s, rnd); }
+function drawFence(g, O){ if (LOT.drawFence) LOT.drawFence(g, O); else drawFenceHome(g, O); }
+function drawBushHome(g, x, y, s, rnd){
   const F = bushFams(), P = F[Math.floor(rnd()*F.length)], W = 22*s;
   g.fillStyle = 'rgba(25,22,8,.32)'; ell(g, x + 5*s, y + 3*s, W*1.25, 7*s); g.fill();
   const cl = [];
@@ -2960,7 +3332,7 @@ function drawBush(g, x, y, s, rnd){
   if (rnd() < 0.3){ g.fillStyle = '#c23a2a'; for (let q=0;q<6;q++){ ell(g, x + (rnd() - 0.5)*W*1.3, y - rnd()*16*s, 1.6*s, 1.6*s); g.fill(); } }
 }
 
-function drawFence(g, O){
+function drawFenceHome(g, O){
   const post = (x, y) => {
     g.fillStyle = 'rgba(30,22,10,.28)'; ell(g, x + 2, y + 1, 5, 2); g.fill();
     g.fillStyle = '#6e4a30'; rr(g, x - 2.5, y - 15, 5, 16, 1.5); g.fill();
@@ -3003,7 +3375,10 @@ const FOLIAGE = {
   rust:   ['#5a2516','#83391f','#ab5728','#cf7e38','#eaa95a'],
   olive:  ['#4d5220','#717a2c','#9c9a36','#c9b346','#ecd570'],
 };
-const TREE_FAMS = [['orange','gold'],['red','orange'],['gold','olive'],['rust','red'],['orange','red'],['gold','orange'],
+if (LOT.FOLIAGE) Object.assign(FOLIAGE, LOT.FOLIAGE);
+// V13: families in BLOSSOM (the prairie's cherries) are crowns of blossom: dark branches through flatter clumps
+const BLOSSOM = LOT.BLOSSOM || {};
+const TREE_FAMS = LOT.TREE_FAMS || [['orange','gold'],['red','orange'],['gold','olive'],['rust','red'],['orange','red'],['gold','orange'],
                    ['red','rust'],['olive','gold'],['orange','rust'],['rust','gold'],['gold','red'],['red','orange']];
 function scallop(g, x, y, r, rnd){
   const n = 7 + Math.floor(rnd()*3), a0 = rnd()*TAU;
@@ -3015,6 +3390,12 @@ function scallop(g, x, y, r, rnd){
   }
   g.closePath();
 }
+// a five-petalled blossom (cherry crowns)
+function blossomDot(g, x, y, r, col, eye){
+  g.fillStyle = col;
+  for (let p=0;p<5;p++){ const a = p/5*TAU + x; ell(g, x + Math.cos(a)*r*0.55, y + Math.sin(a)*r*0.5, r*0.52, r*0.48); g.fill(); }
+  g.fillStyle = eye; ell(g, x, y, r*0.26, r*0.24); g.fill();
+}
 function leafBlob(g, x, y, s, rot, col){ g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s); leafPath(g, 1); g.fillStyle = col; g.fill(); g.restore(); }
 function buildCanopies(){
   const RES = 2;
@@ -3024,25 +3405,38 @@ function buildCanopies(){
     const g = c.getContext('2d'); g.scale(RES, RES); g.translate(ox, oy);
     const rnd = mulberry(t.seed);
     const [fa, fb] = t.fam || TREE_FAMS[ti % TREE_FAMS.length], A = FOLIAGE[fa], B = FOLIAGE[fb];
-    // trunk and roots, mostly hidden by the crown
+    const bloom = !!BLOSSOM[fa];
+    // trunk and roots, mostly hidden by the crown (cherry bark: dark red-brown with pale bands)
     const base = R0*1.16, tw = Math.max(9, R0*0.075);
     g.fillStyle = 'rgba(30,22,10,.35)'; ell(g, tw*0.6, base + 2, tw*3.2, tw*0.8); g.fill();
-    const tg = g.createLinearGradient(-tw*1.6, 0, tw*1.6, 0); tg.addColorStop(0, '#7a5236'); tg.addColorStop(0.45, '#5c3b26'); tg.addColorStop(1, '#3a2418');
+    const tg = g.createLinearGradient(-tw*1.6, 0, tw*1.6, 0);
+    if (bloom){ tg.addColorStop(0, '#76504a'); tg.addColorStop(0.45, '#56362f'); tg.addColorStop(1, '#341f1c'); }
+    else { tg.addColorStop(0, '#7a5236'); tg.addColorStop(0.45, '#5c3b26'); tg.addColorStop(1, '#3a2418'); }
     g.fillStyle = tg; g.beginPath();
     g.moveTo(-tw*0.8, R0*0.45); g.lineTo(-tw, base - tw*1.2); g.quadraticCurveTo(-tw*1.2, base - tw*0.2, -tw*2.4, base + 1);
     g.lineTo(tw*2.6, base + 1); g.quadraticCurveTo(tw*1.2, base - tw*0.2, tw, base - tw*1.2); g.lineTo(tw*0.8, R0*0.45); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(30,18,10,.45)'; g.lineWidth = 1.2; g.lineCap = 'round';
-    for (let k=0;k<4;k++){ const bx = (rnd()-0.5)*tw*1.2; g.beginPath(); g.moveTo(bx, R0*0.62 + rnd()*R0*0.1); g.lineTo(bx + (rnd()-0.5)*3, base - tw*0.8 - rnd()*6); g.stroke(); }
-    // crown: clumps on a dome
-    const L = [-0.5, -0.68, 0.54], clumps = [];
+    g.strokeStyle = bloom ? 'rgba(230,200,190,.35)' : 'rgba(30,18,10,.45)'; g.lineWidth = bloom ? 1.1 : 1.2; g.lineCap = 'round';
+    if (bloom) for (let k=0;k<6;k++){ const by = R0*0.62 + k*(base - R0*0.7)/6; g.beginPath(); g.moveTo(-tw*0.7, by); g.lineTo(-tw*0.1, by + 0.6); g.moveTo(tw*0.2, by + 2); g.lineTo(tw*0.7, by + 2.4); g.stroke(); }
+    else for (let k=0;k<4;k++){ const bx = (rnd()-0.5)*tw*1.2; g.beginPath(); g.moveTo(bx, R0*0.62 + rnd()*R0*0.1); g.lineTo(bx + (rnd()-0.5)*3, base - tw*0.8 - rnd()*6); g.stroke(); }
+    // crown: clumps on a dome (a cherry's is wide and a little flat, with dark branches showing through the gaps)
+    const fy = bloom ? 0.8 : 0.9, L = [-0.5, -0.68, 0.54], clumps = [];
+    if (bloom){
+      g.strokeStyle = '#3e2622';
+      for (let k=0;k<7;k++){
+        const a = -Math.PI*0.92 + k/6*Math.PI*0.84 + (rnd() - 0.5)*0.2, ex = Math.cos(a)*R0*0.86, ey = Math.sin(a)*R0*0.86*fy;
+        g.lineWidth = tw*0.55; g.beginPath(); g.moveTo((rnd() - 0.5)*tw*0.6, R0*0.5); g.quadraticCurveTo(ex*0.35, R0*0.2 + ey*0.2, ex, ey); g.stroke();
+        g.lineWidth = tw*0.22; g.beginPath(); g.moveTo(ex*0.6, ey*0.6 + R0*0.08); g.quadraticCurveTo(ex*0.8 + (rnd() - 0.5)*20, ey*0.9, ex*0.95 + (rnd() - 0.5)*R0*0.3, ey + (rnd() - 0.6)*R0*0.25); g.stroke();
+      }
+    }
     const add = (cx, cy, cr) => {
       const nx = cx/R0, ny = cy/R0, nz = Math.sqrt(Math.max(0.05, 1 - nx*nx - ny*ny));
       const lum = nx*L[0] + ny*L[1] + nz*L[2] + (rnd() - 0.5)*0.35;
       clumps.push({ x: cx, y: cy, r: cr, z: nz, tone: clamp(Math.round((lum + 0.15)*3.1), 0, 4), pal: rnd() < 0.22 ? B : A });
     };
-    for (let k=0;k<16;k++){ const a = k/16*TAU + rnd()*0.25, d = R0*(0.7 + rnd()*0.1); add(Math.cos(a)*d, Math.sin(a)*d*0.9, R0*(0.21 + rnd()*0.07)); }
-    const n = Math.round(Math.max(R0*0.2, 26));   // small trees need extra clumps or the middle looks hollow
-    for (let k=0;k<n;k++){ const a = rnd()*TAU, d = R0*0.62*Math.sqrt(rnd()); add(Math.cos(a)*d, Math.sin(a)*d*0.9 - R0*0.05, R0*(0.2 + rnd()*0.1)*(1 - d/R0*0.3)); }
+    const ring = bloom ? 14 : 16;
+    for (let k=0;k<ring;k++){ const a = k/ring*TAU + rnd()*0.25, d = R0*(0.7 + rnd()*0.1); add(Math.cos(a)*d, Math.sin(a)*d*fy, R0*(0.21 + rnd()*0.07)*(bloom ? 0.95 : 1)); }
+    const n = Math.round(Math.max(R0*0.2, 26)*(bloom ? 0.72 : 1));   // small trees need extra clumps or the middle looks hollow
+    for (let k=0;k<n;k++){ const a = rnd()*TAU, d = R0*0.62*Math.sqrt(rnd()); add(Math.cos(a)*d, Math.sin(a)*d*fy - R0*0.05, R0*(0.2 + rnd()*0.1)*(1 - d/R0*0.3)*(bloom ? 0.92 : 1)); }
     clumps.sort((p, q) => (p.z - q.z) || (p.y - q.y));
     // dark outline first, so the crown edge reads against the grass
     g.fillStyle = A[0];
@@ -3054,20 +3448,29 @@ function buildCanopies(){
       const gr = g.createLinearGradient(k.x - k.r*0.7, k.y - k.r*0.8, k.x + k.r*0.6, k.y + k.r*0.7);
       gr.addColorStop(0, hi); gr.addColorStop(0.45, P[tn]); gr.addColorStop(1, lo);
       scallop(g, k.x, k.y, k.r*0.93, rnd); g.fillStyle = gr; g.fill();
-      for (let m=0;m<11;m++){
+      const flowery = bloom && BLOSSOM[P === A ? fa : fb];
+      for (let m=0;m<(flowery ? 10 : 11);m++){
         const a = rnd()*TAU, d = Math.sqrt(rnd())*k.r*0.85, lx = Math.cos(a)*d, ly = Math.sin(a)*d;
         const side = (lx*L[0] + ly*L[1])/k.r;   // leaves on the sunny side are lighter
-        leafBlob(g, k.x + lx, k.y + ly, 2.4 + rnd()*2.4, rnd()*TAU, side > 0.15 ? hi : side < -0.25 ? lo : (rnd() < 0.5 ? P[tn] : hi));
+        const col = side > 0.15 ? hi : side < -0.25 ? lo : (rnd() < 0.5 ? P[tn] : hi);
+        if (flowery) blossomDot(g, k.x + lx, k.y + ly, 2.6 + rnd()*1.8, rnd() < 0.18 ? '#ffffff' : col, rnd() < .5 ? '#c2477a' : '#e07a9a');
+        else leafBlob(g, k.x + lx, k.y + ly, 2.4 + rnd()*2.4, rnd()*TAU, col);
       }
+      if (flowery && rnd() < 0.5) for (let m=0;m<2;m++){ const a = rnd()*TAU, d = rnd()*k.r*0.7; leafBlob(g, k.x + Math.cos(a)*d, k.y + Math.sin(a)*d, 1.8 + rnd(), rnd()*TAU, rnd() < .5 ? '#7da344' : '#98b752'); }
     }
     // soft sun from the top left, shade toward the bottom right
     g.globalCompositeOperation = 'source-atop';
     const sun = g.createRadialGradient(-R0*0.45, -R0*0.55, R0*0.05, -R0*0.3, -R0*0.35, R0*1.25);
-    sun.addColorStop(0, 'rgba(255,236,170,.30)'); sun.addColorStop(0.5, 'rgba(255,220,150,.06)'); sun.addColorStop(1, 'rgba(60,20,8,.30)');
+    if (bloom){ sun.addColorStop(0, 'rgba(255,246,236,.34)'); sun.addColorStop(0.5, 'rgba(255,230,230,.06)'); sun.addColorStop(1, 'rgba(80,25,55,.26)'); }
+    else { sun.addColorStop(0, 'rgba(255,236,170,.30)'); sun.addColorStop(0.5, 'rgba(255,220,150,.06)'); sun.addColorStop(1, 'rgba(60,20,8,.30)'); }
     g.fillStyle = sun; g.fillRect(-ox, -oy, w, R0*0.98 + oy);   // stops above the trunk
     g.globalCompositeOperation = 'source-over';
-    // a few loose leaves around the edge of the crown
-    for (let k=0;k<46;k++){ const a = rnd()*TAU, d = R0*(0.9 + rnd()*0.12); const P = rnd() < 0.3 ? B : A; leafBlob(g, Math.cos(a)*d, Math.sin(a)*d*0.94, 3 + rnd()*2.4, a + Math.PI/2 + (rnd()-0.5), P[1 + Math.floor(rnd()*3)]); }
+    // a few loose leaves (or petals) around the edge of the crown
+    for (let k=0;k<46;k++){
+      const a = rnd()*TAU, d = R0*(0.9 + rnd()*0.12), P = rnd() < 0.3 ? B : A, px = Math.cos(a)*d, py = Math.sin(a)*d*0.94*fy;
+      if (bloom){ g.save(); g.translate(px, py); g.rotate(a + Math.PI/2 + (rnd()-0.5)); g.scale(2.6 + rnd()*1.6, 2.6 + rnd()*1.6); leafPath(g, 2); g.fillStyle = P[2 + Math.floor(rnd()*3)]; g.fill(); g.restore(); }
+      else leafBlob(g, px, py, 3 + rnd()*2.4, a + Math.PI/2 + (rnd()-0.5), P[1 + Math.floor(rnd()*3)]);
+    }
     return { c, ox, oy, w, h, base };
   });
 }
@@ -3079,7 +3482,7 @@ function buildBushes(){
   bushCvs = BUSHES.map(b => {
     const s = b.s, w = 104*s, h = 70*s, ox = w/2, oy = 54*s;
     const c = document.createElement('canvas'); c.width = Math.ceil(w*RES); c.height = Math.ceil(h*RES);
-    const g = c.getContext('2d'); g.scale(RES, RES); drawBush(g, ox, oy, 1.3*s, mulberry(b.seed));
+    const g = c.getContext('2d'); g.scale(RES, RES); drawBush(g, ox, oy, 1.3*s, mulberry(b.seed), true);
     return { c, ox, oy, w, h };
   });
 }
@@ -3094,10 +3497,11 @@ function buildVignette(){
   vignetteCv = document.createElement('canvas'); vignetteCv.width = cv.width; vignetteCv.height = cv.height;
   const g = vignetteCv.getContext('2d'); g.scale(DPR, DPR);
   const rg = g.createRadialGradient(W*0.5, H*0.48, Math.min(W,H)*0.35, W*0.5, H*0.5, Math.hypot(W,H)*0.62);
-  rg.addColorStop(0, 'rgba(60,25,5,0)'); rg.addColorStop(1, 'rgba(50,20,5,.42)');
+  const VG = LOT.vignette || { edge: ['rgba(60,25,5,0)', 'rgba(50,20,5,.42)'], sun: ['rgba(255,205,120,.22)', 'rgba(255,205,120,0)'] };
+  rg.addColorStop(0, VG.edge[0]); rg.addColorStop(1, VG.edge[1]);
   g.fillStyle = rg; g.fillRect(0, 0, W, H);
   const sun = g.createRadialGradient(W*0.08, -H*0.1, 10, W*0.08, -H*0.1, Math.hypot(W,H)*0.75);
-  sun.addColorStop(0, 'rgba(255,205,120,.22)'); sun.addColorStop(1, 'rgba(255,205,120,0)');
+  sun.addColorStop(0, VG.sun[0]); sun.addColorStop(1, VG.sun[1]);
   g.fillStyle = sun; g.fillRect(0, 0, W, H);
 }
 
@@ -3197,6 +3601,15 @@ function drawSaleSign(){
   c.font = '800 10px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fbefd9';
   c.fillText('FOR SALE', 0, -66.5);
   c.font = '800 14px "Baloo 2", sans-serif'; c.fillStyle = '#4a3226'; c.fillText(money(cost), 0, -50);
+  if (MINE_LAND && S.land + 1 === MINE_LAND){
+    // V13 (from the prairie): a plank hung under the board: the next plot has the first metal vein
+    c.strokeStyle = '#4a3226'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(-26, -36); c.lineTo(-30, -31); c.moveTo(26, -36); c.lineTo(30, -31); c.stroke();
+    c.fillStyle = '#5a3b26'; rr(c, -50, -32, 100, 17, 3); c.fill();
+    c.fillStyle = '#f6e3a8'; rr(c, -48.5, -30.5, 97, 14, 2.5); c.fill();
+    nugget(c, -40, -23.5, 6.5, 0.3);
+    const mt = 'Finally a chance to mine!'; c.font = '700 11px Caveat, cursive'; const mw = c.measureText(mt).width;
+    chalk(c, mt, 5, -23.8, Math.min(11, 11*80/mw), '#4a3226');
+  }
   c.restore();
 }
 
@@ -3717,6 +4130,14 @@ function drawBookOpen(c, x, y, s, flip){
 // lying on the ground (seen from above at an angle), with a leaf still stuck to it
 function drawGroundBook(){
   const c = ctx, x = S.story.x, y = S.story.y;
+  if (S.story.item === 'bee'){
+    // V13: the dead bee, with a petal half over it
+    c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, x + 1, y + 1, 7, 2.2); c.fill();
+    drawDeadBee(c, x, y - 2.5, 1.35, 0.15);
+    drawLeaf(c, x - 5, y - 1, 4.5, 2.2, 0, 1, 1, 0.8, 1, 0);
+    if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
+    return;
+  }
   c.save(); c.translate(x, y);
   c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 1, 1.5, 12, 3.6); c.fill();
   c.rotate(-0.1);
@@ -3729,7 +4150,62 @@ function drawGroundBook(){
   c.fillStyle = 'rgba(40,60,60,.22)'; ell(c, -3, -4.6, 3, 1.4); c.fill();
   c.restore();
   drawLeaf(c, x + 6, y - 9, 5.5, 0.6, 1, 1, 1, 0.8, 1, 0);
-  if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/RESEARCH_NEED, on: false });
+  if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
+}
+// ── V13: the dead bee from the prairie: a real one, small and fuzzy, lying on its side with its legs folded
+function drawDeadBee(c, x, y, s, rot){
+  c.save(); c.translate(x, y); c.rotate(rot || 0); c.scale(s, s);
+  // crumpled see-through wings
+  c.fillStyle = 'rgba(228,238,242,.7)'; c.strokeStyle = 'rgba(105,115,120,.75)'; c.lineWidth = 0.25;
+  c.save(); c.translate(-0.2, -1.3); c.rotate(-0.95); ell(c, -1.7, 0, 2.5, 1.1); c.fill(); c.stroke(); c.restore();
+  c.save(); c.translate(0.5, -1.4); c.rotate(-0.3); ell(c, -1.2, 0, 1.9, 0.9); c.fill(); c.stroke(); c.restore();
+  // fuzzy striped abdomen
+  c.fillStyle = '#6b4a1a'; ell(c, -2, 0.25, 2.8, 2); c.fill();
+  c.fillStyle = '#e2a83a'; ell(c, -2.1, 0, 2.6, 1.8); c.fill();
+  c.save(); ell(c, -2, 0.25, 2.8, 2); c.clip(); c.fillStyle = '#3a2614'; c.fillRect(-3.7, -2.5, 0.8, 5); c.fillRect(-2.1, -2.5, 0.8, 5); c.fillRect(-0.6, -2.5, 0.7, 5); c.restore();
+  c.fillStyle = 'rgba(255,238,175,.6)'; ell(c, -2.5, -1, 1.6, 0.5); c.fill();
+  c.fillStyle = '#2a1e14'; c.beginPath(); c.moveTo(-4.7, 0.3); c.lineTo(-5.5, 0.6); c.lineTo(-4.6, 0.9); c.closePath(); c.fill();
+  // fuzzy thorax and a dark head
+  c.fillStyle = '#4a3218'; ell(c, 1.2, -0.05, 1.6, 1.5); c.fill();
+  c.fillStyle = '#c99434'; ell(c, 1.1, -0.5, 1.1, 0.8); c.fill();
+  c.fillStyle = '#2a1e14'; ell(c, 3, 0.1, 1.1, 1.05); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.45)'; ell(c, 3.25, -0.3, 0.35, 0.3); c.fill();
+  // feelers and folded legs
+  c.strokeStyle = '#2a1e14'; c.lineWidth = 0.3; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(3.4, -0.6); c.quadraticCurveTo(4.2, -1.8, 4.8, -1.4); c.moveTo(3.2, -0.7); c.quadraticCurveTo(3.6, -2, 4.3, -2.2); c.stroke();
+  c.beginPath(); for (const lx of [0.3, 1.1, 1.9]){ c.moveTo(lx, 1.1); c.lineTo(lx - 0.5, 1.9); c.lineTo(lx + 0.2, 2.4); } c.stroke();
+  c.restore();
+}
+// what the robots found, carried (closed book / the bee) and studied (open book / the bee under a magnifying glass)
+function drawFindClosed(c, x, y, s, rot){ if (S.story.item === 'bee') drawDeadBee(c, x, y + 1, s*0.95, rot); else drawBookClosed(c, x, y, s, rot); }
+function drawFindOpen(c, x, y, s, flip, r){
+  if (S.story.item !== 'bee'){ drawBookOpen(c, x, y, s, flip); return; }
+  c.save(); c.translate(x, y); c.scale(s, s);
+  drawDeadBee(c, 0, 1, 1.25, -0.08);
+  // a magnifying glass drifting over the bee
+  const t = r ? r.anim : 0, lx = Math.sin(t*0.9)*2.2 - 0.6, ly = Math.cos(t*1.3)*1.2 - 1.6;
+  c.strokeStyle = '#6e4a30'; c.lineWidth = 1.3; c.lineCap = 'round'; c.beginPath(); c.moveTo(lx + 3.4, ly + 3.4); c.lineTo(lx + 7, ly + 7.6); c.stroke();
+  c.fillStyle = 'rgba(220,240,255,.28)'; ell(c, lx, ly, 4.4, 4.4); c.fill();
+  c.strokeStyle = '#b8902f'; c.lineWidth = 0.9; ell(c, lx, ly, 4.4, 4.4); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 0.6; c.beginPath(); c.arc(lx, ly, 3.2, -2.7, -1.9); c.stroke();
+  c.restore();
+}
+// ── V13: a letter from the truck driver: a cream envelope with a red wax seal
+function drawEnvelope(c, x, y, s, rot){
+  c.save(); c.translate(x, y); c.rotate(rot || 0); c.scale(s, s);
+  c.fillStyle = 'rgba(60,40,20,.25)'; rr(c, -5.6, -3.4, 12, 8, 1); c.fill();
+  c.fillStyle = '#f4e9cf'; rr(c, -6, -4, 12, 8, 1); c.fill();
+  c.strokeStyle = '#c9b38a'; c.lineWidth = 0.55; c.beginPath(); c.moveTo(-6, -4); c.lineTo(0, 0.6); c.lineTo(6, -4); c.moveTo(-6, 4); c.lineTo(-1.6, -0.6); c.moveTo(6, 4); c.lineTo(1.6, -0.6); c.stroke();
+  c.fillStyle = '#b8452d'; ell(c, 0, 0.5, 1.6, 1.5); c.fill(); c.fillStyle = '#d9663f'; ell(c, -0.4, 0.1, 0.6, 0.5); c.fill();
+  c.restore();
+}
+function drawGroundLetter(l){
+  const c = ctx;
+  c.save(); c.translate(l.x, l.y);
+  c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, 1, 1, 11, 3.2); c.fill();
+  c.scale(1, 0.62); c.rotate(-0.12);
+  drawEnvelope(c, 0, -4, 1.55, 0);
+  c.restore();
 }
 // a researcher's head: tipped down toward the book, and every so often a curious tilt one way or the other
 function headTilt(r){
@@ -3765,16 +4241,18 @@ function drawTimers(){
   timers = [];
 }
 function drawRobot(r){
-  const c = ctx, st = STYLES[r.id];
+  // V13: r.sty / r.cfg let the truck driver (who isn't one of your robots) use the same drawing; r.hz lifts a robot
+  // off the ground while it hops in or out of the truck
+  const c = ctx, st = r.sty || styleOf(r.id), cfg = r.cfg || S.robots[r.id], hz = r.hz || 0;
   const bw = st.bw, bh = st.bh, hw = st.hw, hh = st.hh, tw = st.tw;
   const top = -8 - bh;
-  c.save(); c.translate(r.x, r.y);
-  c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, tw*0.55, 4.5); c.fill();
+  c.save(); c.translate(r.x, r.y - hz);
+  c.fillStyle = 'rgba(35,28,12,' + (hz ? 0.18 : 0.3) + ')'; ell(c, 0, 1 + hz, tw*(hz ? 0.42 : 0.55), hz ? 3.4 : 4.5); c.fill();
   const bob = r.moving ? -Math.abs(Math.sin(r.anim*(st.chunky ? 8 : st.slim ? 13 : 11)))*(st.chunky ? 1 : 1.6) : Math.sin(r.anim*2 + r.id)*0.3;
   c.scale(r.face, 1);
   // treads: they look different for each wheel tier (old wheels, rubber treads, ball-bearing hubs)
   const th = st.chunky ? 12 : 10, md = st.modern;
-  drawWheels(c, tw, th, r.moving, r.anim, tierOf(S.robots[r.id].lv.speed), (r.x + r.y*0.4)*r.face, { md, chunky: st.chunky });
+  drawWheels(c, tw, th, r.moving, r.anim, tierOf(cfg.lv.speed), (r.x + r.y*0.4)*r.face, { md, chunky: st.chunky });
   c.translate(0, bob);
   // body
   const g = c.createLinearGradient(0, top, 0, -8); g.addColorStop(0, st.body); g.addColorStop(1, st.body2);
@@ -3840,7 +4318,7 @@ function drawRobot(r){
   }
   if (!st.round && !st.patches && !md){ c.fillStyle = shade(st.body2, 0.8); for (const [px, py] of [[-bw/2+3,top+2.5],[bw/2-2.5,-11],[-bw/2+3,-11]]){ ell(c, px, py, .9, .9); c.fill(); } }
   // a robot whose first job is mining gets sooty down its front
-  const sooty = S.robots[r.id] && S.robots[r.id].prio.length && S.robots[r.id].prio[0].includes('mine');
+  const sooty = cfg && cfg.prio.length && cfg.prio[0].includes('mine');
   if (sooty){
     const rnd = mulberry(r.id*13 + 1);
     const sg = c.createLinearGradient(bw*0.5, 0, -bw*0.1, 0); sg.addColorStop(0, 'rgba(28,24,22,.62)'); sg.addColorStop(1, 'rgba(28,24,22,0)');
@@ -3848,13 +4326,17 @@ function drawRobot(r){
     for (let k=0;k<11;k++){ c.fillStyle = 'rgba(28,24,22,' + (0.4 + rnd()*0.3) + ')'; ell(c, bw*0.02 + rnd()*bw*0.46, top + bh*0.2 + rnd()*bh*0.78, 1.2 + rnd()*2.6, 0.9 + rnd()*1.8); c.fill(); }
     c.restore();
   }
-  // number plate
-  c.fillStyle = '#efe6d0'; rr(c, bw/2 - 9, -17, 7, 6, 1.2); c.fill();
-  c.font = '800 6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
-  c.save(); c.translate(bw/2 - 5.5, -13.8); c.scale(r.face, 1); c.fillText(String(r.id + 1), 0, 0.4); c.restore();
+  // number plate (the truck driver has a little brown mail badge instead)
+  if (st.driver){ c.fillStyle = '#7a5232'; rr(c, bw/2 - 9, -17, 7, 5, 1.2); c.fill(); c.fillStyle = '#f3e7cf'; c.fillRect(bw/2 - 8, -16, 5, 3); c.strokeStyle = '#7a5232'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(bw/2 - 8, -16); c.lineTo(bw/2 - 5.5, -14.4); c.lineTo(bw/2 - 3, -16); c.stroke(); }
+  else {
+    c.fillStyle = '#efe6d0'; rr(c, bw/2 - 9, -17, 7, 6, 1.2); c.fill();
+    c.font = '800 6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
+    c.save(); c.translate(bw/2 - 5.5, -13.8); c.scale(r.face, 1); c.fillText(String(r.id + 1), 0, 0.4); c.restore();
+  }
   // basket on the back: a tin pail, then a wicker hamper, then a sprung steel hopper, a little bigger with every level
-  const cl = S.robots[r.id].lv.carry, bt = tierOf(cl), bs = 1 + 0.06*(cl - bt*4);
+  const cl = cfg.lv.carry, bt = tierOf(cl), bs = 1 + 0.06*(cl - bt*4);
   const BW = [12, 16, 20][bt]*bs, BH = [7, 7, 8][bt]*bs, bx1 = -bw/2 + 13, bx0 = bx1 - BW, by0 = top - 5 - (BH - 7)*0.6;
+  if (!st.driver){
   drawBasket(c, bt, bx0, by0, BW, BH, false);
   const n = Math.min(r.carryL, 9 + bt*3), m = Math.min(r.carryM, 6), q = Math.min(r.carryI, 4);
   if (n || m || q){
@@ -3864,6 +4346,7 @@ function drawRobot(r){
     for (let i=0;i<q;i++) drawIngot(c, bx0 + BW/2 + (i%2 ? 2 : -1), by0 + 1 - i*2.4, 8, 0);
   }
   drawBasket(c, bt, bx0, by0, BW, BH, true);
+  }
   if (st.lantern){
     // a hooked pole on its back with a little lantern swinging from it
     const sw = Math.sin(r.anim*(r.moving ? 7 : 1.6) + r.id)*(r.moving ? 0.35 : 0.12);
@@ -3917,21 +4400,21 @@ function drawRobot(r){
     const k = clamp(1 - r.timer/1.15, 0, 1), ext = k < 0.48 ? Math.sin(k/0.48*Math.PI/2) : Math.max(0, Math.cos((k - 0.48)/0.42*Math.PI/2));
     const lx = (S.story.x - r.x)*r.face, ly = S.story.y - r.y - bob - 4, cx2 = bw/2 + 6, cy2 = top + bh*0.5 - 1;
     const hx = bookRt.held ? lerp(cx2, lx, ext) : sx + (lx - sx)*ext, hy = bookRt.held ? lerp(cy2, ly, ext) : sy + (ly - sy)*ext;
-    if (bookRt.held) drawBookClosed(c, hx + 1, hy - 3, 0.9, 0.3*ext);
+    if (bookRt.held) drawFindClosed(c, hx + 1, hy - 3, 0.9, 0.3*ext);
     c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
     c.lineWidth = 1.5; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + 3, hy + 2.5); c.moveTo(hx, hy); c.lineTo(hx - 1.5, hy + 3.5); c.stroke();
   } else if (r.st === 'toStudy' && bookRt.held && bookRt.by === r.id){
     // carrying the book in its hands, out in front (not in the basket)
     const bx = bw/2 + 6, by = top + bh*0.5 - 1 + (r.moving ? Math.sin(r.anim*10)*0.5 : 0);
     c.save(); c.strokeStyle = shade(md ? '#7f8b92' : '#4a423b', 0.75); c.beginPath(); c.moveTo(sx - 6, sy - 1); c.lineTo(bx - 4, by + 3); c.stroke(); c.restore();
-    drawBookClosed(c, bx, by, 0.95, 0.06);
+    drawFindClosed(c, bx, by, 0.95, 0.06);
     c.beginPath(); c.moveTo(sx, sy); c.lineTo(bx + 1, by + 4); c.stroke();
     c.fillStyle = armC; ell(c, bx + 1, by + 4, 1.7, 1.5); c.fill(); ell(c, bx - 4, by + 3.5, 1.5, 1.3); c.fill();
   } else if (r.st === 'study' && bookRt.held && bookRt.by === r.id){
     // holding the book open in front of its face, a page turning now and then
     const bx = bw/2 + 9, by = top + bh*0.15 + Math.sin(r.anim*1.3 + r.id)*0.5;
     c.save(); c.strokeStyle = shade(md ? '#7f8b92' : '#4a423b', 0.75); c.beginPath(); c.moveTo(sx - 6, sy - 1); c.lineTo(bx - 6, by + 4.6); c.stroke(); c.restore();
-    c.save(); c.translate(bx, by); c.rotate(-0.12); drawBookOpen(c, 0, 0, 0.75, r.flipP); c.restore();
+    c.save(); c.translate(bx, by); c.rotate(-0.12); drawFindOpen(c, 0, 0, 0.75, r.flipP, r); c.restore();
     c.beginPath(); c.moveTo(sx, sy); c.lineTo(bx + 5, by + 4.4); c.stroke();
     c.fillStyle = armC; ell(c, bx + 5.4, by + 4.2, 1.7, 1.5); c.fill(); ell(c, bx - 6, by + 4.8, 1.5, 1.3); c.fill();
   } else if (r.st === 'assist'){
@@ -3945,6 +4428,12 @@ function drawRobot(r){
       c.lineWidth = 1.3; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + Math.cos(a)*4.5, hy + Math.sin(a)*4.5); c.stroke();
       c.fillStyle = armC; ell(c, hx, hy, 1.7, 1.7); c.fill();
     } else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3, sy + 7); c.stroke(); }
+  } else if (r.letter){
+    // V13: the truck driver carrying a letter out in front of it
+    const bx = bw/2 + 6, by = top + bh*0.5 - 2 + (r.moving ? Math.sin(r.anim*10)*0.5 : 0);
+    drawEnvelope(c, bx, by, 0.85, 0.1);
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(bx, by + 3); c.stroke();
+    c.fillStyle = armC; ell(c, bx, by + 3, 1.6, 1.4); c.fill();
   } else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
   else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3.5, sy + 7); c.stroke(); }
   // head (V12: researchers tip it toward the book, and tilt it now and then, curious)
@@ -3982,7 +4471,7 @@ function drawRobot(r){
   c.fillStyle = 'rgba(255,255,255,.7)'; ell(c, ex + 1.6, ey - 1.1, .8, .8*bl); c.fill();
   if (st.patches){ c.strokeStyle = '#4c4840'; c.lineWidth = 1; c.beginPath(); c.moveTo(ex - 5, ey - 5.5); c.lineTo(ex + 5, ey - 4.5); c.stroke(); }
   // V12: a robot with Research upgrades puts on reading glasses while it studies (gold rims once it's a speed reader)
-  const sL = S.robots[r.id].lv.study || 0;
+  const sL = cfg.lv.study || 0;
   if (sL && !md && (r.st === 'study' || r.st === 'assist')){
     c.strokeStyle = sL >= 2 ? '#c9a24a' : '#3a2e22'; c.lineWidth = 1; ell(c, ex + .4, ey, 4.4, 4); c.stroke();
     c.fillStyle = 'rgba(220,240,255,.18)'; ell(c, ex + .4, ey, 4, 3.6); c.fill();
@@ -4005,6 +4494,13 @@ function drawRobot(r){
     c.fillStyle = '#d9a41f'; rr(c, hx0 - 2, hy0, hw + 4, 2.2, 1); c.fill();
     c.fillStyle = 'rgba(255,250,220,.55)'; ell(c, hx0 + hw*0.35, hy0 - hh*0.32, 2.2, 1); c.fill();
   }
+  if (st.driver){
+    // V13: the truck driver's flat brown cap, with its peak pointing forward
+    c.fillStyle = '#6e4a30'; c.beginPath(); c.ellipse(hx0 + hw/2, hy0 + 1.5, hw/2 + 1.5, hh*0.55, 0, Math.PI, 0); c.closePath(); c.fill();
+    c.fillStyle = '#8a6040'; c.beginPath(); c.ellipse(hx0 + hw/2 - 1, hy0 - 1.5, hw/2 - 1, hh*0.32, 0, Math.PI, 0); c.closePath(); c.fill();
+    c.fillStyle = '#4f3422'; rr(c, hx0 + hw*0.45, hy0 + 0.2, hw*0.75, 2.4, 1.2); c.fill();
+    c.fillStyle = '#d9a43a'; ell(c, hx0 + hw*0.5, hy0 - 0.6, 1.1, 1.1); c.fill();
+  }
   if (st.sprout){
     // a little seedling growing out of the top of its head
     const sw2 = Math.sin(r.anim*2 + r.id)*0.15;
@@ -4016,7 +4512,7 @@ function drawRobot(r){
   }
   // antenna
   const ax = hx0 + 5, ay = st.round ? hy0 + 2 : hy0, ah = st.slim ? 11 : 8;
-  if (st.hazard){ /* the hard hat has no antenna */ }
+  if (st.hazard || st.driver){ /* the hard hat and the driver's cap have no antenna */ }
   else if (md){
     // a short, straight chrome mast with a polished ball that glows a cool white now and then
     c.strokeStyle = '#9aa6ac'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax - 3, ay - 9); c.stroke();
@@ -4040,7 +4536,7 @@ function drawRobot(r){
   }
   c.restore();   // the head's tilt
   c.restore();
-  if (r.st === 'study' && bookRt.by === r.id) timers.push({ x: r.x, y: r.y - 98, t: mmss(researchETA()), k: S.story.prog/RESEARCH_NEED, on: researchRate() > 0 });
+  if (r.st === 'study' && bookRt.by === r.id) timers.push({ x: r.x, y: r.y - 98, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: researchRate() > 0 });
   if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt'){
     const pr = r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : r.st === 'wrap' ? '#e0475a' : '#ffb866';
     c.save(); c.translate(r.x, r.y + top - hh - 22); c.lineWidth = 3; c.lineCap = 'round';
@@ -4297,6 +4793,9 @@ function drawTruck(){
     if (T.takeI) for (let i=0;i<Math.min(8, T.takeI);i++) drawIngot(c, 6 + rnd()*44, BT + 1 - rnd()*h*0.6, 9, 0);
     c.restore();
   }
+  // V13: a robot riding along stands in the back, in front of the load, cut off by the stake sides
+  const rd = T.rider != null ? R[T.rider] : null;
+  if (rd && rd.st === 'ride'){ c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); drawRobot(rd); c.restore(); }
   c.fillStyle = '#5d412b'; c.fillRect(-18, BT - 2, 88, 3.5);
   drawTruckBoard(c, BT);
   c.fillStyle = '#4f7774'; rr(c, -84, -32, 16, 20, 4); c.fill();
@@ -4332,7 +4831,8 @@ function drawParts(){
       else if (p.kind === 'honey'){ c.fillStyle = '#e8931c'; ell(c, x, y, 2.6, 2.2); c.fill(); c.fillStyle = 'rgba(255,236,160,.85)'; ell(c, x - 0.7, y - 0.6, 0.8, 0.7); c.fill(); }
       else if (p.kind === 'bag') drawLeafBag(c, x, y + 5, 12);
       else if (p.kind === 'ingot') drawIngot(c, x, y + 2, 9, Math.sin(t*6)*0.3);
-      else if (p.kind === 'book') drawBookClosed(c, x, y - 4, 0.95, Math.sin(t*Math.PI)*0.5);
+      else if (p.kind === 'book') drawFindClosed(c, x, y - 4, 0.95, Math.sin(t*Math.PI)*0.5);
+      else if (p.kind === 'letter') drawEnvelope(c, x, y - 2, 0.9, Math.sin(t*Math.PI)*0.4);
       else if (p.kind === 'dirt'){ c.fillStyle = p.col || '#6b4a2e'; ell(c, x, y, p.s || 1.6, (p.s || 1.6)*0.8); c.fill(); }
       else if (p.kind === 'coin'){ const k = 1/cam.z, sq = Math.abs(Math.cos(t*12)); c.fillStyle = '#d9a43a'; ell(c, x, y, 6*k, (6*sq + 1)*k); c.fill(); c.fillStyle = '#f2cd66'; ell(c, x, y, 4*k, (4*sq + .6)*k); c.fill(); }
     } else if (p.k === 'spark'){ c.fillStyle = 'rgba(255,214,120,' + a + ')'; c.fillRect(p.x - 1, p.y - 1, 2.2, 2.2); }
@@ -4484,6 +4984,7 @@ function drawMarkers(){
     groups[o.obj] = true;
   }
   if (researchOpen() && !S.story.opened && !bookRt.held && S.t >= bookRt.landT) groups.book = true;
+  S.letters.forEach((l, i) => { if (!l.read) groups['letter' + i] = true; });
   if (cardOpen) groups[cardOpen.obj] = false;
   for (const k in groups){
     if (!groups[k]) continue;
@@ -4527,14 +5028,14 @@ function drawHints(){
   c.save(); c.globalAlpha = hintA;
   const y = s.y + Math.sin(S.t*2.4)*3;
   c.font = '700 ' + Math.round(21*textScale()) + 'px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.lineJoin = 'round'; c.lineWidth = 4; c.strokeStyle = 'rgba(55,30,14,.6)'; c.strokeText(h.t, s.x, y); c.fillStyle = '#fff4e0'; c.fillText(h.t, s.x, y);
+  c.lineJoin = 'round'; c.lineWidth = 4; c.strokeStyle = 'rgba(55,30,14,.6)'; c.strokeText(sayT(h.t), s.x, y); c.fillStyle = '#fff4e0'; c.fillText(sayT(h.t), s.x, y);
   c.restore();
 }
 
 function draw(){
   const c = ctx;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  c.fillStyle = '#5f6d33'; c.fillRect(0, 0, W, H);
+  c.fillStyle = LOT.bg || '#5f6d33'; c.fillRect(0, 0, W, H);
   const G = groundCam, k = cam.z/G.z;
   c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
@@ -4553,8 +5054,10 @@ function draw(){
     { y: BAGGER.y, f: drawBagger }, { y: PALLET.y, f: drawPallet }, { y: PLANT.y, f: drawPlant },
   ];
   for (const i of S.miners) list.push({ y: SPOTS[i].y, f: () => drawMiner(i) });
-  for (const r of R) list.push({ y: r.y, f: () => drawRobot(r) });
+  for (const r of R) if (r.st !== 'ride' && r.st !== 'gone') list.push({ y: r.y, f: () => drawRobot(r) });
   if (researchOpen() && !bookRt.held && S.t >= bookRt.landT) list.push({ y: S.story.y, f: drawGroundBook });
+  for (const l of S.letters) list.push({ y: l.y, f: () => drawGroundLetter(l) });
+  if (driver && driver.y < LANE - 26) list.push({ y: driver.y, f: () => drawRobot(driver) });
   BUSHES.forEach((b, i) => list.push({ y: b.y, f: () => drawBushObj(i) }));
   // a shaker hugging a trunk is drawn after the tree crowns, so it stays in front of the trunk
   const onTrunk = h => h.kind === 'shaker' && h.st === 'shake' && h.target && h.target.type === 'tree';
@@ -4562,6 +5065,7 @@ function draw(){
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
   drawTruck();
+  if (driver && driver.y >= LANE - 26) drawRobot(driver);   // the driver on the road side of the truck
   for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
   drawParts();
   TREES.forEach((t, i) => {
@@ -4685,6 +5189,11 @@ const ICON = {
 ICON.book = '<path d="M0,-3.4 L-5.4,-4.6 V3.8 L0,5 L5.4,3.8 V-4.6Z" fill="#3b6268"/><path d="M0,-2.8 L-4.7,-3.9 V3.2 L0,4.3Z" fill="#f3e6c8"/><path d="M0,-2.8 L4.7,-3.9 V1 L3.9,1.6 L4.4,2.4 L3.3,3.5 L0,4.3Z" fill="#efe0bd"/><path d="M0,-2.9 V4.4" stroke="#8a6a46" stroke-width=".5"/>' +
   '<ellipse cx="-2.4" cy=".6" rx="1.5" ry="1.1" fill="#9aa3ab"/><circle cx="-3.6" cy="-.2" r=".8" fill="#a9b2b9"/><ellipse cx="2.4" cy="1" rx="1.3" ry=".8" fill="#e2702a"/><circle cx="1.3" cy="-.3" r=".55" fill="#e2702a"/><circle cx="3.5" cy="-.3" r=".55" fill="#e2702a"/>';
 ICON.research = ICON.book;
+// V13: letters from the truck driver, the trip to another lot, and the dead bee
+ICON.letter = '<rect x="-5.4" y="-3.8" width="10.8" height="7.6" rx=".8" fill="#f4e9cf" stroke="#a8875a" stroke-width=".6"/><path d="M-5.2,-3.5 L0,.6 L5.2,-3.5" stroke="#a8875a" stroke-width=".6" fill="none"/><circle cy=".7" r="1.4" fill="#b8452d"/>';
+ICON.travel = ICON.truck;
+ICON.deadbee = '<g transform="rotate(-10)"><ellipse cx="-1.6" cy=".4" rx="3.2" ry="2.3" fill="#e2a83a"/><path d="M-3.4,-1.8 v4.4 M-1.6,-1.9 v4.6 M.1,-1.6 v4" stroke="#3a2614" stroke-width=".9"/><ellipse cx="2.3" cy="0" rx="1.7" ry="1.6" fill="#4a3218"/><circle cx="4.3" cy=".2" r="1.2" fill="#2a1e14"/><ellipse cx="-.6" cy="-2.6" rx="2.4" ry="1.2" fill="#e4eef2" stroke="#7d878c" stroke-width=".35" transform="rotate(-25 -.6 -2.6)"/><path d="M1.2,1.6 l-.6,1.3 M2.4,1.6 l-.4,1.4" stroke="#2a1e14" stroke-width=".45"/></g>';
+if (LOT.ICON) Object.assign(ICON, LOT.ICON);
 ICON.elephant = '<path d="M-1.8,-1.6 C-1,-4.6 3.6,-4.8 4.8,-1.6 C5.8,1 5,3.4 4.2,4.6 H3 V3.2 H.6 V4.6 H-.6 V2.6 C-1.4,2.2 -1.8,1.2 -1.8,.4Z" fill="#9aa3ab"/>' +
   '<circle cx="-2.4" cy="-1.4" r="2.6" fill="#a9b2b9"/><path d="M-4.6,-.6 C-5.6,.8 -5.6,2.6 -4.6,3.6 C-4.2,4 -3.6,3.8 -3.8,3.2 C-4.3,2.4 -4.2,1.2 -3.6,.2" fill="#a9b2b9"/>' +
   '<ellipse cx="-1.2" cy="-1.2" rx="1.5" ry="2.1" fill="#8a939b"/><ellipse cx="-1.1" cy="-1.1" rx=".8" ry="1.3" fill="#d9a3a6"/><circle cx="-3.4" cy="-2.1" r=".5" fill="#3a2e22"/>' +
@@ -4857,13 +5366,13 @@ function botThumb(ri){
   const url = pcv.toDataURL(); thumbs[ri] = { url, t: S.t };
   return url;
 }
-const crewBot = (ri, tag) => '<span class="crew" title="' + STYLES[ri].name + '"><img src="' + botThumb(ri) + '" alt="' + STYLES[ri].name + '">' + (tag ? '<b>' + tag + '</b>' : '') + '</span>';
+const crewBot = (ri, tag) => '<span class="crew" title="' + styleOf(ri).name + '"><img src="' + botThumb(ri) + '" alt="' + styleOf(ri).name + '">' + (tag ? '<b>' + tag + '</b>' : '') + '</span>';
 // "who works here": robots with that task on their list, or a nudge to add it
 function crewRow(icon, label, task, tagOf){
   const who = S.robots.map((c, ri) => taskOn(c, task) ? ri : -1).filter(ri => ri >= 0);
   // lots of robots: their faces in a little huddle (with the number once, if they're all the same)
   const tags = who.map(ri => tagOf ? tagOf(ri) : ''), same = tags.every(t => t === tags[0]);
-  const body = who.length > 4 ? '<span class="huddle">' + who.map((ri, j) => '<img src="' + botThumb(ri) + '" alt="" title="' + STYLES[ri].name + (tags[j] ? ' · ' + attr(tags[j]) : '') + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
+  const body = who.length > 4 ? '<span class="huddle">' + who.map((ri, j) => '<img src="' + botThumb(ri) + '" alt="" title="' + styleOf(ri).name + (tags[j] ? ' · ' + attr(tags[j]) : '') + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
     : who.length ? who.map(ri => crewBot(ri, tagOf ? tagOf(ri) : '')).join('') : '<span class="none">nobody · add <span class="chip mini" style="--tc:' + TASKS[task].col + '">' + ic(task) + TASKS[task].short + '</span> to a robot’s tasks</span>';
   return { sig: 'crew' + task + who.map(ri => ri + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
 }
@@ -4911,6 +5420,9 @@ function robotDoing(r){
     case 'study': return ['research', 'Studying the book'];
     case 'toAssist': return ['research', 'Going to help'];
     case 'assist': return ['research', 'Helping with research'];
+    case 'toCurb': return ['travel', 'To the curb'];
+    case 'curb': return ['travel', 'Waiting for the truck'];
+    case 'hopIn': case 'hopOut': case 'ride': return ['travel', 'Riding the truck'];
   }
   if (!cfg.prio.some(row => row.some(t => taskOpen(t, cfg)))) return ['list', 'Nothing on its list', 1];
   return ['list', 'Looking for work'];
@@ -4949,7 +5461,7 @@ function taskListChanged(kind, i){
   // let the robot look at its list again straight away (unless it's in the middle of something)
   if (kind === 'robot'){
     const r = R[i];
-    if (r && ['wander', 'rest', 'seek', 'toStation', 'toMine', 'toTub', 'toRack', 'wait', 'waitI', ...RESEARCH_STATES].includes(r.st) || (r && r.st === 'mine' && !taskOn(cfg, 'mine'))){ release(r); r.st = 'idle'; r.mineP = 0; }
+    if (r && ['wander', 'rest', 'seek', 'toStation', 'toMine', 'toTub', 'toRack', 'wait', 'waitI', 'toCurb', 'curb', ...RESEARCH_STATES].includes(r.st) || (r && r.st === 'mine' && !taskOn(cfg, 'mine'))){ release(r); r.st = 'idle'; r.mineP = 0; }
   } else {
     const h = HB.find(q => q.kind === kind && q.idx === i);
     if (h && (['wander', 'rest', 'go'].includes(h.st) || (h.st === 'lap' && !taskOn(cfg, 'blow')) || (h.st === 'dig' && !taskOn(cfg, 'dig')))){ h.target = null; h.st = 'idle'; }
@@ -5022,12 +5534,14 @@ const HIVE_ICON = { wings:'wings', third:'three', tongue:'tongue', fan:'fan', re
 const GEN_ICON = { oil:'oil', basket:'basket', fingers:'claw', blueprint:'blueprint', cutting:'drop', market:'market', charm:'horseshoe' };
 const GEN_SHORT = { oil: l => '+' + 20*(l + 1) + '% speed, every robot', basket: () => 'Copied baskets cost 10%', fingers: l => '+' + 30*(l + 1) + '% claw spread',
   blueprint: () => 'Copied levels cost 30%', cutting: l => '+' + 15*(l + 1) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% double metal' };
-const HEAD_ICON = { book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
+if (LOT.GEN_ICON) Object.assign(GEN_ICON, LOT.GEN_ICON);
+if (LOT.GEN_SHORT) Object.assign(GEN_SHORT, LOT.GEN_SHORT);
+const HEAD_ICON = { letter:'letter', book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
 function cardModel(){
   const k = cardOpen.kind, rows = [], rows2 = [];
   let title = '', tag = '', live = '', top = '', foot = '', tabs = null, head = HEAD_ICON[k] || '';
   if (k === 'robot' || k === 'blower' || k === 'shaker'){
-    const i = cardOpen.i, st = (k === 'robot' ? STYLES : k === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
+    const i = cardOpen.i, st = k === 'robot' ? styleOf(i) : (k === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
     title = st.name; live = k === 'robot' ? 'robot' : 'helper'; head = 'portrait';
     const tp = tasksPanel(k, i);
     if (tp) tabs = { peek: tasksPeek(k, i) };
@@ -5045,7 +5559,10 @@ function cardModel(){
     rows.push(upRow('leafPrice'));
     if (!S.bag.built && baggerShown()) rows.push(bagBuildRow());
     if (S.bag.built) rows.push(keepRow('L', 'leaf', 'Keep for bagging', keepLeaves() + ic('leaf'), 'The truck leaves this many loose leaves in the bin so they can be bagged first. At 0 it takes everything.', S.keep.leaves));
-    if (!S.metalSlot){ if (metalSlotShown()) rows.push(metalSlotRow()); }
+    if (!S.metalSlot){
+      if (metalSlotShown()) rows.push(metalSlotRow());
+      else if (!metalOpen()) rows.push({ sig:'metalsoon', html: row({ icon: ic('tub'), cls:'soon', name:'Metal slot', val:'No metal on this plot. Mining opens with the ' + AREAS[MINE_LAND].name.toLowerCase() }) });
+    }
     else {
       rows2.push(upRow('metalBin', S.plant.built ? xt(palletCap() + ic('ingot'), 'Room on the ingot pallet') : '')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
       if (S.plant.built) rows2.push(keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal));
@@ -5061,21 +5578,23 @@ function cardModel(){
   } else if (k === 'shed'){
     title = 'Workshop';
     const n = S.robots.length;
-    if (n < ROBOT_MAX) rows.push(buyRow('Build ' + STYLES[n].name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', robotCost(n), '', ic('robot'), STYLES[n].blurb));
+    if (n < ROBOT_MAX){ const ns = STYLES[nextStyle()]; rows.push(buyRow('Build ' + ns.name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', robotCost(n), '', ic('robot'), ns.blurb)); }
     else rows.push(buyRow('Robots', 'all <b>' + ROBOT_MAX + '</b> built', 'robot', 0, 'done', ic('robot')));
     for (const kind of ['blower', 'shaker']) if (helperShown(kind)){
       const m = cfgsOf(kind).length, stl = (kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[m];
       rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a blower: pushes leaves to the bin' : 'a shaker: more leaves from trees', kind, helperCost(kind), '', ic(kind === 'blower' ? 'elephant' : 'crab'), (kind === 'blower' ? 'A blower: blows far-off leaves toward the bin. ' : 'A shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
     } else if (cfgsOf(kind).length >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', ic(kind === 'blower' ? 'elephant' : 'crab')));
-    if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', HIVE_COST, '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
+    if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
     if (genVisible()){
-      const ks = Object.keys(GEN).filter(genAvail).sort((a, b) => genCost(a) - genCost(b));
+      // V13: a lot's own upgrades (the prairie's flower upgrades) get a section of their own, always shown when available
+      const own = (LOT.genSection && LOT.genSection.keys) || [];
+      const ks = Object.keys(GEN).filter(q => genAvail(q) && !own.includes(q)).sort((a, b) => genCost(a) - genCost(b));
       const owned = Object.keys(GEN).filter(q => gl(q) >= GEN[q].max);
+      const genRow = q => { const g = GEN[q], l = gl(q); const r = buyRow(g.name + (g.max > 1 ? nuts(l, [{ n: g.max }]) : ''), GEN_SHORT[q](l), 'gen:' + q, genCost(q), '', ic(GEN_ICON[q]), g.desc(l).replace(/<[^>]+>/g, '')); r.sig += l; return r; };
+      const ok = own.filter(genAvail);
+      if (ok.length){ rows2.push({ sig:'gfh', html:'<div class="sect">' + LOT.genSection.title + '</div>' }); for (const q of ok) rows2.push(genRow(q)); }
       rows2.push({ sig:'gh', html:'<div class="sect">Yard-wide</div>' });
-      for (const q of ks.slice(0, 6)){
-        const g = GEN[q], l = gl(q);
-        const r = buyRow(g.name + (g.max > 1 ? nuts(l, [{ n: g.max }]) : ''), GEN_SHORT[q](l), 'gen:' + q, genCost(q), '', ic(GEN_ICON[q]), g.desc(l).replace(/<[^>]+>/g, '')); r.sig += l; rows2.push(r);
-      }
+      for (const q of ks.slice(0, 6)) rows2.push(genRow(q));
       if (!ks.length) rows2.push({ sig:'gnone', html:'<div class="none pad">More unlock as the yard grows.</div>' });
       if (owned.length) rows2.push({ sig:'gown' + owned.length, html:'<div class="gdone">' + owned.map(q => '<span class="dchip" title="' + GEN[q].name + '">' + ic(GEN_ICON[q]) + ic('check', 'ck') + '</span>').join('') + '</div>' });
     }
@@ -5083,7 +5602,7 @@ function cardModel(){
   } else if (k === 'hive'){
     const H = S.hive;
     title = 'Beehive';
-    if (!H.built){ head = 'honey'; rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', HIVE_COST, '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars')); }
+    if (!H.built){ head = 'honey'; rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars')); }
     else {
       live = 'hive';
       const n = H.bees;
@@ -5154,18 +5673,33 @@ function cardModel(){
     foot = '<div class="foot"><span><kbd>M</kbd> mutes</span></div>';
   } else if (k === 'book'){
     // V12: the old picture book: its two pages, what the robots make of it, and the research timer once it's started
-    title = 'Old picture book'; live = 'book';
+    const F = FIND(), bee = S.story.item === 'bee';
+    title = F.title; live = 'book'; if (bee) head = 'deadbee';
     const who = researchers(), going = who.length > 0 || S.story.prog > 0;
-    top = '<div class="bookart">' + BOOK_SVG + '</div><p class="story">Two pages salvaged from a wet children’s book. Maybe it can be useful.</p>';
+    top = '<div class="bookart' + (bee ? ' beeart' : '') + '">' + (bee ? BEE_SVG : BOOK_SVG) + '</div><p class="story">' + F.story + '</p>';
     const chip = '<span class="chip mini" style="--tc:' + TASKS.research.col + '">' + ic('research') + 'Research</span>';
-    const names = who.map(q => STYLES[q.id].name);
-    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip:'The robot holding the book does ' + RESEARCH_MAIN + ' research a second, each robot helping ' + RESEARCH_HELP + ' (more with Research upgrades). Progress is kept if they stop.',
+    const names = who.map(q => styleOf(q.id).name);
+    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip:'The robot holding ' + F.holding + ' does ' + RESEARCH_MAIN + ' research a second, each robot helping ' + RESEARCH_HELP + ' (more with Research upgrades). Progress is kept if they stop.',
       val: names.length ? names.join(', ') + (names.length > 1 ? ' are on it' : ' is on it') : '<span class="none">nobody yet · add ' + chip + ' to a robot’s Do list</span>' }) });
-    if (going) rows.push({ sig:'two', html:'<div class="lockline tip2">' + ic('robot') + '2 robots can research this for faster progress.</div>' });
+    if (going) rows.push({ sig:'two', html:'<div class="lockline tip2">' + ic('robot') + (F.crew ? 'Up to ' + F.crew + ' robots can research this together.' : '2 robots can research this for faster progress.') + '</div>' });
+  } else if (k === 'letter'){
+    // V13: a letter from the truck driver
+    const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
+    title = L ? L.title : 'A letter'; head = 'letter';
+    if (L) top = '<div class="letter"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>';
+    if (S.trip){
+      const h = tripHolder(), hi = h ? S.robots.indexOf(h) : -1, cand = S.robots.findIndex(tripFor);
+      const chip = '<span class="chip mini" style="--tc:' + TASKS.travel.col + '">' + ic('travel') + TASKS.travel.short + '</span>';
+      const whose = S.trip.to === 'home' && cand >= 0 ? styleOf(cand).name + '’s' : 'a robot’s';
+      rows.push({ sig:'trip' + hi + (hi >= 0 ? R[hi] && R[hi].st : ''), html: row({ icon: ic('travel'), name: TASKS.travel.name,
+        tip:'The robot waits at the curb and hops into the back of the truck at the next pickup' + (S.trip.bee ? ', and a bee comes along' : ''),
+        val: hi >= 0 ? styleOf(hi).name + (R[hi] && (R[hi].st === 'curb' || R[hi].st === 'toCurb') ? ' is waiting for the truck' : ' will go with the next pickup') : '<span class="none">add ' + chip + ' to ' + whose + ' Do list</span>' }) });
+    }
   } else if (k === 'sale'){
     const A = AREAS[S.land + 1], cur = AREAS[S.land], newSpots = SPOTS.filter(p => p.land === S.land + 1).length;
     title = 'For sale';
     rows.push(buyRow('The ' + A.name.toLowerCase(), '<b>' + Math.round(A.w*A.h/(cur.w*cur.h)) + '×</b> room' + (newSpots ? ' · +' + newSpots + ic('vein') : '') + ' · more ' + ic('leaf') + ic('flower'), 'land', A.cost, '', ic('land'), 'More room means more leaves and flowers' + (newSpots ? ' and a metal vein' : '') + ', but longer trips to the bin'));
+    if (MINE_LAND && S.land + 1 === MINE_LAND) rows.push({ sig:'mine', html: row({ icon: ic('vein'), name:'Finally a chance to mine!', val:'The ' + A.name.toLowerCase() + ' has the only metal vein: the metal slot, miners and the smelting plant all open there' }) });
   } else if (k === 'spot'){
     const i = cardOpen.i, p = SPOTS[i], vw = veinWord(i).replace(/^an? /, '');
     tag = '<span class="tag" title="Richer veins give chunks faster">' + vw + '</span>';
@@ -5177,9 +5711,9 @@ function cardModel(){
       const shaft = S.shafts.includes(i), room = slotsAt(i);
       title = shaft ? 'Mine shaft' : 'Miner'; head = shaft ? 'shaft' : 'vein';
       const ws = minerWorkers(i);
-      for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1) + metalCarry(w) + doubleChance(w), html: '<div class="row crewrow"><div class="ri">' + crewBot(w) + '</div><div class="rm"><div class="n">' + STYLES[w].name + '</div><div class="v">' +
+      for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1) + metalCarry(w) + doubleChance(w), html: '<div class="row crewrow"><div class="ri">' + crewBot(w) + '</div><div class="rm"><div class="n">' + styleOf(w).name + '</div><div class="v">' +
         drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small>×2</small>', 'Chance of double metal') : '') + '</div></div>' +
-        '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + STYLES[w].name + '’s task list">Stop</button></div></div>' });
+        '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + styleOf(w).name + '’s task list">Stop</button></div></div>' });
       if (ws.length < room){
         const any = R.some(r => S.robots[r.id].miner == null);
         rows.push({ sig:'nw' + any + ws.length, html: row({ icon: ic('robot'), cls:'soon', name: ws.length ? 'Room for one more' : 'Nobody mining', val: any ? 'sends the nearest free robot' : 'every robot is at a mine', btn:'<button class="buy ghost" data-act="send" aria-disabled="' + !any + '">Send one</button>' }) });
@@ -5233,6 +5767,31 @@ const BOOK_SVG = '<svg viewBox="0 0 300 172" role="img" aria-label="An old pictu
   // a dried leaf stuck to the page
   '<path d="M126,140 c8,-8 20,-6 22,2 c-6,8 -18,8 -22,-2z" fill="#c96a22" opacity=".9"/><path d="M128,141 l18,1" stroke="#8c3215" stroke-width="1"/>' +
   '</svg>';
+// V13: the dead bee from the prairie, as its card shows it: lying on a big pink petal, legs folded, wings crumpled
+const BEE_SVG = '<svg viewBox="0 0 300 172" role="img" aria-label="A small dead bee lying on its side on a pink petal">' +
+  '<defs><radialGradient id="bePt" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#fde6ec"/><stop offset=".7" stop-color="#f4b3c6"/><stop offset="1" stop-color="#e58fac"/></radialGradient>' +
+  '<radialGradient id="beAb" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#f6cf6a"/><stop offset="1" stop-color="#c98a26"/></radialGradient></defs>' +
+  '<path d="M150,160 C70,156 22,112 30,64 C38,24 96,8 132,30 C142,12 168,6 180,24 C222,6 282,30 276,80 C270,128 224,158 150,160Z" fill="url(#bePt)"/>' +
+  '<path d="M150,150 C146,112 140,80 136,40 M150,150 C176,118 196,92 212,58 M150,150 C122,128 96,110 70,92" stroke="#d27f9b" stroke-width="2" fill="none" opacity=".45"/>' +
+  '<ellipse cx="150" cy="128" rx="88" ry="12" fill="#7d3550" opacity=".12"/>' +
+  // wings, crumpled and see-through
+  '<g fill="#eef6f8" fill-opacity=".72" stroke="#7d878c" stroke-width="1.4"><path d="M150,72 C126,40 92,34 84,52 C78,68 110,80 150,80Z"/><path d="M160,70 C160,40 182,28 196,38 C208,48 190,70 164,78Z"/></g>' +
+  '<path d="M146,76 C122,58 104,52 96,56 M162,72 C170,52 182,42 190,44" stroke="#7d878c" stroke-width="1" fill="none" opacity=".7"/>' +
+  // abdomen with fuzzy stripes and a sting
+  '<ellipse cx="120" cy="104" rx="44" ry="30" fill="url(#beAb)"/>' +
+  '<g fill="#3a2614"><path d="M96,78 q-8,26 2,52 l10,-2 q-8,-24 0,-48z"/><path d="M118,74 q-8,30 2,60 l11,-1 q-8,-28 0,-58z"/><path d="M140,76 q-6,28 2,56 l9,-4 q-6,-24 0,-50z"/></g>' +
+  '<path d="M77,108 l-14,4 l14,4z" fill="#3a2614"/>' +
+  '<ellipse cx="110" cy="88" rx="22" ry="6" fill="#fff4c8" opacity=".45"/>' +
+  // fuzzy thorax and head
+  '<circle cx="176" cy="98" r="22" fill="#4a3218"/><ellipse cx="172" cy="90" rx="14" ry="9" fill="#c99434" opacity=".85"/>' +
+  '<g stroke="#c99434" stroke-width="1.2" opacity=".6"><path d="M160,82 l-3,-4 M168,78 l-1,-5 M178,77 l1,-5 M188,80 l3,-4"/></g>' +
+  '<circle cx="208" cy="104" r="15" fill="#2a1e14"/><ellipse cx="213" cy="98" rx="5" ry="4" fill="#fff" opacity=".35"/>' +
+  '<path d="M216,92 C228,72 240,70 246,78 M212,90 C216,70 226,62 234,64" stroke="#2a1e14" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+  // legs folded up
+  '<g stroke="#2a1e14" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M164,118 l-8,14 l10,8"/><path d="M178,120 l-2,16 l11,5"/><path d="M190,116 l6,14 l10,2"/></g>' +
+  // a dot of pollen still on it
+  '<circle cx="186" cy="132" r="4" fill="#f7d56a"/><circle cx="183" cy="130" r="1.4" fill="#fff6c8"/>' +
+  '</svg>';
 // packing speed, for the bagger and packer crews
 const smeltSkillPack = ri => rv(ri, 'pack').toFixed(1) + '×';
 
@@ -5274,7 +5833,7 @@ function liveHTML(kind){
   if (kind === 'book'){
     const v = researchRate();
     return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : 'Time left for one robot on its own') + '">' + ic('clock') + mmss(researchETA()) + '</span>' +
-      meter('research', Math.floor(S.story.prog), RESEARCH_NEED, 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + v + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
+      meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + v + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), 'Bags in the bin') + slots('bag', busyIn('bag'), 2, 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, RACK_CAP, 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road') + slots('flame', busyIn('smelt'), 3, 'Furnaces working');
@@ -5296,17 +5855,17 @@ function renderCard(force){
     cardOpen.tabsOn = !!m.tabs;
     card.classList.toggle('wide', m.tabs ? !!m.tabs.wide : two);
     const medal = m.head === 'portrait' ? '<canvas id="cardPortrait" width="128" height="128"></canvas>' : m.head ? ic(m.head) : '';
-    card.innerHTML = '<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
+    card.innerHTML = sayH('<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
       '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div><button class="x" data-act="close" aria-label="Close">' +
       '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       (m.tabs ? '<div class="tabs" role="tablist"><button role="tab" data-act="tab:up" class="' + (cardTab !== 'tasks' ? 'on' : '') + '">' + ic('wrench') + 'Upgrades</button><button role="tab" data-act="tab:tasks" class="' + (cardTab === 'tasks' ? 'on' : '') + '">' + ic('list') + 'Tasks<span class="peek">' + m.tabs.peek + '</span></button></div>' : '') +
       '<div class="cbody">' + m.top +
       (two ? '<div class="cols"><div class="col">' + body + '</div><div class="col">' + m.rows2.map(r => r.html).join('') + '</div></div>' : body) +
-      (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot + '</div>';
+      (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot + '</div>');
     card.querySelectorAll('.live').forEach(n => { n._t = ''; });
     placeCard();
   }
-  const lv = $('cardLive'); if (lv){ const t = liveHTML(m.live); if (lv._t !== t){ lv._t = t; lv.innerHTML = t; } }
+  const lv = $('cardLive'); if (lv){ const t = liveHTML(m.live); if (lv._t !== t){ lv._t = t; lv.innerHTML = sayH(t); } }
   const pc = $('cardPortrait'); if (pc) drawPortrait(pc, cardOpen.kind, cardOpen.i);
   // the "saving up" fill on buttons you can't afford yet
   if (--fillT <= 0){ fillT = 6; for (const b of card.querySelectorAll('[data-cost]')){ const p = pfill(+b.dataset.cost); if (b.style.getPropertyValue('--p') !== p) b.style.setProperty('--p', p); } }
@@ -5354,13 +5913,14 @@ function cardAnchor(){
   else if (k === 'bagger'){ p = { x: BAGGER.x, y: BAGGER.y - 50 }; below = 54; }
   else if (k === 'plant'){ const bt = S.plant.built; p = { x: PLANT.x, y: PLANT.y - (bt ? 100 : 50) }; below = bt ? 110 : 60; }
   else if (k === 'book'){ const b = bookPos(); p = { x: b.x, y: b.y - 10 }; below = 20; }
+  else if (k === 'letter'){ const l = S.letters[cardOpen.i]; if (!l) return { x: W/2, y: H/2, below: 0 }; p = { x: l.x, y: l.y - 8 }; below = 16; }
   else if (k === 'sound'){ const b = sndBtn.getBoundingClientRect(); return { x: b.left + b.width/2 + 120, y: b.top, below: b.height }; }
   else return { x: W/2, y: H/2, below: 0 };
   const s = w2s(p.x, p.y);
   return { x: s.x, y: s.y, below: below*cam.z };
 }
 function openCard(kind, i){
-  const obj = kind === 'robot' || kind === 'spot' || kind === 'blower' || kind === 'shaker' ? kind + i : kind;
+  const obj = kind === 'robot' || kind === 'spot' || kind === 'blower' || kind === 'shaker' || kind === 'letter' ? kind + i : kind;
   cardOpen = { kind, i, obj };
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
   if (kind === 'blower' || kind === 'shaker'){ const h = HB.find(q => q.kind === kind && q.idx === i); cardOpen.ax = h.x; cardOpen.ay = h.y - 46; }
@@ -5370,6 +5930,7 @@ function openCard(kind, i){
   // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
   if (kind === 'robot'){ dismissHint('unlock'); if (tasksPanel('robot', i)){ if (!hintDone('tasks') && !S.flags.taskHint) cardTab = 'tasks'; dismissHint('tasks'); if (researchOpen() && S.story.opened && !S.story.prog && !S.robots.some(c => taskOn(c, 'research'))) cardTab = 'tasks'; } }
   if (kind === 'book') S.story.opened = true;
+  if (kind === 'letter') readLetter(i);
   if (kind === 'hive' && S.hive.built) dismissHint('bees');
   if (kind === 'spot' && S.metalSlot) dismissHint('miner');
   sfx('paper');
@@ -5397,7 +5958,7 @@ card.addEventListener('click', e => {
   else if (act.startsWith('tech:')){ const id = act.slice(5); if (techAvailable(id)) buy({ id:'tech', key:id, obj:cardOpen.obj, cost:TECH[id].cost }); }
   else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
   else if (act === 'metalSlot') buy({ id:'metalSlot', obj:'bin', cost:METAL_SLOT_COST });
-  else if (act === 'hive'){ if (!S.hive.built) buy({ id:'hive', obj:'hive', cost:HIVE_COST }); }
+  else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
   else if (act.startsWith('hiveUp:')){ const k = act.slice(7); if (HIVE_UP[k] && !S.hive.up[k]) buy({ id:'hiveUp', key:k, obj:'hive', cost:hiveUpCost() }); }
   else if (act === 'robot') buy({ id:'robot', obj:'shed', cost:robotCost(S.robots.length) });
@@ -5423,13 +5984,14 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
 const FRONTS = () => [{ x0: BIN.x - 40, x1: S.metalSlot ? TUB.x + 17 : BIN.x + 40, y0: BIN.y - 54, y1: BIN.y }, { x0: SHED.x - 54, x1: SHED.x + 54, y0: SHED.y - 96, y1: SHED.y }];
 const hiddenBehind = (r, x, y) => FRONTS().some(f => r.y < f.y1 && x > f.x0 && x < f.x1 && y > f.y0 && y < f.y1);
 function hit(x, y){
+  for (let i = S.letters.length - 1; i >= 0; i--){ const l = S.letters[i]; if (Math.abs(x - l.x) < 13 && y > l.y - 14 && y < l.y + 6) return ['letter', i]; }
   if (researchOpen()){
     const h = bookRt.held ? bookHolder() : null, b = bookPos();
     if (Math.abs(x - b.x) < (h ? 11 : 15) && y > b.y - (h ? 10 : 13) && y < b.y + (h ? 8 : 8)) return ['book'];
     if (h && h.st === 'study'){ const ty = h.y - 98; if (Math.abs(x - h.x) < 26 && Math.abs(y - ty) < 11) return ['book']; }
     if (!h && S.story.prog > 0 && Math.abs(x - S.story.x) < 26 && Math.abs(y - (S.story.y - 30)) < 11) return ['book'];
   }
-  for (const r of [...R].sort((a,b) => b.y - a.y)){ const st = STYLES[r.id]; if (Math.abs(x - r.x) < st.tw/2 + 8 && y < r.y + 10 && y > r.y - 62 && !hiddenBehind(r, x, y)) return ['robot', r.id]; }
+  for (const r of [...R].sort((a,b) => b.y - a.y)){ if (r.st === 'gone') continue; const st = styleOf(r.id); if (Math.abs(x - r.x) < st.tw/2 + 8 && y < r.y + 10 && y > r.y - 62 && !hiddenBehind(r, x, y)) return ['robot', r.id]; }
   if (S.hive.built && Math.abs(x - CRATE.x) < 25 && y > CRATE.y - 62 && y < CRATE.y + 6) return ['hive'];
   if (hiveShown()){ const top = S.hive.built ? hiveTopZ() + 24 : 52; if (x > HIVE.x - 24 && x < HIVE.x + (S.hive.built ? 30 : 48) && y > HIVE.y - top && y < HIVE.y + 8) return ['hive']; }
   if (Math.abs(x - SHED.x) < 58 && y > SHED.y - 98 && y < SHED.y - 44) return ['shed'];   // the shed's walls and roof win over a helper parked in front
@@ -5561,16 +6123,18 @@ if (SND){
 
 // ───────────────────────── toast
 let toastTimer = 0;
-function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = main + (small ? '<small>' + small + '</small>' : ''); t.hidden = false; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 700); }, secs*1000); }
+function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = sayH(main + (small ? '<small>' + small + '</small>' : '')); t.hidden = false; t.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.hidden = true, 700); }, secs*1000); }
 
 // ───────────────────────── save / load
-// a location copy (public/locationN/, see index.html) keeps its own save
-const KEY = 'leaf-yard-save-v2' + (window.LOCATION ? '-' + window.LOCATION : '');
-function save(){ if (simMode || FRESH) return; try { localStorage.setItem(KEY, JSON.stringify(truck.st === 'pay' ? Object.assign({}, S, { cash: S.cash + (truck.payAmt || 0) }) : S)); } catch(e){} }
+// a location copy (public/locationN/, see index.html) keeps its own save, and so does every lot (V13)
+const KEY = lotKey(LOT_ID);
+let lotWasNew = false;   // this lot had no save yet (a fresh game, or the first time a robot rides here)
+function save(){ if (simMode || FRESH || travelling) return; try { localStorage.setItem(KEY, JSON.stringify(truck.st === 'pay' ? Object.assign({}, S, { cash: S.cash + (truck.payAmt || 0) }) : S)); } catch(e){} }
 function merge(base, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && base[k] && typeof base[k] === 'object') merge(base[k], src[k]); else if (k in base) base[k] = src[k]; } return base; }
 function load(data){
   let src = data && data.S;
-  if (!src && !FRESH){ try { const raw = localStorage.getItem(KEY); if (raw) src = JSON.parse(raw); } catch(e){} }
+  if (!src) src = readLot(LOT_ID);
+  lotWasNew = !(src && src.v === 2);
   if (src && src.v === 2){
     S = merge(freshState(), src);
     S.tech = Object.assign({}, src.tech || {});
@@ -5604,8 +6168,13 @@ function load(data){
     // task lists (V6): older saves had one focus per robot; turn it into the matching priority list
     S.robots = (src.robots || []).slice(0, ROBOT_MAX).map(r => {
       const prio = Array.isArray(r.prio) ? r.prio : r.job === 'mine' ? [['mine'], ['leaves']] : [['leaves']];
-      return tasksFix({ prio, off: Array.isArray(r.off) ? r.off : [], miner: r.miner ?? null, lv: Object.assign(newRobotCfg().lv, r.lv || {}) }, 'robot');
+      const cfg = tasksFix({ prio, off: Array.isArray(r.off) ? r.off : [], miner: r.miner ?? null, lv: Object.assign(newRobotCfg().lv, r.lv || {}) }, 'robot');
+      // V13: its look (when it isn't its place in the list), the lot it came from, and whether it's away on another lot
+      if (r.sty != null) cfg.sty = r.sty; if (r.home != null) cfg.home = r.home; if (r.away) cfg.away = r.away;
+      return cfg;
     });
+    S.post = Array.isArray(src.post) ? src.post.filter(id => LETTERS[id]) : [];
+    S.letters = Array.isArray(src.letters) ? src.letters.filter(l => l && LETTERS[l.id]) : [];
     S.flags.hints = Object.assign({}, (src.flags && src.flags.hints) || {});
     S.miles = Object.assign({}, src.miles || {});
     if (!(src.flags && src.flags.v12)){
@@ -5613,7 +6182,7 @@ function load(data){
       // the book counts as read (Research shows up as unavailable). Everyone else finds the book once they've earned $20.
       if ((src.blowers || []).length || (src.shakers || []).length){ Object.assign(S.story, { armed: true, found: true, done: true, opened: true, prog: RESEARCH_NEED }); if (S.miles.book == null) S.miles.book = 0; }
     }
-    S.story.prog = clamp(+S.story.prog || 0, 0, RESEARCH_NEED);
+    S.story.prog = clamp(+S.story.prog || 0, 0, researchNeed());
     let v7back = 0;
     const firstV7 = !(src.flags && src.flags.v7);
     if (firstV7) for (const kind of ['blower', 'shaker']) if ((src[KIND_LIST[kind]] || []).length > HELPER_MAX) v7back += OLD_HELPER5[kind];
@@ -5701,7 +6270,10 @@ function load(data){
 }
 function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
 function hardReset(){
-  try { localStorage.removeItem(KEY); } catch(e){}
+  // V13: starting over wipes every lot and goes back to the first yard
+  try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
+  if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
+  delete WORLD.arrive; driver = null; guest.on = false; truck.rider = null; truck.arriving = false;
   S = freshState(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
@@ -5718,7 +6290,7 @@ let last = 0;
 function frame(ts){
   const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
   const n = Math.ceil(TIME_SCALE);
-  for (let i=0;i<n;i++) step(dt*TIME_SCALE/n);
+  if (!travelling) for (let i=0;i<n;i++) step(dt*TIME_SCALE/n);   // (V13: everything stops while the page moves to another lot)
   if (camAnim){
     camAnim.t += dt;
     const e = ease(clamp(camAnim.t/camAnim.dur, 0, 1));
@@ -5759,8 +6331,10 @@ window.__leafYard = {
   sim(seconds, opts){
     opts = opts || {};
     simMode = true;
-    const keep = { S, R, HB, B, leaves, parts, pops, tst: truck.st, fl: FLOWERS.map(f => [f.full, f.t, f.claim]), stn: JSON.stringify(STN), bk: Object.assign({}, bookRt) };
+    const keep = { S, R, HB, B, leaves, parts, pops, tst: truck.st, fl: FLOWERS.map(f => [f.full, f.t, f.claim]), stn: JSON.stringify(STN), bk: Object.assign({}, bookRt),
+      drv: driver, gst: Object.assign({}, guest), rider: truck.rider, arr: truck.arriving };
     S = freshState(); R = []; HB = []; B = []; truck.st = 'away'; parts = []; pops = []; resetStations(); seedLeaves();
+    driver = null; guest.on = false; truck.rider = null; truck.arriving = false;
     bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
     for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
     if (opts.setup) opts.setup(S);
@@ -5790,6 +6364,7 @@ window.__leafYard = {
     const out = { blown: S.totals.blown || 0, near, groundAll: gl0.length, avgD: Math.round(gl0.reduce((a, l) => a + Math.hypot(l.x - BIN.x, l.y - BIN.y), 0)/Math.max(1, gl0.length)), log, t:S.t, cash:S.cash, land:S.land, robots:S.robots.map(r => r.lv), extra:{ blowers:S.blowers.map(b => b.lv), shakers:S.shakers.map(b => b.lv), lv:S.lv }, miners:S.miners.length, totals:S.totals, miles:S.miles, story:S.story, tech:Object.keys(S.tech), jobs:S.robots.map(r => r.prio.map(row => row.join('+')).join(' > ')) };
     S = keep.S; R = keep.R; HB = keep.HB; B = keep.B; leaves = keep.leaves; parts = keep.parts; pops = keep.pops; truck.st = keep.tst; simMode = false;
     Object.assign(bookRt, keep.bk);
+    driver = keep.drv; Object.assign(guest, keep.gst); truck.rider = keep.rider; truck.arriving = keep.arr;
     { const st = JSON.parse(keep.stn); for (const k in STN) STN[k] = st[k]; }
     FLOWERS.forEach((f, i) => { [f.full, f.t, f.claim] = keep.fl[i]; });
     return out;
@@ -5803,6 +6378,8 @@ window.__leafYard = {
   treeDrop: () => treeDrop(true),
   bounds: () => ({ view: visRect(), bounds: camBounds() }),
   cam: () => ({ ...cam }),
+  setCam: (x, y, z) => { camAnim = null; camFollow = null; userCam = true; cam.z = z; cam.ox = W/2 - x*z; cam.oy = H/2 - y*z; buildGround(cam); },   // V13: for screenshots
+  world: () => WORLD,
   robots: () => R,
   helpers: () => HB,
   bees: () => B,
@@ -5811,8 +6388,23 @@ window.__leafYard = {
   w2s,
 };
 
+// dev (?fresh&lot=prairie): a new lot with nobody arriving gets a robot like one that has worked the first yard to $900
+function devTraveller(){
+  const c = S.robots[0] || (S.robots[0] = newRobotCfg());
+  c.home = 0; Object.assign(c.lv, DEV_TRAVELLER.lv);
+  for (const k of DEV_TRAVELLER.tech) S.tech[k] = true;
+  S.lv.truck = DEV_TRAVELLER.truck; S.lv.cleanup = DEV_TRAVELLER.cleanup; S.flags.helpers = true; S.flags.research = true;
+}
 function start(data){
+  // the helpers lot files use (see public/lots/); they only call them once the game is running
+  Object.assign(LH, { ell, rr, TAU, clamp, lerp, mulberry, cellRnd, shade, leafPath, leafBlob, drawLeaf, LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE,
+    drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, gl, S: () => S, flowerSpr: () => flowerSpr });
   load(data);
+  // V13: arriving from another lot (or, for testing, a new lot with nobody arriving)
+  let A = null;
+  if (WORLD.arrive && WORLD.arrive.to === LOT_ID){ A = arrive(WORLD.arrive, lotWasNew); delete WORLD.arrive; saveWorld(); }
+  else if (LOT_ID !== 'home' && lotWasNew) devTraveller();
+  if (A) lotFade(true, 'Arriving at ' + lotTitle(LOT_ID) + '…', true);
   W = innerWidth; H = innerHeight;
   buildCanopies(); buildBushes(); buildFlowerSprites(); buildFlowers();
   resize();
@@ -5820,6 +6412,8 @@ function start(data){
   seedLeaves();
   for (let i=0;i<10;i++) spawnAmbient();
   dispCash = S.cash;
+  if (S.flags.guestBee && !S.hive.built) Object.assign(guest, { on: true, mode: 'hover' }, GUEST_SPOT());
+  if (A){ arriveScene(A); save(); setTimeout(() => lotFade(false), 700); }
   addEventListener('resize', resize);
   if (window.claude && window.claude.hot && window.claude.hot.snapshot){ try { window.claude.hot.snapshot(() => ({ S })); } catch(e){} }
   requestAnimationFrame(ts => { last = ts; requestAnimationFrame(frame); });
