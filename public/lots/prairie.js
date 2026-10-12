@@ -336,7 +336,7 @@ LOTS.prairie = H => {
     ICON,
     // story: what the robots find here, and when the driver writes again (see STORY in game.js)
     find: 'bee',
-    arrive: { title: 'The Wildflower prairie', text: name => 'Petals everywhere and not a robot in sight. ' + name + ' gets to work.' },
+    arrive: { title: 'The Wildflower prairie', text: name => 'Petals everywhere and not a robot in sight. Start by cleaning up 300 petals.' },
   };
 };
 LOTS.prairie.title = 'the Wildflower prairie';   // what the game calls it before it's loaded ("Off to the Wildflower prairie…")

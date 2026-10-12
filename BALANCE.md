@@ -422,3 +422,7 @@ to three robots can work on it).
 - **V12.1:** robots walk round the workshop and bin and drop leaves in from behind the bin, so bin trips are shorter:
   metal ~36, Meadow ~47, plant ~52, orchard ~76, last price step ~86 (the early game is still ~2–3 min later than V11
   because of the research).
+- **V13.7:** blower and shaker skill tracks have 8 levels instead of 11 (2 + 3 + 3), same range (blow 1 → 5.8×, shake
+  6 → 38 leaves), and a gentler price climb: blow $8 / 15, turbine $60 / 95 / 140, jet $300 / 420 / 600; shake $7 / 13,
+  pincers $50 / 80 / 120, rumble $260 / 360 / 520 (unlocks unchanged: $70 / 420, $65 / 360). The full track now costs
+  about half what it did. Not re-measured with the test player yet.

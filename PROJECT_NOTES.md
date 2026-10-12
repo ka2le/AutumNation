@@ -10,6 +10,8 @@ The game is a browser-only canvas experience. One robot gathers falling leaves i
 
 **Balance:** `BALANCE.md` is the reference for tuning and for pricing new things: the goals (including the 5-minute payback rule), the formulas, how to measure with the headless tools in `tools/balance/`, the current numbers, and pitfalls. Read it before any balance change and update its section 5 after one.
 
+**Old saves are low priority (from V13.5).** Don't spend much coding time on migrating or special-casing existing saves when a feature changes. Players can start over or keep going as they are. A new change should not make an old save crash or get stuck, but it's fine if an old save misses a new story beat or gets slightly odd numbers. No refunds or "Rebalanced!" migrations unless asked.
+
 ## Project layout
 
 - `public/index.html` provides the page shell and HUD elements.
@@ -32,7 +34,7 @@ Useful development URL options:
 - `/?speed=4` runs the game at four times normal speed (the supported range is 0.25× to 20×).
 - Combine them as `/?fresh&speed=10`.
 
-Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves are not carried over). Tapping the cash counter 3 times within 2 seconds starts the test-money ladder ($100, $200, $500, $500, $1,000, $10,000, then $100,000 per tap). The Workshop card provides a Start over control.
+Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves are not carried over). Tapping the cash counter 3 times within 2 seconds opens the test panel (V13.8): +$10 / 100 / 500 / 1k / 10k / 100k and a Next step button for the story. The Workshop card provides a Start over control.
 
 ## Git workflow (who commits, who pushes)
 
@@ -331,4 +333,17 @@ The prairie (formerly the `location2` test copy) is now part of the main game as
 ### V13.5 (Oct 12)
 - **The first letter** now ends "Bring $100 to get started there." and has a small-print line under it: "Only truck upgrades, robot unlocks and Tinker's skills stay across yards." (`LETTERS.newLot.note`; the name is the robot with the trip in Do, else the first robot, `tripRobotName`).
 - **Travel money** (`TRIP_CASH` = 100, milestone `fare`, `packFare`): reading the letter no longer opens the trip straight away. It sets `S.flags.fareOpen`, and the goal pill under the cash shows `$40 / $100` ("Goal: Have $100 to bring to the new yard"); the letter's card has a Travel money row too. Holding $100 reaches it: the $100 comes out of the cash ("$100 packed for the trip", `S.flags.fare`), and only then the trip opens (Go to new lot task, as before).
-- **The prairie starts with the travel money**: `travel()` carries `fare`, `arrive()` starts a new lot with it (falls back to `LOT_START_CASH` $10 when none came along, e.g. a save that had already opened the trip before this). `?fresh&lot=prairie` starts with $100 too.
+- **The prairie starts with the travel money**: `travel()` carries `fare`, `arrive()` starts a new lot with it (falls back to `LOT_START_CASH` $10 when none came along; saves that had already opened the trip before this just go with $10, which is fine per the old-saves rule). `?fresh&lot=prairie` starts with $100 too.
+
+### V13.6 (Oct 12)
+- The old picture book now gets the same zoom-in as the dead bee when it turns up (`startFindCam` in `findBook` for every find, not just the bee).
+
+### V13.7 (Oct 12)
+- **Letter layout:** the letter is just the text and "— Trucker"; the "Only truck upgrades, robot unlocks and Tinker's skills stay across yards." line sits under the paper as a small info note (`.lnote`, new `info` icon), not part of the letter.
+- **Prairie arrival toast:** "Petals everywhere and not a robot in sight. Start by cleaning up 300 petals."
+- **Shears:** the row shows its explanation again ("Deadhead spent flowers: they bloom again sooner, so more nectar for the bees"; "Deadheads spent flowers" once bought). It was already hidden until a beehive is built (`trackVisible('snip')`), which is unchanged.
+- **Blower and shaker skills:** 8 levels instead of 11, same range, gentler prices (see BALANCE.md section 7). Saves with higher levels are clamped to the new top level on load.
+- The "$100 packed for the trip" note pops up a little further right so the cash tag doesn't cover it.
+
+### V13.8 (Oct 12)
+- **Test panel** (`toggleTestPanel`, `updTestPanel`, `testCash`, `nextStep`; `#testPanel` in the CSS): tapping the cash 3 times within 2 seconds now opens a small panel under the HUD instead of the money ladder. Six money buttons (+$10, 100, 500, 1k, 10k, 100k; test money also raises `S.peak`) and **Next step: …**, which does the next story beat on this lot and says which: find the book / dead bee (reaches its milestone and drops the find under the nearest robot), finish the research, earn enough for the letter (`S.totals.cash` → `LETTER_EARNED`), bring the letter now (calls the truck), read the letter, get the travel money, send the robot on the trip (puts Go to new lot / Go back at the top of its Do list and calls the truck), earn $100 from honey. "No story step left here" when there's nothing. Checked headless: the whole chain from a fresh yard to the prairie and back runs on Next step alone.

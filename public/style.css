@@ -325,10 +325,22 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* V13: letters from the truck driver, and the curtain while the truck drives between lots */
 .letter{margin:2px 0 8px;padding:12px 14px 8px;border-radius:6px;background:repeating-linear-gradient(#fbf3e0 0 21px,#e8dcc0 21px 22px);box-shadow:inset 0 0 0 1.2px var(--rule),0 2px 4px rgba(60,30,10,.18);transform:rotate(-.6deg)}
 .letter p{margin:0 0 4px;font-family:var(--font-hand);font-weight:700;font-size:21px;line-height:22px;color:#3f2a1c}
-.letter .ps{font-family:inherit;font-weight:600;font-size:13px;line-height:17px;color:#6b4a30;margin:6px 0 2px}
+.lnote{display:flex;gap:6px;align-items:flex-start;margin:-2px 2px 8px;font-size:12.5px;line-height:16px;font-weight:600;color:#7a5a3c}
+.lnote .ic{width:14px;height:14px;flex:none;margin-top:1px;opacity:.8}
 .letter .sig{text-align:right;font-size:18px;color:#7a5232}
 .beeart{background:radial-gradient(120% 100% at 50% 0%,#f3e3d6,#e2cbb8)}
 #lotFade{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:radial-gradient(120% 100% at 50% 40%,#4a3424,#21170f);opacity:0;transition:opacity .9s ease}
 #lotFade.show{display:flex}
 #lotFade.on{opacity:1}
 #lotFade .lf{font-family:var(--font-hand);font-weight:700;font-size:34px;color:#f6ead4;text-shadow:0 2px 0 rgba(0,0,0,.35);padding:0 24px;text-align:center}
+
+/* V13.8: the test panel (tap the cash 3 times) */
+#testPanel{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));top:calc(104px + env(safe-area-inset-top,0px));z-index:6;width:230px;background:var(--paper);border:2px solid var(--kraft);border-radius:14px;box-shadow:0 3px 0 var(--kraft-dk),0 10px 26px rgba(40,18,4,.3);padding:8px 10px 10px;color:var(--ink);font-family:var(--font-ui)}
+#testPanel[hidden]{display:none}
+#testPanel .tph{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:14px}
+#testPanel button{font:inherit;font-weight:700;cursor:pointer;border:1.5px solid var(--kraft);background:var(--paper-2);color:var(--ink);border-radius:9px}
+#testPanel .tpx{width:26px;height:26px;border-radius:50%;padding:0;line-height:1;font-size:16px}
+#testPanel .tpm{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#testPanel .tpm button{padding:6px 0;font-size:13.5px}
+#testPanel .tpn{display:block;width:100%;margin-top:7px;padding:7px 8px;font-size:13px;background:#e9efd0;border-color:#8ea65a;text-align:left}
+#testPanel .tpn:disabled{opacity:.55;cursor:default}

@@ -200,16 +200,17 @@ const TRACKS = {
       { tech:'electro', name:'Electromagnet', n:4, cost:[480, 680, 950, 1300] } ],
     vals:[0, .06,.11,.16, .22,.28,.34,.40, .48,.56,.64,.72], show:v=>v ? Math.round(v*100)+'% double metal' : 'no double metal' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
+  // V13.7: 8 levels instead of 11 (2 + 3 + 3) over the same range, and a gentler price climb (~75× first to last, was ~190×)
   blow: { label:'Blower', gens:[
-      { name:'Desk fan', n:3, cost:[6, 11, 19] },
-      { tech:'turbine', name:'Leaf turbine', n:4, cost:[60, 95, 150, 230] },
-      { tech:'jet', name:'Jet nozzle', n:4, cost:[400, 580, 820, 1150] } ],
-    vals:[1, 1.2, 1.4, 1.65, 1.95, 2.3, 2.7, 3.15, 3.7, 4.3, 5, 5.8], show:v=>v.toFixed(2)+'× blow power' },
+      { name:'Desk fan', n:2, cost:[8, 15] },
+      { tech:'turbine', name:'Leaf turbine', n:3, cost:[60, 95, 140] },
+      { tech:'jet', name:'Jet nozzle', n:3, cost:[300, 420, 600] } ],
+    vals:[1, 1.35, 1.75, 2.2, 2.75, 3.4, 4.1, 4.9, 5.8], show:v=>v.toFixed(2)+'× blow power' },
   shake: { label:'Shake', gens:[
-      { name:'Gentle wiggle', n:3, cost:[5.5, 10, 17] },
-      { tech:'pincers', name:'Hydraulic pincers', n:4, cost:[55, 85, 135, 200] },
-      { tech:'rumble', name:'Rumble claws', n:4, cost:[330, 480, 680, 960] } ],
-    vals:[6, 7, 8, 10, 12, 14, 17, 20, 24, 28, 33, 38], show:v=>v+' leaves from a big tree' },
+      { name:'Gentle wiggle', n:2, cost:[7, 13] },
+      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[50, 80, 120] },
+      { tech:'rumble', name:'Rumble claws', n:3, cost:[260, 360, 520] } ],
+    vals:[6, 8, 10, 13, 16, 20, 25, 31, 38], show:v=>v+' leaves from a big tree' },
   // shakers with shears can deadhead spent flowers so a fresh bloom pops up for the bees right away
   snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[40] } ],
     vals:[0, 1], show:v=>v ? 'can deadhead flowers' : 'trees only' },
@@ -255,10 +256,10 @@ const TECH = {
   diamond: { name:'Diamond drill bit', track:'drill', cost:350, needsMiner:true, desc:'Four faster drill upgrades.' },
   horseshoe:{ name:'Horseshoe magnet', track:'magnet', cost:260, needsMiner:true, desc:'Magnet upgrades 4 to 7: a better chance of double metal.' },
   electro: { name:'Electromagnet',     track:'magnet', cost:1200, needs:'horseshoe', desc:'Magnet upgrades 8 to 11: up to 72% double metal.' },
-  turbine: { name:'Leaf turbine',      track:'blow',  cost:70,  needsKind:'blowers', desc:'Four stronger blower upgrades: a wider, stronger breeze.' },
-  jet:     { name:'Jet nozzle',        track:'blow',  cost:420, needs:'turbine', desc:'Blower upgrades 8 to 11.' },
-  pincers: { name:'Hydraulic pincers', track:'shake', cost:65,  needsKind:'shakers', desc:'Four stronger shake upgrades: more leaves from every tree and bush.' },
-  rumble:  { name:'Rumble claws',      track:'shake', cost:360, needs:'pincers', desc:'Shake upgrades 8 to 11.' },
+  turbine: { name:'Leaf turbine',      track:'blow',  cost:70,  needsKind:'blowers', desc:'Three stronger blower upgrades: a wider, stronger breeze.' },
+  jet:     { name:'Jet nozzle',        track:'blow',  cost:420, needs:'turbine', desc:'Blower upgrades 6 to 8.' },
+  pincers: { name:'Hydraulic pincers', track:'shake', cost:65,  needsKind:'shakers', desc:'Three stronger shake upgrades: more leaves from every tree and bush.' },
+  rumble:  { name:'Rumble claws',      track:'shake', cost:360, needs:'pincers', desc:'Shake upgrades 6 to 8.' },
   jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc:'Four faster packing upgrades: bagging, honey jars, gift wrapping and smelting.' },
   precision:{ name:'Precision tools',  track:'pack',  cost:700, needs:'jig', desc:'Packing upgrades 8 to 11.' },
   cyclone: { name:'Grit cyclone',      track:'dig',   cost:450, needsShaft:true, desc:'Four stronger excavating upgrades for blowers at a mine shaft.' },
@@ -1437,7 +1438,7 @@ function goalNow(){
 // V13.5: the travel money is reached: it comes out of the cash and goes with the robot; only then does the trip open
 function packFare(){
   S.cash -= TRIP_CASH; S.flags.fare = TRIP_CASH;
-  if (!simMode){ const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + hc.width/2, hc.bottom + 40); pop(p.x, p.y, '$' + TRIP_CASH + ' packed for the trip', 'note', 18, 0, 3); }
+  if (!simMode){ const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + 150, hc.bottom + 75); pop(p.x, p.y, '$' + TRIP_CASH + ' packed for the trip', 'note', 18, 0, 3); }
   openTrip({ to: 'prairie' });
 }
 const goalShowing = id => { const g = goalNow(); return !!(g && !g.done && g.m.id === id); };
@@ -1514,7 +1515,7 @@ function findBook(r, l){
     pop(r.x, r.y - 78, '!', 'note', 30);
     pop(S.story.x, S.story.y - 46, 'New task available: Research', 'note', 18, 0.9, 4);
     robotSays(r, 'hmm', true); sfx('chime', 'sale');
-    if (S.story.item === 'bee') startFindCam(S.story.x, S.story.y);   // V13.2: the camera zooms in on the dead bee as it turns up
+    startFindCam(S.story.x, S.story.y);   // the camera zooms in on the find as it turns up (V13.2 the bee, V13.6 the book too)
     const F = FIND(); setTimeout(() => showToast(F.found[0], F.found[1], 9), 700);
   }
   save();
@@ -5176,6 +5177,7 @@ function updHud(dt){
   $('hCash').classList.toggle('bump', cashBumpT > 0);
   if (cashBumpT > 0) cashBumpT -= dt;
   updGoalHud(dt);
+  updTestPanel();
 }
 // V13.4: the goal pill: an icon, how far along (12 / 300, or $12 / $100), a thin progress bar, and the goal itself on
 // hover or tap. Once reached it turns green with a tick for a few seconds.
@@ -5204,22 +5206,79 @@ function updGoalHud(dt){
 // where the number flying up to the goal pill lands (on the icon), in canvas pixels
 function goalPt(){ const r = $('hGoal').getBoundingClientRect(); return r.width ? { x: r.left + 18, y: r.top + r.height/2 } : { x: 30, y: 70 }; }
 $('hGoal').addEventListener('pointerdown', e => { e.stopPropagation(); goalRt.tipT = goalRt.tipT > 0 ? 0 : 3.5; });
-// Tap the cash 3 times within 2 seconds to start the test-money ladder: $100, $200, $500, $500, $1,000, $10,000, then $100,000 per tap.
+// V13.8: tap the cash 3 times within 2 seconds to open the test panel: add money, or trigger the next story step.
 const cheat = { n: 0, first: 0, last: 0 };
 $('hCash').addEventListener('pointerdown', e => {
   e.stopPropagation();
   const now = performance.now();
   if (now - cheat.last > 2000){ cheat.n = 0; cheat.first = now; }
   cheat.n++; cheat.last = now;
-  if (cheat.n < 3) return;
-  if (cheat.n === 3 && now - cheat.first > 2000){ cheat.n = 1; cheat.first = now; return; }
-  const add = cheat.n === 3 ? 100 : cheat.n === 4 ? 200 : cheat.n <= 6 ? 500 : cheat.n === 7 ? 1000 : cheat.n === 8 ? 10000 : 100000;
-  S.cash += add; cashBumpT = 0.25;
+  if (cheat.n >= 3 && now - cheat.first <= 2000){ cheat.n = 0; toggleTestPanel(); }
+});
+const TEST_AMOUNTS = [10, 100, 500, 1000, 10000, 100000];
+function testCash(add){
+  S.cash += add; S.peak = Math.max(S.peak || 0, S.cash); cashBumpT = 0.25;
   sfx('coins', add);
   const tgt = s2w(130, 76);
   pop(tgt.x, tgt.y, '+' + cash2(add) + ' (test)', 'cash', 20);
   save();
-});
+}
+// the next story beat on this lot, as { label, run }, or null when there's nothing left to push along
+function nextStep(){
+  const st = S.story, callTruck = () => { if (truck.st === 'away') S.truckT = Math.min(S.truckT, 0.3); };
+  const li = S.letters.findIndex(l => !l.read);
+  if (li >= 0) return { label: 'Read the letter', run: () => readLetter(li) };
+  if (S.post.length || driver) return { label: 'Bring the letter now', run: callTruck };
+  if (S.trip){
+    if (tripHolder()) return { label: 'Call the truck', run: callTruck };
+    const i = S.robots.findIndex(tripFor);
+    if (i < 0) return null;
+    return { label: 'Send ' + styleOf(i).name + ' on the trip', run: () => { const c = S.robots[i]; taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged('robot', i); callTruck(); } };
+  }
+  if (S.flags.fareOpen && S.miles.fare == null) return { label: 'Get the travel money', run: () => { S.cash = Math.max(S.cash, TRIP_CASH); } };
+  const item = st.item || 'book', what = item === 'bee' ? 'the dead bee' : 'the book';
+  if (!st.found){
+    const mile = MILESTONES.find(m => m.on && (m.lot || 'home') === LOT_ID && m.goal && S.miles[m.id] == null && (m.id === 'book' || m.id === 'bee'));
+    if (mile || st.armed) return { label: 'Find ' + what, run: () => {
+      if (mile){ S.miles[mile.id] = Math.round(S.t); if (mile.id === 'bee') S.totals.leaves = Math.max(S.totals.leaves || 0, BEE_LEAVES); }
+      st.armed = true;
+      const r = R.find(q => !q.away && S.robots[q.id] && !S.robots[q.id].away) || R[0]; if (!r) return;
+      const O = owned(); findBook(r, { x: clamp(r.x, O.x0 + 40, O.x1 - 40), y: Math.min(FIND_ABOVE - 40, Math.max(O.y0 + 30, r.y)) });
+    } };
+  }
+  if (!st.done) return { label: 'Finish researching ' + what, run: finishResearch };
+  if (LOT_ID === 'home' && S.miles.letter == null) return { label: 'Earn enough for the letter', run: () => { S.totals.cash = Math.max(S.totals.cash || 0, LETTER_EARNED); } };
+  if (LOT_ID === 'prairie' && S.miles.honey == null) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };
+  return null;
+}
+let testSig = '';
+function toggleTestPanel(force){
+  let el = $('testPanel');
+  if (!el){
+    el = document.createElement('div'); el.id = 'testPanel'; el.hidden = true;
+    el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div><div class="tpm">' +
+      TEST_AMOUNTS.map(a => '<button data-t="cash:' + a + '">+' + (a >= 1000 ? (a/1000).toLocaleString('en-US') + 'k' : a) + '</button>').join('') +
+      '</div><button class="tpn" data-t="next"></button>';
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const t = b.dataset.t;
+      if (t === 'close') toggleTestPanel(false);
+      else if (t.startsWith('cash:')) testCash(+t.slice(5));
+      else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
+    });
+    document.body.appendChild(el);
+  }
+  el.hidden = force != null ? !force : !el.hidden;
+  testSig = ''; updTestPanel();
+}
+function updTestPanel(){
+  const el = $('testPanel'); if (!el || el.hidden) return;
+  const top = Math.round($('hud').getBoundingClientRect().bottom + 10) + 'px'; if (el.style.top !== top) el.style.top = top;   // stays under the cash and goal pill
+  const n = nextStep(), sig = n ? n.label : '-';
+  if (sig === testSig) return; testSig = sig;
+  const b = el.querySelector('.tpn'); b.disabled = !n; b.textContent = n ? 'Next step: ' + n.label : 'No story step left here';
+}
 
 // ───────────────────────── cards
 // V10 UI rework: cards say less and show more. Numbers come with little pictures (a leaf, a chunk of metal, a jar),
@@ -5230,6 +5289,7 @@ let cardOpen = null, cardSig = '', resetArm = false, cardNote = '', cardTab = 'u
 // ── little pictures (12×12, centred on 0,0), in the yard's colours
 const ICON = {
   petal:  '<path d="M0,5 C-4.6,1.6 -4.4,-3.4 -1.6,-5 C-.6,-4.2 .6,-4.2 1.6,-5 C4.4,-3.4 4.6,1.6 0,5Z" fill="#f4a6bf"/><path d="M0,3.6 V-1.6" stroke="#d27f9b" stroke-width=".7" stroke-linecap="round"/>',
+  info:   '<circle r="5.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cy="-2.6" r=".8" fill="currentColor"/><path d="M0,-.8 V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
   tick:   '<path d="M-3.6,0.2 L-1,2.8 L3.8,-2.6" fill="none" stroke="#4f7a2c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
   leaf:   '<path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#d4672a"/><path d="M0,-3.6V4.6" stroke="#8c3215" stroke-width=".8"/>',
   ore:    '<path d="M-4.5,-1.5 L-1.5,-4.5 L3.5,-3 L4.5,1.5 L1,4.5 L-3.5,3Z" fill="#8f979b"/><path d="M-1.5,-4.5 L3.5,-3 L1,0Z" fill="#c3cbd0"/>',
@@ -5392,7 +5452,7 @@ const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '')
 const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke' };
 const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
   drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills and wraps jars, and smelts', blow:'How hard it blows (range, push and glide)',
-  study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again for the bees', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows' };
+  study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows' };
 const TRACK_VAL = {
   speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
   drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small>×2</small>'], pack: v => [v.toFixed(2) + '×', ''],
@@ -5406,6 +5466,7 @@ function robotRow(ri, k, kind){
   if (k === 'carry' && S.metalSlot){ const m0 = 2 + Math.floor(L/2), m1 = maxed || locked ? m0 : 2 + Math.floor((L + 1)/2); val += xt((m1 !== m0 ? m0 + arrow + '<b>' + m1 + '</b>' : '<b>' + m0 + '</b>') + ic('ore'), 'Metal it carries'); }
   // smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
   if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Packing × Drill)'); sig += smeltSkill(ri).toFixed(2); }
+  if (k === 'snip') val = L ? 'Deadheads spent flowers' : 'Deadhead spent flowers: they bloom again sooner, so more nectar for the bees';   // V13.7
   if (maxed){ btn = stamp('max'); sig += 'max'; }
   else if (locked){ btn = nextUnlock(k) ? '' : '<span class="lk-ic" title="More levels unlock later">' + ic('lock') + '</span>'; sig += 'lock' + L; }
   else {
@@ -5790,7 +5851,7 @@ function cardModel(){
     // V13: a letter from the truck driver
     const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
     title = L ? L.title : 'A letter'; head = 'letter';
-    if (L) top = '<div class="letter"><p>' + L.text + '</p>' + (L.note ? '<p class="ps">' + L.note() + '</p>' : '') + '<p class="sig">— ' + L.sign + '</p></div>';
+    if (L) top = '<div class="letter"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>' + (L.note ? '<div class="lnote">' + ic('info') + '<span>' + L.note() + '</span></div>' : '');
     if (l && l.id === 'newLot' && S.flags.fareOpen && !S.trip && S.miles.fare == null)
       rows.push({ sig:'fare' + Math.floor(S.cash), html: row({ icon: ic('coin'), name:'Travel money', tip:'Once you have $' + TRIP_CASH + ', it’s packed for the trip and the robot that goes starts the new yard with it',
         val: cash2(S.cash) + ' of $' + TRIP_CASH }) });
@@ -6295,6 +6356,7 @@ function load(data){
     if (firstV7) for (const kind of ['blower', 'shaker']) if ((src[KIND_LIST[kind]] || []).length > HELPER_MAX) v7back += OLD_HELPER5[kind];
     for (const kind of ['blower', 'shaker']) S[KIND_LIST[kind]] = (src[KIND_LIST[kind]] || []).slice(0, HELPER_MAX).map(h => {
       const c = newHelperCfg(kind); Object.assign(c.lv, h.lv || {});
+      for (const k in c.lv) if (TRACKS[k]) c.lv[k] = clamp(c.lv[k] | 0, 0, TRACKS[k].vals.length - 1);   // V13.7: blow/shake have fewer levels now
       if (Array.isArray(h.prio)){ c.prio = h.prio; c.off = Array.isArray(h.off) ? h.off : []; }
       else if (kind === 'shaker' && h.job === 'flower') c.prio = [['snip'], ['shake']];
       else if (kind === 'shaker') c.prio = [['shake']];
