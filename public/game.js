@@ -1386,14 +1386,15 @@ function deposit(r){
 // groundwork for achievements / goals the player can work toward later; for now they only start story beats.
 // prog() is how far along it is (1 = reached), so a later goal list can show progress bars.
 // V13: each one belongs to a lot (lot: 'home', 'prairie'), so every place has its own story.
-const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the first yard has earned this much in all
+const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the first yard has earned this much in all,
+const LETTER_HELD = 200;     // or once you've held this much at one time (S.peak), whichever comes first
 const BEE_LEAVES = 320;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
 const HONEY_JARS = 30;       // jars of honey the prairie's hive makes before the driver offers a ride back
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
   { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
-  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED, prog: () => (S.totals.cash || 0)/LETTER_EARNED, on: () => postLetter('newLot') },
+  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD), on: () => postLetter('newLot') },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
   { id:'bee', lot:'prairie', hidden:true, name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; } },
   { id:'honey', lot:'prairie', hidden:true, name:'Sweet success', goal:'Make ' + HONEY_JARS + ' jars of honey', prog: () => (S.totals.honey || 0)/HONEY_JARS, on: () => postLetter('goHome') },
