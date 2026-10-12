@@ -30,10 +30,10 @@ All paths are relative, so the game works from `/AutumNation/` as well as from a
 
 ## Install as an app
 
-On the published site (https), Chrome on Android offers **Install app** / **Add to Home screen** in its menu. The game then opens full screen with its own leaf icon and the name AutumNation, and keeps working offline. Desktop Chrome and Edge show an install button in the address bar. On iPhone, use Safari's **Share → Add to Home Screen**.
+On the published site (https), Chrome on Android offers **Install app** / **Add to Home screen** in its menu. The game then opens full screen with its own rover icon and the name AutumNation, and keeps working offline. Desktop Chrome and Edge show an install button in the address bar. On iPhone, use Safari's **Share → Add to Home Screen**.
 
 - `public/manifest.webmanifest` holds the app name, colours and icons. Its stable ID is `/AutumNation/`, distinct from other apps on `ka2le.github.io`; `start_url` and `scope` resolve relative to the manifest's folder. If hosting at a different path, update the ID before the first install.
-- `public/icons/` has the app icons (`icon.svg` and `icon-maskable.svg` are the sources; the PNGs are rendered from them), `public/favicon.svg` / `favicon.ico` the browser tab icon.
+- `art/icon-master.png` is the rover artwork used for the app icon, maskable icon, Apple touch icon and cropped favicon. Run `tools/build-icons.ps1` to rebuild the sizes. `public/favicon.ico` contains 16, 32 and 48 px tab icons.
 - `public/sw.js` is the service worker: it loads everything from the network when online (so a new version shows up on the next start) and falls back to its cache when offline. If you add or remove files, add them to `SHELL` and bump `VERSION`.
 
 The service worker only removes old AutumNation caches and reads offline assets from its own cache, preserving other apps hosted on the same domain. Run `node tools/check-pwa.js` to verify app identity and cache isolation.
@@ -88,7 +88,7 @@ public/                 the whole website (this is what GitHub Pages publishes)
   game.js               everything else: world, robots, truck, economy, drawing, cards
   manifest.webmanifest  app name, colours and icons for "Install app"
   sw.js                 service worker (offline play)
-  favicon.svg/.ico      tab icon
+  favicon.ico           tab icon (16/32/48 px)
   icons/                app icons
 .github/workflows/github-pages.yml active GitHub Pages deployment workflow
 tools/balance-player.js headless balance test player

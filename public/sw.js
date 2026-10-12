@@ -2,10 +2,10 @@
 // Network first, so a new version is picked up as soon as you're online; the cache is the fallback.
 // Bump VERSION when files are added or removed (changed files refresh on their own).
 const CACHE_PREFIX = 'autumnation-v';
-const VERSION = `${CACHE_PREFIX}5`;
+const VERSION = `${CACHE_PREFIX}6`;
 const SHELL = [
   './', 'index.html', 'style.css', 'audio.js', 'game.js', 'lots/prairie.js', 'lots/hollow.js', 'manifest.webmanifest',
-  'favicon.svg', 'favicon.ico', 'icons/icon-192.png', 'icons/icon-512.png',
+  'favicon.ico', 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png',
   'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
