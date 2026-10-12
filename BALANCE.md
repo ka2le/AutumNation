@@ -407,3 +407,10 @@ Old orchard ~79, last price step ~94.
 - **V11:** wrapping gift jars became its own robot task (2.6 s at packing 1×, was 1.6 s added to every jar), a gift jar
   is worth 2.6× a plain one (ribbons 3.1×, 3.7×; was 1.6 / 2.1 / 2.9×), Gift wrapping $550 and ribbons $700 / 1,500.
   The test player's packers fill and wrap. Ribbons still pay back in ~4.8 min.
+- **V12:** blowers and shakers are locked behind the old picture book (found at ~6–7 min, $20 earned; 600 research =
+  2:30 for one plain robot). The test player puts robot 0 on Research, which costs ~2.5 min of the only gatherer's time:
+  milestones run ~3 min later (robot 2 ~14, bagging table ~13, hive ~28, metal ~39, Meadow ~52, orchard ~82); the last
+  price step is still bought at ~89 min.
+- **V12.1:** robots walk round the workshop and bin and drop leaves in from behind the bin, so bin trips are shorter:
+  metal ~36, Meadow ~47, plant ~52, orchard ~76, last price step ~86 (the early game is still ~2–3 min later than V11
+  because of the research).

@@ -55,14 +55,16 @@ function setTasks(S){
   S.robots.forEach((c, j) => {
     const role = j >= 1 ? roles[n - 1 - j] : null;   // robot 0 always gathers leaves
     c.prio = (P[role] || [['leaves']].concat(S.bag.built && !wantPack ? [['bag']] : [])).map(r => r.slice());
-    c.off = ['leaves','mine','bag','jar','wrap','smelt','haul'].filter(t => !c.prio.flat().includes(t));
+    // V12: robot 0 reads the old picture book while there's research (it unlocks blowers and shakers)
+    if (j === 0 && S.story && S.story.found && !S.story.done) c.prio.unshift(['research']);
+    c.off = ['leaves','mine','bag','jar','wrap','smelt','haul','research'].filter(t => !c.prio.flat().includes(t));
   });
   return roles.length + 1;
 }
 const out = Y.sim(SECS, { noBuy: true, probe: () => {
   const S = Y.state(), R = Y.robots(), B = Y.bees();
   maxBin = Math.max(maxBin, S.binLeaves); if (S.totals.trucks !== lastTrucks){ lastTrucks = S.totals.trucks; fills.push(maxBin/F.binCap()); maxBin = 0; }
-  const leafers = R.filter(r => S.robots[r.id].prio[0][0] === 'leaves');
+  const leafers = R.filter(r => S.robots[r.id].prio.find(row => row[0] !== 'research')?.[0] === 'leaves');
   const idle = leafers.filter(r => r.st === 'wander' || r.st === 'rest').length/Math.max(1, leafers.length);
   const waitBin = R.filter(r => r.st === 'wait' && r.at !== 'metal').length/Math.max(1, R.length);
   const loiter = B.length ? B.filter(b => b.st === 'loiter').length/B.length : 0;

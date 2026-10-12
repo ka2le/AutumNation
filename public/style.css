@@ -301,3 +301,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 }
 .buy[data-lock]{background:#f1e5cc!important}
 .peek{-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+
+/* V12: the old picture book's card: the two pages, a line of story, the research timer */
+.bookart{margin:2px 0 6px;padding:4px;border-radius:12px;background:radial-gradient(120% 100% at 50% 0%,#e9d7b4,#d9c29a);box-shadow:inset 0 0 0 1.2px var(--rule),inset 0 2px 6px rgba(60,30,10,.15)}
+.bookart svg{display:block;width:100%;height:auto;filter:drop-shadow(0 2px 2px rgba(50,25,8,.25))}
+.story{margin:2px 2px 6px;font-family:var(--font-hand);font-weight:700;font-size:19px;line-height:1.08;color:var(--ink)}
+.lockline.tip2{color:#3f5684;background:#e3e8f1}
+.lockline.tip2 .ic{width:16px;height:16px}
+.mt.blue .bar i{background:linear-gradient(#7d97c4,#4d6a9c)}
+@media (max-width:640px), (max-height:500px){ .story{font-size:17px} }
