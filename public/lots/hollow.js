@@ -34,6 +34,8 @@ LOTS.hollow = H => {
   ];
   // the drying shed (this place's smelting plant) stands up on the left of the yard, a long wet walk from the road
   const PLANT = { x: -285, y: -415 };
+  // V15: the drying bench stands back from the road, between the workshop and the bin (blowers work it from behind)
+  const BAGGER = { x: -46, y: -66 };
   // trees that have lost about half their leaves
   const TREES = [
     { x: -150, y: -660, r: 120, seed: 11 }, { x: 300, y: -580, r: 135, seed: 23 }, { x: 575, y: -255, r: 92, seed: 37 },
@@ -45,6 +47,11 @@ LOTS.hollow = H => {
     { x: 228, y: -296, r: 50, seed: 139, fam: ['gold','orange'] },
     // one just outside the fence on the left
     { x: -560, y: -250, r: 105, seed: 149 },
+    // V15: pines, dark and wet, the wind blowing needles off them (game.js: no leaves from these, only needles for looks).
+    // Two in the yard, the rest round the edge
+    { x: 402, y: -392, r: 72, seed: 151, pine: true }, { x: -418, y: -545, r: 64, seed: 157, pine: true },
+    { x: 610, y: -380, r: 96, seed: 163, pine: true }, { x: -640, y: -470, r: 104, seed: 167, pine: true }, { x: 130, y: -690, r: 92, seed: 173, pine: true },
+    { x: -330, y: -760, r: 110, seed: 179, pine: true },
   ];
   const BUSHES = [ { x: -150, y: -300, s: 1.05, seed: 7 }, { x: 70, y: -334, s: 0.95, seed: 19 } ];
   // puddles: their muddy beds are painted into the ground; game.js draws the water live (reflections, rings, wakes)
@@ -333,7 +340,52 @@ LOTS.hollow = H => {
   }
 
   // ── tree crowns: late autumn, half bare
+  // V15: a pine: a straight dark trunk and tiers of drooping, wet, dark green branches, narrower toward the spire
+  function paintPine(g, t, P){
+    const { TAU, clamp, ell, lerp, mulberry } = H;
+    const { R0, rnd, ox, oy, w } = P, base = R0*1.16, top = -R0*1.02, tw = Math.max(4.5, R0*0.075);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.fillStyle = 'rgba(20,14,8,.42)'; ell(g, tw*0.6, base + 2, R0*0.42, tw*1.1); g.fill();
+    // needles on the ground under it
+    for (let k=0;k<40;k++){ const a = rnd()*TAU, d = Math.sqrt(rnd())*R0*0.5, x = Math.cos(a)*d, y = base + Math.sin(a)*d*0.25; g.strokeStyle = ['#7a4a26', '#8f5a2c', '#6a3e20'][k % 3]; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x - 1.6, y); g.lineTo(x + 1.6, y + (rnd() - 0.5)*1.4); g.stroke(); }
+    const tg = g.createLinearGradient(-tw, 0, tw, 0); tg.addColorStop(0, '#4a3828'); tg.addColorStop(0.5, '#33261c'); tg.addColorStop(1, '#1e1610');
+    g.fillStyle = tg; g.beginPath(); g.moveTo(-tw*0.35, top + R0*0.3); g.lineTo(-tw, base - tw); g.quadraticCurveTo(-tw*1.3, base, -tw*2, base + 1); g.lineTo(tw*2.2, base + 1); g.quadraticCurveTo(tw*1.3, base, tw, base - tw); g.lineTo(tw*0.35, top + R0*0.3); g.closePath(); g.fill();
+    // the tiers, bottom first: each a drooping skirt of branches, dark inside, its edge and hem made of little fans of
+    // needles (lighter on the top left, where the grey light comes from), so the outline is ragged, not a zigzag
+    const N = 7 + Math.floor(rnd()*3), cols = ['#17291e', '#1f3426', '#29412f', '#34503a', '#456548', '#5b7a56'];
+    const spray = (x, y, a, L, col) => { g.strokeStyle = col; g.lineWidth = 0.5; g.beginPath(); for (let q=-3;q<=3;q++){ const b = a + q*0.13; g.moveTo(x, y); g.lineTo(x + Math.cos(b)*L*(1 - Math.abs(q)*0.08), y + Math.sin(b)*L*(1 - Math.abs(q)*0.08)); } g.stroke(); };
+    for (let i=0;i<N;i++){
+      const u = i/(N - 1), yb = lerp(base - R0*0.36, top + R0*0.3, u), hw = R0*(0.66*(1 - u) + 0.1)*(0.9 + rnd()*0.2), hh = R0*(0.36 - 0.1*u), lean = (rnd() - 0.5)*R0*0.05;
+      const lx = -hw*(0.94 + rnd()*0.1), rx = hw*(0.94 + rnd()*0.1);
+      const skirt = () => { g.beginPath(); g.moveTo(lx, yb + hh*0.1); g.quadraticCurveTo(-hw*0.45, yb - hh*0.5, lean, yb - hh); g.quadraticCurveTo(hw*0.45, yb - hh*0.5, rx, yb + hh*0.1); g.quadraticCurveTo(0, yb + hh*0.32, lx, yb + hh*0.1); g.closePath(); };
+      g.fillStyle = 'rgba(8,12,8,.3)'; g.save(); g.translate(1.5, 3); skirt(); g.fill(); g.restore();
+      skirt(); g.fillStyle = cols[1]; g.fill();
+      // fans of needles over the skirt, hanging off its edge and hem
+      const nS = Math.round(hw*1.3 + 8);
+      for (let k=0;k<nS;k++){
+        const e = rnd(), side = e*2 - 1, edge = rnd() < 0.55;
+        let x, y;
+        if (edge){ x = lerp(lx, rx, e); y = yb + hh*0.1 + Math.sin(e*Math.PI)*hh*0.22 - rnd()*hh*0.25; }
+        else { x = side*hw*0.85*rnd(); y = yb - hh*(0.15 + rnd()*0.7)*(1 - Math.abs(x)/hw*0.6); }
+        const lit = clamp(0.55 - x/hw*0.3 - (edge ? 0.15 : 0) + (rnd() - 0.5)*0.45, 0, 0.99);
+        spray(x, y, Math.PI*0.5 + side*0.75 + (rnd() - 0.5)*0.4, 5 + rnd()*4.5, cols[1 + Math.floor(lit*(cols.length - 1))]);
+      }
+      // the top of each tier catches a little light
+      g.strokeStyle = 'rgba(150,175,150,.22)'; g.lineWidth = 1; g.beginPath(); g.moveTo(-hw*0.5, yb - hh*0.62); g.quadraticCurveTo(-hw*0.2, yb - hh*0.95, lean, yb - hh); g.stroke();
+      // raindrops hanging from the hem
+      for (let q=0;q<3;q++) if (rnd() < 0.6){ g.fillStyle = 'rgba(200,218,232,.55)'; ell(g, (rnd()*2 - 1)*hw*0.9, yb + hh*0.22, 0.6, 0.9); g.fill(); }
+    }
+    // the spire
+    g.fillStyle = cols[3]; g.beginPath(); g.moveTo(-R0*0.06, top + R0*0.32); g.quadraticCurveTo(0, top + R0*0.05, R0*0.01, top - R0*0.02); g.quadraticCurveTo(R0*0.02, top + R0*0.05, R0*0.07, top + R0*0.32); g.closePath(); g.fill();
+    // grey light from above
+    g.globalCompositeOperation = 'source-atop';
+    const sky = g.createLinearGradient(0, top, 0, base); sky.addColorStop(0, 'rgba(220,230,238,.14)'); sky.addColorStop(0.6, 'rgba(160,170,180,0)'); sky.addColorStop(1, 'rgba(15,20,28,.28)');
+    g.fillStyle = sky; g.fillRect(-ox, -oy, w, base + oy + 4);
+    g.globalCompositeOperation = 'source-over';
+    return base;
+  }
   function paintCanopy(g, t, ti, P){
+    if (t.pine) return paintPine(g, t, P);
     const { TAU, clamp, ell, leafBlob, lerp, scallop } = H;
     const { R0, ox, oy, w, rnd } = P;
     const [fa, fb] = t.fam || TREE_FAMS[ti % TREE_FAMS.length], A = FOLIAGE[fa], B = FOLIAGE[fb];
@@ -573,9 +625,12 @@ LOTS.hollow = H => {
       c.restore();
       c.restore(); return;
     }
-    const F = hiveFloors(), top = -hiveTopZ(), Wb = 36 + F*1.4, t = S.t;
+    // V15: the ant hill sits on the old beehive's base: the hazard-striped plinth shows under the mound's overhang
+    const LIFT = H.HV_LIFT, F = hiveFloors(), top = -(hiveTopZ() - LIFT), Wb = 36 + F*1.4, t = S.t;
     const grow = clamp((S.t - hiveRt.builtT)/1.3, 0, 1);
     if (grow < 1) c.scale(1, ease(grow));
+    drawBeehiveBase(c);
+    c.translate(0, -LIFT);
     // the mound, with a lumpy outline
     const rnd = mulberry(77), mound = () => {
       c.beginPath(); c.moveTo(-Wb, 2);
@@ -619,6 +674,10 @@ LOTS.hollow = H => {
     // a little plank awning over the door, against the rain
     c.fillStyle = '#6e4a30'; c.beginPath(); c.moveTo(-10, -9.5); c.lineTo(10, -9.5); c.lineTo(8, -12.5); c.lineTo(-8, -12.5); c.closePath(); c.fill();
     c.fillStyle = 'rgba(210,225,236,.35)'; c.fillRect(-9, -12.2, 16, 0.7);
+    // V15: a plank ramp from the ground up to the door, over the old beehive's plinth, and pine needles all over the mound
+    c.fillStyle = '#7a5434'; c.beginPath(); c.moveTo(-3.6, -1); c.lineTo(3.6, -1); c.lineTo(5, LIFT + 6); c.lineTo(-5, LIFT + 6); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(40,25,14,.6)'; c.lineWidth = 0.5; for (let q=1;q<5;q++){ const yy = -1 + q*(LIFT + 7)/5; c.beginPath(); c.moveTo(-3.8 - q*0.3, yy); c.lineTo(3.8 + q*0.3, yy); c.stroke(); }
+    needleCoat(c, Wb, top, 1, 170);
     // the larder: a glass jar on the left with the fresh mushrooms the ants bring in
     const lx = -Wb - 4, lb = -2, lt = Math.max(top*0.62, -40), nf = clamp(HS.nectar/tankCap(), 0, 1);
     c.fillStyle = '#4a423b'; rr(c, lx - 5.5, lt - 3.5, 11, 3, 1); c.fill(); rr(c, lx - 6, lb - 2, 12, 3, 1); c.fill();
@@ -649,7 +708,153 @@ LOTS.hollow = H => {
     }
   }
 
+  // ── V15: the hive story. The ant hill stands on the old beehive's base (the plinth); while the robots research the
+  // hive, an umbrella goes over it, the blower blows pine needles onto it and portholes go in (drawHiveLab), and the
+  // bees of the show turn into ants (drawLabBee).
+  function drawBeehiveBase(c){
+    const { HV_BEE, drawPrism, prismFace, hexPath, ell } = H, pz = HV_BEE.plinth, k = HV_BEE.k;
+    drawPrism(c, 27, k, 0, -pz, ['#625f57', '#55524b', '#423f3a', '#77746b']);
+    for (const i of [0, 1, 2]){
+      c.save(); prismFace(c, 27, k, i, -3, -pz + 3); c.clip();
+      c.fillStyle = '#2f2a26'; c.fillRect(-28, -pz, 56, pz);
+      c.fillStyle = '#e0b13a'; for (let x=-40; x<40; x+=6){ c.beginPath(); c.moveTo(x, 4); c.lineTo(x + 3, 4); c.lineTo(x + 3 + pz, -pz - 4); c.lineTo(x + pz, -pz - 4); c.closePath(); c.fill(); }
+      c.restore();
+    }
+    hexPath(c, 0, -pz, 27, k); c.fillStyle = '#8a877e'; c.fill();
+    // the stub of the steel tower, and the mound's shadow on it
+    drawPrism(c, 21, k, -pz, -pz - 4, ['#b5bec2', '#97a1a6', '#6f797e', '#d3d9db']);
+    c.fillStyle = 'rgba(20,14,8,.45)'; ell(c, 0, -pz + 2, 30, 6); c.fill();
+  }
+  // pine needles lying on a dome (the ant hill's mound, or the umbrella while it's being covered): n of them, all in place
+  // at cover 1 (fewer before), seeded so they stay put
+  function needleCoat(c, W, top, cover, n){
+    const { mulberry, NEEDLE_COL } = H, rnd = mulberry(913), m = Math.floor(n*cover);
+    c.lineCap = 'round';
+    for (let i=0;i<n;i++){
+      const u = rnd()*2 - 1, v = Math.pow(rnd(), 0.75), a = rnd()*Math.PI, col = NEEDLE_COL[Math.floor(rnd()*NEEDLE_COL.length)], L = 2.6 + rnd()*2.6, pair = rnd() < 0.45;
+      if (i >= m) continue;
+      const hg = -top*Math.pow(Math.max(0, 1 - u*u), 0.7), x = u*W*0.94, y = 1 - v*hg*0.97, dx = Math.cos(a)*L/2, dy = Math.sin(a)*L/2*0.6;
+      c.strokeStyle = col; c.lineWidth = 0.7; c.beginPath(); c.moveTo(x - dx, y - dy); c.lineTo(x + dx, y + dy); if (pair){ c.moveTo(x - dx, y - dy); c.lineTo(x + dx*0.7 + 1, y + dy*0.7 + 1.2); } c.stroke();
+    }
+  }
+  const LABV = { umbT: null, win: [], doorT: null };
+  const LAB_WIN = [[-17, -30], [16, -42], [-8, -54], [13, -26]];   // where the portholes go in (from the hive's foot)
+  function drawHiveLab(k, info){
+    const { HIVE, S, TAU, clamp, ctx: c, ell, ease, rr, parts, rand, simMode, LAB_DOME, mulberry } = H;
+    if (k < 0.03 && !LABV.umbT){ return; }
+    const t = S.t;
+    if (LABV.umbT == null) LABV.umbT = k > 0.05 ? -99 : t;
+    const drop = clamp((t - LABV.umbT)/0.8, 0, 1), dy = (1 - ease(drop))*-34 + (drop < 1 ? Math.sin(drop*Math.PI)*3 : 0);
+    const cover = clamp((k - 0.08)/0.84, 0, 1), cv = cover*cover*(3 - 2*cover);
+    const rim = -LAB_DOME.rim, h = LAB_DOME.h, W = LAB_DOME.w, apex = rim - h, N = 8, xs = [];
+    for (let q=0;q<=N;q++) xs.push(-W + 2*W*q/N);
+    const hemY = q => rim + Math.sin(q/N*Math.PI)*3.2;
+    const dome = () => { c.beginPath(); c.moveTo(xs[0], hemY(0)); c.bezierCurveTo(-W, rim - h*0.72, -W*0.52, apex, 0, apex); c.bezierCurveTo(W*0.52, apex, W, rim - h*0.72, xs[N], hemY(N));
+      for (let q=N;q>0;q--){ const mx = (xs[q] + xs[q - 1])/2, my = (hemY(q) + hemY(q - 1))/2 - 2.2; c.quadraticCurveTo(mx, my, xs[q - 1], hemY(q - 1)); } c.closePath(); };
+    c.save(); c.translate(HIVE.x, HIVE.y + dy);
+    // the shadowed underside under the hem, then the canopy: faded teal and cream panels
+    c.fillStyle = 'rgba(15,12,10,.5)'; c.beginPath(); c.ellipse(0, rim + 1.5, W*0.97, 6.5, 0, 0, Math.PI); c.fill();
+    dome(); c.fillStyle = '#e2d6bc'; c.fill();
+    c.save(); dome(); c.clip();
+    for (let q=0;q<N;q+=2){ c.beginPath(); c.moveTo(0, apex); c.quadraticCurveTo(xs[q]*0.86, apex + h*0.28, xs[q], hemY(q)); c.lineTo(xs[q + 1], hemY(q + 1)); c.quadraticCurveTo(xs[q + 1]*0.86, apex + h*0.28, 0, apex); c.closePath(); c.fillStyle = '#4f7c84'; c.fill(); }
+    const sh = c.createLinearGradient(-W, apex, W*0.5, rim); sh.addColorStop(0, 'rgba(255,255,255,.25)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(10,12,20,.3)');
+    c.fillStyle = sh; c.fillRect(-W, apex - 2, 2*W, h + 8);
+    c.strokeStyle = '#3a3330'; c.lineWidth = 0.7; c.beginPath(); for (let q=1;q<N;q++){ c.moveTo(0, apex); c.quadraticCurveTo(xs[q]*0.86, apex + h*0.28, xs[q], hemY(q)); } c.stroke();
+    // rain beads on the canopy (fewer once the needles cover it)
+    const rb = mulberry(57); c.fillStyle = 'rgba(225,236,244,' + (0.55*(1 - cv)) + ')'; for (let q=0;q<26;q++){ const u = rb()*2 - 1, v = rb(); ell(c, u*W*0.8, rim - v*h*Math.sqrt(1 - u*u*0.8)*0.9, 0.7, 0.9); c.fill(); }
+    // the needles: first a brown wash as they pile up, then the needles themselves
+    if (cv > 0){
+      const mg = c.createLinearGradient(-W*0.6, apex, W*0.5, rim); mg.addColorStop(0, '#7a5232'); mg.addColorStop(0.5, '#5e4028'); mg.addColorStop(1, '#3c2a1a');
+      c.globalAlpha = clamp(cv*1.15 - 0.1, 0, 0.95); dome(); c.fillStyle = mg; c.fill(); c.globalAlpha = 1;
+      c.save(); c.translate(0, rim); needleCoat(c, W, -h, cv, 300); c.restore();
+    }
+    c.restore();
+    c.fillStyle = '#3a3330'; for (let q=0;q<=N;q++){ ell(c, xs[q], hemY(q), 0.8, 0.8); c.fill(); }
+    // needles hanging off the hem
+    if (cv > 0.2){ const rh = mulberry(31); c.strokeStyle = '#7a4a26'; c.lineWidth = 0.7; for (let q=0;q<Math.floor(24*cv);q++){ const x = (rh()*2 - 1)*W*0.95, y = rim + 1 + rh()*2; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (rh() - 0.5)*2, y + 2 + rh()*2); c.stroke(); } }
+    // the finial on top (the beehive's antennas poke out above it)
+    c.fillStyle = '#c9a24a'; ell(c, 0, apex - 1.5, 2.2, 2.2); c.fill();
+    // portholes, one after another, the brass kind the ant hill has
+    const nw = k >= 0.85 ? 4 : k >= 0.75 ? 3 : k >= 0.65 ? 2 : k >= 0.55 ? 1 : 0;
+    for (let i=0;i<nw;i++){
+      if (LABV.win[i] == null) LABV.win[i] = k > [0.57, 0.67, 0.77, 0.87][i] ? -99 : t;
+      const g = clamp((t - LABV.win[i])/0.4, 0, 1), s = g < 1 ? ease(g)*1.15 - Math.sin(g*Math.PI)*0.05 : 1, [wx, wy] = LAB_WIN[i], pr = 3.6*s;
+      if (g < 1 && g > 0 && !simMode && Math.random() < 0.3) parts.push({ k:'star', x: HIVE.x + wx + rand(-3, 3), y: HIVE.y + wy + rand(-3, 3), vx: rand(-20, 20), vy: rand(-30, -10), g: 40, life: 0.5, t: 0 });
+      c.fillStyle = '#21180f'; ell(c, wx, wy, pr, pr*0.9); c.fill();
+      c.fillStyle = 'rgba(255,190,110,' + (0.22 + 0.06*Math.sin(t*2 + i)) + ')'; ell(c, wx, wy, pr - 1, pr*0.9 - 1); c.fill();
+      c.fillStyle = 'rgba(220,235,240,.3)'; ell(c, wx - 1.2*s, wy - 1.2*s, 1*s, 0.7*s); c.fill();
+      c.strokeStyle = '#c9a24a'; c.lineWidth = 1.1; ell(c, wx, wy, pr, pr*0.9); c.stroke();
+    }
+    // the door: a brass ring round the beehive's own door, under the hem; then the copper pipe and the vent
+    if (k >= 0.9){
+      if (LABV.doorT == null) LABV.doorT = k > 0.92 ? -99 : t;
+      const g = clamp((t - LABV.doorT)/0.4, 0, 1);
+      c.strokeStyle = '#c9a24a'; c.lineWidth = 1.8*g; c.beginPath(); c.ellipse(0, -12, 7.5*g, 7*g, 0, Math.PI, 0); c.stroke();
+    }
+    if (k >= 0.95){
+      c.strokeStyle = '#8a4f2a'; c.lineWidth = 2.6; c.lineCap = 'round'; c.beginPath(); c.moveTo(W*0.62, rim + 2); c.quadraticCurveTo(W*0.8, rim - h*0.45, W*0.3, apex + h*0.18); c.stroke();
+      c.strokeStyle = '#c98a55'; c.lineWidth = 1; c.beginPath(); c.moveTo(W*0.6, rim + 1); c.quadraticCurveTo(W*0.77, rim - h*0.45, W*0.28, apex + h*0.18 - 0.5); c.stroke();
+    }
+    // the blower's air arching over the top keeps the rain off; without it the drops bounce off the canopy
+    if (info.blower){
+      c.strokeStyle = 'rgba(245,240,226,.28)'; c.lineWidth = 1.2; c.setLineDash([5, 6]); c.lineDashOffset = -t*26;
+      for (let q=0;q<3;q++){ const r2 = W + 6 + q*7; c.beginPath(); c.ellipse(-2, rim + 4, r2, h + 10 + q*7, 0, Math.PI*1.08, Math.PI*1.95); c.stroke(); }
+      c.setLineDash([]);
+    }
+    c.restore();
+    if (!simMode && drop >= 1 && Math.random() < (info.blower ? 0.25 : 0.4)){
+      const u = rand(-0.8, 0.8), x = HIVE.x + u*W, y = HIVE.y + apex + h*0.25*u*u + 4;
+      parts.push({ k:'drop', x, y, vx: info.blower ? rand(-90, -50) : rand(-25, 25), vy: info.blower ? rand(-50, -25) : rand(-40, -15), g: 200, life: rand(.3, .5), t: 0 });
+    }
+  }
+  // the bees and ants of the show: a bee under a tiny umbrella flying, tumbling, on its back, or walking; walking ones
+  // turn into ants as the research goes on (b.m: 0 a bee, 1 an ant)
+  const LAB_BROLLY = [['#c4502e', '#e2d6bc'], ['#4f7c84', '#e2d6bc'], ['#e2b33a', '#8a5a36'], ['#8a5aa0', '#e2d6bc']];
+  function miniBrolly(c, x, y, R, cols){ drawBrolly(c, x, y, R, cols, '#3a3330'); c.strokeStyle = '#3a3330'; c.lineWidth = 0.45; c.beginPath(); c.moveTo(x, y - R*0.6); c.lineTo(x, y + R*0.9); c.stroke(); }
+  function drawBeeAnt(c, ph, moving){
+    // half bee, half ant: an ant's legs and waist, a bee's striped tail, little stub wings
+    const { ell } = H;
+    c.strokeStyle = '#3b3430'; c.lineWidth = 0.5; c.lineCap = 'round';
+    for (let i=0;i<3;i++){ const q = ph + (i % 2 ? Math.PI : 0), s = moving ? Math.sin(q)*1.7 : 0, lift = moving ? Math.max(0, Math.cos(q))*1 : 0, x = -1.8 + i*1.6; c.beginPath(); c.moveTo(x, -2.4); c.lineTo(x + (i - 1)*0.4, -4 - lift); c.lineTo(x + s + (i - 1)*1.4, -lift); c.stroke(); }
+    c.fillStyle = '#c9952e'; ell(c, -3.6, -3.6, 2.8, 2); c.fill();
+    c.save(); ell(c, -3.6, -3.6, 2.8, 2); c.clip(); c.fillStyle = '#2e2b2a'; c.fillRect(-5, -6, 0.9, 5); c.fillRect(-3.2, -6, 0.9, 5); c.restore();
+    c.fillStyle = 'rgba(214,232,240,.6)'; ell(c, -1.6, -6.2, 1.8, 0.9); c.fill();
+    c.fillStyle = '#6a4a2a'; ell(c, -0.6, -3.7, 1.2, 1); c.fill();
+    c.fillStyle = '#7d878c'; ell(c, 1.7, -4, 1.6, 1.4); c.fill();
+    c.fillStyle = '#1e1a18'; ell(c, 2.3, -4.1, 0.75, 0.75); c.fill(); c.fillStyle = '#ffc457'; ell(c, 2.5, -4.2, 0.4, 0.4); c.fill();
+    c.strokeStyle = '#3b3430'; c.lineWidth = 0.4; c.beginPath(); c.moveTo(2.2, -5.2); c.quadraticCurveTo(3.2, -7, 4.2, -7.2); c.stroke();
+  }
+  function drawLabBee(c, b, x, y){
+    const { ell, drawBeeBrass, clamp } = H;
+    const ground = b.walker || b.st === 'crawl' || b.st === 'walk' || b.st === 'pause' || b.st === 'walkHome';
+    if (b.st !== 'held'){ c.fillStyle = 'rgba(20,12,6,' + (b.z > 1 ? 0.16 : 0.28) + ')'; ell(c, b.x, b.y + 0.6, b.z > 1 ? 3 : 4.2, 1.1); c.fill(); }
+    const cols = LAB_BROLLY[Math.floor((b.anim*0 + (b.x*7 | 0)) % LAB_BROLLY.length + LAB_BROLLY.length) % LAB_BROLLY.length];
+    if (ground){
+      const moving = b.st !== 'pause', bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0, m = b.m || 0;
+      const sc = 1.35*(b.big || 1);
+      c.save(); c.translate(x, y + bob); c.scale((b.face || 1)*sc, sc);
+      if (m >= 0.67) drawAntShape(c, 'worker', (b.gait || 0)*0.75, moving, 0, '#c99448');
+      else if (m >= 0.34) drawBeeAnt(c, (b.gait || 0)*0.75, moving);
+      else { c.save(); c.translate(0, -3); drawBeeBrass(c, b, 0.15, 0); c.restore(); c.strokeStyle = '#2e2b2a'; c.lineWidth = 0.45; const ph = (b.gait || 0)*0.8; for (let i=0;i<3;i++){ const s = moving ? Math.sin(ph + i*2)*1.2 : 0; c.beginPath(); c.moveTo(-2.4 + i*1.6, -1.4); c.lineTo(-2.6 + i*1.6 + s, 0); c.stroke(); } }
+      if (b.brolly) miniBrolly(c, 0.4, -9.5, 4.2, cols);
+      if (b.wet){ c.fillStyle = 'rgba(200,225,240,.8)'; for (const [dx, dy] of [[-3, -5], [1, -6], [3, -3]]){ ell(c, dx, dy, 0.5, 0.7); c.fill(); } }
+      c.restore();
+      return;
+    }
+    // flying, tumbling, on its back, or held
+    const fl = b.st === 'fly' || b.st === 'tumble' || b.st === 'out' || b.st === 'climb' || b.st === 'fall' ? Math.abs(Math.sin(b.anim*60)) : 0.15;
+    if (b.st === 'down' && b.brolly){ c.save(); c.translate(x + 7, y - 1); c.rotate(1.9); miniBrolly(c, 0, 0, 4.2, cols); c.restore(); }   // its umbrella lies beside it
+    const sc = 1.35*(b.big || 1);
+    c.save(); c.translate(x, y); c.scale((b.face || 1)*sc, sc); c.rotate(b.rot || 0);
+    drawBeeBrass(c, b, fl, 0);
+    if (b.brolly && b.st !== 'down') miniBrolly(c, 0, -6.5, 4.2, cols);
+    if (b.st === 'down'){ c.strokeStyle = '#2e2b2a'; c.lineWidth = 0.45; for (let i=0;i<3;i++){ const w = Math.sin(b.anim*9 + i*1.7)*0.6; c.beginPath(); c.moveTo(-2 + i*1.6, -1.6); c.lineTo(-2.4 + i*1.6 + w, -3.6); c.stroke(); } }
+    if (b.wet){ c.fillStyle = 'rgba(200,225,240,' + (0.5 + 0.4*clamp(b.wet, 0, 1)) + ')'; for (const [dx, dy] of [[-3, -2.4], [1, -2.8], [-0.6, 1.6], [2.6, 0.4]]){ ell(c, dx, dy, 0.55, 0.75); c.fill(); } }
+    c.restore();
+  }
+
   const BEE_MODELS = ['worker', 'tank', 'strider', 'soldier', 'leafy'];
+
 
   function drawAntShape(c, m, ph, moving, n, cap){
     const { ell, leafPath, rr, shade } = H;
@@ -1140,12 +1345,97 @@ LOTS.hollow = H => {
     if (!simMode && ctx === mainCtx && Math.random() < 0.05*RAIN.k) parts.push({ k:'drop', x: r.x + r.face*(hx0 + hw*0.45) + rand(-10, 10), y: r.y + hy0 - 14 + bob, vx: rand(-25, 25), vy: rand(-40, -15), g: 260, life: rand(.25, .4), t: 0 });
   }
   // a piece of mushroom flying from the ant hill to the crate (this place's "honey" bit)
-  function flyHoney(c, x, y){ const { ell } = H; c.fillStyle = '#e8dcc4'; c.fillRect(x - 0.6, y - 0.4, 1.2, 2.2); c.fillStyle = '#a8642e'; c.beginPath(); c.ellipse(x, y, 2.4, 1.9, 0, Math.PI, 0); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,240,215,.5)'; ell(c, x - 0.8, y - 1, 0.7, 0.35); c.fill(); }
+  // ── V15: the drying bench (the bagging table's place): a slatted bench with a wire-mesh tray, a little iron stove
+  // underneath, and blowers behind it blowing warm air across the leaves. Wet leaves go dark and glossy on the tray and
+  // turn crisp and pale as they dry; the dry ones go in kraft paper sacks (drawLeafBag below).
+  const mixHex = (a, b, k) => { const p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16), f = (s) => [s >> 16, s >> 8 & 255, s & 255];
+    const A = f(p), B = f(q); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v)*k)).join(',') + ')'; };
+  const DRY_COL = ['#e2a24a', '#d9822e', '#e8b85c', '#c97a34', '#d6a050', '#b8742e', '#edc77a'];
+  function drawBagger(){
+    const { BAGGER, S, TAU, clamp, ctx: c, dryTrays, ell, leafBlob, mulberry, parts, rand, rr, simMode, wind } = H;
+    const t = S.t, trays = dryTrays(), on = trays.some(p => p >= 0);
+    c.save(); c.translate(BAGGER.x, BAGGER.y);
+    c.fillStyle = 'rgba(20,14,8,.34)'; ell(c, 2, 2, 36, 6.5); c.fill();
+    // the stove pipe up the back left, smoking while anyone is drying
+    c.fillStyle = '#2b2522'; rr(c, -27, -66, 5, 44, 1.5); c.fill(); c.fillStyle = '#4a423b'; c.fillRect(-26, -66, 1.2, 44);
+    c.fillStyle = '#1f1a17'; rr(c, -28.5, -69, 8, 4, 1); c.fill();
+    if (on && !simMode && Math.random() < 0.08) parts.push({ k:'smoke', x: BAGGER.x - 24.5 + rand(-1, 1), y: BAGGER.y - 70, vx: rand(-3, 3) + wind*0.25, vy: rand(-16, -9), g: 0, life: rand(1.4, 2.2), t: 0, r: rand(2.5, 4) });
+    // legs and a lower shelf with folded paper sacks
+    c.fillStyle = '#4e3524'; for (const lx of [-29, 25]){ rr(c, lx, -24, 4, 24, 1); c.fill(); }
+    c.fillStyle = '#6a4a30'; rr(c, -28, -8, 56, 3, 1); c.fill();
+    for (let i=0;i<3;i++){ c.fillStyle = i % 2 ? '#b98a56' : '#caa06a'; rr(c, 7 + i*1.1, -11 - i*1.5, 15, 1.8, 0.5); c.fill(); }
+    // the little iron stove under the middle: a warm glow through its grate
+    const fl = on ? 0.65 + 0.35*Math.sin(t*9) * Math.sin(t*3.3) : 0.25;
+    c.fillStyle = '#2f2a26'; rr(c, -11, -21, 18, 15, 2); c.fill();
+    c.fillStyle = '#4a423b'; c.fillRect(-11, -21, 18, 2.2);
+    c.fillStyle = 'rgba(255,' + Math.round(140 + 50*fl) + ',60,' + (0.35 + 0.55*fl) + ')'; rr(c, -7.5, -16, 11, 6, 1.2); c.fill();
+    c.strokeStyle = '#1f1a17'; c.lineWidth = 0.8; for (let k=0;k<4;k++){ c.beginPath(); c.moveTo(-6 + k*2.8, -16); c.lineTo(-6 + k*2.8, -10); c.stroke(); }
+    if (on){ c.fillStyle = 'rgba(255,160,70,' + (0.12*fl) + ')'; ell(c, -2, -13, 14, 8); c.fill(); }
+    // the bench top: a wooden frame round a wire-mesh tray, seen a little from above
+    c.fillStyle = '#7a5434'; rr(c, -32, -27, 64, 5, 1.5); c.fill();
+    c.fillStyle = 'rgba(255,230,190,.16)'; c.fillRect(-30, -26.6, 60, 1);
+    c.fillStyle = '#5e4028'; c.beginPath(); c.moveTo(-31, -27); c.lineTo(31, -27); c.lineTo(28, -35); c.lineTo(-28, -35); c.closePath(); c.fill();
+    c.fillStyle = '#3a3330'; c.beginPath(); c.moveTo(-28, -28); c.lineTo(28, -28); c.lineTo(25.6, -34); c.lineTo(-25.6, -34); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(170,176,180,.55)'; c.lineWidth = 0.4;
+    for (let k=-24; k<=24; k+=3){ c.beginPath(); c.moveTo(k*1.07, -28); c.lineTo(k, -34); c.stroke(); }
+    for (let y=-33; y<=-29; y+=1.5){ c.beginPath(); c.moveTo(-27.5 + (-y - 28)*0.4, y); c.lineTo(27.5 - (-y - 28)*0.4, y); c.stroke(); }
+    c.strokeStyle = '#8a6242'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -28); c.lineTo(0, -34); c.stroke();   // the divider between the two trays
+    // leaves on each tray: dark, glossy and wet when they land, crisp and pale when they're done
+    for (let k=0;k<2;k++){
+      const p = trays[k], cx = k ? 13 : -13, rnd = mulberry(400 + k*17 + (p >= 0 ? 0 : 7));
+      if (p < 0){
+        // a few crumbs of dry leaf left from the last tray
+        for (let i=0;i<4;i++) leafBlob(c, cx + (rnd() - 0.5)*18, -31 + (rnd() - 0.5)*4, 2.4, rnd()*TAU, DRY_COL[Math.floor(rnd()*DRY_COL.length)]);
+        continue;
+      }
+      const LC = H.LEAFC;
+      for (let i=0;i<12;i++){
+        const lc = LC[Math.floor(rnd()*LC.length)], dc = DRY_COL[Math.floor(rnd()*DRY_COL.length)], own = clamp(p*1.25 - rnd()*0.25, 0, 1);
+        const x = cx + (rnd() - 0.5)*19, y = -31 + (rnd() - 0.5)*4.2, rot = rnd()*TAU + (p > 0 ? Math.sin(t*14 + i)*0.08*(1 - own) : 0);
+        leafBlob(c, x, y, 3.6 - own*0.4, rot, mixHex(lc.c, dc, own));
+        if (own < 0.5){ c.fillStyle = 'rgba(220,235,245,' + (0.35*(1 - own*2)) + ')'; ell(c, x - 0.6, y - 0.6, 0.7, 0.35); c.fill(); }   // the wet sheen goes as they dry
+        else if (own > 0.85){ c.strokeStyle = 'rgba(120,70,30,.5)'; c.lineWidth = 0.3; c.beginPath(); c.moveTo(x - 1.4, y + 0.5); c.lineTo(x + 1.4, y - 0.4); c.stroke(); }   // a curled, crisp edge
+      }
+    }
+    // a plank sign on the front
+    c.fillStyle = '#d9c6a2'; rr(c, -10, -25.5, 20, 6, 1.4); c.fill();
+    c.font = '800 4.4px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#6a3a1c'; c.fillText('DRYING', 0, -22.4);
+    c.restore();
+  }
+  // a kraft paper sack of crisp dry leaves, its top rolled over, leaves poking out. Better sacks: a twine tie, then an
+  // orange band with a leaf stamp, then a gold label and an oak sprig
+  function drawLeafBag(c, x, y, s, tier){
+    const { ell, rr } = H;
+    c.save(); c.translate(x, y); c.scale(s/10, s/10);
+    c.fillStyle = 'rgba(20,14,8,.25)'; ell(c, 0.6, 0.2, 5, 1.2); c.fill();
+    // leaves poking out of the top
+    for (const [lx, ly, a, col] of [[-2.2, -8.6, -0.6, '#e2a24a'], [1.8, -9, 0.5, '#c97a34'], [0, -9.8, 0.1, '#edc77a'], [3, -8.2, 1, '#d9822e']]){
+      c.save(); c.translate(lx, ly); c.rotate(a); c.scale(1.6, 1); c.fillStyle = col; c.beginPath(); c.moveTo(0, -1.4); c.quadraticCurveTo(1.2, 0, 0, 1.4); c.quadraticCurveTo(-1.2, 0, 0, -1.4); c.fill(); c.restore();
+    }
+    // the sack
+    c.fillStyle = '#b58a56'; c.beginPath(); c.moveTo(-4.2, -7.6); c.lineTo(4.2, -7.6); c.lineTo(4.8, -0.4); c.quadraticCurveTo(0, 0.5, -4.8, -0.4); c.closePath(); c.fill();
+    c.fillStyle = '#c99d66'; c.beginPath(); c.moveTo(-4.2, -7.6); c.lineTo(0.6, -7.6); c.lineTo(0.9, -0.1); c.quadraticCurveTo(-2, 0.2, -4.8, -0.4); c.closePath(); c.fill();
+    // the rolled-over top
+    c.fillStyle = '#a77a48'; rr(c, -4.6, -8.6, 9.2, 2, 0.8); c.fill();
+    c.fillStyle = 'rgba(255,240,215,.35)'; c.fillRect(-4.2, -8.4, 8.4, 0.5);
+    c.strokeStyle = 'rgba(90,60,30,.35)'; c.lineWidth = 0.3; c.beginPath(); c.moveTo(-2.6, -6.4); c.lineTo(-3, -1); c.moveTo(2.8, -6.2); c.lineTo(3.2, -1.2); c.stroke();
+    if (tier >= 2){ c.strokeStyle = '#d9c08a'; c.lineWidth = 0.55; c.beginPath(); c.moveTo(-4.5, -6.6); c.lineTo(4.5, -6.6); c.stroke(); c.fillStyle = '#d9c08a'; ell(c, 1.2, -6.6, 0.8, 0.5); c.fill(); }
+    if (tier >= 4){ c.fillStyle = '#d6672a'; c.fillRect(-4.5, -4.6, 9.2, 2); c.fillStyle = '#f2e3c4'; c.beginPath(); c.moveTo(0, -4.4); c.quadraticCurveTo(0.9, -3.6, 0, -2.8); c.quadraticCurveTo(-0.9, -3.6, 0, -4.4); c.fill(); }
+    if (tier >= 7){ c.fillStyle = '#e2b13a'; rr(c, -2, -2.6, 4, 2, 0.4); c.fill(); c.fillStyle = 'rgba(255,250,220,.6)'; c.fillRect(-1.6, -2.4, 2, 0.4); }
+    if (tier >= 9){ c.strokeStyle = '#6b4a24'; c.lineWidth = 0.35; c.beginPath(); c.moveTo(3, -8.4); c.quadraticCurveTo(4.4, -10.4, 5.4, -10.6); c.stroke(); c.fillStyle = '#c0432a'; ell(c, 4.6, -10.2, 1, 0.5); c.fill(); }
+    c.restore();
+  }
+
+  function flyHoney(c, x, y){
+ const { ell } = H; c.fillStyle = '#e8dcc4'; c.fillRect(x - 0.6, y - 0.4, 1.2, 2.2); c.fillStyle = '#a8642e'; c.beginPath(); c.ellipse(x, y, 2.4, 1.9, 0, Math.PI, 0); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,240,215,.5)'; ell(c, x - 0.8, y - 1, 0.7, 0.35); c.fill(); }
 
   // ── what you call things here (game.js runs card text, pops, toasts, tips and bubbles through these; code names still
   // say metal, ingot, hive, bee). Earlier entries win over later ones at the same spot, so the specific ones come first.
   const PHRASES = [
     // the metal side: wet wood, sawn at wood piles, dried into bundles in the drying shed
+    // V15: the bagging table is a drying bench, and what it makes are sacks of dry leaves
+    ['[Bb]agging table', m => m[0] === 'B' ? 'Drying bench' : 'drying bench'], ['Better bags', 'Better sacks'], ['Bag leaves', 'Dry leaves'], ['Baggers', 'Dryers'], ['Bagging', 'Drying'],
+    ['Room for bags, on a shelf of their own', 'Room for sacks of dry leaves, on a shelf of their own'], ['\\bbags\\b', 'sacks'], ['\\bbag\\b', 'sack'], ['\\bBags\\b', 'Sacks'], ['\\bBag\\b', 'Sack'],
     ['Grade the metal', 'Sort the wood'], ['Bigger metal tub', 'Bigger log crib'], ['[Mm]etal slot', m => m[0] === 'M' ? 'Log crib' : 'log crib'],
     ['[Mm]etal tub', m => m[0] === 'M' ? 'Log crib' : 'log crib'], ['metal full', 'crib full'], ['\\btub\\b', 'crib'], ['\\bTub\\b', 'Crib'],
     ['double-metal chance on top of its magnet', 'chance to split a log on top of its wedge'], ['no double metal', 'no splitting'],
@@ -1181,6 +1471,10 @@ LOTS.hollow = H => {
     ['Haul ingots', 'Haul dry wood'], ['Fetching ingots', 'Fetching dry wood'], ['\\bAn ingot\\b', 'A dry bundle'], ['\\ban ingot\\b', 'a dry bundle'],
     ['\\bIngots\\b', 'Dry bundles'], ['\\bingots\\b', 'dry bundles'], ['\\bingot\\b', 'dry bundle'], ['\\bIngot\\b', 'Dry bundle'],
     ['\\bmetal\\b', 'wet wood'], ['\\bMetal\\b', 'Wet wood'],
+  ];
+  // V15: the honey side only once the beehive has become the ant hill (robot ants cut mushrooms, the ant hill sorts them,
+  // robots fill punnets); game.js applies these first
+  const ANT_PHRASES = [
     // the honey side: robot ants cut mushrooms, the ant hill sorts them, robots fill punnets
     ['nectar a sip', 'mushrooms a cut'], ['% flowers', '% mushroom patches'], ['honey crate', 'mushroom crate'],
     ['[Rr]obot beehive', m => m[0] === 'R' ? 'Robotic ant hill' : 'robotic ant hill'], ['\\bbeehive\\b', 'ant hill'], ['\\bBeehive\\b', 'Ant hill'],
@@ -1219,33 +1513,27 @@ LOTS.hollow = H => {
 
   // ── rain-themed versions of the prairie's flower upgrades (a "Rain and mushrooms" section in the workshop)
   const GEN = {
-    press:    { name:'Leaf mould deal',  max:3, cost:[250, 1200, 4500], desc:l=>'The compost yard pays <b>'+(15*(l+1))+'%</b> more for wet leaves, loose or bagged.' },
-    seeding:  { name:'Spore scattering', max:3, cost:[600, 2000, 6000], needs:()=>H.S.hive.built, desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more mushroom patches for the ants on all your land.' },
-    clover:   { name:'Mossy mulch',      max:2, cost:[900, 4000], needs:()=>H.S.hive.built, desc:l=>'Mushrooms grow back <b>'+(30*(l+1))+'%</b> sooner after an ant cuts them.' },
+    press:    { name:'Leaf mould deal',  max:3, cost:[250, 1200, 4500], desc:l=>'The compost yard pays <b>'+(15*(l+1))+'%</b> more for dry leaves.' },
+    seeding:  { name:'Spore scattering', max:3, cost:[600, 2000, 6000], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more mushroom patches for the ants on all your land.' },
+    clover:   { name:'Mossy mulch',      max:2, cost:[900, 4000], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:l=>'Mushrooms grow back <b>'+(30*(l+1))+'%</b> sooner after an ant cuts them.' },
   };
   const GEN_ICON = { press:'press', seeding:'seed', clover:'clover' };
   const GEN_SHORT = { press: l => '+' + 15*(l + 1) + '% for leaves', seeding: l => '+' + 40*(l + 1) + '% mushroom patches', clover: l => 'Mushrooms regrow ' + 30*(l + 1) + '% sooner' };
 
   // ── icons for wet wood, dry bundles, mushrooms, ants and umbrellas instead of the metal, honey and bee ones
   const ICON = {
-    leaf: '<path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#c24a22"/><path d="M0,-3.6V4.6" stroke="#7a2a12" stroke-width=".8"/><ellipse cx="-1" cy="-1.6" rx=".6" ry="1.4" fill="#fff" opacity=".3"/>',
+    bag: '<path d="M-3.4,-2 L-2.6,-4.6 L-.4,-3.2 L.8,-5 L2.2,-3.4 L3.4,-4.2 L3.6,-2Z" fill="#d9822e"/><path d="M-3.8,-2.6 H3.8 L4.4,4.6 Q0,5.4 -4.4,4.6Z" fill="#b58a56"/><path d="M-3.8,-2.6 H.4 L.6,5 Q-2,5.2 -4.4,4.6Z" fill="#c99d66"/><rect x="-4.2" y="-3.4" width="8.4" height="1.8" rx=".7" fill="#a77a48"/><path d="M-4.3,.4 H4.3" stroke="#d9c08a" stroke-width=".7"/>',
+    leaf:
+ '<path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#c24a22"/><path d="M0,-3.6V4.6" stroke="#7a2a12" stroke-width=".8"/><ellipse cx="-1" cy="-1.6" rx=".6" ry="1.4" fill="#fff" opacity=".3"/>',
     seed: '<rect x="-3.8" y="-5" width="7.6" height="10" rx=".8" fill="#efdfbd" stroke="#a8703a" stroke-width=".6"/><g fill="#8a5428"><circle cx="-1.4" cy="-2.4" r=".7"/><circle cx="1.2" cy="-1.6" r=".6"/><circle cx="-.4" cy=".2" r=".7"/><circle cx="1.6" cy="1.4" r=".5"/><circle cx="-1.6" cy="2.2" r=".6"/></g>',
     clover: '<path d="M-5,3.6 Q0,1.4 5,3.6 V5 H-5Z" fill="#5a3b26"/><g fill="#5d7a2e"><ellipse cx="-2.6" cy="2.6" rx="2" ry="1"/><ellipse cx="1.4" cy="2.2" rx="2.4" ry="1.1"/></g><path d="M-1,2 V-1.6 M2.4,1.8 V-.4" stroke="#efe6d2" stroke-width="1"/><path d="M-3.4,-1.2 A2.4,1.8 0 0 1 1.4,-1.2Z" fill="#c99448"/><path d="M.8,-.2 A1.6,1.3 0 0 1 4,-.2Z" fill="#c4281c"/>',
     press: '<path d="M-5,4.6 Q-5,.4 0,.4 Q5,.4 5,4.6Z" fill="#4a3424"/><g fill="#c24a22"><ellipse cx="-2" cy="-.8" rx="1.6" ry=".8" transform="rotate(-20 -2 -.8)"/><ellipse cx="1.8" cy="-1.6" rx="1.5" ry=".7" transform="rotate(25 1.8 -1.6)"/></g><ellipse cx="0" cy="-3.4" rx="1.4" ry=".7" fill="#d6922e"/><path d="M-4,3 H4" stroke="#6a4a30" stroke-width=".6"/>',
     twin: '<g transform="translate(-2.4,.6) scale(.62)"><path d="M-6,4 Q-5,-5 0,-5 Q5,-5 6,4Z" fill="#5a4128"/><path d="M-1.8,4 A1.8,2 0 0 1 1.8,4Z" fill="#ffb347"/></g><g transform="translate(2.6,-.4) scale(.62)"><path d="M-6,4 Q-5,-5 0,-5 Q5,-5 6,4Z" fill="#6e5236"/><path d="M-1.8,4 A1.8,2 0 0 1 1.8,4Z" fill="#ffb347"/></g>',
     ore: '<rect x="-5" y="-2.6" width="8.6" height="5.4" rx="2.6" fill="#4c3828"/><ellipse cx="3.6" cy=".1" rx="1.8" ry="2.7" fill="#9a7448"/><ellipse cx="3.6" cy=".1" rx=".8" ry="1.3" fill="none" stroke="#5a3b24" stroke-width=".5"/><ellipse cx="-2" cy="-2.2" rx="1.8" ry=".6" fill="#5d7a2e"/><path d="M-4,-1.4 H1" stroke="#cfe0ec" stroke-width=".5" opacity=".6"/>',
-    jar: '<path d="M-3.4,-3.6 A1.8,1.2 0 0 1 .2,-3.6Z M-.6,-3.8 A2,1.4 0 0 1 3.6,-3.8Z" fill="#a8642e"/><path d="M-4.8,-2.4 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-4.2,0 H4.2 M-3.9,2.4 H3.9 M-1.4,-2.4 V4.8 M1.4,-2.4 V4.8" stroke="#6e4a26" stroke-width=".45"/><rect x="-5" y="-3" width="10" height="1.2" rx=".5" fill="#c99556"/>',
-    wrap: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#e8eef4"/><ellipse cx="-1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/><ellipse cx="1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/>',
-    gift: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#2f6fb5"/><ellipse cx="-1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><ellipse cx="1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><circle cy="-4.3" r=".7" fill="#1f4f86"/>',
     ingot: '<g fill="#c99a62"><path d="M-5,4 H-.4 L-1.2,.6 H-4.2Z"/><path d="M.4,4 H5 L4.2,.6 H1.2Z"/><path d="M-2.4,.4 H2.4 L1.6,-3 H-1.6Z"/></g><g fill="#e2bb84"><path d="M-4.4,3.4 H-1 L-1.6,1.2 H-3.8Z"/><path d="M1,3.4 H4.4 L3.8,1.2 H1.6Z"/><path d="M-1.8,-.2 H1.8 L1.2,-2.4 H-1.2Z"/></g><rect x="-.6" y="-3.6" width="1.2" height="7.8" fill="#c9b07a"/>',
     gold: '<g fill="#c99a62"><path d="M-5,4 H-.4 L-1.2,.6 H-4.2Z"/><path d="M.4,4 H5 L4.2,.6 H1.2Z"/><path d="M-2.4,.4 H2.4 L1.6,-3 H-1.6Z"/></g><g fill="#e2bb84"><path d="M-4.4,3.4 H-1 L-1.6,1.2 H-3.8Z"/><path d="M1,3.4 H4.4 L3.8,1.2 H1.6Z"/><path d="M-1.8,-.2 H1.8 L1.2,-2.4 H-1.2Z"/></g><rect x="-.8" y="-3.6" width="1.6" height="7.8" fill="#f2c443"/><circle cy="-3.4" r=".9" fill="#c9922c"/>',
-    bee: '<path d="M-1.6,1 L-3,4.6 M0,1.2 L0,4.8 M1.6,1 L3,4.6" stroke="#4a3226" stroke-width=".6" fill="none"/><ellipse cx="-2.8" cy="0" rx="2.6" ry="2" fill="#8a4f2a"/><ellipse cx="-3" cy="-.5" rx="2" ry="1.2" fill="#b86a38"/><ellipse cx=".3" cy="-.2" rx="1.2" ry="1" fill="#7a4424"/><ellipse cx="2.8" cy="-.6" rx="1.8" ry="1.6" fill="#9a5a30"/><circle cx="3.3" cy="-.7" r=".7" fill="#ffc457"/><path d="M3.4,-2 Q4.4,-4.4 5.6,-4.6 M2.8,-2.1 Q3.2,-4.6 4.2,-5.4" stroke="#4a3226" stroke-width=".5" fill="none"/>',
-    nectar: '<path d="M-1,1 L-1.3,5 H1.3 L1,1Z" fill="#efe9dc"/><path d="M-4.6,1.4 A4.6,4.4 0 0 1 4.6,1.4Z" fill="#c4281c"/><g fill="#fbf6ea"><circle cx="-2" cy="-1.2" r=".7"/><circle cx="1" cy="-2.2" r=".6"/><circle cx="2.4" cy="-.2" r=".5"/></g>',
-    honey: '<g><path d="M-4.2,4.6 A2.6,2 0 0 1 .4,4.6Z" fill="#a8642e"/><path d="M-.4,4.6 A2.4,1.9 0 0 1 4.2,4.6Z" fill="#c99448"/><path d="M-2.6,1.4 A2.6,2 0 0 1 2.4,1.4Z" fill="#8a5428"/><path d="M-1.6,-1.6 A2.2,1.8 0 0 1 2.6,-1.6Z" fill="#e6a22a"/><path d="M-2.6,-4.2 A2,1.6 0 0 1 1.4,-4.2Z" fill="#c4281c"/></g>',
     drill: '<path d="M-5,2 Q0,-6 5,2" stroke="#7a5236" stroke-width="1.2" fill="none"/><rect x="-5" y="1.4" width="10" height="1.4" fill="#b9c2c6"/><path d="M-4.4,2.8 L-3.8,4 L-3.2,2.8 M-2.2,2.8 L-1.6,4 L-1,2.8 M0,2.8 L.6,4 L1.2,2.8 M2.2,2.8 L2.8,4 L3.4,2.8" stroke="#6c7378" stroke-width=".6" fill="none"/>',
     magnet: '<path d="M-1.6,-5 H1.6 L.6,4.6 H-.6Z" fill="#8f979b"/><path d="M-1.6,-5 H1.6 V-3.4 H-1.6Z" fill="#c3cbd0"/><path d="M-5,4.6 H-1 M1,4.6 H5" stroke="#9a7448" stroke-width="2"/><path d="M-1,-1 L-3.6,-3 M1,-1 L3.6,-3" stroke="#e6c48a" stroke-width=".7"/>',
-    snip: '<circle cx="-2.6" cy="3.1" r="1.8" fill="none" stroke="#6d777d" stroke-width="1.1"/><circle cx="2.6" cy="3.1" r="1.8" fill="none" stroke="#6d777d" stroke-width="1.1"/><path d="M-1.6,1.6 L2.6,-4.4 M1.6,1.6 L-2.6,-4.4" stroke="#8f979b" stroke-width="1.2"/><path d="M-5,-2 A1.4,1 0 0 1 -2.2,-2Z" fill="#c99448"/>',
-    flower: '<path d="M-1,1 L-1.3,5 H1.3 L1,1Z" fill="#efe9dc"/><path d="M-4.6,1.4 A4.6,4.4 0 0 1 4.6,1.4Z" fill="#8a5428"/><ellipse cx="-1.6" cy="-1" rx="1.2" ry=".5" fill="#fff" opacity=".35"/>',
     dig: '<path d="M-5.2,3.6 Q0,1.4 5.2,3.6" stroke="#4c3828" stroke-width="2.4" fill="none"/><path d="M-3,0 Q-1.6,-2.4 0,-1 Q1.4,.4 2.8,-1.8 M-2,-2.6 Q-.6,-5 1,-3.6 Q2.4,-2.2 3.8,-4.4" stroke="#cfdbe4" stroke-width=".8" fill="none" stroke-linecap="round"/>',
     stoke: '<path d="M-5,-1 L1,-3.4 L1,1.4 Z" fill="#8a6040"/><rect x="1.4" y="-2" width="4.2" height="6" rx=".8" fill="#2f2a26"/><rect x="2.4" y="-.4" width="2.2" height="2.4" fill="#ff9b3d"/>',
     flame: '<rect x="-4.2" y="-2.4" width="8.4" height="6.6" rx="1" fill="#2f2a26"/><rect x="-2.6" y="-.8" width="5.2" height="3.6" rx=".8" fill="#ff9b3d"/><path d="M2,-2.4 V-5" stroke="#2f2a26" stroke-width="1.4"/><circle cx="2.6" cy="-5.4" r="1" fill="#9aa4aa" opacity=".6"/>',
@@ -1253,46 +1541,61 @@ LOTS.hollow = H => {
     tub: '<path d="M-5.6,-3 H5.6 L4.6,-5 H-4.6Z" fill="#4a3a30"/><rect x="-4.6" y="-3" width="9.2" height="8" fill="#2a1f17"/><g fill="#8a6642"><circle cx="-2.4" cy="3" r="1.4"/><circle cx=".4" cy="3" r="1.4"/><circle cx="3" cy="3" r="1.3"/><circle cx="-1" cy=".4" r="1.4"/><circle cx="1.8" cy=".4" r="1.3"/></g><path d="M-4.8,4.6 H4.8 M-4.8,-2.8 H4.8" stroke="#7a5434" stroke-width="1"/>',
     hopper: '<path d="M-5.4,-3 Q0,-6 5.4,-3 L4.6,-2 Q0,-4.6 -4.6,-2Z" fill="#3f6a4a"/><g fill="#5e4430"><circle cx="-2.6" cy="2.6" r="1.6"/><circle cx=".6" cy="2.6" r="1.6"/><circle cx="3.6" cy="2.8" r="1.4"/><circle cx="-1" cy="-.2" r="1.6"/><circle cx="2.2" cy="-.2" r="1.5"/></g><g fill="#2e2016"><circle cx="-2.6" cy="2.6" r=".5"/><circle cx=".6" cy="2.6" r=".5"/><circle cx="-1" cy="-.2" r=".5"/></g>',
     pallet: '<path d="M-6,-2.4 H6 L5,-5 H-5Z" fill="#3d332c"/><rect x="-5" y="-2.4" width="10" height="7" fill="#5e4632"/><g fill="#e2bb84"><rect x="-4" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="-1.2" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="1.6" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="-2.6" y="-1" width="2.6" height="2.4" rx=".3"/></g>',
-    wings: '<path d="M-3,1 L-5,4.6 M-1,1.2 L-1.6,5 M1.2,1.2 L1.8,5" stroke="#4a3226" stroke-width=".8"/><path d="M-3.2,1 L-5.4,-1 M1,1 L3.6,-.2" stroke="#4a3226" stroke-width=".8"/><ellipse cx="-1" cy="-.4" rx="3.2" ry="1.8" fill="#b86a38"/><path d="M2.6,-4.6 H5.4 M3.4,-3 H5.6 M2.8,-1.4 H5" stroke="#4f7c84" stroke-width=".7" stroke-linecap="round"/>',
-    three: '<g fill="#efe9dc"><rect x="-4.3" y="0" width="1" height="3.6"/><rect x="-.5" y="-1.4" width="1" height="4.4"/><rect x="3.3" y="0" width="1" height="3.6"/></g><path d="M-5.8,.4 A2,1.6 0 0 1 -2.2,.4Z" fill="#c4281c"/><path d="M-2,-1 A2,1.7 0 0 1 2,-1Z" fill="#e6a22a"/><path d="M2.2,.4 A2,1.6 0 0 1 5.8,.4Z" fill="#8a5428"/>',
-    tongue: '<ellipse cx="-1.4" cy="0" rx="2.6" ry="2.4" fill="#a84a2a"/><circle cx="-.6" cy="-.6" r=".8" fill="#ffc457"/><path d="M1,-1.4 Q4,-2.4 5,-.4 L3.6,0 Q3.2,-1.2 1.2,-.6Z M1,1.4 Q4,2.4 5,.4 L3.6,0 Q3.2,1.2 1.2,.6Z" fill="#c9a24a"/>',
-    recipe: '<rect x="-4.6" y="-1" width="9.2" height="5.6" rx="1" fill="#a7783f"/><path d="M-4.6,1.6 H4.6 M-1.6,-1 V4.6 M1.6,-1 V4.6" stroke="#6e4a26" stroke-width=".5"/><path d="M-3.8,-1.2 A1.6,1.2 0 0 1 -.6,-1.2Z" fill="#c99448"/><path d="M.6,-1.2 A1.6,1.2 0 0 1 3.8,-1.2Z" fill="#e6a22a"/><path d="M-2,-3.6 A1.6,1.2 0 0 1 1.2,-3.6Z" fill="#8a5428"/>',
-    nursery: '<ellipse cx="-1.8" cy="1.4" rx="2" ry="2.8" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><ellipse cx="2" cy="1.8" rx="1.8" ry="2.5" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><ellipse cx=".2" cy="-2.4" rx="1.6" ry="2.2" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><circle cx="-2.4" cy=".4" r=".6" fill="#ffc457"/>',
     drop: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6a8a3a"/><path d="M-1.6,1 A1.6,1.6 0 0 0 0,3" stroke="#d6e8b0" stroke-width=".8" fill="none"/>',
     horseshoe: '<path d="M-4,4.6 L2.4,-3.4" stroke="#7a5236" stroke-width="1.4" stroke-linecap="round"/><path d="M.6,-5.4 Q5,-5.6 5.4,-1.2 L2.6,-1.6 Q2.4,-3.4 .4,-3.2Z" fill="#9aa4aa"/><path d="M2.6,-1.6 L5.4,-1.2" stroke="#e6ecef" stroke-width=".5"/><circle cx="-3.6" cy="-2.6" r="1.2" fill="#5d7a2e"/><path d="M-3.6,-3.8 V-1.4 M-4.8,-2.6 H-2.4" stroke="#8ab04a" stroke-width=".5"/>',
     vein: '<g><rect x="-5.4" y="1" width="8" height="3.6" rx="1.8" fill="#3a2a1e"/><ellipse cx="2.6" cy="2.8" rx="1.2" ry="1.8" fill="#8e6a44"/><rect x="-3.6" y="-2.2" width="7.6" height="3.4" rx="1.7" fill="#4c3828"/><ellipse cx="4" cy="-.5" rx="1.1" ry="1.7" fill="#8e6a44"/><rect x="-4.2" y="-5" width="6" height="3" rx="1.5" fill="#3a2a1e"/><ellipse cx="1.8" cy="-3.5" rx="1" ry="1.5" fill="#8e6a44"/><ellipse cx="-2" cy="-1.8" rx="1.6" ry=".5" fill="#5d7a2e"/></g>',
     shaft: '<path d="M-6,-2 L5.6,-4.4 L6,-2.8 L-5.6,-.4Z" fill="#3d332c"/><path d="M-4.6,-1 V5 M4.4,-3 V5" stroke="#5a3b26" stroke-width="1.2"/><g fill="#4c3828"><rect x="-3.4" y="2.4" width="6" height="2.4" rx="1.2"/><rect x="-2.6" y=".2" width="5" height="2.2" rx="1.1"/></g><ellipse cx="2.6" cy="3.6" rx=".7" ry="1.1" fill="#8e6a44"/>',
     slag: '<g stroke="#c99a62" stroke-width="1.1" stroke-linecap="round"><path d="M-4.6,4 L-1.4,-2.6"/><path d="M-2,4.4 L.6,-3.4"/><path d="M1,4.4 L2.2,-2.6"/><path d="M3.6,4 L4.4,-1.6"/></g><path d="M-.6,4.2 Q-1,1 0,-1 Q1,1.4 .6,4.2Z" fill="#ff9b3d"/>',
     brolly: '<path d="M0,-1 V3.6 Q0,5 -1.4,5 Q-2.4,5 -2.4,4" stroke="#6e4a30" stroke-width="1" fill="none" stroke-linecap="round"/><path d="M-5.6,-.4 Q-5.4,-5.6 0,-5.6 Q5.4,-5.6 5.6,-.4 Q4.6,-1.4 3.8,-.4 Q2.8,-1.6 1.8,-.4 Q.9,-1.6 0,-.4 Q-.9,-1.6 -1.8,-.4 Q-2.8,-1.6 -3.8,-.4 Q-4.6,-1.4 -5.6,-.4Z" fill="#3f6a8a"/><path d="M0,-5.6 Q-1.6,-3 -1.8,-.4 M0,-5.6 Q1.6,-3 1.8,-.4" stroke="#7a5236" stroke-width=".45" fill="none"/>',
-    wet: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6aa4d0"/><path d="M-1.6,1 A1.6,1.6 0 0 0 0,3" stroke="#e6f2fa" stroke-width=".8" fill="none"/>',  };
+    wet: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6aa4d0"/><path d="M-1.6,1 A1.6,1.6 0 0 0 0,3" stroke="#e6f2fa" stroke-width=".8" fill="none"/>',
+  };
+  // V15: the bee and honey icons turn into ant and mushroom ones once the beehive has become the ant hill (game.js applyLotIcons)
+  const ANT_ICON = {
+    jar: '<path d="M-3.4,-3.6 A1.8,1.2 0 0 1 .2,-3.6Z M-.6,-3.8 A2,1.4 0 0 1 3.6,-3.8Z" fill="#a8642e"/><path d="M-4.8,-2.4 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-4.2,0 H4.2 M-3.9,2.4 H3.9 M-1.4,-2.4 V4.8 M1.4,-2.4 V4.8" stroke="#6e4a26" stroke-width=".45"/><rect x="-5" y="-3" width="10" height="1.2" rx=".5" fill="#c99556"/>',
+    wrap: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#e8eef4"/><ellipse cx="-1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/><ellipse cx="1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/>',
+    gift: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#2f6fb5"/><ellipse cx="-1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><ellipse cx="1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><circle cy="-4.3" r=".7" fill="#1f4f86"/>',
+    bee: '<path d="M-1.6,1 L-3,4.6 M0,1.2 L0,4.8 M1.6,1 L3,4.6" stroke="#4a3226" stroke-width=".6" fill="none"/><ellipse cx="-2.8" cy="0" rx="2.6" ry="2" fill="#8a4f2a"/><ellipse cx="-3" cy="-.5" rx="2" ry="1.2" fill="#b86a38"/><ellipse cx=".3" cy="-.2" rx="1.2" ry="1" fill="#7a4424"/><ellipse cx="2.8" cy="-.6" rx="1.8" ry="1.6" fill="#9a5a30"/><circle cx="3.3" cy="-.7" r=".7" fill="#ffc457"/><path d="M3.4,-2 Q4.4,-4.4 5.6,-4.6 M2.8,-2.1 Q3.2,-4.6 4.2,-5.4" stroke="#4a3226" stroke-width=".5" fill="none"/>',
+    nectar: '<path d="M-1,1 L-1.3,5 H1.3 L1,1Z" fill="#efe9dc"/><path d="M-4.6,1.4 A4.6,4.4 0 0 1 4.6,1.4Z" fill="#c4281c"/><g fill="#fbf6ea"><circle cx="-2" cy="-1.2" r=".7"/><circle cx="1" cy="-2.2" r=".6"/><circle cx="2.4" cy="-.2" r=".5"/></g>',
+    honey: '<g><path d="M-4.2,4.6 A2.6,2 0 0 1 .4,4.6Z" fill="#a8642e"/><path d="M-.4,4.6 A2.4,1.9 0 0 1 4.2,4.6Z" fill="#c99448"/><path d="M-2.6,1.4 A2.6,2 0 0 1 2.4,1.4Z" fill="#8a5428"/><path d="M-1.6,-1.6 A2.2,1.8 0 0 1 2.6,-1.6Z" fill="#e6a22a"/><path d="M-2.6,-4.2 A2,1.6 0 0 1 1.4,-4.2Z" fill="#c4281c"/></g>',
+    snip: '<circle cx="-2.6" cy="3.1" r="1.8" fill="none" stroke="#6d777d" stroke-width="1.1"/><circle cx="2.6" cy="3.1" r="1.8" fill="none" stroke="#6d777d" stroke-width="1.1"/><path d="M-1.6,1.6 L2.6,-4.4 M1.6,1.6 L-2.6,-4.4" stroke="#8f979b" stroke-width="1.2"/><path d="M-5,-2 A1.4,1 0 0 1 -2.2,-2Z" fill="#c99448"/>',
+    flower: '<path d="M-1,1 L-1.3,5 H1.3 L1,1Z" fill="#efe9dc"/><path d="M-4.6,1.4 A4.6,4.4 0 0 1 4.6,1.4Z" fill="#8a5428"/><ellipse cx="-1.6" cy="-1" rx="1.2" ry=".5" fill="#fff" opacity=".35"/>',
+    wings: '<path d="M-3,1 L-5,4.6 M-1,1.2 L-1.6,5 M1.2,1.2 L1.8,5" stroke="#4a3226" stroke-width=".8"/><path d="M-3.2,1 L-5.4,-1 M1,1 L3.6,-.2" stroke="#4a3226" stroke-width=".8"/><ellipse cx="-1" cy="-.4" rx="3.2" ry="1.8" fill="#b86a38"/><path d="M2.6,-4.6 H5.4 M3.4,-3 H5.6 M2.8,-1.4 H5" stroke="#4f7c84" stroke-width=".7" stroke-linecap="round"/>',
+    three: '<g fill="#efe9dc"><rect x="-4.3" y="0" width="1" height="3.6"/><rect x="-.5" y="-1.4" width="1" height="4.4"/><rect x="3.3" y="0" width="1" height="3.6"/></g><path d="M-5.8,.4 A2,1.6 0 0 1 -2.2,.4Z" fill="#c4281c"/><path d="M-2,-1 A2,1.7 0 0 1 2,-1Z" fill="#e6a22a"/><path d="M2.2,.4 A2,1.6 0 0 1 5.8,.4Z" fill="#8a5428"/>',
+    tongue: '<ellipse cx="-1.4" cy="0" rx="2.6" ry="2.4" fill="#a84a2a"/><circle cx="-.6" cy="-.6" r=".8" fill="#ffc457"/><path d="M1,-1.4 Q4,-2.4 5,-.4 L3.6,0 Q3.2,-1.2 1.2,-.6Z M1,1.4 Q4,2.4 5,.4 L3.6,0 Q3.2,1.2 1.2,.6Z" fill="#c9a24a"/>',
+    recipe: '<rect x="-4.6" y="-1" width="9.2" height="5.6" rx="1" fill="#a7783f"/><path d="M-4.6,1.6 H4.6 M-1.6,-1 V4.6 M1.6,-1 V4.6" stroke="#6e4a26" stroke-width=".5"/><path d="M-3.8,-1.2 A1.6,1.2 0 0 1 -.6,-1.2Z" fill="#c99448"/><path d="M.6,-1.2 A1.6,1.2 0 0 1 3.8,-1.2Z" fill="#e6a22a"/><path d="M-2,-3.6 A1.6,1.2 0 0 1 1.2,-3.6Z" fill="#8a5428"/>',
+    nursery: '<ellipse cx="-1.8" cy="1.4" rx="2" ry="2.8" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><ellipse cx="2" cy="1.8" rx="1.8" ry="2.5" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><ellipse cx=".2" cy="-2.4" rx="1.6" ry="2.2" fill="#f4ecd8" stroke="#c9b48c" stroke-width=".5"/><circle cx="-2.4" cy=".4" r=".6" fill="#ffc457"/>',
+  };
 
   return {
     id: 'hollow', name: 'Rainy hollow', phrases: PHRASES,
-    AREAS, SPOTS, TREES, BUSHES, PLANT, PUDDLES,
+    AREAS, SPOTS, TREES, BUSHES, PLANT, PUDDLES, BAGGER,
     MINE_LAND: 0, PLANT_LAND: 0,
     landForSale: false,   // the yard never grows
     plantOpen: true,      // the drying shed can be built here (the smelting plant can't be bought in the first yard any more)
     rain: true,           // rain, puddles, mist and warm lights (game.js)
     wetWood: true,        // dry bundles get soaked in the rain on the way to the road; blowers can learn the wood umbrella (game.js)
+    dryBench: true,       // V15: the leaves are too wet to sell: the bagging table is a drying bench (from the start), worked by blowers
     LEAFC, FOLIAGE, TREE_FAMS, leafSheen: true, leafFall: { vy: [34, 54], sw: [9, 20] },
     FLOWER_TYPES, FLOWER_N: [22, 30, 95], decoN: [110, 150, 320], decoTypes: MUSH_DECO.length,
     flowerPlace: { k: [2, 3], kDeco: [2, 4], d: [12, 22], dDeco: [6, 16], clash: [13, 8], s: [0.95, 0.3], sDeco: [0.7, 0.45] },
     paintGround, drawBush, drawFence, drawRockBed, paintCanopy, paintVignette,
     bg: '#4a3c2a',
-    HV: { plinth: 12, fh: 8, r: 21, k: 0.32 },   // the ant hill's height (a chamber per "floor")
+    HV: { plinth: 12, fh: 11, r: 21, k: 0.32, lift: 12 },   // the ant hill's height (a chamber per "floor"; V15: it sits on the old beehive's base, lift)
     hiveWide: true,                              // the ant hill is wider than the beehive tower (hit box, falling leaves)
     antsOnGround: true,
     antSpeed: 0.7,                               // V14.1: ants walk at 70% of a bee's speed (and round things, on their trails)                          // the ants walk under the tree crowns, not over them
-    hiveKnown: true,                             // the ant hill can be built from the start (for now)
+    hiveKnown: true,                             // the beehive can be built from the start
+    hiveStory: true,                             // V15: it's a plain beehive whose bees can't fly in the rain, until the robots research it into the ant hill
     art: { flowerSprite, drawFlower, drawDeco, bloomOf, drawJar, drawGiftJar, drawHive, drawBees, drawTub, logEnd, nugget, drawIngot, drawPallet, drawPlant,
-      drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney,
+      drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney, drawBagger, drawLeafBag, drawHiveLab, drawLabBee,
       popCol: { metal: '#e6c89a', ingot: '#f2d8a8' } },
     styles, taskCols,
     GEN, GEN_ICON, GEN_SHORT, genSection: { title: 'Rain and mushrooms', keys: ['press', 'seeding', 'clover'] },
-    ICON,
-    // story: nothing to find here yet; the crew can ride home whenever you like (for now), and the first yard made this meanwhile
+    ICON, antICON: ANT_ICON, antPhrases: ANT_PHRASES,
+    // story: the crew can ride home whenever you like (for now), and the first yard made this meanwhile
     tripHome: { earned: 2000 },
-    arrive: { title: 'The Rainy hollow', text: (name, names) => 'Rain, puddles and wet leaves everywhere. ' + (names && names.length > 1 ? names.join(' and ') : name) + ' can ride home with the truck whenever you like: drag Go back into ' + (names && names.length > 1 ? 'both their Do lists.' : 'its Do list.') },
+    // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
+    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? 'Teach ' + names[1] + ' Warm air on its card' : 'Build a blower and teach it Warm air') + ', and it can dry them at the drying bench.' },
   };
 };
 LOTS.hollow.title = 'the Rainy hollow';   // what the game calls it before it's loaded ("Off to the Rainy hollow…")

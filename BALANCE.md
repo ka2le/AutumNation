@@ -368,6 +368,15 @@ Meadow ~42 and the plant ~47 min. The letter about the new lot comes at $900 ear
 bee turns up at 320 petals (~5 min with the robot you bring) and takes 2,000 research units (one plain robot: ~8 min; up
 to three robots can work on it).
 
+### V15: the Rainy hollow's drying bench and hive research
+In the hollow loose leaves don't sell: only dry ones (a sack of 10 sells as a bag: Sort leaves × Better sacks, $1.95 at
+the start). A blower with Warm air dries a tray of 10 in 6 s ÷ Drying (1× → 3.5×), so one fresh blower dries ~100 a
+minute if the bin keeps up; the bin's sack shelf there is 1.5 × bin ÷ 10 (at least 4). The second blower costs $18 there,
+since the first came along. The hive research: 6,000 units; a blower (required) adds 2/s, robots count half their usual
+4 (lead) / 1 (helper) × Research level. Blower alone 50 min, plain Tinker + blower 25, Tinker with glasses 17 (14 with
+two plain helpers), three at Speed reading 7, three at Photographic memory 2 min. Not tuned against the hollow's income
+yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` are the knobs.
+
 ### Open questions and weak spots
 - **The late game is short.** Everything is bought ~15 minutes after the Old orchard. If we want a longer late game, it
   needs content (2.3), not dearer prices.
