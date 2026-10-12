@@ -32,7 +32,7 @@ async function main() {
       clients: { claim: async () => {} },
     },
     caches: {
-      keys: async () => ['autumnation-v1', 'autumnation-v2', 'other-app-v1'],
+      keys: async () => ['autumnation-v1', 'autumnation-v6', 'autumnation-v7', 'other-app-v1'],
       delete: async (key) => { deleted.push(key); },
       open: async (key) => { opened.push(key); return ownCache; },
     },
@@ -41,7 +41,7 @@ async function main() {
   let activation;
   handlers.activate({ waitUntil: (promise) => { activation = promise; } });
   await activation;
-  assert.deepEqual(deleted, ['autumnation-v1'], 'Other apps and current cache must survive activation');
+  assert.deepEqual(deleted, ['autumnation-v1', 'autumnation-v6'], 'Other apps and current cache must survive activation');
 
   function request(url, mode = 'cors') {
     let response;
@@ -52,7 +52,7 @@ async function main() {
   assert.equal(request('https://example.com/game.js'), undefined);
   cacheHit = new Response('cached game');
   assert.equal(await (await request(new URL('game.js', start).href)).text(), 'cached game');
-  assert.deepEqual(opened, ['autumnation-v2']);
+  assert.deepEqual(opened, ['autumnation-v7']);
   cachedRequests.length = 0;
   cacheHit = undefined;
   await request(new URL('offline-route', start).href, 'navigate');
