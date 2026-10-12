@@ -324,6 +324,7 @@ LOTS.prairie = H => {
     id: 'prairie', name: 'Wildflower prairie', words,
     AREAS, SPOTS, TREES, PLANT: { x: -470, y: -330 },   // the smelting plant stands out in the meadow: a long walk for the haulers
     MINE_LAND: 1,                                        // mining (the metal slot, miners, smelting) opens with the meadow
+    landForSale: false,                                  // no For Sale sign here: the patch is all you get (remove to sell the meadow and hills again)
     LEAFC, FOLIAGE, BLOSSOM, TREE_FAMS,
     FLOWER_TYPES, flowerStem, drawFlowerHead,
     decoN: [90, 300, 650],      // wildflowers just for looks, painted into the ground

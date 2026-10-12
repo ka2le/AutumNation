@@ -92,6 +92,10 @@ const SPOTS = LOT.SPOTS || [
 // V13: a lot can keep its metal for later land (the prairie's only vein is in the meadow)
 const MINE_LAND = LOT.MINE_LAND || 0;
 const metalOpen = () => S.land >= MINE_LAND;
+// a lot can switch its land sale off (the prairie: no For Sale sign, so no bigger yard there). Its AREAS stay as they
+// are, so setting landForSale back to true (or removing it) brings the sign back.
+const LAND_SALE = LOT.landForSale !== false;
+const landForSale = () => LAND_SALE && S.land + 1 < AREAS.length;
 const OLD_SPOT_MAP = { 0: 0, 1: 1, 3: 2 };   // old vein index -> new one; old veins 2 and 4 are gone (refunded)
 const veinWord = sp => { const v = SPOTS[sp].rich || 1; return v < 0.9 ? 'a thin vein' : v > 1.15 ? 'a rich vein' : v > 1.02 ? 'a good vein' : 'a fair vein'; };
 const TREES = LOT.TREES || [
@@ -1393,7 +1397,7 @@ const LETTER_HELD = 200;     // or once you've held this much at one time (S.pea
 // (V13.1: and only once the robots have worked out the old picture book)
 const FIND_ABOVE = -122;     // finds (the book, the bee) only turn up under leaves higher up than the workshop's roof
 const LOT_START_CASH = 10;   // what you have when your robot first arrives on a new lot
-const BEE_LEAVES = 320;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
+const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
 const HONEY_JARS = 30;       // jars of honey the prairie's hive makes before the driver offers a ride back
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
@@ -1430,7 +1434,8 @@ const researchNeed = () => FIND().need;
 // is there room for robot r on the research? (the bee only has room for three around it)
 const researchRoom = r => !FIND().crew || RESEARCH_STATES.includes(r.st) || researchers().length < FIND().crew;
 const RESEARCH_MAIN = 4, RESEARCH_HELP = 1; // units a second: the robot holding the book, and each robot helping (× its Research level)
-const STUDY = { x: SHED.x - 12, y: SHED.y + 16 };   // where the book gets studied: just in front of the workshop door
+// (V13.2: the dead bee is studied where the beehive will go instead, facing the plot)
+const STUDY = { get x(){ return S.story.item === 'bee' ? HIVE.x - 34 : SHED.x - 12; }, get y(){ return S.story.item === 'bee' ? HIVE.y + 14 : SHED.y + 16; } };
 // where helpers stand around the reader (it faces right): beside it, then over its shoulder, then in a ring
 const ASSIST_SPOTS = [[-27, 2, 1], [50, 3, -1], [-50, -4, 1], [70, -5, -1], [-18, 13, 1], [38, 14, -1], [-72, 4, 1], [88, 3, -1], [-40, 15, 1]];
 const RESEARCH_STATES = ['toBook', 'pickBook', 'toStudy', 'study', 'toAssist', 'assist'];
@@ -1483,6 +1488,7 @@ function findBook(r, l){
     pop(r.x, r.y - 78, '!', 'note', 30);
     pop(S.story.x, S.story.y - 46, 'New task available: Research', 'note', 18, 0.9, 4);
     robotSays(r, 'hmm', true); sfx('chime', 'sale');
+    if (S.story.item === 'bee') startFindCam(S.story.x, S.story.y);   // V13.2: the camera zooms in on the dead bee as it turns up
     const F = FIND(); setTimeout(() => showToast(F.found[0], F.found[1], 9), 700);
   }
   save();
@@ -1569,19 +1575,36 @@ function updResearchBot(r, dt, sp){
 // V12.1: the story camera. Zooms in on the robot that picked up the book, follows it to the workshop, lets it open the
 // book, then glides back to where the camera was. Any drag, pinch or zoom by the player hands the camera back at once.
 function startFollow(r){
-  camAnim = null;
-  camFollow = { id: r.id, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, c0: s2w(W/2, H/2), t: 0, hold: 0 };
+  camAnim = null; closeCard();   // (V13.2: an open card would hide what the story camera is showing)
+  // (if the camera is still on the find, it carries on from there and still goes back to where you had it)
+  const prev = camFollow;
+  camFollow = { id: r.id, from: prev ? prev.from : { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
+}
+// V13.2: zoom in on a spot (the dead bee popping out from under a petal), hold a moment, then go back
+function startFindCam(x, y){
+  if (simMode || camFollow) return;
+  camAnim = null; closeCard();
+  camFollow = { spot: { x, y }, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
 function updCamFollow(dt){
   const F = camFollow; if (!F) return;
-  const r = R[F.id];
   const back = dur => { camAnim = { from: { z: cam.z, ox: cam.ox, oy: cam.oy }, to: F.from, t: 0, dur }; camFollow = null; camMovedT = performance.now(); };
+  if (F.spot){
+    F.t += dt; if (F.t > 4.6){ back(1.8); return; }
+    const zIn = Math.min(zoomLimits()[1], Math.max(F.from.z*1.9, 1.5)), k = ease(clamp(F.t/1.3, 0, 1)), z = lerp(F.z0, zIn, k);
+    const cx = lerp(F.c0.x, F.spot.x, k), cy = lerp(F.c0.y, F.spot.y - 24, k);
+    cam.z = z; cam.ox = W/2 - cx*z; cam.oy = H/2 - cy*z;
+    if (F.t < 1.4) camMovedT = performance.now();
+    if (cardOpen) placeCard();
+    return;
+  }
+  const r = R[F.id];
   if (!r || !(['pickBook', 'toStudy', 'study', 'idle'].includes(r.st)) || bookRt.by !== r.id){ back(1.2); return; }
   F.t += dt;
   if (r.st === 'study'){ F.hold += dt; if (F.hold > 2.6){ back(1.8); return; } }
   if (F.t > 40){ back(1.5); return; }   // never gets stuck following
   const zIn = Math.min(zoomLimits()[1], Math.max(F.from.z*1.9, 1.5)), k = ease(clamp(F.t/1.3, 0, 1));
-  const z = lerp(F.from.z, zIn, k), tx = r.x + r.face*6, ty = r.y - 32;
+  const z = lerp(F.z0 != null ? F.z0 : F.from.z, zIn, k), tx = r.x + r.face*6, ty = r.y - 32;
   // the centre glides from where the view was onto the robot, then stays on it (smoothed, so it doesn't jitter)
   F.cx = F.cx == null ? tx : lerp(F.cx, tx, 1 - Math.pow(0.02, dt)); F.cy = F.cy == null ? ty : lerp(F.cy, ty, 1 - Math.pow(0.02, dt));
   const cx = lerp(F.c0.x, F.cx, k), cy = lerp(F.c0.y, F.cy, k);
@@ -3000,7 +3023,7 @@ function step(dt){
   if (plantRt.bump > 0) plantRt.bump = Math.max(0, plantRt.bump - dt);
   // the For Sale sign goes up once you have half the price
   const nxt = S.land + 1;
-  if (nxt < AREAS.length && S.flags.saleShown < nxt && S.cash >= AREAS[nxt].cost*0.5){
+  if (landForSale() && S.flags.saleShown < nxt && S.cash >= AREAS[nxt].cost*0.5){
     S.flags.saleShown = nxt; saleAppearT = S.t;
     const p = salePos(); sparkle(p.x, p.y - 30); pop(p.x, p.y - 84, MINE_LAND && nxt === MINE_LAND ? 'Land for sale: finally a chance to mine!' : 'Land for sale next door', 'note', 18, 0.3); sfx('chime', 'sale');
   }
@@ -3009,7 +3032,7 @@ function step(dt){
     if (!simMode) showToast('The yard hums along nicely.', 'Ten robots, every vein worked and the furnaces roaring.', 9);
   }
 }
-const saleVisible = () => S.land + 1 < AREAS.length && S.flags.saleShown >= S.land + 1;
+const saleVisible = () => landForSale() && S.flags.saleShown >= S.land + 1;
 const baggerShown = () => S.bag.built || S.flags.bagShown;
 const plantShown = () => S.plant.built || S.flags.plantShown;
 const packShown = () => S.hive.built && (S.hive.packing || S.lv.honeyPrice >= 2);   // V8: labels go on past 2 steps; gift wrapping still shows after the second
@@ -3053,7 +3076,7 @@ function offers(all){
   if (!S.plant.built){ if (all ? S.metalSlot && plantGrade() : plantShown()) o.push({ id:'plant', obj:'plant', cost: PLANT_COST }); }
   else o.push(up('smeltSpeed'), up('ingotGrade'), up('slag'), up('hopper'));
   if (all ? S.miners.length : shaftShown()) for (const sp of S.miners) if (!S.shafts.includes(sp)) o.push({ id:'shaft', arg:sp, obj:'spot'+sp, cost: shaftCost() });
-  if (S.land + 1 < AREAS.length && (all || saleVisible())) o.push({ id:'land', obj:'sale', cost: AREAS[S.land + 1].cost });
+  if (landForSale() && (all || saleVisible())) o.push({ id:'land', obj:'sale', cost: AREAS[S.land + 1].cost });
   if (!S.hive.built){ if (all ? hiveKnown() : hiveShown()) o.push({ id:'hive', obj:'hive', cost: hiveCost() }); }
   else {
     if (S.hive.bees < MAX_BEES) o.push({ id:'bee', obj:'hive', cost: beeCost() });
@@ -5713,7 +5736,7 @@ function cardModel(){
     head = 'vein';
     if (p.land > S.land){
       title = 'Metal vein';
-      rows.push({ sig:'far', html: row({ icon: ic('land'), cls:'soon', name:'Not your land yet', val:'buy it when the For Sale sign goes up' }) });
+      rows.push({ sig:'far', html: row({ icon: ic('land'), cls:'soon', name:'Not your land yet', val: LAND_SALE ? 'buy it when the For Sale sign goes up' : 'it lies beyond the fence' }) });
     } else if (S.miners.includes(i)){
       const shaft = S.shafts.includes(i), room = slotsAt(i);
       title = shaft ? 'Mine shaft' : 'Miner'; head = shaft ? 'shaft' : 'vein';
@@ -5971,7 +5994,7 @@ card.addEventListener('click', e => {
   else if (act === 'robot') buy({ id:'robot', obj:'shed', cost:robotCost(S.robots.length) });
   else if (act === 'blower' || act === 'shaker'){ if (cfgsOf(act).length < HELPER_MAX) buy({ id:act, obj:'shed', cost:helperCost(act) }); }
   else if (act === 'miner') buy({ id:'miner', arg:i, obj:'spot'+i, cost:MINER_COST });
-  else if (act === 'land'){ buy({ id:'land', obj:'sale', cost:AREAS[S.land + 1].cost }); return; }
+  else if (act === 'land'){ if (landForSale()) buy({ id:'land', obj:'sale', cost:AREAS[S.land + 1].cost }); return; }
   else if (act === 'bagger'){ if (!S.bag.built) buy({ id:'bagger', obj:'bagger', cost:BAGGER_COST }); }
   else if (act === 'honeyPack'){ if (S.hive.built && !S.hive.packing) buy({ id:'honeyPack', obj:'hive', cost:HONEY_PACK_COST }); }
   else if (act === 'plant'){ if (!S.plant.built) buy({ id:'plant', obj:'plant', cost:PLANT_COST }); }

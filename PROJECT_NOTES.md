@@ -312,3 +312,11 @@ The prairie (formerly the `location2` test copy) is now part of the main game as
 - A new lot starts with $10 (`LOT_START_CASH`).
 - Research has a fourth level: Photographic memory, $200, 16× (the reader does 64 research a second).
 - Finds (the book, the dead bee) only turn up under leaves above the workshop's roofline (`FIND_ABOVE` = -122), away from the road.
+
+### V13.2 (Oct 12)
+- The dead bee turns up after 300 petals (`BEE_LEAVES`, was 320), and the camera zooms in on it as it pops out (`startFindCam`, a `camFollow` with a `spot`: about 1.3 s in, held, then back). If a robot picks it up meanwhile, the usual story camera takes over and still returns to where you had the view. Any drag, pinch or zoom hands the camera back as before.
+- The dead bee is studied where the beehive will go (`STUDY` is a getter: by the hive plot for the bee, by the workshop door for the book); helpers stand beside it as before.
+- When the story camera zooms in (the book or bee picked up, the bee turning up), any open card closes.
+
+### V13.3 (Oct 12)
+- No bigger yard on the prairie: `landForSale: false` in `public/lots/prairie.js` (read as `LAND_SALE` / `landForSale()` in game.js) keeps the For Sale sign from ever going up there, and the land offer, its card action and the balance player's land buy are all gated on it. The prairie's `AREAS` (Wildflower meadow, Blossom hills) and `MINE_LAND` are untouched, so removing the flag brings everything back. Side effect while it's off: the prairie's only metal vein is in the meadow, so mining (metal slot, miners, smelting plant) never opens there; the vein's card says "it lies beyond the fence" instead of pointing at the sign.
