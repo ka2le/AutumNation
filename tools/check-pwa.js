@@ -10,7 +10,8 @@ async function main() {
   const manifestUrl = 'https://ka2le.github.io/AutumNation/manifest.webmanifest';
   const start = new URL(manifest.start_url, manifestUrl);
   const scope = new URL(manifest.scope, manifestUrl);
-  assert.equal(new URL(manifest.id, start.origin).href, 'https://ka2le.github.io/AutumNation/');
+  assert.equal(new URL(manifest.id, start.origin).href, 'https://ka2le.github.io/AutumNation/app');
+  assert.notEqual(manifest.id, '/AutumNation/', 'The previous install ID may be stuck on Android');
   assert.equal(start.href, scope.href);
   assert.equal(scope.pathname, '/AutumNation/');
 
@@ -32,7 +33,7 @@ async function main() {
       clients: { claim: async () => {} },
     },
     caches: {
-      keys: async () => ['autumnation-v1', 'autumnation-v6', 'autumnation-v7', 'other-app-v1'],
+      keys: async () => ['autumnation-v1', 'autumnation-v7', 'autumnation-v8', 'other-app-v1'],
       delete: async (key) => { deleted.push(key); },
       open: async (key) => { opened.push(key); return ownCache; },
     },
@@ -41,7 +42,7 @@ async function main() {
   let activation;
   handlers.activate({ waitUntil: (promise) => { activation = promise; } });
   await activation;
-  assert.deepEqual(deleted, ['autumnation-v1', 'autumnation-v6'], 'Other apps and current cache must survive activation');
+  assert.deepEqual(deleted, ['autumnation-v1', 'autumnation-v7'], 'Other apps and current cache must survive activation');
 
   function request(url, mode = 'cors') {
     let response;
@@ -52,7 +53,7 @@ async function main() {
   assert.equal(request('https://example.com/game.js'), undefined);
   cacheHit = new Response('cached game');
   assert.equal(await (await request(new URL('game.js', start).href)).text(), 'cached game');
-  assert.deepEqual(opened, ['autumnation-v7']);
+  assert.deepEqual(opened, ['autumnation-v8']);
   cachedRequests.length = 0;
   cacheHit = undefined;
   await request(new URL('offline-route', start).href, 'navigate');
