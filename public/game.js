@@ -1637,9 +1637,10 @@ function updResearch(dt){
 // game carries on in the other lot (travel(), then arrive() on the next page). For a new beat: a milestone, a LETTERS
 // entry and, for a new place, a lot file in public/lots/.
 const LETTERS = {
-  newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }),   // (V13.1: where the beehive will go, so it stands out) title: 'A letter', sign: 'your truck driver',
+  // (V13.1: the first letter is put down where the beehive will go, so it stands out)
+  newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }), title: 'A letter', sign: 'Trucker',
     text: 'We found another spot that could use some cleanup, send your best cleanup robot.', open: () => openTrip({ to: 'prairie' }) },
-  goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'your truck driver',
+  goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
 };
 const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
