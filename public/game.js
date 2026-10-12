@@ -79,11 +79,13 @@ const sayH = WORDS || PHRASE || PHRASE_ANT ? h => String(h).replace(/(<[^>]*>)|(
 const ROAD = 84, LANE = 56, VERGE = 30;
 // V6: the road row is spaced out, with room for small work buildings: the bagging table between the pickup sign and the
 // bin, and the ingot pallet between the metal tub and the honey crate.
-const BIN = { x: 28, y: -12 }, TUB = { x: 86, y: -12 }, SIGN = { x: -110, y: -8 }, SHED = { x: -222, y: -22 }, PARK = 50;
-const BAGGER = LOT.BAGGER || { x: -48, y: -14 };  // the bagging table (built later) between the pickup sign and the bin (V15: the hollow's drying bench stands further back)
-const PALLET = { x: 138, y: -12 };  // the ingot pallet (where haulers drop ingots for the truck), right of the metal tub
-const HIVE = { x: 250, y: -20 };   // the robot beehive stands at the right end of the row
-const CRATE = { x: 190, y: -12 };  // the honey crate (jars waiting for the truck) sits between the ingot pallet and the hive
+// (V15: a lot can space the row out its own way: LOT.ROW, the Rainy hollow's has room for its drying bench by the bin)
+const ROW = LOT.ROW || {};
+const BIN = ROW.BIN || { x: 28, y: -12 }, TUB = ROW.TUB || { x: 86, y: -12 }, SIGN = ROW.SIGN || { x: -110, y: -8 }, SHED = ROW.SHED || { x: -222, y: -22 }, PARK = 50;
+const BAGGER = ROW.BAGGER || { x: -48, y: -14 };  // the bagging table (built later) between the pickup sign and the bin
+const PALLET = ROW.PALLET || { x: 138, y: -12 };  // the ingot pallet (where haulers drop ingots for the truck), right of the metal tub
+const HIVE = ROW.HIVE || { x: 250, y: -20 };   // the robot beehive stands at the right end of the row
+const CRATE = ROW.CRATE || { x: 190, y: -12 };  // the honey crate (jars waiting for the truck) sits between the ingot pallet and the hive
 const PLANT = LOT.PLANT || { x: 190, y: -240 }; // the smelting plant, up in the right half of the cottage plot
 // V7: land costs more, and the cottage plot runs short sooner (its small trees give shakers fewer leaves, see
 // treeYieldMul), so you feel the need for the meadow before you can buy it. Leaves sell for a little more to keep the
@@ -620,7 +622,8 @@ function freshState(){
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
-    story:{ item: LOT.find || 'book', armed:false, found:false, x:0, y:0, prog:0, done:false, opened:false, foundT:-1, doneT:-1, cam:false },
+    story:{ item: LOT.find || 'book', armed:false, found:false, x:0, y:0, prog:0, done:false, opened:false, foundT:-1, doneT:-1, cam:false,
+      flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
     flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
@@ -1459,7 +1462,7 @@ function updRobot(r, dt){
       break;
     }
     case 'rest': r.timer -= dt; r.look -= dt; if (r.timer <= 0) r.st = 'idle'; else if (r.look <= 0){ r.look = 0.3; if (robotTask(r)) r.st = 'idle'; } break;
-    case 'toBook': case 'pickBook': case 'toStudy': case 'study': case 'toAssist': case 'assist': updResearchBot(r, dt, sp); break;
+    case 'toBook': case 'pickBook': case 'toStudy': case 'study': case 'toAssist': case 'assist': case 'labFetch': case 'labWin': updResearchBot(r, dt, sp); break;
   }
   // V14 (WET_WOOD): dry bundles out in the rain get wet, one by one, unless a blower holds the wood umbrella over them
   if (WET_WOOD && r.carryI > (r.wetI || 0) && r.moving && !underRoof(r) && !umbrellaOver(r)){
@@ -1600,7 +1603,7 @@ const FINDS = {
   // spots: where the two helpers stand, from the lead researcher's spot (STUDY)
   hive: { need: 6000, crew: 3, atHive: true, blower: 2, robotMul: 0.5, title: 'Bees in the rain', holding: 'the hive',
     story: 'The bee can’t fly in this rain. Maybe the robots can work out something that doesn’t need wings…',
-    spots: [[124, 2, -1], [-36, -3, 1]] },
+    spots: [[124, 2, -1], [-52, -14, 1]] },
 };
 const FIND = () => FINDS[S.story.item] || FINDS.book;
 // V15 (HIVE_STORY): the Rainy hollow's beehive can't work until the robots have turned it into an ant hill
@@ -1614,7 +1617,7 @@ const RESEARCH_MAIN = 4, RESEARCH_HELP = 1; // units a second: the robot holding
 const STUDY = { get x(){ return S.story.item === 'hive' ? HIVE.x - 62 : S.story.item === 'bee' ? HIVE.x - 34 : SHED.x - 12; }, get y(){ return S.story.item === 'hive' ? HIVE.y + 12 : S.story.item === 'bee' ? HIVE.y + 14 : SHED.y + 16; } };
 // where helpers stand around the reader (it faces right): beside it, then over its shoulder, then in a ring
 const ASSIST_SPOTS = [[-27, 2, 1], [50, 3, -1], [-50, -4, 1], [70, -5, -1], [-18, 13, 1], [38, 14, -1], [-72, 4, 1], [88, 3, -1], [-40, 15, 1]];
-const RESEARCH_STATES = ['toBook', 'pickBook', 'toStudy', 'study', 'toAssist', 'assist', 'labFetch'];   // (V15 labFetch: carrying a crashed bee home)
+const RESEARCH_STATES = ['toBook', 'pickBook', 'toStudy', 'study', 'toAssist', 'assist', 'labFetch', 'labWin'];   // (V15 labFetch: carrying a crashed bee home; labWin: putting a porthole in)
 const researchOpen = () => !!(S.story.found && !S.story.done);
 const studyMul = ri => rv(ri, 'study');
 // runtime only: who has the book (a robot id or null), whether it's in their hands, and when a dropped book lands
@@ -1685,6 +1688,7 @@ function dropBook(r){
   flyTo('book', from.x, from.y, S.story.x, S.story.y - 1, 0.3, 8, { rot: 0 });
 }
 function leaveResearch(r){
+  if (r.win != null){ r.win = null; r.lean = 0; }   // V15: a porthole it was carrying waits for someone else
   if (r.lab){ const b = r.lab; b.claim = null; if (b.st === 'carried'){ b.st = 'down'; b.t = 0; b.x = r.x + r.face*8; b.y = r.y + 2; b.z = 0; } r.lab = null; }   // V15: puts a carried bee down
   if (bookRt.by === r.id){ if (bookRt.held) dropBook(r); bookRt.by = null; bookRt.held = false; }
   r.aspot = -1;
@@ -1735,11 +1739,15 @@ function updResearchBot(r, dt, sp){
     case 'study': case 'assist': {
       r.hammer += dt;
       if (r.st === 'study' && FIND().atHive){
-        // V15: tinkering at the hive (and with no helpers, it fetches crashed bees itself)
+        // V15: the lead works on the hive: a while with the hammer, a while with the spanner, a moment to think. A porthole
+        // that's due goes in (helpers first), and with no helpers it fetches crashed bees itself
+        { const w = labWinDue(r); if (w != null){ startLabWin(r, w); break; } }
         { const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.st = 'labFetch'; r.timer = 0; break; } }
+        r.actT = (r.actT || 0) - dt;
+        if (r.actT <= 0){ r.act = r.act === 'hammer' ? (Math.random() < 0.5 ? 'wrench' : 'think') : r.act === 'think' ? (Math.random() < 0.6 ? 'hammer' : 'wrench') : 'hammer'; r.actT = r.act === 'think' ? rand(1.4, 2.4) : rand(2.6, 4.6); if (r.act === 'think' && Math.random() < 0.6) robotSays(r, 'hmm'); }
         r.unitT = (r.unitT || 0) + dt; if (r.unitT >= 15){ r.unitT = 0; unitDone(r, 'research'); }
-        if (Math.random() < dt*0.05) robotSays(r, Math.random() < .5 ? 'hmm' : 'chat');
-        if (!simMode && Math.random() < dt*0.35){ const a = sndAt(r.x, r.y); sfx('tink', a.pan, a.vol*0.35); }
+        if (Math.random() < dt*0.04) robotSays(r, 'chat');
+        if (!simMode && r.act !== 'think' && Math.random() < dt*(r.act === 'hammer' ? 0.35 : 0.2)){ const a = sndAt(r.x, r.y); sfx('tink', a.pan, a.vol*0.35); }
       } else if (r.st === 'study'){
         // turning the pages (there aren't many left)
         r.flipT -= dt; if (r.flipT <= 0){ r.flipT = rand(2.2, 4.6); r.flipP = 0; if (Math.random() < 0.5){ const a = sndAt(r.x, r.y); sfx('paper'); } }
@@ -1761,8 +1769,13 @@ function updResearchBot(r, dt, sp){
           pop(r.x, r.y - 80, 'let me see!', 'note', 15);
           break;
         }
-        // V15: a bee with an umbrella has crashed nearby: fetch it and carry it home
-        if (FIND().atHive){ const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.st = 'labFetch'; r.timer = 0; break; } }
+        // V15: helpers at the hive put the portholes in, fetch the bees that crash, and in between point things out
+        if (FIND().atHive){
+          const w = labWinDue(r); if (w != null){ startLabWin(r, w); break; }
+          const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.st = 'labFetch'; r.timer = 0; break; }
+          r.ptT = (r.ptT || 0) - dt; if (r.ptT <= 0 || !r.pt){ r.ptT = rand(2.2, 3.6); r.pt = labDomePt(Math.random(), 0.2 + Math.random()*0.7); }
+          r.face = HIVE.x >= r.x ? 1 : -1;
+        }
         if (Math.random() < dt*0.04) robotSays(r, 'chat');
       }
       r.look -= dt;
@@ -1770,6 +1783,7 @@ function updResearchBot(r, dt, sp){
       break;
     }
     case 'labFetch': updLabFetch(r, dt, sp); break;   // V15
+    case 'labWin': updLabWin(r, dt, sp); break;       // V15
   }
 }
 // V12.1: the story camera. Zooms in on the robot that picked up the book, follows it to the workshop, lets it open the
@@ -1874,16 +1888,71 @@ const labRt = { spawnT: 1, walkT: 2, fail: null };    // and the bee that fails 
 // a blower keeps the rain off: only one at a time
 function labWork(h){ if (!hiveLabOn()) return null; return HB.some(q => q !== h && q.kind === 'blower' && (q.st === 'lab' || (q.st === 'go' && q.task === 'research'))) ? null : 1; }
 const labSpot = () => ({ x: HIVE.x + 64, y: HIVE.y - 34, face: -1 });
-const labAim = h => ({ x: HIVE.x + 8, y: HIVE.y - 78 });
+// the blower aims over the hive (keeping the rain off), or at a wet bee or ant it's drying
+const labAim = h => h.labMode === 'dry' && h.dryB ? { x: h.dryB.x, y: h.dryB.y - 4 } : { x: HIVE.x + 8, y: HIVE.y - 78 };
+const LAB_TRIES = 5;   // the bees try to fly with umbrellas five times (however long that takes), then they walk instead
+// the portholes the robots put in (from the hive's foot), and how many are due by now
+const LAB_WIN = [[-17, -30], [16, -42], [-8, -54], [13, -26]];
+const labWantWins = () => { const k = labK(); return k >= 0.85 ? 4 : k >= 0.75 ? 3 : k >= 0.65 ? 2 : k >= 0.55 ? 1 : 0; };
+// is a porthole due, and should robot r put it in? (one at a time; helpers first, the lead when it has none)
+function labWinDue(r){
+  if ((S.story.wins | 0) >= labWantWins() || R.some(q => q.st === 'labWin')) return null;
+  if (r.st === 'study' && R.some(q => q.st === 'assist')) return null;
+  return S.story.wins | 0;
+}
+function startLabWin(r, i){ r.st = 'labWin'; r.win = i; r.wst = 'go'; r.timer = 0; r.lean = 0; r.placed = false; }
+// walk up to where it goes, lean in, hold the porthole up to the hive and fit it, then back to what it was doing
+function updLabWin(r, dt, sp){
+  if (!hiveLabOn() || r.win == null){ leaveResearch(r); r.st = 'idle'; return; }
+  const W = LAB_WIN[r.win], wx = HIVE.x + W[0], side = W[0] < 0 ? -1 : 1, px = wx + side*19, py = HIVE.y + 13;
+  if (r.wst === 'go'){
+    if (moveTo(r, px, py, sp, dt)){ r.face = -side; r.wst = 'lean'; r.timer = 0; }
+  } else if (r.wst === 'lean'){
+    r.timer += dt; r.lean = 0.26*ease(clamp(r.timer/0.5, 0, 1)); r.face = -side;
+    if (r.timer > 1.05 && !r.placed){
+      r.placed = true; S.story.wins = Math.max(S.story.wins | 0, r.win + 1);
+      if (!simMode){ sparkle(wx, HIVE.y + W[1]); const a = sndAt(wx, HIVE.y); sfx('tink', a.pan, a.vol*0.8); if (Math.random() < 0.5) robotSays(r, 'happy'); }
+    }
+    if (r.timer > 1.6){ r.wst = 'back'; r.timer = 0; }
+  } else {
+    r.timer += dt; r.lean = 0.26*(1 - clamp(r.timer/0.4, 0, 1));
+    if (r.timer >= 0.4){ r.lean = 0; r.win = null; if (bookRt.by === r.id) r.st = 'toStudy'; else { claimAssist(r); r.st = 'toAssist'; } }
+  }
+}
+// where the porthole is while a robot holds it up (world), for the drawing
+const labWinHeld = r => r.st === 'labWin' && r.win != null && !r.placed;
 // a point on the umbrella's dome (u: across, v: up), for the needles blown onto it
 const LAB_DOME = { rim: 16, h: 56, w: 39 };
 function labDomePt(u, v){
   const dx = (u*2 - 1)*0.88, hg = LAB_DOME.h*Math.pow(Math.max(0, 1 - dx*dx), 0.62);
   return { x: HIVE.x + dx*LAB_DOME.w, y: HIVE.y - LAB_DOME.rim - v*hg*0.94 };
 }
+// a wet bee or ant of the show for the blower to dry: the ones that crashed first, near enough
+function labWetOne(){
+  let best = null, bs = -1;
+  for (const b of LABB){
+    if (!['down', 'crawl', 'walk', 'pause', 'walkHome'].includes(b.st) || (b.wet || 0) < 0.15) continue;
+    const d = Math.hypot(b.x - (HIVE.x + 40), b.y - HIVE.y); if (d > 120) continue;
+    const sc = (b.st === 'down' ? 2 : 1) + b.wet - d/200;
+    if (sc > bs){ bs = sc; best = b; }
+  }
+  return best;
+}
 function updLabBlower(h, dt){
   const p = labSpot(); h.face = p.face;
   if (!hiveLabOn()){ h.st = 'idle'; return; }
+  // V15: it takes turns: a while keeping the rain off the hive, a moment drying a wet bee or ant with warm air
+  if (h.labMode == null){ h.labMode = 'shield'; h.modeT = rand(5, 8); }
+  h.modeT -= dt;
+  if (h.labMode === 'dry' && (!h.dryB || !LABB.includes(h.dryB) || h.dryB.st === 'carried' || h.dryB.st === 'gone')){ h.labMode = 'shield'; h.dryB = null; h.modeT = rand(4, 7); }
+  if (h.modeT <= 0){
+    if (h.labMode === 'dry'){ h.labMode = 'shield'; h.dryB = null; h.modeT = rand(6, 9); }
+    else { const b = labWetOne(); if (b){ h.labMode = 'dry'; h.dryB = b; h.modeT = rand(2.4, 3.4); } else h.modeT = 1.5; }
+  }
+  if (h.labMode === 'dry' && h.dryB){
+    const b = h.dryB; b.wet = Math.max(0, (b.wet || 0) - dt*0.45);
+    if (!simMode && Math.random() < dt*6) parts.push({ k:'dust', x: b.x + rand(-3, 3), y: b.y - 4, vx: rand(-4, 4), vy: rand(-22, -12), g: 0, life: rand(.6, 1), t: 0, r: rand(1.4, 2.4), gray: true });
+  }
   h.timer -= dt;
   if (h.timer <= 0){
     h.timer = 1.5;
@@ -1895,10 +1964,10 @@ function updLabBlower(h, dt){
   h.puffT -= dt;
   if (h.puffT <= 0){
     h.puffT = 0.09;
-    const tip = trunkTip(h), A = labAim(h), j = rand(-0.3, 0.3), dx = A.x - tip.x, dy = A.y - tip.y, d = Math.hypot(dx, dy) || 1, ux = dx/d, uy = dy/d, v = rand(70, 100);
-    parts.push({ k:'air', x: tip.x, y: tip.y, vx: (ux*Math.cos(j) - uy*Math.sin(j))*v, vy: (ux*Math.sin(j) + uy*Math.cos(j))*v, g: 0, life: rand(.5, .8), t: 0, curl: rand(-1, 1), len: rand(8, 13) });
+    const tip = trunkTip(h), A = labAim(h), dry = h.labMode === 'dry', j = rand(-0.3, 0.3)*(dry ? 0.5 : 1), dx = A.x - tip.x, dy = A.y - tip.y, d = Math.hypot(dx, dy) || 1, ux = dx/d, uy = dy/d, v = rand(70, 100)*(dry ? 0.7 : 1);
+    parts.push({ k:'air', x: tip.x, y: tip.y, vx: (ux*Math.cos(j) - uy*Math.sin(j))*v, vy: (ux*Math.sin(j) + uy*Math.cos(j))*v, g: 0, life: dry ? Math.min(0.6, d/v) : rand(.5, .8), t: 0, curl: rand(-1, 1), len: rand(8, 13), warm: dry });
     // pine needles off the ground, blown up onto the umbrella (once the umbrella is up)
-    if (labK() > 0.06 && researchRate() > 0 && Math.random() < 0.5){
+    if (!dry && labK() > 0.06 && researchRate() > 0 && Math.random() < 0.5){
       const q = labDomePt(Math.random(), 0.25 + Math.random()*0.75);
       flyTo('needle', HIVE.x + rand(10, 52), HIVE.y + rand(-16, 8), q.x, q.y, rand(0.45, 0.8), rand(16, 34), { col: NEEDLE_COL[Math.floor(Math.random()*NEEDLE_COL.length)] });
     }
@@ -1908,27 +1977,40 @@ function updLabBlower(h, dt){
 // the bees and ants of the show
 function newLabFlyer(){
   const D = HIVE_DOOR_BEE(), s = Math.random() < 0.5 ? -1 : 1;
-  return { st: 'fly', x: D.x + s*4, y: D.y + 1, z: D.z, t: 0, dur: rand(1.1, 2.3), vx: s*rand(14, 34), zTo: rand(30, 52), face: s, anim: rand(0, 9), rot: 0, spin: 0, vz: 0, brolly: true, m: 0 };
+  return { st: 'fly', x: D.x + s*4, y: D.y + 1, z: D.z, t: 0, dur: rand(1.6, 2.8), vx: s*rand(14, 34), zTo: rand(30, 52), face: s, anim: rand(0, 9), rot: 0, spin: 0, vz: 0, brolly: true, m: 0, wet: 0.2 };
 }
 function newLabWalker(k){
-  const D = HIVE_DOOR_BEE(), a = rand(-0.25, 1.25)*Math.PI, d = rand(26, 72), m = clamp((k - 0.45)/0.45 + rand(-0.2, 0.12), 0, 1);
+  // (they turn into ants from when they gave up flying (story.walkK) to near the end)
+  const w0 = S.story.walkK >= 0 ? S.story.walkK : k, D = HIVE_DOOR_BEE(), a = rand(-0.25, 1.25)*Math.PI, d = rand(26, 72), m = clamp((k - w0)/Math.max(0.2, 0.92 - w0) + rand(-0.2, 0.12), 0, 1);
   const tx = clamp(HIVE.x + Math.cos(a)*d, HIVE.x - 90, HIVE.x + 90), ty = Math.min(HIVE.y + Math.sin(a)*d*0.45 + 8, -4);
-  return { st: 'walk', walker: true, x: D.x, y: D.y + 1, z: 0, tx, ty, sp: lerp(5, 11, m)*rand(0.85, 1.15), m, face: tx >= D.x ? 1 : -1, anim: rand(0, 9), gait: 0, rot: 0, brolly: m < 0.4, t: 0 };
+  return { st: 'walk', walker: true, x: D.x, y: D.y + 1, z: 0, tx, ty, sp: lerp(5, 11, m)*rand(0.85, 1.15), m, face: tx >= D.x ? 1 : -1, anim: rand(0, 9), gait: 0, rot: 0, brolly: m < 0.4, t: 0, wet: rand(0.3, 0.8) };
 }
 function updLab(dt){
   if (!HIVE_STORY || simMode) return;
   if (labRt.fail) updBeeFail(dt);
   const on = hiveLabOn(), k = labK(), busy = on && researchRate() > 0;
-  // bees with umbrellas try to fly (from about a fifth of the way in to about half)
-  if (busy && k > 0.18 && k < 0.55){
+  // bees with umbrellas try to fly, one at a time, from about an eighth of the way in: five tries, however long they take
+  const tries = S.story.flights | 0, air = LABB.some(b => b.st === 'fly' || b.st === 'tumble');
+  if (busy && k > 0.12 && tries < LAB_TRIES && !air){
     labRt.spawnT -= dt;
-    if (labRt.spawnT <= 0){ labRt.spawnT = rand(2.6, 5); if (LABB.filter(b => b.st === 'fly' || b.st === 'tumble').length < 2) LABB.push(newLabFlyer()); }
+    if (labRt.spawnT <= 0){
+      labRt.spawnT = rand(1.8, 3); S.story.flights = tries + 1; LABB.push(newLabFlyer());
+      const D = HIVE_DOOR_BEE(); pop(D.x, D.y - 52, tries + 1 < LAB_TRIES ? 'try ' + (tries + 1) : 'last try!', 'note', 14, 0.2);
+    }
   }
-  // then they walk, slowly, more and more like ants
-  if (busy && k > 0.45){
+  // then they give up flying and walk, slowly, more and more like ants
+  const walking = tries >= LAB_TRIES && !air;
+  if (walking && !(S.story.walkK >= 0)){
+    S.story.walkK = k;
+    const h = bookHolder(); if (h) pop(h.x, h.y - 80, 'forget flying: walk!', 'note', 16, 0.6);
+  }
+  if (busy && walking){
+    const w0 = S.story.walkK, kk = clamp((k - w0)/Math.max(0.2, 1 - w0), 0, 1);
     labRt.walkT -= dt;
-    if (labRt.walkT <= 0){ labRt.walkT = rand(1.4, 3.6)/(1 + 2*(k - 0.45)); if (LABB.filter(b => b.walker).length < 3 + Math.round(9*(k - 0.45))) LABB.push(newLabWalker(k)); }
+    if (labRt.walkT <= 0){ labRt.walkT = rand(1.4, 3.6)/(1 + 2*kk); if (LABB.filter(b => b.walker).length < 3 + Math.round(9*kk)) LABB.push(newLabWalker(k)); }
   }
+  // nobody at the hive to put a porthole in: it goes in by itself
+  if (on && (S.story.wins | 0) < labWantWins() && !R.some(q => RESEARCH_STATES.includes(q.st))) S.story.wins = labWantWins();
   for (const b of LABB) updLabBee(b, dt);
   LABB = LABB.filter(b => b.st !== 'gone');
   if (!on) LABB = LABB.filter(b => b.walker || b.st === 'down' || b.st === 'crawl' || b.st === 'carried');
@@ -1951,7 +2033,7 @@ function updLabBee(b, dt){
     case 'tumble':
       // ...until the rain knocks it down
       b.vz -= 150*dt; b.z += b.vz*dt; b.x += b.vx*0.5*dt; b.rot += b.spin*dt;
-      if (b.z <= 0){ b.z = 0; b.st = 'down'; b.t = 0; b.rot = Math.PI; labSplash(b.x, b.y); }
+      if (b.z <= 0){ b.z = 0; b.st = 'down'; b.t = 0; b.rot = Math.PI; b.wet = 1; labSplash(b.x, b.y); }
       break;
     case 'down':
       // nobody fetching it: after a while it rights itself and crawls home
@@ -2060,7 +2142,8 @@ function updBeeFail(dt){
 // the bee is back inside: the hive becomes a research project
 function startHiveResearch(){
   if (S.story.item === 'hive') return;
-  Object.assign(S.story, { item: 'hive', armed: true, found: true, foundT: S.t, opened: true, cam: true, prog: 0, done: false, x: HIVE.x, y: HIVE.y });
+  Object.assign(S.story, { item: 'hive', armed: true, found: true, foundT: S.t, opened: true, cam: true, prog: 0, done: false, x: HIVE.x, y: HIVE.y, flights: 0, wins: 0, walkK: -1 });
+
   bookRt.by = null; bookRt.held = false;
   for (const c of [...S.robots, ...S.blowers]) if (!taskOn(c, 'research')) putOff(c, 'research');
   if (!simMode){
@@ -2084,14 +2167,15 @@ function finishHive(){
   pop(HIVE.x, HIVE.y - 112, 'New: a robotic ant hill', 'note', 19, 0.6, 4);
   sfx('chime', 'sale');
   for (const q of R) if (Math.hypot(q.x - HIVE.x, q.y - HIVE.y) < 160){ pop(q.x, q.y - 76, '!', 'note', 24, rand(0, 0.3)); robotSays(q, 'happy', true); }
-  autoAssign('jar', CRATE, 'will fill the punnets');
+  autoAssign('jar', CRATE, 'will can the mushrooms');
   setTimeout(() => showToast('Who needs wings?', 'It’s an ant hill now! Robot ants walk out to the mushrooms under the trees, rain or no rain.', 12), 900);
 }
 // the umbrella, needles and portholes over the plain beehive while it's being researched (drawn by the lot), and the timer
 function drawHiveLab(){
   if (!S.hive.built || S.story.item !== 'hive') return;
   const k = labK();
-  if (ART.drawHiveLab) ART.drawHiveLab(k, { blower: !!labBlower(), busy: hiveLabOn() && researchRate() > 0 });
+  const lb = labBlower();
+  if (ART.drawHiveLab) ART.drawHiveLab(k, { blower: !!lb && lb.labMode !== 'dry', busy: hiveLabOn() && researchRate() > 0, wins: S.story.wins | 0 });
   if (hiveLabOn()) timers.push({ x: HIVE.x, y: HIVE.y - 104, t: mmss(researchETA()), k, on: researchRate() > 0 });
 }
 // the show's bees and ants, and the bee that failed to fly (drawn by the lot, ART.drawLabBee)
@@ -2099,8 +2183,9 @@ function drawHiveStoryBees(V){
   if (!ART.drawLabBee) return;
   const c = ctx, f = labRt.fail;
   for (const b of LABB) if (b.st !== 'carried') ART.drawLabBee(c, b, b.x, b.y - b.z);
-  if (f) ART.drawLabBee(c, Object.assign({ brolly: false, m: 0, walker: f.st === 'crawl', st: f.st === 'down' ? 'down' : f.st === 'crawl' ? 'crawl' : 'fly' }, f), f.x, f.y - f.z);
+  if (f) drawFailBee(f);
 }
+function drawFailBee(f){ ART.drawLabBee(ctx, Object.assign({ brolly: false, m: 0, walker: f.st === 'crawl', st: f.st === 'down' ? 'down' : f.st === 'crawl' ? 'crawl' : 'fly' }, f), f.x, f.y - f.z); }
 // V15: the lot's ant icons replace the bee and honey ones once the hive is an ant hill
 const ICON_BASE = {};
 function applyLotIcons(){
@@ -5197,6 +5282,7 @@ function drawRobot(r){
   // treads: they look different for each wheel tier (old wheels, rubber treads, ball-bearing hubs)
   const th = st.chunky ? 12 : 10, md = st.modern;
   drawWheels(c, tw, th, r.moving, r.anim, tierOf(cfg.lv.speed), (r.x + r.y*0.4)*r.face, { md, chunky: st.chunky });
+  if (r.lean){ c.translate(0, -8); c.rotate(r.lean); c.translate(0, 8); }   // V15: leaning in (putting a porthole into the hive)
   c.translate(0, bob);
   // body
   const g = c.createLinearGradient(0, top, 0, -8); g.addColorStop(0, st.body); g.addColorStop(1, st.body2);
@@ -5342,13 +5428,45 @@ function drawRobot(r){
     // V11: the jar it's filling or wrapping stands on the crate's edge in front of it
     if (r.st === 'wrap') drawGiftJar(c, sx + 14, sy + 4, 6, clamp(r.workP, 0, 1));
     else if (r.st === 'jar') drawJar(c, sx + 14, sy + 4, 6);
-  } else if ((r.st === 'study' || r.st === 'assist') && FIND().atHive){
-    // V15: working on the hive with a little hammer, in quick taps (helpers a bit slower)
-    const a = -0.55 + Math.sin(r.hammer*(r.st === 'study' ? 9 : 6) + r.id)*0.5;
-    c.save(); c.translate(sx, sy); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.stroke();
-    c.strokeStyle = '#7a5236'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(10, 0); c.lineTo(16, 0); c.stroke();
-    c.fillStyle = '#6b7276'; rr(c, 14.5, -3.6, 3.4, 7.2, 0.8); c.fill(); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(15, -3.2, 0.8, 6.4);
-    c.restore();
+  } else if (r.st === 'labWin'){
+    // V15: holding a brass porthole; leaning in, it reaches up and fits it into the hive
+    const W = LAB_WIN[r.win != null ? r.win : 0], reach = r.wst === 'lean' ? clamp(r.timer/0.6, 0, 1) : 0;
+    let tx = (HIVE.x + W[0] - r.x)*r.face, ty = HIVE.y + W[1] - r.y;
+    if (r.lean){ const l = -r.lean, ux = tx, uy = ty + 8; tx = ux*Math.cos(l) - uy*Math.sin(l); ty = ux*Math.sin(l) + uy*Math.cos(l) - 8; }
+    ty -= bob;
+    const hx0 = bw/2 + 6, hy0 = top + bh*0.5 - 2, hx = lerp(hx0, tx, ease(reach)), hy = lerp(hy0, ty, ease(reach));
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+    c.fillStyle = armC; ell(c, hx, hy, 1.7, 1.6); c.fill();
+    if (labWinHeld(r)){ c.strokeStyle = '#c9a24a'; c.lineWidth = 1.2; ell(c, hx + 1.5, hy - 1.5, 3.4, 3.1); c.stroke(); c.fillStyle = 'rgba(255,190,110,.35)'; ell(c, hx + 1.5, hy - 1.5, 2.4, 2.1); c.fill(); }
+  } else if (r.st === 'study' && FIND().atHive){
+    // V15: the lead at the hive: hammering, turning a spanner, or a hand to its chin while it thinks
+    if (r.act === 'think'){
+      c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 5, sy - 3); c.lineTo(sx + 7, top - 2); c.stroke();
+      c.fillStyle = armC; ell(c, sx + 7, top - 2, 1.6, 1.6); c.fill();
+    } else if (r.act === 'wrench'){
+      const a = -0.25 + Math.sin(r.hammer*3.2 + r.id)*0.12, w = Math.sin(r.hammer*6)*0.7;
+      c.save(); c.translate(sx, sy); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke();
+      c.translate(12, 0); c.rotate(w); c.strokeStyle = '#8f979b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(0, 0); c.lineTo(6, 0); c.stroke();
+      c.lineWidth = 1.2; c.beginPath(); c.arc(7.2, 0, 1.8, 0.6, TAU - 0.6); c.stroke(); c.restore();
+    } else {
+      const a = -0.55 + Math.sin(r.hammer*9 + r.id)*0.5;
+      c.save(); c.translate(sx, sy); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.lineTo(10, 0); c.stroke();
+      c.strokeStyle = '#7a5236'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(10, 0); c.lineTo(16, 0); c.stroke();
+      c.fillStyle = '#6b7276'; rr(c, 14.5, -3.6, 3.4, 7.2, 0.8); c.fill(); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(15, -3.2, 0.8, 6.4);
+      c.restore();
+    }
+  } else if (r.st === 'assist' && FIND().atHive){
+    // V15: helping, the way the book's helpers do: every so often it points something out on the hive
+    const u = r.anim*0.21 + r.id*0.29, ph = u % 1, pt = ph > 0.48 && ph < 0.8 ? Math.sin((ph - 0.48)/0.32*Math.PI) : 0, P = r.pt;
+    if (P && pt > 0.02){
+      const tx = (P.x - r.x)*r.face, ty = P.y - r.y - bob, k = 0.62*Math.min(1, pt*1.6);
+      const hx = sx + (tx - sx)*k, hy = sy + (ty - sy)*k + Math.sin(r.anim*9)*0.6*pt;
+      c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+      const a = Math.atan2(ty - sy, tx - sx);
+      c.lineWidth = 1.3; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + Math.cos(a)*4.5, hy + Math.sin(a)*4.5); c.stroke();
+      c.fillStyle = armC; ell(c, hx, hy, 1.7, 1.7); c.fill();
+    } else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3, sy + 7); c.stroke(); }
+
   } else if (r.st === 'labFetch'){
     // V15: carrying a crashed bee home in both hands
     const bx = bw/2 + 7, by = top + bh*0.5 - 2 + (r.moving ? Math.sin(r.anim*10)*0.5 : 0), held = r.lab && r.lab.st === 'carried';
@@ -5742,7 +5860,7 @@ function drawTruckBoard(c, BT){
     const ix = cx0 + (two ? 6.5 : 8);
     payIcon(c, kind, ix, y, fs);
     const pt = money(price);
-    if (two) unit = ''; else unit = sayT(unit);   // (a lot's words: petal, sack, punnet)
+    if (two) unit = ''; else unit = sayT(unit);   // (a lot's words: petal, sack, can)
     c.font = '800 ' + fs + 'px "Baloo 2", sans-serif'; c.textAlign = 'left';
     const pw = c.measureText(pt).width;
     c.font = '700 ' + (fs*0.68) + 'px "Baloo 2", sans-serif';
@@ -6281,6 +6399,12 @@ function draw(){
   ];
   for (const i of S.miners) list.push({ y: SPOTS[i].y, f: () => drawMiner(i) });
   for (const r of R) if (r.st !== 'ride' && r.st !== 'gone') list.push({ y: r.y, f: () => drawRobot(r) });
+  // V15: the hollow's ants (and the bees and ants of its hive research) take their place in depth, so one walking behind
+  // the ant hill is hidden by it instead of walking over it
+  if (LOT.antsOnGround && ART.drawAnt){
+    if (HIVE_STORY && hiveGrounded()){ if (ART.drawLabBee){ for (const b of LABB) if (b.st !== 'carried') list.push({ y: b.y, f: () => ART.drawLabBee(ctx, b, b.x, b.y - b.z) }); const fl = labRt.fail; if (fl) list.push({ y: fl.y, f: () => drawFailBee(fl) }); } }
+    else for (const b of B) if (b.st !== 'in' && b.x > V.x0 - 10 && b.x < V.x1 + 10 && b.y > V.y0 && b.y < V.y1 + 20) list.push({ y: b.y, f: () => ART.drawAnt(ctx, b) });
+  }
   if (researchOpen() && !FIND().atHive && !bookRt.held && S.t >= bookRt.landT) list.push({ y: S.story.y, f: drawGroundBook });
   for (const l of S.letters) list.push({ y: l.y, f: () => drawGroundLetter(l) });
   if (driver && driver.y < LANE - 26) list.push({ y: driver.y, f: () => drawRobot(driver) });
@@ -6290,7 +6414,7 @@ function draw(){
   for (const h of HB) if (!onTrunk(h) && h.st !== 'ride' && h.st !== 'gone') list.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
-  if (LOT.antsOnGround) drawBees(V);   // V14: the hollow's ants walk on the ground, under the tree crowns
+  if (LOT.antsOnGround && !ART.drawAnt) drawBees(V);   // V14: the hollow's ants walk on the ground, under the tree crowns (V15: drawn in depth above)
   drawTruck();
   if (driver && driver.y >= LANE - 26) drawRobot(driver);   // the driver on the road side of the truck
   for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
@@ -8045,7 +8169,7 @@ function start(data){
     drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, puddleTrace, puddleAt, gl, flowerSpr: () => flowerSpr,
     hiveShown, hiveFloors, hiveTopZ, honeyCap, tankCap, tankFull, beeSip, hiveRt, plantRt, STN, stoker, minerWorkers, palletCap, plantShown,
     hopperCap, metalPerIngot, metalCap, tubRoom, keepMetal,
-    BAGGER, BIN, BAG_SIZE, bagCap, dryTrays, drawLeafBag, hiveGrounded, HV_BEE, HV_LIFT: HV.lift || 0, hexPath, drawBeeBrass, drawPrism, prismFace, LAB_DOME, NEEDLE_COL, labBlower });
+    BAGGER, BIN, BAG_SIZE, bagCap, dryTrays, drawLeafBag, hiveGrounded, HV_BEE, HV_LIFT: HV.lift || 0, LAB_WIN, hexPath, drawBeeBrass, drawPrism, prismFace, LAB_DOME, NEEDLE_COL, labBlower });
   for (const [k, f] of Object.entries({ S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
     parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck })) Object.defineProperty(LH, k, { get: f, enumerable: true });
   LH_READY = true;

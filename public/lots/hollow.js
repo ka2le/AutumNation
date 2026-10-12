@@ -22,20 +22,21 @@ LOTS.hollow = H => {
   // ── the land: one yard, between the first yard's cottage plot and its meadow in size, that doesn't grow. (The other
   // two sizes stay in AREAS for what lies beyond the fence; landForSale: false keeps the sign from going up.)
   const AREAS = [
-    { w: 930,  h: 550,  name: 'Drizzly hollow', spawn: 1.9, cap: 140 },
+    { w: 700,  h: 440,  name: 'Drizzly hollow', spawn: 1.6, cap: 115 },   // (V15: was 930 × 550)
     { w: 1280, h: 720,  name: 'Puddle meadow',  spawn: 2.8, cap: 220, cost: 3000 },
     { w: 2000, h: 1150, name: 'Misty woods',    spawn: 5.6, cap: 380, cost: 38000 },
   ];
   // piles of wet wood instead of metal veins: two in the yard (sawing works from the start), one far out in the woods
   const SPOTS = [
     { x: 150,  y: -150, land: 0, rich: 0.85 },
-    { x: 380,  y: -205, land: 0, rich: 1 },
+    { x: 50,   y: -258, land: 0, rich: 1 },
     { x: -860, y: -560, land: 2, rich: 1.2 },
   ];
   // the drying shed (this place's smelting plant) stands up on the left of the yard, a long wet walk from the road
-  const PLANT = { x: -285, y: -415 };
-  // V15: the drying bench stands back from the road, between the workshop and the bin (blowers work it from behind)
-  const BAGGER = { x: -46, y: -66 };
+  const PLANT = { x: -170, y: -290 };
+  // V15: the road row, spread out across the (narrower) yard so the drying bench fits beside the bin
+  const ROW = { SHED: { x: -268, y: -22 }, SIGN: { x: -166, y: -8 }, BAGGER: { x: -78, y: -14 }, BIN: { x: 8, y: -12 },
+    TUB: { x: 66, y: -12 }, PALLET: { x: 122, y: -12 }, CRATE: { x: 182, y: -12 }, HIVE: { x: 262, y: -20 } };
   // trees that have lost about half their leaves
   const TREES = [
     { x: -150, y: -660, r: 120, seed: 11 }, { x: 300, y: -580, r: 135, seed: 23 }, { x: 575, y: -255, r: 92, seed: 37 },
@@ -49,11 +50,11 @@ LOTS.hollow = H => {
     { x: -560, y: -250, r: 105, seed: 149 },
     // V15: pines, dark and wet, the wind blowing needles off them (game.js: no leaves from these, only needles for looks).
     // Two in the yard, the rest round the edge
-    { x: 402, y: -392, r: 72, seed: 151, pine: true }, { x: -418, y: -545, r: 64, seed: 157, pine: true },
+    { x: 296, y: -205, r: 58, seed: 151, pine: true }, { x: 112, y: -398, r: 54, seed: 157, pine: true },
     { x: 610, y: -380, r: 96, seed: 163, pine: true }, { x: -640, y: -470, r: 104, seed: 167, pine: true }, { x: 130, y: -690, r: 92, seed: 173, pine: true },
     { x: -330, y: -760, r: 110, seed: 179, pine: true },
   ];
-  const BUSHES = [ { x: -150, y: -300, s: 1.05, seed: 7 }, { x: 70, y: -334, s: 0.95, seed: 19 } ];
+  const BUSHES = [ { x: -312, y: -330, s: 1.05, seed: 7 }, { x: 40, y: -350, s: 0.95, seed: 19 } ];
   // puddles: their muddy beds are painted into the ground; game.js draws the water live (reflections, rings, wakes)
   const PUDDLES = [
     // the first plot
@@ -588,20 +589,20 @@ LOTS.hollow = H => {
   const drawDeco = (g, f) => drawTinyMush(g, f.x, f.y, f.s, MUSH_DECO[f.ty]);
   const bloomOf = f => f.full ? 1 : H.clamp((f.t/f.regrow - 0.6)/0.4, 0, 1)*0.45;
 
+  // V15: canned mushrooms (were punnets): a tin can with a cream label and a red mushroom on it
   function drawJar(c, x, y, s){
-    const { ell, rr, shade } = H;
+    const { ell, rr } = H;
     c.save(); c.translate(x, y); c.scale(s/6, s/6);
-    c.fillStyle = 'rgba(20,12,6,.25)'; ell(c, 0.5, 5.2, 4.6, 1); c.fill();
-    // caps heaped above the rim
-    const caps = [[-2.3, -2.4, '#8a5428'], [2.1, -2.6, '#c99448'], [0, -3.6, '#a8642e'], [-0.6, -1.6, '#e6a22a'], [2.8, -1.4, '#8a5428']];
-    for (const [cx, cy, col] of caps){ c.fillStyle = shade(col, 0.7); ell(c, cx, cy + 0.5, 2.1, 1.4); c.fill(); c.fillStyle = col; ell(c, cx - 0.1, cy, 2, 1.3); c.fill(); c.fillStyle = 'rgba(255,240,215,.4)'; ell(c, cx - 0.6, cy - 0.4, 0.7, 0.35); c.fill(); }
-    // the punnet: woven wood chip, wider at the top
-    c.fillStyle = '#a7783f'; c.beginPath(); c.moveTo(-4.4, -1); c.lineTo(4.4, -1); c.lineTo(3.4, 5); c.lineTo(-3.4, 5); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(90,58,26,.65)'; c.lineWidth = 0.45;
-    for (const yy of [0.6, 2.2, 3.8]){ c.beginPath(); c.moveTo(-4.2 + (yy + 1)*0.17, yy); c.lineTo(4.2 - (yy + 1)*0.17, yy); c.stroke(); }
-    for (const xx of [-2.2, 0, 2.2]){ c.beginPath(); c.moveTo(xx*1.05, -1); c.lineTo(xx*0.8, 5); c.stroke(); }
-    c.fillStyle = '#c99556'; rr(c, -4.7, -1.6, 9.4, 1.4, 0.6); c.fill();
-    c.fillStyle = '#f2e3c4'; c.fillRect(-1.8, 1.1, 3.6, 2);
+    c.fillStyle = 'rgba(20,12,6,.25)'; ell(c, 0.5, 4.9, 4.4, 1); c.fill();
+    const g = c.createLinearGradient(-3.6, 0, 3.6, 0); g.addColorStop(0, '#e2e8ea'); g.addColorStop(0.35, '#b9c2c6'); g.addColorStop(1, '#7d878c');
+    c.fillStyle = g; c.fillRect(-3.6, -4.2, 7.2, 8.6); ell(c, 0, 4.4, 3.6, 0.9); c.fill();
+    c.fillStyle = '#efe3c4'; c.fillRect(-3.6, -2.4, 7.2, 4.6);
+    c.fillStyle = 'rgba(120,80,40,.25)'; c.fillRect(1.6, -2.4, 2, 4.6);
+    c.fillStyle = '#efe9dc'; c.fillRect(-0.45, 0, 0.9, 1.4);
+    c.fillStyle = '#c4281c'; c.beginPath(); c.ellipse(0, 0.1, 1.9, 1.5, 0, Math.PI, 0); c.closePath(); c.fill();
+    c.fillStyle = '#fbf6ea'; ell(c, -0.7, -0.6, 0.35, 0.3); c.fill(); ell(c, 0.6, -0.4, 0.3, 0.25); c.fill();
+    c.fillStyle = '#9aa4aa'; ell(c, 0, -4.2, 3.6, 1); c.fill(); c.fillStyle = '#d6dde0'; ell(c, 0, -4.3, 3.1, 0.75); c.fill();
+    c.strokeStyle = 'rgba(80,90,96,.5)'; c.lineWidth = 0.35; for (const yy of [-3.3, 3.2]){ c.beginPath(); c.moveTo(-3.6, yy); c.lineTo(3.6, yy); c.stroke(); }
     c.restore();
   }
 
@@ -738,12 +739,12 @@ LOTS.hollow = H => {
     }
   }
   const LABV = { umbT: null, win: [], doorT: null };
-  const LAB_WIN = [[-17, -30], [16, -42], [-8, -54], [13, -26]];   // where the portholes go in (from the hive's foot)
   function drawHiveLab(k, info){
     const { HIVE, S, TAU, clamp, ctx: c, ell, ease, rr, parts, rand, simMode, LAB_DOME, mulberry } = H;
     if (k < 0.03 && !LABV.umbT){ return; }
     const t = S.t;
     if (LABV.umbT == null) LABV.umbT = k > 0.05 ? -99 : t;
+    if (!LABV.seen) setTimeout(() => { LABV.seen = true; }, 0);   // (portholes already in when the page loads don't pop in again)
     const drop = clamp((t - LABV.umbT)/0.8, 0, 1), dy = (1 - ease(drop))*-34 + (drop < 1 ? Math.sin(drop*Math.PI)*3 : 0);
     const cover = clamp((k - 0.08)/0.84, 0, 1), cv = cover*cover*(3 - 2*cover);
     const rim = -LAB_DOME.rim, h = LAB_DOME.h, W = LAB_DOME.w, apex = rim - h, N = 8, xs = [];
@@ -774,10 +775,10 @@ LOTS.hollow = H => {
     if (cv > 0.2){ const rh = mulberry(31); c.strokeStyle = '#7a4a26'; c.lineWidth = 0.7; for (let q=0;q<Math.floor(24*cv);q++){ const x = (rh()*2 - 1)*W*0.95, y = rim + 1 + rh()*2; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (rh() - 0.5)*2, y + 2 + rh()*2); c.stroke(); } }
     // the finial on top (the beehive's antennas poke out above it)
     c.fillStyle = '#c9a24a'; ell(c, 0, apex - 1.5, 2.2, 2.2); c.fill();
-    // portholes, one after another, the brass kind the ant hill has
-    const nw = k >= 0.85 ? 4 : k >= 0.75 ? 3 : k >= 0.65 ? 2 : k >= 0.55 ? 1 : 0;
+    // portholes, one after another, the brass kind the ant hill has: a robot leans in and fits each one (game.js)
+    const nw = info.wins | 0, LAB_WIN = H.LAB_WIN;
     for (let i=0;i<nw;i++){
-      if (LABV.win[i] == null) LABV.win[i] = k > [0.57, 0.67, 0.77, 0.87][i] ? -99 : t;
+      if (LABV.win[i] == null) LABV.win[i] = LABV.seen ? t : -99;
       const g = clamp((t - LABV.win[i])/0.4, 0, 1), s = g < 1 ? ease(g)*1.15 - Math.sin(g*Math.PI)*0.05 : 1, [wx, wy] = LAB_WIN[i], pr = 3.6*s;
       if (g < 1 && g > 0 && !simMode && Math.random() < 0.3) parts.push({ k:'star', x: HIVE.x + wx + rand(-3, 3), y: HIVE.y + wy + rand(-3, 3), vx: rand(-20, 20), vy: rand(-30, -10), g: 40, life: 0.5, t: 0 });
       c.fillStyle = '#21180f'; ell(c, wx, wy, pr, pr*0.9); c.fill();
@@ -794,12 +795,6 @@ LOTS.hollow = H => {
     if (k >= 0.95){
       c.strokeStyle = '#8a4f2a'; c.lineWidth = 2.6; c.lineCap = 'round'; c.beginPath(); c.moveTo(W*0.62, rim + 2); c.quadraticCurveTo(W*0.8, rim - h*0.45, W*0.3, apex + h*0.18); c.stroke();
       c.strokeStyle = '#c98a55'; c.lineWidth = 1; c.beginPath(); c.moveTo(W*0.6, rim + 1); c.quadraticCurveTo(W*0.77, rim - h*0.45, W*0.28, apex + h*0.18 - 0.5); c.stroke();
-    }
-    // the blower's air arching over the top keeps the rain off; without it the drops bounce off the canopy
-    if (info.blower){
-      c.strokeStyle = 'rgba(245,240,226,.28)'; c.lineWidth = 1.2; c.setLineDash([5, 6]); c.lineDashOffset = -t*26;
-      for (let q=0;q<3;q++){ const r2 = W + 6 + q*7; c.beginPath(); c.ellipse(-2, rim + 4, r2, h + 10 + q*7, 0, Math.PI*1.08, Math.PI*1.95); c.stroke(); }
-      c.setLineDash([]);
     }
     c.restore();
     if (!simMode && drop >= 1 && Math.random() < (info.blower ? 0.25 : 0.4)){
@@ -837,7 +832,7 @@ LOTS.hollow = H => {
       else if (m >= 0.34) drawBeeAnt(c, (b.gait || 0)*0.75, moving);
       else { c.save(); c.translate(0, -3); drawBeeBrass(c, b, 0.15, 0); c.restore(); c.strokeStyle = '#2e2b2a'; c.lineWidth = 0.45; const ph = (b.gait || 0)*0.8; for (let i=0;i<3;i++){ const s = moving ? Math.sin(ph + i*2)*1.2 : 0; c.beginPath(); c.moveTo(-2.4 + i*1.6, -1.4); c.lineTo(-2.6 + i*1.6 + s, 0); c.stroke(); } }
       if (b.brolly) miniBrolly(c, 0.4, -9.5, 4.2, cols);
-      if (b.wet){ c.fillStyle = 'rgba(200,225,240,.8)'; for (const [dx, dy] of [[-3, -5], [1, -6], [3, -3]]){ ell(c, dx, dy, 0.5, 0.7); c.fill(); } }
+      if (b.wet > 0.05){ c.fillStyle = 'rgba(200,225,240,' + (0.85*clamp(b.wet, 0, 1)) + ')'; for (const [dx, dy] of [[-3, -5], [1, -6], [3, -3]]){ ell(c, dx, dy, 0.5, 0.7); c.fill(); } }
       c.restore();
       return;
     }
@@ -849,7 +844,7 @@ LOTS.hollow = H => {
     drawBeeBrass(c, b, fl, 0);
     if (b.brolly && b.st !== 'down') miniBrolly(c, 0, -6.5, 4.2, cols);
     if (b.st === 'down'){ c.strokeStyle = '#2e2b2a'; c.lineWidth = 0.45; for (let i=0;i<3;i++){ const w = Math.sin(b.anim*9 + i*1.7)*0.6; c.beginPath(); c.moveTo(-2 + i*1.6, -1.6); c.lineTo(-2.4 + i*1.6 + w, -3.6); c.stroke(); } }
-    if (b.wet){ c.fillStyle = 'rgba(200,225,240,' + (0.5 + 0.4*clamp(b.wet, 0, 1)) + ')'; for (const [dx, dy] of [[-3, -2.4], [1, -2.8], [-0.6, 1.6], [2.6, 0.4]]){ ell(c, dx, dy, 0.55, 0.75); c.fill(); } }
+    if (b.wet > 0.05){ c.fillStyle = 'rgba(200,225,240,' + (0.9*clamp(b.wet, 0, 1)) + ')'; for (const [dx, dy] of [[-3, -2.4], [1, -2.8], [-0.6, 1.6], [2.6, 0.4]]){ ell(c, dx, dy, 0.55, 0.75); c.fill(); } }
     c.restore();
   }
 
@@ -920,50 +915,46 @@ LOTS.hollow = H => {
     }
   }
 
+  // one ant (V15: game.js draws them one by one in depth order, so the ant hill hides the ones behind it)
+  function drawAnt(c, b){
+    const { beeSip, clamp, ell, parts, rand, simMode } = H;
+    const x = b.x, y = b.y;
+    // V14.1: they walk now (game.js antMove): b.walk says it moved this frame, b.gait how far it has walked, b.hx/hy its heading
+    const moving = b.walk != null ? b.walk : b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue';
+    const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.01)*0.4, -0.45, 0.45) : 0;
+    const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0;
+    c.fillStyle = 'rgba(20,12,6,.28)'; ell(c, x, y + 0.6, 5, 1.3); c.fill();
+    c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
+    if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
+    const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
+    drawAntShape(c, BEE_MODELS[b.i % BEE_MODELS.length], (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph, moving, n, cap);
+    c.restore();
+    if (b.st === 'sip' && !simMode && Math.random() < 0.08) parts.push({ k:'speck', x: x + b.face*5, y: y - 2, vx: rand(-14, 14), vy: rand(-20, -8), g: 60, life: rand(.3, .5), t: 0 });
+  }
   function drawBees(V){
-    const { B, beeSip, clamp, ctx, ell, parts, rand, simMode } = H;
-    const c = ctx;
-    for (const b of B){
-      if (b.st === 'in') continue;
-      const x = b.x, y = b.y;
-      if (x < V.x0 || x > V.x1 || y < V.y0 || y > V.y1 + 20) continue;
-      // V14.1: they walk now (game.js antMove): b.walk says it moved this frame, b.gait how far it has walked, b.hx/hy its heading
-      const moving = b.walk != null ? b.walk : b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue';
-      const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.01)*0.4, -0.45, 0.45) : 0;
-      const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0;
-      c.fillStyle = 'rgba(20,12,6,.28)'; ell(c, x, y + 0.6, 5, 1.3); c.fill();
-      c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
-      if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
-      const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
-      drawAntShape(c, BEE_MODELS[b.i % BEE_MODELS.length], (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph, moving, n, cap);
-      c.restore();
-      if (b.st === 'sip' && !simMode && Math.random() < 0.08) parts.push({ k:'speck', x: x + b.face*5, y: y - 2, vx: rand(-14, 14), vy: rand(-20, -8), g: 60, life: rand(.3, .5), t: 0 });
-    }
+    const { B, ctx: c } = H;
+    for (const b of B){ if (b.st === 'in' || b.x < V.x0 || b.x > V.x1 || b.y < V.y0 || b.y > V.y1 + 20) continue; drawAnt(c, b); }
   }
 
   const BOW_COL = [['#e8eef4', '#aab4bf'], ['#2f6fb5', '#1f4f86'], ['#f2c443', '#b8862a']];
   function drawGiftJar(c, x, y, s, k = 1, tier = H.S.lv.giftPrice | 0){
-    const { S, clamp, ell, rr } = H;
-    // RAINY HOLLOW: a gift basket: the punnet wrapped in a checked cloth, tied with a ribbon and a bow
+    const { clamp, ell } = H;
+    // V15: a D.O.P. can (protected designation of origin): the can gets a ribbon band and a wax seal, red, then blue, then
+    // gold with the Gold D.O.P. seals upgrades
     drawJar(c, x, y, s);
     if (k < 0.3) return;
     c.save(); c.translate(x, y); c.scale(s/6, s/6);
-    c.fillStyle = '#3f6a4a'; c.beginPath(); c.moveTo(-4.9, -1.2); c.quadraticCurveTo(-5.6, -5.4, -2.4, -5.8); c.quadraticCurveTo(0, -4.2, 2.4, -5.8); c.quadraticCurveTo(5.6, -5.4, 4.9, -1.2); c.closePath(); c.fill();
-    c.fillStyle = 'rgba(235,240,220,.55)'; for (let i=-4; i<=4; i+=2) for (let j=0;j<2;j++) c.fillRect(i - 0.45 + j, -4.6 + j*1.5, 0.9, 0.9);
-    c.fillStyle = '#f2e3c4'; c.save(); c.translate(4.2, 0.4); c.rotate(0.35); rr(c, -0.2, 0, 2.2, 2.8, 0.4); c.fill(); c.restore();
+    const [b0, b1] = [['#b8392a', '#7a2018'], ['#2f6fb5', '#1f4f86'], ['#e2b13a', '#a87a1c']][clamp(tier, 0, 2)];
+    c.fillStyle = b0; c.fillRect(-3.6, 2.4, 7.2, 1.1); c.fillStyle = b1; c.fillRect(-3.6, 3.2, 7.2, 0.3);
     if (k >= 0.6){
-      const [b0, b1] = BOW_COL[clamp(tier, 0, 2)], big = tier >= 1 ? 1.2 : 1;
-      c.fillStyle = b0; c.fillRect(-0.75, -3.2, 1.5, 8.2); c.fillStyle = b1; c.fillRect(0.35, -3.2, 0.4, 8.2);
-      if (k >= 0.85){
-        if (tier >= 1){ c.fillStyle = b1; c.beginPath(); c.moveTo(-0.4, -2.8); c.lineTo(-2.4, 0.8); c.lineTo(-1.5, 1); c.lineTo(0, -2.4); c.lineTo(1.5, 1); c.lineTo(2.4, 0.8); c.lineTo(0.4, -2.8); c.closePath(); c.fill(); }
-        c.fillStyle = b0; ell(c, -2*big, -3.2, 2*big, 1.3*big); c.fill(); ell(c, 2*big, -3.2, 2*big, 1.3*big); c.fill();
-        c.fillStyle = b1; ell(c, -1.7*big, -3.15, 0.8*big, 0.5*big); c.fill(); ell(c, 1.7*big, -3.15, 0.8*big, 0.5*big); c.fill();
-        c.fillStyle = b0; ell(c, 0, -3.1, 1, 1); c.fill();
-        if (tier >= 2){ c.fillStyle = 'rgba(255,250,220,.9)'; ell(c, -2.4, -3.6, 0.6, 0.35); c.fill(); ell(c, 0.2, -3.4, 0.35, 0.3); c.fill(); }
-      }
+      // the seal on the label, with two little tails
+      c.fillStyle = b1; c.beginPath(); c.moveTo(1.6, 0.8); c.lineTo(1.1, 3.6); c.lineTo(1.9, 3); c.lineTo(2.5, 3.8); c.lineTo(2.9, 0.8); c.closePath(); c.fill();
+      c.fillStyle = b0; ell(c, 2.2, 0.4, 1.7, 1.7); c.fill(); c.strokeStyle = b1; c.lineWidth = 0.35; ell(c, 2.2, 0.4, 1.25, 1.25); c.stroke();
+      if (k >= 0.85){ c.strokeStyle = 'rgba(255,250,225,.9)'; c.lineWidth = 0.4; c.beginPath(); c.moveTo(1.6, 0.4); c.lineTo(2.1, 0.9); c.lineTo(2.9, -0.2); c.stroke(); }
     }
     c.restore();
   }
+
 
   function logEnd(c, x, y, r, wet){
     const { ell } = H;
@@ -1473,9 +1464,9 @@ LOTS.hollow = H => {
     ['\\bmetal\\b', 'wet wood'], ['\\bMetal\\b', 'Wet wood'],
   ];
   // V15: the honey side only once the beehive has become the ant hill (robot ants cut mushrooms, the ant hill sorts them,
-  // robots fill punnets); game.js applies these first
+  // robots can them; gift wrapping is D.O.P. certifying); game.js applies these first
   const ANT_PHRASES = [
-    // the honey side: robot ants cut mushrooms, the ant hill sorts them, robots fill punnets
+    // the honey side: robot ants cut mushrooms, the ant hill sorts them, robots can them
     ['nectar a sip', 'mushrooms a cut'], ['% flowers', '% mushroom patches'], ['honey crate', 'mushroom crate'],
     ['[Rr]obot beehive', m => m[0] === 'R' ? 'Robotic ant hill' : 'robotic ant hill'], ['\\bbeehive\\b', 'ant hill'], ['\\bBeehive\\b', 'Ant hill'],
     ['Bigger nectar tank', 'Bigger larder'], ['Nectar in the tank', 'Fresh mushrooms in the larder'], ['[Nn]ectar tank', m => m[0] === 'N' ? 'Larder' : 'larder'], ['nectar full', 'larder full'],
@@ -1483,16 +1474,21 @@ LOTS.hollow = H => {
     ['Nectar the hive can hold', 'Fresh mushrooms the larder can hold'], ['adds a hive floor \\(more honey a minute\\)', 'adds a chamber to the ant hill (more mushrooms sorted a minute)'],
     ['\\+1 floor', '+1 chamber'], ['Bigger honey store', 'More sorting chambers'], ['[Hh]oney store', m => m[0] === 'H' ? 'Sorting chambers' : 'sorting chambers'], ['honey full', 'store full'],
     ['\\btank\\b', 'larder'], ['Fancy honey labels', 'Gourmet labels'], ['Honey labels', 'Gourmet labels'],
-    ['Gift jar ribbons', 'Gift basket ribbons'], ['[Gg]ift jars', m => m[0] === 'G' ? 'Gift baskets' : 'gift baskets'], ['[Gg]ift jar', m => m[0] === 'G' ? 'Gift basket' : 'gift basket'],
-    ['Fill honey jars', 'Fill punnets'], ['Jars of honey the hive and crate can hold', 'Punnets’ worth of sorted mushrooms the ant hill and crate can hold'],
-    ['A jar of honey', 'A punnet'], ['a jar of honey', 'a punnet of mushrooms'], ['honey jars', 'punnets'], ['ties a cloth top and a ribbon on a jar', 'wraps a punnet in a cloth and ties a ribbon on it'],
+    // V15: canned mushrooms, and D.O.P. certification instead of gift wrapping
+    ['Adds the Wrap task: a robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.', 'Adds the Certify task: a robot checks a can of mushrooms and seals it as D.O.P. (protected designation of origin), so it sells for a lot more. Certifying takes almost as long as canning.'],
+    ['Gift ribbons', 'D.O.P. seals'], ['Gift wrapping at the crate', 'D.O.P. certifying at the crate'], ['Gift wrapping', 'D.O.P. certification'], ['Wrap gift jars', 'Certify D.O.P. cans'], ['Wrapping a gift jar', 'Certifying a can'], ['Wrapping gift jars', 'Certifying cans'],
+    ['will wrap gift jars', 'will certify the cans'], ['Keep for wrapping', 'Keep for certifying'], ['so they can be wrapped first', 'so they can be certified first'], ['fills and wraps jars', 'cans and certifies mushrooms'],
+    ['gift wrapping', 'D.O.P. certifying'], ['\\bWrappers\\b', 'Certifiers'], ['\\bWrap\\b', 'Certify'], ['\\bwrapping\\b', 'certifying'], ['\\bwrap\\b', 'certify'],
+    ['Gift jar ribbons', 'Gold D.O.P. seals'], ['[Gg]ift jars', m => m[0] === 'G' ? 'D.O.P. cans' : 'D.O.P. cans'], ['[Gg]ift jar', m => m[0] === 'G' ? 'D.O.P. can' : 'D.O.P. can'],
+    ['Fill honey jars', 'Can mushrooms'], ['Jars of honey the hive and crate can hold', 'Cans’ worth of sorted mushrooms the ant hill and crate can hold'],
+    ['A jar of honey', 'A can of mushrooms'], ['a jar of honey', 'a can of mushrooms'], ['honey jars', 'cans'], ['ties a cloth top and a ribbon on a jar', 'seals a can as D.O.P.'], ['Fillers', 'Canners'], ['[Ff]illing', m => m[0] === 'F' ? 'Canning' : 'canning'],
     ['Honey in the hive, waiting to be jarred', 'Sorted mushrooms in the ant hill, waiting to be packed'], ['honey making', 'sorting'], ['turns nectar into honey', 'sorts mushrooms'],
-    ['\\bJars\\b', 'Punnets'], ['\\bjars\\b', 'punnets'], ['\\bjar\\b', 'punnet'], ['\\bJar\\b', 'Punnet'], ['\\bHoney\\b', 'Punnet'], ['\\bhoney\\b', 'mushrooms'],
+    ['\\bJars\\b', 'Cans'], ['\\bjars\\b', 'cans'], ['\\bjar\\b', 'can'], ['\\bJar\\b', 'Can'], ['\\bHoney\\b', 'Can'], ['\\bhoney\\b', 'mushrooms'],
     ['honey crate', 'mushroom crate'], ['\\bnectar\\b', 'mushrooms'], ['\\bNectar\\b', 'Mushrooms'],
-    ['Quicker wings', 'Springy legs'], ['Long tongues', 'Sharp mandibles'], ['Faster fanning', 'Faster sorting'], ['Better recipe', 'Snug punnets'],
+    ['Quicker wings', 'Springy legs'], ['Long tongues', 'Sharp mandibles'], ['Faster fanning', 'Faster sorting'], ['Better recipe', 'Tight packing'],
     ['Bees fly', 'Ants walk'], ['so more bees fly further out', 'so more ants walk further out'], ['Bees take <b>5 nectar</b> from each flower', 'Ants cut <b>5 mushrooms</b> from each patch'],
     ['Each bee sips from', 'Each ant cuts from'], ['a bee sips them', 'an ant cuts them'], ['Every flower is being sipped', 'Every patch is being cut'], ['nectar a sip', 'mushrooms a cut'],
-    ['bring nectar from the flowers, the hive makes honey, and the truck buys the jars', 'cut mushrooms from the patches, the ant hill sorts them, and the truck buys them in punnets'],
+    ['bring nectar from the flowers, the hive makes honey, and the truck buys the jars', 'cut mushrooms from the patches, the ant hill sorts them, robots can them, and the truck buys the cans'],
     ['\\bBees\\b', 'Ants'], ['\\bbees\\b', 'ants'], ['\\bBee\\b', 'Ant'], ['\\bbee\\b', 'ant'], ['\\ba ant\\b', 'an ant'], ['\\bA ant\\b', 'An ant'],
     ['\\bhives\\b', 'ant hills'], ['\\bhive\\b', 'ant hill'], ['\\bHive\\b', 'Ant hill'],
     ['[Dd]eadhead spent flowers', m => m[0] === 'D' ? 'Trim cut mushroom patches' : 'trim cut mushroom patches'], ['can deadhead flowers', 'can trim mushroom patches'],
@@ -1551,9 +1547,9 @@ LOTS.hollow = H => {
   };
   // V15: the bee and honey icons turn into ant and mushroom ones once the beehive has become the ant hill (game.js applyLotIcons)
   const ANT_ICON = {
-    jar: '<path d="M-3.4,-3.6 A1.8,1.2 0 0 1 .2,-3.6Z M-.6,-3.8 A2,1.4 0 0 1 3.6,-3.8Z" fill="#a8642e"/><path d="M-4.8,-2.4 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-4.2,0 H4.2 M-3.9,2.4 H3.9 M-1.4,-2.4 V4.8 M1.4,-2.4 V4.8" stroke="#6e4a26" stroke-width=".45"/><rect x="-5" y="-3" width="10" height="1.2" rx=".5" fill="#c99556"/>',
-    wrap: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#e8eef4"/><ellipse cx="-1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/><ellipse cx="1.6" cy="-4.4" rx="1.5" ry=".9" fill="#e8eef4"/>',
-    gift: '<path d="M-4.8,-2 H4.8 L3.6,4.8 H-3.6Z" fill="#a7783f"/><path d="M-5,-1.6 Q-5,-5 -2,-5 Q0,-4 2,-5 Q5,-5 5,-1.6Z" fill="#3f6a4a"/><path d="M-.6,-5 V4.8 H.6 V-5Z" fill="#2f6fb5"/><ellipse cx="-1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><ellipse cx="1.7" cy="-4.4" rx="1.6" ry="1" fill="#2f6fb5"/><circle cy="-4.3" r=".7" fill="#1f4f86"/>',
+    jar: '<path d="M-3.6,-3.8 H3.6 V4 A3.6,1 0 0 1 -3.6,4Z" fill="#aab4b9"/><ellipse cy="-3.8" rx="3.6" ry="1.1" fill="#d6dde0"/><rect x="-3.6" y="-2" width="7.2" height="4.4" fill="#efe3c4"/><path d="M-1.9,1 A1.9,1.6 0 0 1 1.9,1Z" fill="#c4281c"/><rect x="-.4" y="1" width=".8" height="1.1" fill="#efe9dc"/>',
+    wrap: '<path d="M-1.6,1.4 L-2.8,5 L-1,4 L0,5.4 L.4,1.6Z M1.6,1.4 L2.8,5 L1,4 L0,5.4 L-.4,1.6Z" fill="#7a2018"/><circle r="3.6" cy="-.6" fill="#b8392a"/><circle r="2.6" cy="-.6" fill="none" stroke="#f2d8a8" stroke-width=".5"/><path d="M-1.2,-.6 L-.3,.4 L1.4,-1.6" stroke="#fff6e0" stroke-width=".8" fill="none" stroke-linecap="round"/>',
+    gift: '<path d="M-3.6,-3.8 H3.6 V4 A3.6,1 0 0 1 -3.6,4Z" fill="#aab4b9"/><ellipse cy="-3.8" rx="3.6" ry="1.1" fill="#d6dde0"/><rect x="-3.6" y="-2" width="7.2" height="4.4" fill="#efe3c4"/><path d="M-1.9,1 A1.9,1.6 0 0 1 1.9,1Z" fill="#c4281c"/><rect x="-.4" y="1" width=".8" height="1.1" fill="#efe9dc"/><rect x="-3.6" y="2.6" width="7.2" height="1.1" fill="#b8392a"/><circle cx="2.4" cy=".2" r="1.9" fill="#e2b13a" stroke="#a87a1c" stroke-width=".4"/>',
     bee: '<path d="M-1.6,1 L-3,4.6 M0,1.2 L0,4.8 M1.6,1 L3,4.6" stroke="#4a3226" stroke-width=".6" fill="none"/><ellipse cx="-2.8" cy="0" rx="2.6" ry="2" fill="#8a4f2a"/><ellipse cx="-3" cy="-.5" rx="2" ry="1.2" fill="#b86a38"/><ellipse cx=".3" cy="-.2" rx="1.2" ry="1" fill="#7a4424"/><ellipse cx="2.8" cy="-.6" rx="1.8" ry="1.6" fill="#9a5a30"/><circle cx="3.3" cy="-.7" r=".7" fill="#ffc457"/><path d="M3.4,-2 Q4.4,-4.4 5.6,-4.6 M2.8,-2.1 Q3.2,-4.6 4.2,-5.4" stroke="#4a3226" stroke-width=".5" fill="none"/>',
     nectar: '<path d="M-1,1 L-1.3,5 H1.3 L1,1Z" fill="#efe9dc"/><path d="M-4.6,1.4 A4.6,4.4 0 0 1 4.6,1.4Z" fill="#c4281c"/><g fill="#fbf6ea"><circle cx="-2" cy="-1.2" r=".7"/><circle cx="1" cy="-2.2" r=".6"/><circle cx="2.4" cy="-.2" r=".5"/></g>',
     honey: '<g><path d="M-4.2,4.6 A2.6,2 0 0 1 .4,4.6Z" fill="#a8642e"/><path d="M-.4,4.6 A2.4,1.9 0 0 1 4.2,4.6Z" fill="#c99448"/><path d="M-2.6,1.4 A2.6,2 0 0 1 2.4,1.4Z" fill="#8a5428"/><path d="M-1.6,-1.6 A2.2,1.8 0 0 1 2.6,-1.6Z" fill="#e6a22a"/><path d="M-2.6,-4.2 A2,1.6 0 0 1 1.4,-4.2Z" fill="#c4281c"/></g>',
@@ -1568,7 +1564,7 @@ LOTS.hollow = H => {
 
   return {
     id: 'hollow', name: 'Rainy hollow', phrases: PHRASES,
-    AREAS, SPOTS, TREES, BUSHES, PLANT, PUDDLES, BAGGER,
+    AREAS, SPOTS, TREES, BUSHES, PLANT, PUDDLES, ROW,
     MINE_LAND: 0, PLANT_LAND: 0,
     landForSale: false,   // the yard never grows
     plantOpen: true,      // the drying shed can be built here (the smelting plant can't be bought in the first yard any more)
@@ -1587,7 +1583,7 @@ LOTS.hollow = H => {
     hiveKnown: true,                             // the beehive can be built from the start
     hiveStory: true,                             // V15: it's a plain beehive whose bees can't fly in the rain, until the robots research it into the ant hill
     art: { flowerSprite, drawFlower, drawDeco, bloomOf, drawJar, drawGiftJar, drawHive, drawBees, drawTub, logEnd, nugget, drawIngot, drawPallet, drawPlant,
-      drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney, drawBagger, drawLeafBag, drawHiveLab, drawLabBee,
+      drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney, drawBagger, drawLeafBag, drawHiveLab, drawLabBee, drawAnt,
       popCol: { metal: '#e6c89a', ingot: '#f2d8a8' } },
     styles, taskCols,
     GEN, GEN_ICON, GEN_SHORT, genSection: { title: 'Rain and mushrooms', keys: ['press', 'seeding', 'clover'] },
