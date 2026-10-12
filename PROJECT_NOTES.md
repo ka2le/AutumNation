@@ -320,3 +320,15 @@ The prairie (formerly the `location2` test copy) is now part of the main game as
 
 ### V13.3 (Oct 12)
 - No bigger yard on the prairie: `landForSale: false` in `public/lots/prairie.js` (read as `LAND_SALE` / `landForSale()` in game.js) keeps the For Sale sign from ever going up there, and the land offer, its card action and the balance player's land buy are all gated on it. The prairie's `AREAS` (Wildflower meadow, Blossom hills) and `MINE_LAND` are untouched, so removing the flag brings everything back. Side effect while it's off: the prairie's only metal vein is in the meadow, so mining (metal slot, miners, smelting plant) never opens there; the vein's card says "it lies beyond the fence" instead of pointing at the sign.
+
+### V13.4 (Oct 12)
+- **Goal pill** (`#hGoal`, `updGoalHud`, `goalNow`, `goalRt`): the prairie's two milestones are no longer hidden. A small pill under the cash shows the current one: an icon, `137 / 300` (or `$12 / $100`) and a thin progress bar; the goal itself ("Goal: Gather 300 petals") shows on hover or tap. Reached, it turns green with a tick for `GOAL_DONE_HOLD` (6 s), then the next one shows (or none). Milestones opt in with a `hud: { icon, val, of, cash, show }` field; the first yard's `book` and `letter` stay hidden.
+  - `bee`: gather 300 petals, shown from the moment you arrive.
+  - `honey`: now **earn $100 selling honey** (`HONEY_CASH`, `S.totals.honeyCash`, jars and gift jars) instead of 30 jars; shown once the bee is found and the hive is known.
+- **Honey money flies to the pill:** when the truck buys honey while the honey goal is showing, the honey sale number splits as it leaves the crate: one copy into the truck as before, one up to the pill (`toHud` sale pops, `goalPt`). The pill (and the milestone) only counts it when it lands (`goalRt.pending`, `honeyEarned()`), with a bump and a chime.
+- New icons: `petal`, `tick`.
+
+### V13.5 (Oct 12)
+- **The first letter** now ends "Bring $100 to get started there." and has a small-print line under it: "Only truck upgrades, robot unlocks and Tinker's skills stay across yards." (`LETTERS.newLot.note`; the name is the robot with the trip in Do, else the first robot, `tripRobotName`).
+- **Travel money** (`TRIP_CASH` = 100, milestone `fare`, `packFare`): reading the letter no longer opens the trip straight away. It sets `S.flags.fareOpen`, and the goal pill under the cash shows `$40 / $100` ("Goal: Have $100 to bring to the new yard"); the letter's card has a Travel money row too. Holding $100 reaches it: the $100 comes out of the cash ("$100 packed for the trip", `S.flags.fare`), and only then the trip opens (Go to new lot task, as before).
+- **The prairie starts with the travel money**: `travel()` carries `fare`, `arrive()` starts a new lot with it (falls back to `LOT_START_CASH` $10 when none came along, e.g. a save that had already opened the trip before this). `?fresh&lot=prairie` starts with $100 too.

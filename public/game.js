@@ -535,7 +535,7 @@ function freshState(){
     bag:{ built:false, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0 }, ingots:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
-    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, nectar:0, bags:0, gifts:0, ingots:0 },
+    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0 },
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
@@ -1396,25 +1396,51 @@ const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the
 const LETTER_HELD = 200;     // or once you've held this much at one time (S.peak), whichever comes first
 // (V13.1: and only once the robots have worked out the old picture book)
 const FIND_ABOVE = -122;     // finds (the book, the bee) only turn up under leaves higher up than the workshop's roof
-const LOT_START_CASH = 10;   // what you have when your robot first arrives on a new lot
+const LOT_START_CASH = 10;   // what you have when your robot first arrives on a new lot (V13.5: only if no travel money came along)
+const TRIP_CASH = 100;       // V13.5: after the first letter, the first yard has to hold this much; it's packed for the trip and is
+                             // what the robot starts the prairie with
 const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
-const HONEY_JARS = 30;       // jars of honey the prairie's hive makes before the driver offers a ride back
+const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's honey (jars and gift jars) before the driver offers a ride back (was 30 jars)
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
   { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
+  // V13.5: the first letter asks for travel money: hold $100 and it's packed for the trip, then the robot can go
+  { id:'fare', lot:'home', name:'Travel money', goal:'Have $' + TRIP_CASH + ' to bring to the new yard', prog: () => S.flags.fareOpen ? S.cash/TRIP_CASH : 0, on: packFare,
+    hud:{ icon:'coin', cash:true, val: () => S.cash, of: TRIP_CASH, show: () => !!S.flags.fareOpen } },
   { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => (S.story.item || 'book') === 'book' && S.story.done ? Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD) : 0, on: () => postLetter('newLot') },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
-  { id:'bee', lot:'prairie', hidden:true, name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; } },
-  { id:'honey', lot:'prairie', hidden:true, name:'Sweet success', goal:'Make ' + HONEY_JARS + ' jars of honey', prog: () => (S.totals.honey || 0)/HONEY_JARS, on: () => postLetter('goHome') },
+  // V13.4: these two show as a goal pill under the cash (hud: what it shows; show: when it may show up)
+  { id:'bee', lot:'prairie', name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; },
+    hud:{ icon:'petal', val: () => S.totals.leaves || 0, of: BEE_LEAVES, show: () => true } },
+  { id:'honey', lot:'prairie', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => honeyEarned()/HONEY_CASH, on: () => postLetter('goHome'),
+    hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => S.miles.bee != null && hiveKnown() } },
 ];
 function updMilestones(){
   for (const m of MILESTONES){
     if ((m.lot || 'home') !== LOT_ID || S.miles[m.id] != null || m.prog() < 1) continue;
     S.miles[m.id] = Math.round(S.t);
+    if (m.hud && !simMode){ goalRt.doneId = m.id; goalRt.doneT = S.t; goalRt.bumpT = 0.3; }
     if (m.on) m.on();
   }
 }
+// V13.4: the goal pill under the cash. Honey money counts once the number flying up from the sale reaches the pill
+// (goalRt.pending is what's still in the air), so the pill and the milestone tick over together.
+const goalRt = { pending: 0, doneId: null, doneT: -99, bumpT: 0, tipT: 0, sig: '' };
+const GOAL_DONE_HOLD = 6;   // seconds a reached goal stays up (with a tick) before the next one, or none, shows
+const honeyEarned = () => Math.max(0, (S.totals.honeyCash || 0) - goalRt.pending);
+function goalNow(){
+  if (goalRt.doneId && S.t - goalRt.doneT < GOAL_DONE_HOLD){ const m = MILESTONES.find(q => q.id === goalRt.doneId); if (m) return { m, done: true }; }
+  for (const m of MILESTONES) if (m.hud && (m.lot || 'home') === LOT_ID && S.miles[m.id] == null && m.hud.show()) return { m, done: false };
+  return null;
+}
+// V13.5: the travel money is reached: it comes out of the cash and goes with the robot; only then does the trip open
+function packFare(){
+  S.cash -= TRIP_CASH; S.flags.fare = TRIP_CASH;
+  if (!simMode){ const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + hc.width/2, hc.bottom + 40); pop(p.x, p.y, '$' + TRIP_CASH + ' packed for the trip', 'note', 18, 0, 3); }
+  openTrip({ to: 'prairie' });
+}
+const goalShowing = id => { const g = goalNow(); return !!(g && !g.done && g.m.id === id); };
 
 // ───────────────────────── the old picture book and the Research task (V12)
 // Once the 'book' milestone is reached, the next leaf a robot picks up has a battered children's book under it. Only two
@@ -1662,7 +1688,10 @@ function updResearch(dt){
 const LETTERS = {
   // (V13.1: the first letter is put down where the beehive will go, so it stands out)
   newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }), title: 'A letter', sign: 'Trucker',
-    text: 'We found another spot that could use some cleanup, send your best cleanup robot.', open: () => openTrip({ to: 'prairie' }) },
+    text: 'We found another spot that could use some cleanup, send your best cleanup robot. Bring $' + TRIP_CASH + ' to get started there.',
+    // V13.5: what carries over, in small print; the trip only opens once the travel money is there (the 'fare' milestone)
+    note: () => 'Only truck upgrades, robot unlocks and ' + tripRobotName() + '’s skills stay across yards.',
+    open: () => { S.flags.fareOpen = true; } },
   goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
 };
@@ -1676,6 +1705,8 @@ const HOME_EARNED = 200;                  // what the first yard made while you 
 // dev (?fresh&lot=prairie): about what the robot you'd send has when the letter comes ($900 earned in the first yard)
 const DEV_TRAVELLER = { lv:{ speed:7, carry:10, pick:7, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
 const HIVE_DEAL = 60;                     // the beehive back home, once a bee has come along
+// the robot that goes (or would go) to the new lot: the one with the trip in Do, else the first robot (Tinker)
+const tripRobotName = () => { const h = typeof tripHolder === 'function' ? tripHolder() : null, i = h ? S.robots.indexOf(h) : 0; return S.robots[i] ? styleOf(i).name : 'your robot'; };
 function postLetter(id){ if (!S.post.includes(id) && !S.letters.some(l => l.id === id)) S.post.push(id); }
 // runtime: the driver while it's out of the cab, the bee riding along, and whether we're on our way somewhere
 let driver = null, travelling = false;
@@ -1772,9 +1803,10 @@ function travel(){
   travelling = true;
   const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, bot: JSON.parse(JSON.stringify(cfg)), sty: styleIdx(ri), home: cfg.home != null ? cfg.home : ri,
     tech: Object.assign({}, S.tech), truck: S.lv.truck, cleanup: S.lv.cleanup, helpers: helpersKnown(), seen: Object.assign({}, S.seen),
-    hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
+    fare: trip.to !== 'home' ? (S.flags.fare || 0) : 0, hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
   cfg.away = trip.to; cfg.miner = null; taskRemove(cfg, 'travel'); cfg.off.push('travel');
   S.trip = null; S.letters = S.letters.filter(l => !l.read);
+  if (trip.to !== 'home') S.flags.fare = 0;   // V13.5: the travel money went with the robot
   T.rider = null; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 2);
   WORLD.cur = trip.to; WORLD.arrive = carry;
   const json = JSON.stringify(S);
@@ -1803,7 +1835,7 @@ function arrive(a, wasNew){
   S.flags.hints = Object.assign({}, a.hints || {}, S.flags.hints || {});
   for (const k in (a.know || {})) if (a.know[k]) S.flags[k] = true;   // tips you've already had
   // the robot that came along keeps its looks, its upgrades and its task list
-  if (wasNew && !home){ S.robots = []; S.cash = S.peak = LOT_START_CASH; }
+  if (wasNew && !home){ S.robots = []; S.cash = S.peak = a.fare > 0 ? a.fare : LOT_START_CASH; }
   let ri = home ? a.home : S.robots.findIndex(c => c.home === a.home);
   if (!(ri >= 0 && S.robots[ri])){ ri = S.robots.length; S.robots.push(newRobotCfg()); }
   const b = a.bot || {}, cfg = S.robots[ri];
@@ -2202,6 +2234,9 @@ function updTruck(dt){
     puffExhaust(T, dt, 0.25);
     if (T.timer <= 0){
       let amt = T.takeL*leafPrice() + T.takeB*bagPrice() + T.takeM*metalPrice() + T.takeI*ingotPrice() + T.takeH*honeyPrice() + T.takeG*giftJarPrice(), bonus = 0;
+      // V13.4: what the honey made, for the prairie's honey goal (checked before it's counted, so the number can fly up to the pill)
+      const honeyAmt = T.takeH*honeyPrice() + T.takeG*giftJarPrice(), honeyFly = !simMode && honeyAmt > 0 && goalShowing('honey');
+      S.totals.honeyCash = (S.totals.honeyCash || 0) + honeyAmt;
       // balance tests (tools/balance-player.js): during a sim, window.__src adds up what each kind of thing sold for
       if (simMode && window.__src){ const W = window.__src; W.leaf += T.takeL*leafPrice(); W.bag += T.takeB*bagPrice(); W.metal += T.takeM*metalPrice(); W.ingot += T.takeI*ingotPrice(); W.jar += T.takeH*honeyPrice(); W.gift += T.takeG*giftJarPrice(); W.nL += T.takeL + T.takeB*BAG_SIZE; W.nM += T.takeM; W.nI += T.takeI; W.nJ += T.takeH + T.takeG; }
       // the cleanup program pays a lump sum for every 100 leaves the truck has taken (bagged ones count too)
@@ -2224,6 +2259,8 @@ function updTruck(dt){
           const tx = T.x + 26, ty = LANE - 70;
           sale.forEach((q, n) => {
             pops.push({ kind:'sale', x: q.x, y: q.y, oy: 0, tx, ty, text: '+' + cash2(q.v), sub: sayT(q.sub), res: q.res, icon: q.icon, size: 19, t: -n*SALE_STEP, life: SALE_HOLD + SALE_FLY });
+            // V13.4: the honey number splits as it leaves the crate: one copy into the truck, one up to the honey goal
+            if (q.res === 'honey' && honeyFly){ goalRt.pending += q.v; pops.push({ kind:'sale', toHud: true, v: q.v, x: q.x, y: q.y, oy: 0, tx, ty, text: '+' + cash2(q.v), res: q.res, icon: q.icon, size: 19, t: -n*SALE_STEP, life: SALE_HOLD + SALE_FLY*1.4 }); }
           });
           T.st = 'pay'; T.timer = (sale.length - 1)*SALE_STEP + SALE_HOLD + SALE_FLY + 0.05; T.payAmt = amt;
         }
@@ -2272,7 +2309,10 @@ function updParts(dt){
     p.vy += (p.g||0)*dt; p.x += p.vx*dt; p.y += p.vy*dt;
   }
   parts = parts.filter(p => p.t < p.life);
-  for (const p of pops) p.t += dt;
+  for (const p of pops){
+    p.t += dt;
+    if (p.toHud && !p.got && p.t >= p.life){ p.got = true; goalRt.pending = Math.max(0, goalRt.pending - p.v); goalRt.bumpT = 0.22; sfx('chime', 'sale'); }
+  }
   pops = pops.filter(p => p.t < p.life);
 }
 
@@ -4911,9 +4951,13 @@ function drawPops(){
 }
 // a sale number: pops up over the bin (or tub, pallet, crate) it came from, sits there a moment, then flies into the truck
 function drawSalePop(c, p){
-  const ts = textScale(), size = Math.round(p.size*ts), src = w2s(p.x, p.y), dst = w2s(p.tx, p.ty);
+  if (p.toHud && p.t < SALE_HOLD) return;   // the copy for the goal pill only shows once it leaves the crate
+  const ts = textScale(), size = Math.round(p.size*ts), src = w2s(p.x, p.y), dst = p.toHud ? goalPt() : w2s(p.tx, p.ty);
   let x, y, sc, a = 1;
-  if (p.t < SALE_HOLD){
+  if (p.toHud){
+    const u = clamp((p.t - SALE_HOLD)/(p.life - SALE_HOLD), 0, 1), e = u*u*(3 - 2*u);
+    x = lerp(src.x, dst.x, e); y = lerp(src.y + p.oy*ts - 18, dst.y, e) - Math.sin(u*Math.PI)*30*ts; sc = 1 - 0.3*e; a = u > 0.85 ? 1 - (u - 0.85)/0.15*0.8 : 1;
+  } else if (p.t < SALE_HOLD){
     const k = Math.min(1, p.t/0.45), e = 1 - Math.pow(1 - k, 3);
     x = src.x; y = src.y + p.oy*ts - e*18; sc = p.t < 0.14 ? 0.55 + p.t/0.14*0.45 : 1;
   } else {
@@ -5131,7 +5175,35 @@ function updHud(dt){
   if (key !== lastHud){ lastHud = key; $('vCash').textContent = key; }
   $('hCash').classList.toggle('bump', cashBumpT > 0);
   if (cashBumpT > 0) cashBumpT -= dt;
+  updGoalHud(dt);
 }
+// V13.4: the goal pill: an icon, how far along (12 / 300, or $12 / $100), a thin progress bar, and the goal itself on
+// hover or tap. Once reached it turns green with a tick for a few seconds.
+function updGoalHud(dt){
+  if (goalRt.pending > 0 && !pops.some(p => p.toHud && !p.got)) goalRt.pending = 0;   // nothing in the air any more (a reset or a reload)
+  const el = $('hGoal'), g = goalNow();
+  if (goalRt.bumpT > 0) goalRt.bumpT -= dt;
+  if (goalRt.tipT > 0) goalRt.tipT -= dt;
+  if (!g){ if (!el.hidden){ el.hidden = true; goalRt.sig = ''; } return; }
+  const h = g.m.hud, v = Math.min(h.of, h.val()), k = g.done ? 1 : clamp(v/h.of, 0, 1);
+  const txt = g.done ? (h.cash ? '$' + h.of : h.of) + ' / ' + (h.cash ? '$' + h.of : h.of) : h.cash ? '$' + Math.floor(v) + ' / $' + h.of : Math.floor(v) + ' / ' + h.of;
+  const sig = g.m.id + '|' + g.done;
+  if (sig !== goalRt.sig){
+    goalRt.sig = sig; goalRt.txt = ''; el.hidden = false;
+    el.innerHTML = '<span class="gi">' + ic(h.icon) + '</span><span class="gv"></span>' + (g.done ? '<span class="gok">' + ic('tick') + '</span>' : '') +
+      '<i class="gbar"><b></b></i><span class="gtip">Goal: ' + sayT(g.m.goal) + '</span>';
+    el.classList.toggle('done', g.done);
+  }
+  if (txt !== goalRt.txt){
+    goalRt.txt = txt; el.querySelector('.gv').textContent = txt; el.querySelector('.gbar b').style.width = (k*100).toFixed(1) + '%';
+    el.setAttribute('aria-label', 'Goal: ' + sayT(g.m.goal) + ', ' + txt);
+  }
+  el.classList.toggle('bump', goalRt.bumpT > 0);
+  el.classList.toggle('open', goalRt.tipT > 0);
+}
+// where the number flying up to the goal pill lands (on the icon), in canvas pixels
+function goalPt(){ const r = $('hGoal').getBoundingClientRect(); return r.width ? { x: r.left + 18, y: r.top + r.height/2 } : { x: 30, y: 70 }; }
+$('hGoal').addEventListener('pointerdown', e => { e.stopPropagation(); goalRt.tipT = goalRt.tipT > 0 ? 0 : 3.5; });
 // Tap the cash 3 times within 2 seconds to start the test-money ladder: $100, $200, $500, $500, $1,000, $10,000, then $100,000 per tap.
 const cheat = { n: 0, first: 0, last: 0 };
 $('hCash').addEventListener('pointerdown', e => {
@@ -5157,6 +5229,8 @@ const card = $('card');
 let cardOpen = null, cardSig = '', resetArm = false, cardNote = '', cardTab = 'up', fillT = 0;
 // ── little pictures (12×12, centred on 0,0), in the yard's colours
 const ICON = {
+  petal:  '<path d="M0,5 C-4.6,1.6 -4.4,-3.4 -1.6,-5 C-.6,-4.2 .6,-4.2 1.6,-5 C4.4,-3.4 4.6,1.6 0,5Z" fill="#f4a6bf"/><path d="M0,3.6 V-1.6" stroke="#d27f9b" stroke-width=".7" stroke-linecap="round"/>',
+  tick:   '<path d="M-3.6,0.2 L-1,2.8 L3.8,-2.6" fill="none" stroke="#4f7a2c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
   leaf:   '<path d="M0,-5 C3,-3.5 3,2.5 0,4 C-3,2.5 -3,-3.5 0,-5Z" fill="#d4672a"/><path d="M0,-3.6V4.6" stroke="#8c3215" stroke-width=".8"/>',
   ore:    '<path d="M-4.5,-1.5 L-1.5,-4.5 L3.5,-3 L4.5,1.5 L1,4.5 L-3.5,3Z" fill="#8f979b"/><path d="M-1.5,-4.5 L3.5,-3 L1,0Z" fill="#c3cbd0"/>',
   bag:    '<path d="M-1,-3.6 C-4.6,-3 -4.8,3.4 -3.4,4.2 Q0,5 3.4,4.2 C4.8,3.4 4.6,-3 1,-3.6Z" fill="#d4672a"/><ellipse cx="-1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/><ellipse cx="1" cy="-4.6" rx="1.2" ry=".6" fill="#b8551c"/>',
@@ -5716,7 +5790,10 @@ function cardModel(){
     // V13: a letter from the truck driver
     const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
     title = L ? L.title : 'A letter'; head = 'letter';
-    if (L) top = '<div class="letter"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>';
+    if (L) top = '<div class="letter"><p>' + L.text + '</p>' + (L.note ? '<p class="ps">' + L.note() + '</p>' : '') + '<p class="sig">— ' + L.sign + '</p></div>';
+    if (l && l.id === 'newLot' && S.flags.fareOpen && !S.trip && S.miles.fare == null)
+      rows.push({ sig:'fare' + Math.floor(S.cash), html: row({ icon: ic('coin'), name:'Travel money', tip:'Once you have $' + TRIP_CASH + ', it’s packed for the trip and the robot that goes starts the new yard with it',
+        val: cash2(S.cash) + ' of $' + TRIP_CASH }) });
     if (S.trip){
       const h = tripHolder(), hi = h ? S.robots.indexOf(h) : -1, cand = S.robots.findIndex(tripFor);
       const chip = '<span class="chip mini" style="--tc:' + TASKS.travel.col + '">' + ic('travel') + TASKS.travel.short + '</span>';
@@ -6423,7 +6500,7 @@ function devTraveller(){
   const c = S.robots[0] || (S.robots[0] = newRobotCfg());
   c.home = 0; Object.assign(c.lv, DEV_TRAVELLER.lv);
   for (const k of DEV_TRAVELLER.tech) S.tech[k] = true;
-  S.cash = S.peak = LOT_START_CASH;
+  S.cash = S.peak = TRIP_CASH;
   S.lv.truck = DEV_TRAVELLER.truck; S.lv.cleanup = DEV_TRAVELLER.cleanup; S.flags.helpers = true; S.flags.research = true;
 }
 function start(data){
