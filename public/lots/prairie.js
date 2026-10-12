@@ -306,8 +306,8 @@ LOTS.prairie = H => {
   // ── flower upgrades of its own (a "Wildflowers" section in the workshop)
   const GEN = {
     press:    { name:'Petal press',        max:3, cost:[250, 1200, 4500], desc:l=>'Pressed petals sell for <b>'+(15*(l+1))+'%</b> more, loose or bagged.' },
-    seeding:  { name:'Wildflower seeding', max:3, cost:[600, 2000, 6000], needs:()=>H.S().hive.built, desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more flowers for the bees on all your land.' },
-    clover:   { name:'Sweet clover',       max:2, cost:[900, 4000], needs:()=>H.S().hive.built, desc:l=>'Flowers bloom again <b>'+(30*(l+1))+'%</b> sooner after a bee sips them.' },
+    seeding:  { name:'Wildflower seeding', max:3, cost:[600, 2000, 6000], needs:()=>H.S.hive.built, desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more flowers for the bees on all your land.' },
+    clover:   { name:'Sweet clover',       max:2, cost:[900, 4000], needs:()=>H.S.hive.built, desc:l=>'Flowers bloom again <b>'+(30*(l+1))+'%</b> sooner after a bee sips them.' },
   };
   const GEN_ICON = { press:'press', seeding:'seed', clover:'clover' };
   const GEN_SHORT = { press: l => '+' + 15*(l + 1) + '% for petals', seeding: l => '+' + 40*(l + 1) + '% flowers', clover: l => 'Flowers regrow ' + 30*(l + 1) + '% sooner' };

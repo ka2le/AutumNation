@@ -30,6 +30,7 @@ let ctx = null, master = null, wobble = null, noiseBuf = null;
 const bus = {};
 let rustleBufs = [];
 let windLP, windGain, airBP, airGain;
+let rainHiss, rainLow, rainBus, rainAcc = 0;   // V14 (the Rainy hollow): the rain bed
 const listeners = new Set();
 const changed = () => { for (const f of listeners) try { f(prefs); } catch (e) {} };
 
@@ -125,6 +126,18 @@ function init(given){
   src.connect(airBP); airBP.connect(airGain); airGain.connect(bus.amb);
   src.start();
 
+  // V14 (the Rainy hollow): the rain. A soft broadband hiss, a low patter underneath, and single drops ticking here and there
+  // (rainStep). It goes straight to the master (not the "Leaves & wind" bus, which is off by default): it's the sound
+  // of this place. It follows the game's rain level.
+  rainBus = gainNode(0); rainBus.connect(master);
+  const rw = gainNode(0.18); rainBus.connect(rw); rw.connect(verb);
+  const rs = ctx.createBufferSource(); rs.buffer = makeNoise(4); rs.loop = true; rs.playbackRate.value = 0.93;
+  const hp = filt('highpass', 650, 0.4), lp = filt('lowpass', 5200, 0.3); rainHiss = gainNode(0.05);
+  rs.connect(hp); hp.connect(lp); lp.connect(rainHiss); rainHiss.connect(rainBus);
+  const lp2 = filt('lowpass', 520, 0.5); rainLow = gainNode(0.06);
+  rs.connect(lp2); lp2.connect(rainLow); rainLow.connect(rainBus);
+  rs.start();
+
   mus.t = 0; mus.plan = []; mus.idx = 0; mus.cycle = 0;
 }
 
@@ -176,6 +189,33 @@ document.addEventListener('visibilitychange', () => {
 const live = () => ctx && ctx.state === 'running' && prefs.on;
 const gates = {};
 function gate(key, gap){ const n = ctx.currentTime; if (n - (gates[key] ?? -99) < gap) return false; gates[key] = n; return true; }
+
+// ───────────────────────── V14 (the Rainy hollow): rain
+function rainDrop(t, pan, vol, big){
+  // one drop: a tiny filtered click, or now and then a fat "plip" off a roof or a leaf
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = rnd(0.8, 1.4);
+  const bp = filt('bandpass', big ? rnd(900, 1500) : rnd(2400, 6000), big ? 6 : 1.4), g = gainNode(0);
+  src.connect(bp); bp.connect(g); panInto(g, pan, rainBus);
+  const len = big ? 0.05 : rnd(0.008, 0.02);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0005, t + len);
+  src.start(t, rnd(0, 2.5), len + 0.03);
+  if (big){
+    const o = ctx.createOscillator(), og = gainNode(0); o.type = 'sine';
+    o.frequency.setValueAtTime(rnd(900, 1400), t); o.frequency.exponentialRampToValueAtTime(rnd(380, 520), t + 0.06);
+    o.connect(og); panInto(og, pan, rainBus);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(vol*0.5, t + 0.004); og.gain.exponentialRampToValueAtTime(0.0005, t + 0.09);
+    o.start(t); o.stop(t + 0.12);
+  }
+}
+function rainStep(dt, k, t){
+  rainBus.gain.setTargetAtTime(0.55, t, 1.2);
+  rainHiss.gain.setTargetAtTime(0.025 + 0.075*k*k, t, 1.5);
+  rainLow.gain.setTargetAtTime(0.03 + 0.06*k, t, 1.5);
+  rainAcc += dt*(6 + 26*k);
+  let n = 0;
+  while (rainAcc >= 1 && n < 8){ rainAcc -= 1; n++; rainDrop(t + rnd(0, 0.05), rnd(-0.9, 0.9), rnd(0.02, 0.07), Math.random() < 0.06); }
+  if (rainAcc > 4) rainAcc = 0;
+}
 
 // ───────────────────────── leaves & wind
 function rustle(o, t){
@@ -401,6 +441,7 @@ const api = {
   onChange(f){ listeners.add(f); },
 
   update(dt, wind){ if (live()) ambStep(dt, wind, ctx.currentTime); },
+  rain(dt, k){ if (live() && rainBus) rainStep(dt, k, ctx.currentTime); },   // V14: only the Rainy hollow calls this
 
   // a robot's arm closes on some leaves
   grab(n, pan, vol){ if (!live() || !prefs.amb || !gate('grab', 0.08)) return; rustle({ buf: rustleBufs[1 + 3 * (Math.random() * 3 | 0)], rate: rnd(1.1, 1.45), vol: (0.07 + 0.015 * Math.min(n, 6)) * vol, pan, bright: rnd(3500, 5500) }, ctx.currentTime); },

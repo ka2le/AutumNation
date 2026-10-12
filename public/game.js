@@ -49,7 +49,10 @@ const WORLD = (() => {
   return w;
 })();
 const LOT_ID = WORLD.cur;
-const LH = {};   // the game's helpers for lot files (filled in just before the game starts)
+// the game's helpers for lot files (filled in just before the game starts; V14: live state like S and ctx are getters,
+// so a lot's drawing code reads them as const { S, ctx } = H). Asking for one that isn't there warns in the console.
+let LH_READY = false;
+const LH = new Proxy({}, { get(t, k){ if (LH_READY && typeof k === 'string' && !(k in t)) console.warn('lot helper missing: ' + k); return t[k]; } });
 const LOT = LOT_ID === 'home' ? { id: 'home', name: 'Cottage yard' } : window.LOTS[LOT_ID](LH);
 const FRESH_SAVES = (HOP && HOP.saves) || {};   // ?fresh: the other lots' states, carried from page to page
 // a lot's saved state (parsed), or null
@@ -59,8 +62,16 @@ function readLot(id){
 function saveWorld(){ if (FRESH) return; try { localStorage.setItem(WORLD_KEY, JSON.stringify(WORLD)); } catch(e){} }
 // the words a lot uses for things (the prairie's "leaves" are petals): applied to card text, pops and toasts
 const WORDS = LOT.words || null;
-const sayT = WORDS ? s => String(s).replace(/\b(leaf|leaves|Leaf|Leaves|LEAVES)\b/g, w => WORDS[w] || w) : s => s;
-const sayH = WORDS ? h => String(h).replace(/(<[^>]*>)|([^<]+)/g, (m, tag, txt) => tag ? tag.replace(/(title|aria-label)="([^"]*)"/g, (a, k, v) => k + '="' + sayT(v) + '"') : sayT(txt)) : h => h;
+const wordT = WORDS ? s => String(s).replace(/\b(leaf|leaves|Leaf|Leaves|LEAVES)\b/g, w => WORDS[w] || w) : s => s;
+// V14: a lot can also swap whole phrases (the Rainy hollow: metal is wet wood, bees are ants, ...): LOT.phrases is an
+// ordered list of [regex source, replacement or function]; at any spot the first that matches wins
+function makePhrases(list){
+  const re = new RegExp(list.map(p => '(' + p[0].replace(/(?<!\\)\((?!\?)/g, '(?:') + ')').join('|'), 'g');
+  return s => String(s).replace(re, (m, ...g) => { const i = g.findIndex((x, k) => k < list.length && x !== undefined); const r = list[i][1]; return typeof r === 'function' ? r(m) : r; });
+}
+const PHRASE = LOT.phrases ? makePhrases(LOT.phrases) : null;
+const sayT = PHRASE ? s => PHRASE(wordT(s)) : wordT;
+const sayH = WORDS || PHRASE ? h => String(h).replace(/(<[^>]*>)|([^<]+)/g, (m, tag, txt) => tag ? tag.replace(/(title|aria-label)="([^"]*)"/g, (a, k, v) => k + '="' + sayT(v) + '"') : sayT(txt)) : h => h;
 
 // ───────────────────────── world layout (world units; the curb is y = 0, your land is y < 0)
 const ROAD = 84, LANE = 56, VERGE = 30;
@@ -92,6 +103,21 @@ const SPOTS = LOT.SPOTS || [
 // V13: a lot can keep its metal for later land (the prairie's only vein is in the meadow)
 const MINE_LAND = LOT.MINE_LAND || 0;
 const metalOpen = () => S.land >= MINE_LAND;
+// V14: a lot's own art (drawing functions that replace the first yard's: lots/hollow.js), and two things only some lots
+// have: rain and puddles (RAINY), and wood that gets wet on the way to the road, with a blower's umbrella (WET_WOOD)
+const ART = LOT.art || {};
+const RAINY = !!LOT.rain, WET_WOOD = !!LOT.wetWood;
+const DBG = (PARAMS.get('dbg') || '').split(',');   // dev: ?dbg=nopud,norain,nomist,noglow to profile the rain
+const PUDDLES = LOT.PUDDLES || [];
+// the outline of a puddle: a wobbly ellipse
+function puddlePts(p, grow){
+  const rnd = mulberry(p.seed), s1 = rnd()*TAU, s2 = rnd()*TAU, s3 = rnd()*TAU, N = 22, out = [];
+  for (let k=0;k<N;k++){ const a = k/N*TAU, r = 1 + 0.16*Math.sin(2*a + s1) + 0.09*Math.sin(3*a + s2) + 0.05*Math.sin(5*a + s3); out.push([p.x + Math.cos(a)*(p.rx*r + grow), p.y + Math.sin(a)*(p.ry*r + grow*0.45)]); }
+  return out;
+}
+function puddleTrace(c, p, grow){ const P = puddlePts(p, grow || 0); c.beginPath(); P.forEach(([x, y], i) => { const n = P[(i + 1) % P.length], mx = (x + n[0])/2, my = (y + n[1])/2; i ? c.quadraticCurveTo(x, y, mx, my) : c.moveTo(mx, my); }); const f = P[0], n = P[1]; c.quadraticCurveTo(f[0], f[1], (f[0] + n[0])/2, (f[1] + n[1])/2); c.closePath(); }
+const inPuddle = (p, x, y, m = 0) => { const dx = (x - p.x)/(p.rx*0.92 + m), dy = (y - p.y)/(p.ry*0.92 + m*0.45); return dx*dx + dy*dy < 1; };
+const puddleAt = (x, y, m) => { for (const p of PUDDLES) if (inPuddle(p, x, y, m)) return p; return null; };
 // a lot can switch its land sale off (the prairie: no For Sale sign, so no bigger yard there). Its AREAS stay as they
 // are, so setting landForSale back to true (or removing it) brings the sign back.
 const LAND_SALE = LOT.landForSale !== false;
@@ -240,11 +266,14 @@ const TRACKS = {
       { name:'Air hose', n:3, cost:[150, 260, 420], needsPlant:true },
       { tech:'forge', name:'Forge blast', n:4, cost:[600, 850, 1200, 1700] } ],
     vals:[0, .15, .22, .3, .4, .5, .6, .7], show:v=>v ? '+' + Math.round(v*100) + '% smelting speed' : 'can’t work the bellows yet' },
+  // V14 (the Rainy hollow, WET_WOOD): a blower can learn to carry a big wooden umbrella over a robot hauling dry wood
+  brolly: { label:'Umbrella', gens:[ { name:'Wood umbrella', n:1, cost:[900], needsPlant:true } ],
+    vals:[0, 1], show:v=>v ? 'carries the wood umbrella' : 'no umbrella yet' },
 };
 
 const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet','pack','study'];
 // which tracks each kind of robot has. Wheels are shared by every kind, so copied-level discounts work across all of them.
-const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', 'blow', 'dig', 'stoke'], shaker: ['speed', 'shake', 'snip'] };
+const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', 'blow', 'dig', 'stoke', ...(WET_WOOD ? ['brolly'] : [])], shaker: ['speed', 'shake', 'snip'] };
 const TECH = {
   treads:  { name:'Rubber treads',     track:'speed', cost:3,   desc:'Four new wheel upgrades for every robot.' },
   hamper:  { name:'Wicker hamper',     track:'carry', cost:3.5, desc:'Four new basket upgrades.' },
@@ -352,7 +381,12 @@ const metalPrice = () => val('metalPrice')*sellMul();
 const bagPrice = () => BAG_SIZE*val('leafPrice')*val('bagPrice')*sellMul();
 const ingotPrice = () => ORE_PER_INGOT*val('metalPrice')*val('ingotGrade')*sellMul();
 const PLANT_GRADE = 2;   // metal grade that opens the smelting plant (grading goes on after it)
-const plantGrade = () => S.lv.metalPrice >= PLANT_GRADE;
+// V14: the smelting plant is out of the regular progression: it can only be built on a lot that has it (LOT.plantOpen, the
+// Rainy hollow's drying shed), or once a later story beat teaches it (S.flags.smeltKnown). Its code is all still here, and a
+// save that already has one keeps it. PLANT_LAND: a lot can keep it for later land.
+const PLANT_LAND = LOT.PLANT_LAND || 0;
+const plantOpen = () => (!!LOT.plantOpen || !!S.flags.smeltKnown) && S.land >= PLANT_LAND;
+const plantGrade = () => plantOpen() && S.lv.metalPrice >= PLANT_GRADE;
 const ORE_PER_INGOT = 4;
 const metalPerIngot = () => ORE_PER_INGOT;
 const hopperCap = () => val('hopper');
@@ -383,14 +417,14 @@ function trackCap(k){
   return n;
 }
 const trackMax = k => TRACKS[k].vals.length - 1;
-function trackVisible(k){ if (k === 'study') return researchOpen(); if (k === 'snip') return S.hive.built; if (k === 'pack') return packOpen(); if (k === 'dig') return S.shafts.length > 0; if (k === 'stoke') return S.plant.built; if (k === 'grab') return !!S.tech.claw; if (k === 'reach') return !!S.tech.arm; if (k === 'drill' || k === 'magnet') return S.metalSlot; return true; }
+function trackVisible(k){ if (k === 'study') return researchOpen(); if (k === 'snip') return S.hive.built; if (k === 'pack') return packOpen(); if (k === 'dig') return S.shafts.length > 0; if (k === 'stoke') return S.plant.built; if (k === 'brolly') return WET_WOOD && S.plant.built; if (k === 'grab') return !!S.tech.claw; if (k === 'reach') return !!S.tech.arm; if (k === 'drill' || k === 'magnet') return S.metalSlot; return true; }
 function genAt(k, level){ let acc = 0; const gens = TRACKS[k].gens; for (let gi=0; gi<gens.length; gi++){ const g = gens[gi]; if (level < acc + g.n) return { gi, g, idx: level - acc }; acc += g.n; } return null; }
 function genNameAt(k, level){ let acc = 0, name = TRACKS[k].gens[0].name; for (const g of TRACKS[k].gens){ if (g.n > 0 && level > acc) name = g.name; acc += g.n; } return name; }
 // robots of every kind: 'robot' (the regular yard bots), 'blower' and 'shaker'
 const KIND_LIST = { robot:'robots', blower:'blowers', shaker:'shakers' };
 const cfgsOf = kind => S[KIND_LIST[kind]];
 // everyone who has track k: Wheels are on every robot of every kind, the rest only on one kind
-function peersFor(k){ if (k === 'speed') return [...S.robots, ...S.blowers, ...S.shakers]; if (k === 'blow' || k === 'dig' || k === 'stoke') return S.blowers; if (k === 'shake' || k === 'snip') return S.shakers; return S.robots; }
+function peersFor(k){ if (k === 'speed') return [...S.robots, ...S.blowers, ...S.shakers]; if (k === 'blow' || k === 'dig' || k === 'stoke' || k === 'brolly') return S.blowers; if (k === 'shake' || k === 'snip') return S.shakers; return S.robots; }
 function botCost(kind, i, k){
   const me = cfgsOf(kind)[i], L = me.lv[k], ge = genAt(k, L);
   if (!ge) return null;
@@ -446,6 +480,7 @@ const TASKS = {
   blow:   { name:'Blow leaves',   short:'Blow',   col:'#4f7c84', kind:'blower' },
   dig:    { name:'Excavate shafts', short:'Dig',  col:'#8a6040', kind:'blower' },
   stoke:  { name:'Work the bellows', short:'Bellows', col:'#b8452d', kind:'blower' },
+  brolly: { name:'Carry wood umbrella', short:'Umbrella', col:'#3f6a8a', kind:'blower' },   // V14 (WET_WOOD)
   shake:  { name:'Shake trees',   short:'Shake',  col:'#6f7d3c', kind:'shaker' },
   snip:   { name:'Deadhead flowers', short:'Snip', col:'#7a4d6e', kind:'shaker' },
   // V12: studying whatever the robots have found (for now, the old picture book). When there's nothing to research the
@@ -454,7 +489,7 @@ const TASKS = {
   // V13: riding the truck to another lot. Only there while a letter has opened a trip, and only one robot can take it.
   travel: { get name(){ return S.trip && S.trip.to === 'home' ? 'Go back to original lot' : 'Go to new lot'; }, get short(){ return S.trip && S.trip.to === 'home' ? 'Go back' : 'New lot'; }, col:'#2f6f8f', kind:'robot' },
 };
-const KIND_TASKS = { robot:['leaves','mine','bag','jar','wrap','smelt','haul','research','travel'], blower:['blow','dig','stoke'], shaker:['shake','snip'] };
+const KIND_TASKS = { robot:['leaves','mine','bag','jar','wrap','smelt','haul','research','travel'], blower:['blow','dig','stoke', ...(WET_WOOD ? ['brolly'] : []), 'travel'], shaker:['shake','snip'] };
 // is the task there at all yet (its building bought, the skill learned)?
 function taskOpen(t, cfg){
   switch (t){
@@ -465,16 +500,28 @@ function taskOpen(t, cfg){
     case 'smelt': case 'haul': return S.plant.built;
     case 'dig': return !!(cfg && cfg.lv.dig > 0) && S.shafts.length > 0;
     case 'stoke': return !!(cfg && cfg.lv.stoke > 0) && S.plant.built;
+    case 'brolly': return WET_WOOD && !!(cfg && cfg.lv.brolly > 0) && S.plant.built;
     case 'snip': return !!(cfg && cfg.lv.snip > 0) && S.hive.built;
     case 'research': return S.story.found;
-    case 'travel': { if (!tripFor(cfg)) return false; const h = tripHolder(); return !h || h === cfg; }
+    case 'travel': { if (!tripFor(cfg)) return false; const h = tripHolder(kindOfCfg(cfg)); return !h || h === cfg; }
   }
   return true;
 }
 // V13: a trip is open (a letter said so). Going back home is only for the robot that came from there; while one robot
 // has the trip in its Do list, it's gone from everybody else's.
-const tripFor = cfg => !!(S.trip && cfg && !cfg.away && (S.trip.to !== 'home' || cfg.home != null));
-const tripHolder = () => S.robots.find(c => tripFor(c) && taskOn(c, 'travel')) || null;
+// V14: a trip can take a crew (S.trip.crew: which kinds go, one of each, e.g. ['robot', 'blower'] for the Rainy hollow),
+// may be for one robot only (S.trip.who: its place in the list; Tinker for the hollow), and may need travel money
+// (S.trip.cash): the crew only heads for the curb while you hold it, and it comes out of the cash when they climb in.
+const tripKinds = () => (S.trip && S.trip.crew) || ['robot'];
+function tripFor(cfg){
+  if (!S.trip || !cfg || cfg.away) return false;
+  const kind = kindOfCfg(cfg);
+  if (!tripKinds().includes(kind)) return false;
+  if (S.trip.to === 'home') return cfg.home != null;
+  return !(kind === 'robot' && S.trip.who != null && S.robots.indexOf(cfg) !== S.trip.who);
+}
+const tripHolder = (kind = 'robot') => (cfgsOf(kind) || []).find(c => tripFor(c) && taskOn(c, 'travel')) || null;
+const tripCashOK = () => !S.trip || !S.trip.cash || !!S.trip.paid || S.cash >= S.trip.cash;
 function tasksFix(cfg, kind){
   // every task of this kind appears exactly once, in Do or in Don't; rows hold at most two
   const all = KIND_TASKS[kind], seen = new Set();
@@ -518,10 +565,10 @@ function openTasks(ts){
 
 // V6.3: a new robot has every task in Do (tasks that aren't there yet are just skipped), so nothing is left undone if
 // you never touch its list: the work stations first, then mining, then leaves, which always have work.
-const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: [['dig', 'stoke'], ['blow']], shaker: [['shake', 'snip']] };
+const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: WET_WOOD ? [['dig', 'stoke'], ['brolly'], ['blow']] : [['dig', 'stoke'], ['blow']], shaker: [['shake', 'snip']] };
 const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
 function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
-function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke:0 } }, 'blower') : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
+function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke:0, brolly:0 } }, 'blower') : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
 const helperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[cfgsOf(kind).length];
 // a helper shows up in the workshop once you've held a quarter of its price (or already own one of that kind)
 // V12: and only once the robots have worked out the old picture book (an elephant that blows, a crab that shakes)
@@ -536,7 +583,7 @@ function freshState(){
     bag:{ built:false, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0 }, ingots:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
-    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0 },
+    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0, jars:0, snips:0, blown:0, soaked:0 },
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
@@ -544,7 +591,9 @@ function freshState(){
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
     flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
-      hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false }
+      hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false,
+      // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
+      fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false }
   };
 }
 let S = freshState();
@@ -555,6 +604,8 @@ let W = 0, H = 0, DPR = 1;
 const cam = { z:1, ox:0, oy:0 };
 let camAnim = null, userCam = false, camMovedT = 0;
 let camFollow = null;   // V12.1: the story camera (zooms in on a robot and follows it, then goes back)
+let groundTopCv = null;   // V14 (rain): what stands up out of the ground, drawn over the puddle water
+const mainCtx = ctx;      // (the screen's own context: card portraits and puddle reflections borrow ctx for a moment)
 let groundCv = null, groundCam = { z:1, ox:0, oy:0, mx:0, my:0, rs:1 }, vignetteCv = null, canopyCvs = [];
 
 function camTarget(level){
@@ -670,6 +721,7 @@ function drawLeaf(c, x, y, s, rot, ci, shape, flipX, squash, alpha, dark){
   if (shape === 1){ c.moveTo(0,0.3); c.lineTo(0.55,-0.38); c.moveTo(0,0.3); c.lineTo(-0.55,-0.38); c.moveTo(0,0.38); c.lineTo(0.72,0.05); c.moveTo(0,0.38); c.lineTo(-0.72,0.05); }
   else { c.moveTo(0,-0.2); c.lineTo(0.3,-0.45); c.moveTo(0,-0.2); c.lineTo(-0.3,-0.45); c.moveTo(0,0.2); c.lineTo(0.32,0.0); c.moveTo(0,0.2); c.lineTo(-0.32,0.0); }
   c.stroke();
+  if (LOT.leafSheen){ const a0 = c.globalAlpha; c.globalAlpha = a0*0.22; c.fillStyle = '#fff6ea'; ell(c, -0.2, -0.28, 0.16, 0.34); c.fill(); c.globalAlpha = a0; }   // V14: wet leaves shine
   if (col.sp){ c.fillStyle = '#5a6322'; ell(c,0.22,-0.3,0.08,0.08); c.fill(); ell(c,-0.2,0.15,0.07,0.07); c.fill(); ell(c,0.12,0.35,0.06,0.06); c.fill(); c.fillStyle='#c98a35'; ell(c,-0.25,-0.45,0.07,0.07); c.fill(); ell(c,0.3,0.12,0.06,0.06); c.fill(); }
   c.restore();
 }
@@ -682,7 +734,7 @@ function landingOK(x, y){
   if (x < O.x0 + 8 || x > O.x1 - 8 || y < O.y0 + 6 || y > O.y1 - 4) return false;
   if (Math.abs(x - SHED.x) < 60 && y > SHED.y - 72) return false;
   if (x > BIN.x - 46 && x < BIN.x + 82 && y > BIN.y - 56) return false;
-  if (hiveShown() && Math.abs(x - HIVE.x) < 36 && y > HIVE.y - 165 && y < HIVE.y + 12) return false;
+  if (hiveShown() && Math.abs(x - HIVE.x) < (LOT.hiveWide ? 50 : 36) && y > HIVE.y - 165 && y < HIVE.y + 12) return false;
   if (S.hive.built && Math.abs(x - CRATE.x) < 26 && y > CRATE.y - 58 && y < CRATE.y + 8) return false;
   if (baggerShown() && Math.abs(x - BAGGER.x) < 34 && y > BAGGER.y - 30 && y < BAGGER.y + 8) return false;
   if (S.plant.built && Math.abs(x - PALLET.x) < 28 && y > PALLET.y - 26 && y < PALLET.y + 8) return false;
@@ -692,10 +744,11 @@ function landingOK(x, y){
   for (const t of TREES){ const by = trunkBase(t); if (Math.abs(x - t.x) < Math.max(14, t.r*0.15) && y > by - 16 && y < by + 3) return false; }
   return true;
 }
+const LF = LOT.leafFall || { vy: [26, 44], sw: [14, 30] };   // how fast leaves fall and sway (V14: wet ones fall faster)
 function newLeaf(x, y, ly, collect){
   const ci = pickColor();   // (petals are bigger than leaves)
   return { x, y, ly, s: rand(8, 11)*(LEAFC[ci].petal ? 1.3 : 1), rot: rand(0, TAU), vr: rand(-1.6, 1.6), ci, sh: Math.random() < 0.55 ? 1 : 0,
-    st: 'fall', vy: rand(26, 44), ph: rand(0, TAU), phs: rand(1.6, 3.2), sw: rand(14, 30), wf: rand(0.6, 1.2),
+    st: 'fall', vy: rand(LF.vy[0], LF.vy[1]), ph: rand(0, TAU), phs: rand(1.6, 3.2), sw: rand(LF.sw[0], LF.sw[1]), wf: rand(0.6, 1.2),
     flip: 1, claim: null, collect, a: 1, kx: 0, ky: 0, t: 0 };
 }
 function spawnCollectable(onGround){
@@ -766,7 +819,7 @@ let R = [];
 // V7: the sale numbers come one at a time: each sits over its bin for SALE_HOLD seconds, flies into the truck, and only
 // then does the next one pop up (SALE_STEP apart), so there's time to read every line.
 const SALE_HOLD = 2.0, SALE_FLY = 0.6, SALE_STEP = 2.35;
-const truck = { st:'away', x:0, v:0, timer:0, fill:0, rot:0, takeL:0, takeM:0, takeH:0, takeB:0, takeI:0, takeG:0 };
+const truck = { riders:[], st:'away', x:0, v:0, timer:0, fill:0, rot:0, takeL:0, takeM:0, takeH:0, takeB:0, takeI:0, takeG:0 };
 let parts = [], pops = [], bubbles = [];
 let wind = 0, gust = 0, gustT = 8;
 let spawnAcc = 0, ambAcc = 0, fgAcc = 0;
@@ -994,7 +1047,7 @@ function taskWork(r, t){
       return S.plant.ore + r.carryM >= metalPerIngot() - 1e-9 || (r.carryM > 0 && hopperRoom() > 0) || (S.binMetal > 0 && hopperRoom() > 0);
     case 'haul': return S.plant.built && palletRoom() > 0 && (r.carryI > 0 || S.plant.rack - claimedRack(r) > 0);
     case 'research': return researchOpen() && researchRoom(r);
-    case 'travel': return tripFor(S.robots[r.id]);
+    case 'travel': return tripFor(S.robots[r.id]) && tripCashOK();
   }
   return false;
 }
@@ -1018,7 +1071,7 @@ function unitDone(who, t){ if (who.lastTask === t) who.streak = (who.streak || 0
 // a robot with Bag leaves bags; when the metal tub is full (or it's holding enough metal and the hopper is full), a
 // robot with Smelt ingots smelts. So a robot that gathers and bags bags its own leaves before picking new ones.
 function urgentTask(r, cfg){
-  if (S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg)) return 'travel';   // V13: in Do at all means: go
+  if (S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg) && tripCashOK()) return 'travel';   // V13: in Do at all means: go (V14: once the money is there)
   if (S.bag.built && taskOn(cfg, 'bag') && (binRoom() <= 0 || r.carryL >= Math.min(BAG_SIZE, leafCap(r.id))) && taskWork(r, 'bag')) return 'bag';
   if (S.hive.built && taskOn(cfg, 'jar') && S.hive.honey >= honeyCap() - 1e-6 && taskWork(r, 'jar')) return 'jar';
   if (S.plant.built && taskOn(cfg, 'smelt') && ((S.metalSlot && tubRoom() <= 0) || (r.carryM >= oreNeed() && hopperRoom() <= 0)) && taskWork(r, 'smelt')) return 'smelt';
@@ -1221,13 +1274,12 @@ function updRobot(r, dt){
   switch (r.st){
     case 'idle': decide(r); break;
     // V13: off to another lot: wait at the curb, hop into the back of the truck at the next pickup, ride along
-    case 'toCurb': if (moveTo(r, CURB.x, CURB.y, sp, dt)){ r.st = 'curb'; r.face = 1; r.look = 0.5; } break;
-    case 'curb':
-      if (truck.st === 'load' && truck.rider == null && !driver){ startHop(r, 'in'); break; }
+    case 'toCurb': { const q = curbSpot(r); if (moveTo(r, q.x, q.y, sp, dt)){ r.st = 'curb'; r.face = 1; r.look = 0.5; } break; }
+    case 'curb':   // (it climbs in with the rest of the crew at the next pickup: see updBoarding)
       r.look -= dt; if (r.look <= 0){ r.look = 0.5; if (robotTask(r) !== 'travel') r.st = 'idle'; else if (Math.random() < 0.08) robotSays(r, 'hmm'); }
       break;
     case 'hopIn': case 'hopOut': updHop(r, dt); break;
-    case 'ride': r.x = truck.x + RIDE.dx; r.y = RIDE.y; r.hz = 0; break;
+    case 'ride': { const q = rideSpot(r); r.x = q.x; r.y = q.y; r.hz = 0; break; }
     case 'gone': break;   // away on another lot
     case 'seek': {
       const l = planAlive(r);
@@ -1276,7 +1328,8 @@ function updRobot(r, dt){
       r.face = m.face; r.hammer += dt;
       r.mineP += dt / drillTimeAt(r.id, m.sp);
       if (!simMode){
-        if (Math.random() < dt*9) parts.push({ k:'spark', x: m.x + rand(-6,6), y: m.y - rand(0,6), vx: rand(-40,40), vy: rand(-70,-20), g: 160, life: rand(.25,.45), t:0 });
+        if (Math.random() < dt*9) parts.push(ART.sawArm ? { k:'speck', saw:true, x: r.x + r.face*16 + rand(-3,3), y: r.y - 14 - rand(0,4), vx: rand(-40,40), vy: rand(-60,-15), g: 160, life: rand(.35,.6), t:0 }   // (V14: sawdust)
+          : { k:'spark', x: m.x + rand(-6,6), y: m.y - rand(0,6), vx: rand(-40,40), vy: rand(-70,-20), g: 160, life: rand(.25,.45), t:0 });
         if (Math.random() < dt*2.2) parts.push({ k:'dust', x: m.x + rand(-10,10), y: m.y, vx: rand(-8,8), vy: rand(-14,-6), g:0, life: rand(.8,1.4), t:0, r: rand(4,8) });
       }
       if (r.mineP >= 1){
@@ -1326,6 +1379,13 @@ function updRobot(r, dt){
     case 'toPallet': {
       const p = palletSpot(r);
       if (moveTo(r, p.x, p.y, sp, dt)){
+        if (r.wetI > 0){
+          // V14 (WET_WOOD): soaked bundles can't be sold as dry wood: they go back in the log crib as wet wood (two logs each)
+          const w = Math.min(r.wetI, r.carryI), logs = Math.min(w*2, tubRoom());
+          r.carryI -= w; r.wetI = 0; S.binMetal += logs; S.totals.soaked = (S.totals.soaked || 0) + w;
+          pop(PALLET.x - 6, PALLET.y - 64, w + ' got wet', 'wet', 14);
+          if (logs > 0){ pop(TUB.x, TUB.y - 60, '+' + logs, 'metal', 15); for (let i=0;i<Math.min(logs, 4);i++) flyTo('metal', r.x, r.y - 36, TUB.x + rand(-8, 8), TUB.y - 28, 0.3 + i*0.06, 20, {}); }
+        }
         const n = Math.min(r.carryI, palletRoom());
         if (n > 0){
           S.ingots += n; r.carryI -= n; unitDone(r, 'haul');
@@ -1349,6 +1409,11 @@ function updRobot(r, dt){
     }
     case 'rest': r.timer -= dt; r.look -= dt; if (r.timer <= 0) r.st = 'idle'; else if (r.look <= 0){ r.look = 0.3; if (robotTask(r)) r.st = 'idle'; } break;
     case 'toBook': case 'pickBook': case 'toStudy': case 'study': case 'toAssist': case 'assist': updResearchBot(r, dt, sp); break;
+  }
+  // V14 (WET_WOOD): dry bundles out in the rain get wet, one by one, unless a blower holds the wood umbrella over them
+  if (WET_WOOD && r.carryI > (r.wetI || 0) && r.moving && !underRoof(r) && !umbrellaOver(r)){
+    const dry = r.carryI - (r.wetI || 0), k = WET_RATE*dt*(rainLevel(S.t)/0.7);
+    for (let i=0;i<dry;i++) if (Math.random() < k){ r.wetI = (r.wetI || 0) + 1; if (!simMode){ pop(r.x, r.y - 72, 'soaked!', 'wet', 13); for (let q=0;q<4;q++) parts.push({ k:'drop', x: r.x - r.face*8 + rand(-5, 5), y: r.y - 34, vx: rand(-20, 20), vy: rand(-20, 10), g: 200, life: rand(.4, .7), t: 0 }); } }
   }
   r.full = (r.st === 'wait' || r.st === 'waitI') && (r.carryL > 0 || r.carryM > 0 || r.carryI > 0);
   if (!simMode && styleOf(r.id).dust && r.moving && Math.random() < dt*2.5) parts.push({ k:'dust', x: r.x - r.face*10, y: r.y - 2, vx: -r.face*rand(4,12), vy: rand(-10,-4), g:0, life: rand(.6,1), t:0, r: rand(2.5,4.5) });
@@ -1402,13 +1467,16 @@ const TRIP_CASH = 100;       // V13.5: after the first letter, the first yard ha
                              // what the robot starts the prairie with
 const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
 const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's honey (jars and gift jars) before the driver offers a ride back (was 30 jars)
+const HOLLOW_CASH = 1000;    // V14: the third beat: hold this much (with a bigger yard and a mine) and the driver writes about the Rainy hollow
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
   { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
-  // V13.5: the first letter asks for travel money: hold $100 and it's packed for the trip, then the robot can go
-  { id:'fare', lot:'home', name:'Travel money', goal:'Have $' + TRIP_CASH + ' to bring to the new yard', prog: () => S.flags.fareOpen ? S.cash/TRIP_CASH : 0, on: packFare,
-    hud:{ icon:'coin', cash:true, val: () => S.cash, of: TRIP_CASH, show: () => !!S.flags.fareOpen } },
+  // V14: the travel money is a live goal: it's reached while you hold $100 and not any more if you spend it, and it only
+  // comes out of the cash when the robot climbs into the truck (S.trip.cash, see board()). Until then the robot only
+  // goes to the curb while the money is there.
+  { id:'fare', lot:'home', live:true, name:'Travel money', goal:'Have $' + TRIP_CASH + ' to bring to the new yard', prog: () => S.cash/TRIP_CASH,
+    hud:{ icon:'coin', cash:true, val: () => S.cash, of: TRIP_CASH, show: () => !!(S.trip && S.trip.to === 'prairie' && S.trip.cash && !S.trip.paid) } },
   { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => (S.story.item || 'book') === 'book' && S.story.done ? Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD) : 0, on: () => postLetter('newLot') },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
   // V13.4: these two show as a goal pill under the cash (hud: what it shows; show: when it may show up)
@@ -1416,32 +1484,49 @@ const MILESTONES = [
     hud:{ icon:'petal', val: () => S.totals.leaves || 0, of: BEE_LEAVES, show: () => true } },
   { id:'honey', lot:'prairie', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => honeyEarned()/HONEY_CASH, on: () => postLetter('goHome'),
     hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => S.miles.bee != null && hiveKnown() } },
+  // V14: once the beehive is built in the first yard, three quests show up together (group 'hollow'). The first two stay
+  // done once done (and may be done already); the money is live. All three at the same time bring the next letter.
+  { id:'qYard', lot:'home', group:'hollow', name:'More room', goal:'Buy a bigger yard', prog: () => S.land >= 1 ? 1 : 0, hud:{ icon:'land', bool:true } },
+  { id:'qMine', lot:'home', group:'hollow', name:'Dig in', goal:'Build a mine', prog: () => S.miners.length ? 1 : 0, hud:{ icon:'vein', bool:true } },
+  { id:'qCash', lot:'home', group:'hollow', live:true, name:'Savings', get goal(){ return S.trip && S.trip.to === 'hollow' ? 'Have $1,000 for the trip' : 'Save up $1,000'; },
+    prog: () => S.cash/HOLLOW_CASH, hud:{ icon:'coin', cash:true, val: () => S.cash, of: HOLLOW_CASH } },
 ];
+// a group of quests shows all at once while its show() is true; done(): what happens when every one is reached together
+const GOAL_GROUPS = {
+  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone,
+    done: () => { if (!S.flags.hollowLetter){ S.flags.hollowLetter = true; postLetter('hollow'); } } },
+};
+const reached = m => m.live ? m.prog() >= 1 : S.miles[m.id] != null;
 function updMilestones(){
   for (const m of MILESTONES){
     if ((m.lot || 'home') !== LOT_ID || S.miles[m.id] != null || m.prog() < 1) continue;
-    S.miles[m.id] = Math.round(S.t);
-    if (m.hud && !simMode){ goalRt.doneId = m.id; goalRt.doneT = S.t; goalRt.bumpT = 0.3; }
+    S.miles[m.id] = Math.round(S.t);   // (for a live goal: the first time it was reached)
+    if (m.hud && !m.group && !m.live && !simMode){ goalRt.doneId = m.id; goalRt.doneT = S.t; goalRt.bumpT = 0.3; }
     if (m.on) m.on();
   }
+  for (const g in GOAL_GROUPS){
+    const G = GOAL_GROUPS[g]; if (!G.show()) continue;
+    const ms = MILESTONES.filter(m => m.group === g && (m.lot || 'home') === LOT_ID);
+    if (ms.length && ms.every(reached)) G.done();
+  }
 }
-// V13.4: the goal pill under the cash. Honey money counts once the number flying up from the sale reaches the pill
+// V13.4: the goal pills under the cash. Honey money counts once the number flying up from the sale reaches the pill
 // (goalRt.pending is what's still in the air), so the pill and the milestone tick over together.
-const goalRt = { pending: 0, doneId: null, doneT: -99, bumpT: 0, tipT: 0, sig: '' };
+const goalRt = { pending: 0, doneId: null, doneT: -99, bumpT: 0, tip: null, tipT: 0, els: {} };
 const GOAL_DONE_HOLD = 6;   // seconds a reached goal stays up (with a tick) before the next one, or none, shows
 const honeyEarned = () => Math.max(0, (S.totals.honeyCash || 0) - goalRt.pending);
-function goalNow(){
-  if (goalRt.doneId && S.t - goalRt.doneT < GOAL_DONE_HOLD){ const m = MILESTONES.find(q => q.id === goalRt.doneId); if (m) return { m, done: true }; }
-  for (const m of MILESTONES) if (m.hud && (m.lot || 'home') === LOT_ID && S.miles[m.id] == null && m.hud.show()) return { m, done: false };
-  return null;
+// what shows right now, top first: [{ m, done }]. A group shows every member (done ones with a tick); a live goal shows
+// while its show() is true, ticked while it's reached; otherwise one goal at a time, ticked for a moment once reached.
+function goalList(){
+  const out = [];
+  for (const g in GOAL_GROUPS) if (GOAL_GROUPS[g].show()) for (const m of MILESTONES) if (m.group === g && (m.lot || 'home') === LOT_ID) out.push({ m, done: reached(m) });
+  for (const m of MILESTONES) if (m.live && !m.group && m.hud && (m.lot || 'home') === LOT_ID && m.hud.show()) out.push({ m, done: reached(m) });
+  if (goalRt.doneId && S.t - goalRt.doneT < GOAL_DONE_HOLD){ const m = MILESTONES.find(q => q.id === goalRt.doneId); if (m){ out.push({ m, done: true }); return out; } }
+  const one = MILESTONES.find(m => m.hud && !m.group && !m.live && (m.lot || 'home') === LOT_ID && S.miles[m.id] == null && m.hud.show());
+  if (one) out.push({ m: one, done: false });
+  return out;
 }
-// V13.5: the travel money is reached: it comes out of the cash and goes with the robot; only then does the trip open
-function packFare(){
-  S.cash -= TRIP_CASH; S.flags.fare = TRIP_CASH;
-  if (!simMode){ const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + 150, hc.bottom + 75); pop(p.x, p.y, '$' + TRIP_CASH + ' packed for the trip', 'note', 18, 0, 3); }
-  openTrip({ to: 'prairie' });
-}
-const goalShowing = id => { const g = goalNow(); return !!(g && !g.done && g.m.id === id); };
+const goalShowing = id => goalList().some(g => !g.done && g.m.id === id);
 
 // ───────────────────────── the old picture book and the Research task (V12)
 // Once the 'book' milestone is reached, the next leaf a robot picks up has a battered children's book under it. Only two
@@ -1688,21 +1773,33 @@ function updResearch(dt){
 // entry and, for a new place, a lot file in public/lots/.
 const LETTERS = {
   // (V13.1: the first letter is put down where the beehive will go, so it stands out)
+  // V14: reading it opens the trip straight away; the $100 is a live goal and only comes out of the cash at the truck
   newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }), title: 'A letter', sign: 'Trucker',
     text: 'We found another spot that could use some cleanup, send your best cleanup robot. Bring $' + TRIP_CASH + ' to get started there.',
-    // V13.5: what carries over, in small print; the trip only opens once the travel money is there (the 'fare' milestone)
+    // V13.5: what carries over, in small print
     note: () => 'Only truck upgrades, robot unlocks and ' + tripRobotName() + '’s skills stay across yards.',
-    open: () => { S.flags.fareOpen = true; } },
+    open: () => openTrip({ to: 'prairie', cash: TRIP_CASH }) },
   goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
+  // V14: the third beat. Once the quests are done (a bigger yard, a mine and $1,000 in hand), the driver writes about a
+  // rainy hollow down the road: Tinker and a blower go, with the $1,000
+  hollow: { at: () => ({ x: SIGN.x - 46, y: SIGN.y - 30 }), title: 'A soggy letter', sign: 'Trucker',
+    text: 'There’s a rainy old hollow down the road, knee-deep in wet leaves. They need help badly. Bring Tinker and your best blower robot, and $' + HOLLOW_CASH.toLocaleString('en-US') + ' to get started there.',
+    note: () => 'Only truck upgrades, robot unlocks and the skills of the two robots that go stay across yards.',
+    open: () => openTrip({ to: 'hollow', cash: HOLLOW_CASH, crew: ['robot', 'blower'], who: 0 }) },
 };
 const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
 // the truck driver: a robot like yours, with a brown band and a brown cap, and no basket
 const DRIVER = { name:'Driver', body:'#dcd1b8', body2:'#a89c80', head:'#e6dcc6', head2:'#b7ab92', band:'#7a5232', bandW:5, bw:23, bh:22, hw:18, hh:13, tw:26, rust:0, driver:true };
 const DRIVER_CFG = { lv:{ speed:4, carry:0, study:0 }, prio:[] };
 const CURB = { x: PARK + 26, y: 5 };      // where a robot waits for the truck
+const CURB2 = { x: PARK + 60, y: 7 };     // V14: and where a blower coming along waits, beside it
+const curbSpot = o => o.kind ? CURB2 : CURB;
 const RIDE = { dx: 34, y: LANE - 56 };    // where it stands in the back of the truck (x is from the truck; its treads are below the sides)
-const HOME_EARNED = 200;                  // what the first yard made while you were away
+// V14: with two aboard, the robot stands at the front of the bed and the blower behind it
+function rideSpot(o){ const rs = truck.riders, n = rs.length, k = Math.max(0, rs.indexOf(o)); return { x: truck.x + (n > 1 ? [20, 50][k] || 50 : RIDE.dx), y: RIDE.y + (o.kind ? 2 : 0) }; }
+const HOME_EARNED = 200;                  // what the first yard made while you were away (on the prairie)
+const HOLLOW_HOME_EARNED = 2000;          // V14: and while Tinker and the blower were at the Rainy hollow
 // dev (?fresh&lot=prairie): about what the robot you'd send has when the letter comes ($900 earned in the first yard)
 const DEV_TRAVELLER = { lv:{ speed:7, carry:10, pick:7, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
 const HIVE_DEAL = 60;                     // the beehive back home, once a bee has come along
@@ -1739,39 +1836,64 @@ function updDriver(dt){
 }
 // a letter is read for the first time: whatever it starts, starts
 function readLetter(i){ const l = S.letters[i]; if (!l || l.read) return; l.read = true; const L = LETTERS[l.id]; if (L && L.open) L.open(); save(); }
-// a trip opens: the travel task goes in the Off pile of every robot that could take it
-function openTrip(t){
+// a trip opens: the travel task goes in the Off pile of every robot (and helper) that could take it
+// t: { to, bee, cash (travel money, taken at the truck), crew (kinds that go), who (only this robot), earned (the bonus back home) }
+function openTrip(t, quiet){
   S.trip = { to: t.to, bee: !!t.bee };
-  for (const c of S.robots) if (tripFor(c) && !taskOn(c, 'travel')){ taskRemove(c, 'travel'); c.off.push('travel'); }
-  if (simMode) return;
-  const who = S.robots.findIndex(tripFor), name = who >= 0 ? styleOf(who).name : 'a robot';
+  for (const k of ['cash', 'crew', 'who', 'earned']) if (t[k] != null) S.trip[k] = t[k];
+  for (const kind of tripKinds()) for (const c of cfgsOf(kind)) if (tripFor(c) && !taskOn(c, 'travel')){ taskRemove(c, 'travel'); c.off.push('travel'); }
+  if (simMode || quiet) return;
+  const who = S.robots.findIndex(tripFor), name = who >= 0 ? styleOf(who).name : 'a robot', crew = tripKinds().length > 1;
+  const money = t.cash ? ' The ' + cash2(t.cash).replace('.00', '') + ' only comes out of your cash when they climb into the truck.' : '';
   if (t.to === 'home') setTimeout(() => showToast('A ride home', 'New task: Go back to original lot. Drag it into ' + name + '’s Do list: it waits at the curb and rides back with the next pickup, and a bee comes along.', 12), 400);
-  else setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into your best robot’s Do list: it waits at the curb and rides along with the next pickup.', 12), 400);
+  else if (crew) setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into ' + name + '’s Do list and into one blower’s: they wait at the curb and ride along with the next pickup.' + money, 13), 400);
+  else setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into your best robot’s Do list: it waits at the curb and rides along with the next pickup.' + money, 12), 400);
 }
-// hopping into (dir 'in') or out of (dir 'out') the back of the truck
-function startHop(r, dir){
-  release(r); leaveResearch(r); releaseStations(r);
-  r.hop = { t: 0, dur: 0.9, dir, x0: r.x, y0: r.y }; r.st = dir === 'in' ? 'hopIn' : 'hopOut';
-  if (dir === 'in') truck.rider = r.id;
-  robotSays(r, 'happy', true);
+// the runtime robot or helper of a config
+const runtimeOf = (kind, c) => kind === 'robot' ? R[S.robots.indexOf(c)] : HB.find(h => h.kind === kind && helperCfg(h) === c);
+// V14: the whole crew at the curb (one of each kind the trip takes), or null
+function crewAtCurb(){
+  if (!S.trip) return null;
+  const out = [];
+  for (const kind of tripKinds()){ const c = tripHolder(kind), o = c && runtimeOf(kind, c); if (!o || o.st !== 'curb') return null; out.push(o); }
+  return out;
 }
-function updHop(r, dt){
-  const h = r.hop, k = clamp((h.t += dt)/h.dur, 0, 1), inT = { x: truck.x + RIDE.dx, y: RIDE.y };
-  const a = h.dir === 'in' ? { x: h.x0, y: h.y0 } : inT, b = h.dir === 'in' ? inT : CURB;
-  r.x = lerp(a.x, b.x, k); r.y = lerp(a.y, b.y, k); r.hz = Math.sin(k*Math.PI)*36; r.face = b.x >= a.x ? 1 : -1; r.moving = true;
+// at a pickup, once everyone who goes is waiting at the curb (and the travel money is there), they all climb in; the
+// money comes out of the cash right then
+function updBoarding(){
+  const T = truck;
+  if (simMode || T.st !== 'load' || T.riders.length || driver || !S.trip) return;
+  const crew = crewAtCurb(); if (!crew || !tripCashOK()) return;
+  if (S.trip.cash && !S.trip.paid){
+    S.cash -= S.trip.cash; S.trip.paid = S.trip.cash;
+    const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + 150, hc.bottom + 75); pop(p.x, p.y, cash2(S.trip.cash).replace('.00', '') + ' packed for the trip', 'note', 18, 0, 3);
+  }
+  for (const o of crew) startHop(o, 'in');
+}
+// hopping into (dir 'in') or out of (dir 'out') the back of the truck (a robot or, V14, a helper)
+function startHop(o, dir){
+  if (!o.kind){ release(o); leaveResearch(o); releaseStations(o); } else { o.target = null; o.lap = null; o.dig = null; o.brolly = null; }
+  o.hop = { t: 0, dur: 0.9, dir, x0: o.x, y0: o.y }; o.st = dir === 'in' ? 'hopIn' : 'hopOut';
+  if (dir === 'in' && !truck.riders.includes(o)) truck.riders.push(o);
+  if (o.kind) helperSays(o, 'happy'); else robotSays(o, 'happy', true);
+}
+function updHop(o, dt){
+  const h = o.hop, k = clamp((h.t += dt)/h.dur, 0, 1), inT = rideSpot(o);
+  const a = h.dir === 'in' ? { x: h.x0, y: h.y0 } : inT, b = h.dir === 'in' ? inT : curbSpot(o);
+  o.x = lerp(a.x, b.x, k); o.y = lerp(a.y, b.y, k); o.hz = Math.sin(k*Math.PI)*36; o.face = b.x >= a.x ? 1 : -1; o.moving = true;
   if (k < 1) return;
-  r.hz = 0; r.hop = null; r.moving = false;
+  o.hz = 0; o.hop = null; o.moving = false;
   if (h.dir === 'in'){
-    r.st = 'ride'; r.face = -1;
-    pop(r.x, RIDE.y - 70, 'All aboard!', 'note', 17); sparkle(r.x, RIDE.y - 30);
-    if (S.trip && S.trip.bee) beeAboard();
+    o.st = 'ride'; o.face = -1;
+    if (truck.riders.every(q => q.st === 'ride')){ pop(truck.x + 34, RIDE.y - 70, 'All aboard!', 'note', 17); sparkle(o.x, RIDE.y - 30); if (S.trip && S.trip.bee && !guest.on) beeAboard(); }
   } else {
-    r.st = 'idle'; truck.rider = null; sparkle(r.x, r.y - 20);
-    if (guest.on && guest.mode === 'ride') guestLeaves();
+    o.st = 'idle'; truck.riders = truck.riders.filter(q => q !== o); sparkle(o.x, o.y - 20);
+    if (!truck.riders.length && guest.on && guest.mode === 'ride') guestLeaves();
   }
 }
-// the truck waits while the driver is out, while someone hops in or out, or while a robot at the curb is about to
-const truckBusy = () => !!driver || R.some(q => q.st === 'hopIn' || q.st === 'hopOut') || (truck.rider == null && R.some(q => q.st === 'curb')) || (guest.on && guest.mode === 'toTruck');
+// the truck waits while the driver is out, while someone hops in or out, or while the crew at the curb is about to
+const truckBusy = () => !!driver || R.some(q => q.st === 'hopIn' || q.st === 'hopOut') || HB.some(q => q.st === 'hopIn' || q.st === 'hopOut') ||
+  (!truck.riders.length && !!crewAtCurb() && tripCashOK()) || (guest.on && guest.mode === 'toTruck');
 // a bee from the hive comes along for the ride home (one bee less in this hive, if it has more than one)
 function beeAboard(){
   let from = { x: HIVE.x, y: HIVE.y, z: 30 };
@@ -1799,16 +1921,19 @@ function updGuest(dt){
 // leaving: everything this lot hands on goes into WORLD.arrive, this lot is saved as it is, and the page reloads into
 // the other lot (it stays paused until you come back)
 function travel(){
-  const T = truck, ri = T.rider, cfg = S.robots[ri], trip = S.trip || { to: 'prairie' };
-  if (!cfg){ T.rider = null; return; }
+  const T = truck, trip = S.trip || { to: 'prairie' };
+  const crew = T.riders.map(o => { const kind = o.kind || 'robot', i = kind === 'robot' ? o.id : o.idx; return { kind, i, cfg: cfgsOf(kind)[i] }; }).filter(q => q.cfg);
+  if (!crew.length){ T.riders = []; return; }
   travelling = true;
-  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, bot: JSON.parse(JSON.stringify(cfg)), sty: styleIdx(ri), home: cfg.home != null ? cfg.home : ri,
+  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, earned: trip.earned || 0,
+    crew: crew.map(q => ({ kind: q.kind, bot: JSON.parse(JSON.stringify(q.cfg)), sty: q.kind === 'robot' ? styleIdx(q.i) : helperStyleIdx(q.kind, q.i), home: q.cfg.home != null ? q.cfg.home : q.i })),
     tech: Object.assign({}, S.tech), truck: S.lv.truck, cleanup: S.lv.cleanup, helpers: helpersKnown(), seen: Object.assign({}, S.seen),
-    fare: trip.to !== 'home' ? (S.flags.fare || 0) : 0, hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
-  cfg.away = trip.to; cfg.miner = null; taskRemove(cfg, 'travel'); cfg.off.push('travel');
+    fare: trip.to !== 'home' ? (trip.paid || S.flags.fare || 0) : 0, hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
+  for (const q of crew){ q.cfg.away = trip.to; if (q.kind === 'robot') q.cfg.miner = null; taskRemove(q.cfg, 'travel'); q.cfg.off.push('travel'); }
+  if (trip.to === 'hollow') S.flags.hollowGone = true;   // the quests are done with
   S.trip = null; S.letters = S.letters.filter(l => !l.read);
   if (trip.to !== 'home') S.flags.fare = 0;   // V13.5: the travel money went with the robot
-  T.rider = null; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 2);
+  T.riders = []; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 2);
   WORLD.cur = trip.to; WORLD.arrive = carry;
   const json = JSON.stringify(S);
   if (FRESH){ FRESH_SAVES[KEY] = json; try { sessionStorage.setItem(HOP_KEY, JSON.stringify({ world: WORLD, saves: FRESH_SAVES })); } catch(e){} }
@@ -1835,41 +1960,52 @@ function arrive(a, wasNew){
   S.seen = Object.assign({}, a.seen || {}, S.seen);
   S.flags.hints = Object.assign({}, a.hints || {}, S.flags.hints || {});
   for (const k in (a.know || {})) if (a.know[k]) S.flags[k] = true;   // tips you've already had
-  // the robot that came along keeps its looks, its upgrades and its task list
-  if (wasNew && !home){ S.robots = []; S.cash = S.peak = a.fare > 0 ? a.fare : LOT_START_CASH; }
-  let ri = home ? a.home : S.robots.findIndex(c => c.home === a.home);
-  if (!(ri >= 0 && S.robots[ri])){ ri = S.robots.length; S.robots.push(newRobotCfg()); }
-  const b = a.bot || {}, cfg = S.robots[ri];
-  cfg.lv = Object.assign(newRobotCfg().lv, b.lv || {});
-  cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); cfg.miner = null;
-  delete cfg.away; delete cfg.sty; delete cfg.home;
-  if (a.sty !== ri) cfg.sty = a.sty;
-  if (!home) cfg.home = a.home;
-  taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, 'robot');
+  if (wasNew && !home){ S.robots = []; S.blowers = []; S.shakers = []; S.cash = S.peak = a.fare > 0 ? a.fare : LOT_START_CASH; }
+  // the robots that came along (V14: a robot and maybe a blower) keep their looks, their upgrades and their task lists
+  const crew = a.crew || [{ kind: 'robot', bot: a.bot, sty: a.sty, home: a.home }], out = [];
+  for (const q of crew){
+    const kind = q.kind || 'robot', list = cfgsOf(kind), fresh = () => kind === 'robot' ? newRobotCfg() : newHelperCfg(kind);
+    let i = home ? q.home : list.findIndex(c => c.home === q.home);
+    if (!(i >= 0 && list[i])){ i = list.length; list.push(fresh()); }
+    const b = q.bot || {}, cfg = list[i];
+    cfg.lv = Object.assign(fresh().lv, b.lv || {});
+    cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); if (kind === 'robot') cfg.miner = null;
+    delete cfg.away; delete cfg.sty; delete cfg.home;
+    if (q.sty != null && q.sty !== i) cfg.sty = q.sty;
+    if (!home) cfg.home = q.home;
+    taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, kind);
+    out.push({ kind, i });
+  }
+  const earned = a.earned || HOME_EARNED;
   if (home){
-    S.cash += HOME_EARNED; S.totals.cash += HOME_EARNED;
+    S.cash += earned; S.totals.cash += earned;
     if (a.bee){
       S.flags.hiveKnown = true; S.flags.hiveShown = true;
       if (S.hive.built) S.hive.bees = Math.min(MAX_BEES, S.hive.bees + 1); else { S.flags.hiveDeal = true; S.flags.guestBee = true; }
     }
+  } else if (LOT.tripHome && !S.trip){
+    // V14: a lot can let the crew ride home whenever you like (the Rainy hollow, for now)
+    openTrip({ to: 'home', crew: out.map(q => q.kind).filter((k, j, A) => A.indexOf(k) === j), earned: LOT.tripHome.earned }, true);
   }
-  return { ri, bee: !!a.bee, home };
+  return { crew: out, bee: !!a.bee, home, earned };
 }
-// the truck pulls in with the robot (and maybe a bee) in the back; it hops off at the curb
+// the truck pulls in with the robots (and maybe a bee) in the back; they hop off at the curb
 function arriveScene(A){
-  const r = R[A.ri]; if (!r) return;
-  r.st = 'ride'; r.x = truck.x + RIDE.dx; r.y = RIDE.y; r.face = -1;
-  truck.rider = A.ri; truck.arriving = true; truck.st = 'arrive'; truck.fill = 0;
+  syncHelpers();
+  const os = A.crew.map(q => q.kind === 'robot' ? R[q.i] : HB.find(h => h.kind === q.kind && h.idx === q.i)).filter(Boolean);
+  if (!os.length) return;
+  truck.riders = os; truck.arriving = true; truck.st = 'arrive'; truck.fill = 0;
   truck.x = Math.max(visRect().x1 + 110, PARK + 200);
+  for (const o of os){ o.st = 'ride'; const p = rideSpot(o); o.x = p.x; o.y = p.y; o.face = -1; }
   if (A.bee){ Object.assign(guest, { on: true, mode: 'ride' }); }
   sfx('truckIn', sndAt(PARK + 30, LANE).pan, 2.6);
-  const name = styleOf(A.ri).name;
+  const names = A.crew.map(q => q.kind === 'robot' ? styleOf(q.i).name : helperStyleOf(q.kind, q.i).name);
   if (A.home){
     setTimeout(() => {
-      pop(BIN.x, BIN.y - 110, '+' + cash2(HOME_EARNED) + ' earned while you were away', 'cash', 20, 0, 4);
-      showToast('Back home!', 'The yard kept going without you and made ' + money(HOME_EARNED) + '.' + (A.bee ? ' The bee is looking for a home: build it a beehive.' : ''), 11);
+      pop(BIN.x, BIN.y - 110, '+' + cash2(A.earned) + ' earned while you were away', 'cash', 20, 0, 4);
+      showToast('Back home!', 'The yard kept going without you and made ' + money(A.earned) + '.' + (A.bee ? ' The bee is looking for a home: build it a beehive.' : ''), 11);
     }, 1800);
-  } else if (LOT.arrive) setTimeout(() => showToast(LOT.arrive.title, LOT.arrive.text(name), 10), 1500);
+  } else if (LOT.arrive) setTimeout(() => showToast(LOT.arrive.title, LOT.arrive.text(names[0], names), 12), 1500);
 }
 
 // ───────────────────────── helper robots: blowers and shakers
@@ -1889,7 +2025,7 @@ function newHelper(kind, idx){
 function syncHelpers(){
   for (const kind of ['blower', 'shaker']){
     const n = cfgsOf(kind).length;
-    for (let i = HB.filter(h => h.kind === kind).length; i < n; i++) HB.push(newHelper(kind, i));
+    for (let i = HB.filter(h => h.kind === kind).length; i < n; i++){ const h = newHelper(kind, i); if (cfgsOf(kind)[i].away) h.st = 'gone'; HB.push(h); }
   }
 }
 const helperCfg = h => cfgsOf(h.kind)[h.idx];
@@ -1902,7 +2038,12 @@ const blowRange = h => 40 + 16*blowPower(h);
 const BUSH_YIELD = 0.33;
 const treeYieldMul = t => clamp(t.r/150, 0.3, 1.25);
 const shakeYield = (h, bush, tree) => { const v = hv(h, 'shake'); return bush ? Math.max(2, Math.round(v*BUSH_YIELD)) : Math.max(2, Math.round(v*(tree ? treeYieldMul(tree) : 1))); };
-const helperStyle = h => (h.kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[h.idx];
+// V14: helpers keep their look too when they travel (cfg.sty, when it isn't their place in the list); new ones take a free look
+const HELPER_LOOKS = kind => kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES;
+const helperStyleIdx = (kind, i) => { const c = cfgsOf(kind)[i]; return c && c.sty != null ? c.sty : i; };
+const helperStyleOf = (kind, i) => HELPER_LOOKS(kind)[helperStyleIdx(kind, i)] || HELPER_LOOKS(kind)[0];
+const helperStyle = h => helperStyleOf(h.kind, h.idx);
+function nextHelperStyle(kind){ const used = new Set(cfgsOf(kind).map((c, i) => c.sty != null ? c.sty : i)); for (let k=0;k<HELPER_LOOKS(kind).length;k++) if (!used.has(k)) return k; return cfgsOf(kind).length % HELPER_LOOKS(kind).length; }
 function helperSays(h, mood){ const a = sndAt(h.x, h.y); sfx('beep', h.kind === 'blower' ? 5 : 6, mood, a.pan, a.vol*0.8); }
 // trees whose trunk stands on your land, and your bushes
 function shakeables(){
@@ -2038,6 +2179,26 @@ function shakeTarget(h){
   }
   return best;
 }
+// V14 (WET_WOOD, from the Rainy hollow test copy): carrying the wood umbrella. A blower with the task walks beside the
+// hauler carrying the most dry wood that nobody else is covering; with nobody hauling it waits by the shelf of dry
+// bundles (-1). Null: no haulers at all.
+function brollyTarget(h){
+  if (!S.plant.built) return null;
+  const taken = id => HB.some(q => q !== h && q.kind === 'blower' && q.st === 'brolly' && q.brolly === id);
+  let best = null, bs = -1;
+  for (const r of R){
+    if (r.carryI <= 0 || (r.st !== 'toPallet' && r.st !== 'toRack' && r.st !== 'waitI') || taken(r.id)) continue;
+    const sc = (r.carryI - (r.wetI || 0))*10 - Math.hypot(r.x - h.x, r.y - h.y)*0.01;
+    if (sc > bs){ bs = sc; best = r.id; }
+  }
+  if (best != null) return best;
+  return S.robots.some(c => taskOn(c, 'haul')) ? -1 : null;
+}
+const umbrellaOver = r => HB.some(h => h.kind === 'blower' && h.st === 'brolly' && h.brolly === r.id && Math.hypot(h.x - r.x, h.y - r.y) < 36);
+// dry wood stays dry under the shed's roof, and under the woodshed's by the road
+const underRoof = r => (Math.abs(r.x - PLANT.x) < 120 && r.y > PLANT.y - 30 && r.y < PLANT.y + 40) || Math.hypot(r.x - PALLET.x, r.y - PALLET.y) < 36;
+// how fast a dry bundle gets soaked out in the open (per bundle per second, at an average rain; heavier rain, faster)
+const WET_RATE = 0.032;
 // helpers follow their own priority list too: blowers pick between blowing and excavating, shakers between shaking and deadheading
 function helperWork(h, t){
   if (t === 'blow') return h.kind === 'blower' ? blowLap(h) : null;
@@ -2045,17 +2206,23 @@ function helperWork(h, t){
   if (t === 'stoke') return h.kind === 'blower' && S.plant.built && R.some(r => r.st === 'smelt' || (r.st === 'toStation' && r.task === 'smelt')) && !HB.some(q => q !== h && q.kind === 'blower' && (q.st === 'stoke' || (q.st === 'go' && q.task === 'stoke'))) ? 1 : null;
   if (t === 'shake') return h.kind === 'shaker' ? shakeTarget(h) : null;
   if (t === 'snip') return h.kind === 'shaker' && S.hive.built ? snipTarget(h) : null;
+  if (t === 'brolly') return h.kind === 'blower' && WET_WOOD ? brollyTarget(h) : null;
+  if (t === 'travel') return tripFor(helperCfg(h)) && tripCashOK() ? 1 : null;   // V14: a blower going along on a trip
   return null;
 }
 function helperDecide(h){
   const cfg = helperCfg(h), found = {};
-  const t = chooseTask(h, cfg, x => { const w = helperWork(h, x); if (w == null) return false; found[x] = w; return true; });
+  // (V14: a trip in Do at all comes first, like for the robots)
+  const t = S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg) && helperWork(h, 'travel') != null ? 'travel'
+    : chooseTask(h, cfg, x => { const w = helperWork(h, x); if (w == null) return false; found[x] = w; return true; });
   h.task = t; noteTask(h, t);
+  if (t === 'travel'){ h.target = null; h.lap = null; h.dig = null; h.st = 'toCurb'; return; }
   if (t !== 'dig') h.dig = null;
   if (!t){ h.target = null; h.lap = null; helperWander(h, h.kind === 'blower' ? 60 : 50, h.kind === 'blower' ? 40 : 30); return; }
   if (t === 'blow'){ blowStart(h, found.blow); return; }
   if (t === 'dig'){ const sp = found.dig, p = digSpot(sp); h.dig = sp; h.tx = p.x; h.ty = p.y; h.st = 'go'; return; }
   if (t === 'stoke'){ h.tx = STOKE_SPOT.x; h.ty = STOKE_SPOT.y; h.st = 'go'; return; }
+  if (t === 'brolly'){ h.brolly = found.brolly; h.st = 'brolly'; h.timer = 0.4; h.digT = 0; return; }
   h.target = found[t]; h.st = 'go';
 }
 // the shake itself: a few leaves let go of the tree (or pop out of the bush) and land around it
@@ -2100,6 +2267,11 @@ function shakeDrop(h, o){
 function updHelper(h, dt){
   h.moving = false; h.anim += dt;
   h.blinkT -= dt; if (h.blinkT < 0){ h.blink = 0.14; h.blinkT = rand(2, 5); } if (h.blink > 0) h.blink -= dt;
+  // V14: a trip in its Do list (with the money there) pulls it off whatever it's doing
+  if (S.trip && ['lap', 'dig', 'stoke', 'brolly', 'wander', 'rest', 'go'].includes(h.st) && (h.tlook = (h.tlook || 0) - dt) <= 0){
+    h.tlook = 0.5; const c = helperCfg(h);
+    if (c && taskOn(c, 'travel') && taskOpen('travel', c) && helperWork(h, 'travel') != null){ h.target = null; h.lap = null; h.st = 'idle'; }
+  }
   const sp = helperSpeed(h);
   switch (h.st){
     case 'idle': helperDecide(h); break;
@@ -2192,6 +2364,29 @@ function updHelper(h, dt){
     }
     case 'wander': if (moveTo(h, h.tx, h.ty, sp*0.4, dt)){ h.st = 'rest'; h.timer = rand(1.2, 2.6); } break;
     case 'rest': h.timer -= dt; if (h.timer <= 0) h.st = 'idle'; break;
+    case 'brolly': {
+      // V14 (WET_WOOD): walking beside a hauler with the big wooden umbrella held over it (and over the dry wood)
+      let r = h.brolly >= 0 ? R[h.brolly] : null;
+      h.timer -= dt;
+      if (r && r.carryI <= 0 && r.st !== 'toRack'){ unitDone(h, 'brolly'); r = null; h.brolly = -1; h.timer = 0; }
+      if (h.timer <= 0){
+        h.timer = 0.4;
+        if (!r){ const w = brollyTarget(h); if (w == null){ h.st = 'idle'; h.brolly = null; break; } h.brolly = w; r = w >= 0 ? R[w] : null; }
+        if (!r && (h.digT += 0.4) > 12){ h.st = 'idle'; h.brolly = null; break; }   // nobody hauling for a while: look at the list again
+      }
+      if (r){
+        h.digT = 0;
+        const tx = r.x - r.face*15, ty = r.y + 7, spd = Math.max(sp, robotSpeed(r.id)*1.2);
+        moveTo(h, tx, ty, spd, dt); if (Math.hypot(tx - h.x, ty - h.y) < 4) h.face = r.face;
+      } else { const w = { x: RACK.x + 34, y: RACK.y + 28 }; if (moveTo(h, w.x, w.y, sp, dt)) h.face = -1; }
+      break;
+    }
+    // V14: going along on a trip: wait at the curb beside the robot, hop in with it, ride along
+    case 'toCurb': { const q = curbSpot(h); if (moveTo(h, q.x, q.y, sp, dt)){ h.st = 'curb'; h.face = 1; h.timer = 0.5; } break; }
+    case 'curb': { h.timer -= dt; if (h.timer <= 0){ h.timer = 0.5; const c = helperCfg(h); if (!(S.trip && taskOn(c, 'travel') && taskOpen('travel', c) && helperWork(h, 'travel') != null)) h.st = 'idle'; else if (Math.random() < 0.06) helperSays(h, 'hmm'); } break; }
+    case 'hopIn': case 'hopOut': updHop(h, dt); break;
+    case 'ride': { const q = rideSpot(h); h.x = q.x; h.y = q.y; h.hz = 0; break; }
+    case 'gone': break;   // away on another lot
   }
 }
 function updShakeTimers(dt){
@@ -2223,7 +2418,7 @@ function updTruck(dt){
       for (let i=0;i<Math.min(T.takeL, 26);i++) flyTo('leaf', BIN.x + rand(-22,22), BIN.y - 44, T.x + rand(0,58), LANE - 64, 0.5 + i*0.055, 50, { ci: pickColor(), sh: Math.random()<.5?1:0, s: 5.5 });
       for (let i=0;i<Math.min(T.takeM, 10);i++) flyTo('metal', TUB.x, TUB.y - 26, T.x + rand(0,58), LANE - 64, 0.55 + i*0.08, 55, {});
       // V13: someone arriving hops off; the driver brings any letters
-      if (T.arriving && T.rider != null && R[T.rider] && R[T.rider].st === 'ride') startHop(R[T.rider], 'out');
+      if (T.arriving) for (const o of T.riders.slice()) if (o.st === 'ride') startHop(o, 'out');
       T.arriving = false;
       if (S.post.length) startDriver();
     }
@@ -2289,7 +2484,7 @@ function updTruck(dt){
     puffExhaust(T, dt, 1.4);
     if (T.x < Math.min(V.x0 - 140, PARK - 300)){
       T.st = 'away'; S.truckT = Math.max(S.truckT, 2); T.fill = 0;
-      if (T.rider != null && R[T.rider] && R[T.rider].st === 'ride' && !simMode) travel();   // V13: off to the other lot
+      if (T.riders.length && T.riders.every(o => o.st === 'ride') && !simMode) travel();   // V13: off to the other lot
     }
   }
 }
@@ -2403,7 +2598,7 @@ function updLeaves(dt){
 // The hive turns nectar into jars of honey (each floor of the tower is a honey room, and tank or store upgrades add
 // floors), keeps the jars until the truck comes, and stops when the store is full.
 // new flowers on each piece of land. V7: fewer, most of all on the cottage plot, so honey grows with the yard
-const FLOWER_N = [12, 30, 95];
+const FLOWER_N = LOT.FLOWER_N || [12, 30, 95];
 const FLOWER_REGROW = 11;               // seconds for a sipped flower to bloom again (each one a little different)
 const BEE_SPEED = 52, SIP_TIME = 2.8, FLOOR_RATE = 2;   // V8: bees sip longer (was 1.8 s), so it takes more bees to work the flowers   // each floor of the hive turns 2 nectar a second into honey
 let FLOWERS = [], flowerSpr = [];
@@ -2424,6 +2619,7 @@ function flowerSpotOK(x, y, lvl){
   if (Math.abs(x - PALLET.x) < 32 && y > PALLET.y - 50 && y < PALLET.y + 14) return false;
   if (x > PLANT.x - 112 && x < PLANT.x + 112 && y > PLANT.y - 90 && y < PLANT.y + 16) return false;
   for (const p of SPOTS) if (Math.abs(x - p.x) < 54 && Math.abs(y - p.y) < 32) return false;
+  for (const p of PUDDLES) if (inPuddle(p, x, y, 10)) return false;   // V14: not in a puddle
   for (const b of BUSHES){ const dx = (x - b.x)/(48*b.s), dy = (y - b.y + 8*b.s)/(26*b.s); if (dx*dx + dy*dy < 1) return false; }
   // not under a tree crown, where nobody would see them
   for (const t of TREES){ const dx = (x - t.x)/(t.r*1.02), dy = (y - t.y - t.r*0.12)/(t.r*1.14); if (dx*dx + dy*dy < 1) return false; }
@@ -2436,6 +2632,8 @@ let DECO = [];
 function buildFlowers(){
   FLOWERS = []; DECO = [];
   const clash = (list, x, y, dx, dy) => list.some(f => Math.abs(f.x - x) < dx && Math.abs(f.y - y) < dy);
+  // V14: how the clumps are laid out (a lot can space its own differently: the hollow's mushroom patches)
+  const FP = Object.assign({ k: [2, 4], kDeco: [3, 6], d: [8, 22], dDeco: [6, 18], clash: [9, 6], s: [1.1, 0.4], sDeco: [0.75, 0.4] }, LOT.flowerPlace || {});
   const place = (L, count, rnd, mk, deco) => {
     const O = owned(L), list = deco ? DECO : FLOWERS;
     let n = 0, tries = 0;
@@ -2443,11 +2641,11 @@ function buildFlowers(){
       const cx = O.x0 + rnd()*(O.x1 - O.x0), cy = O.y0 + rnd()*(O.y1 - O.y0);
       if (!flowerSpotOK(cx, cy, L)) continue;
       const ty = Math.floor(rnd()*FLOWER_TYPES.length), ty2 = Math.floor(rnd()*FLOWER_TYPES.length);
-      const k = deco ? 3 + Math.floor(rnd()*6) : 2 + Math.floor(rnd()*4);
+      const k = deco ? FP.kDeco[0] + Math.floor(rnd()*FP.kDeco[1]) : FP.k[0] + Math.floor(rnd()*FP.k[1]);
       for (let m=0, t2=0; m<k && n < count && t2 < 30; t2++){
-        const a = rnd()*TAU, d = m ? (deco ? 6 + rnd()*18 : 8 + rnd()*22) : 0, x = cx + Math.cos(a)*d, y = cy + Math.sin(a)*d*0.6;
-        if (!flowerSpotOK(x, y, L) || clash(FLOWERS, x, y, 9, 6) || (deco && clash(DECO, x, y, 6, 4))) continue;
-        list.push(mk(x, y, rnd() < 0.75 ? ty : ty2, rnd));
+        const a = rnd()*TAU, d = m ? (deco ? FP.dDeco[0] + rnd()*FP.dDeco[1] : FP.d[0] + rnd()*FP.d[1]) : 0, x = cx + Math.cos(a)*d, y = cy + Math.sin(a)*d*0.6;
+        if (!flowerSpotOK(x, y, L) || clash(FLOWERS, x, y, FP.clash[0], FP.clash[1]) || (deco && clash(DECO, x, y, 6, 4))) continue;
+        list.push(mk(x, y, deco && LOT.decoTypes ? Math.floor(rnd()*LOT.decoTypes) : rnd() < 0.75 ? ty : ty2, rnd));
         m++; n++;
       }
     }
@@ -2456,8 +2654,8 @@ function buildFlowers(){
   for (let L=0; L<AREAS.length; L++){
     const rnd = mulberry(900 + L*17);
     for (let tier=0; tier<=tiers; tier++)
-      place(L, tier ? Math.round(FLOWER_N[L]*share) : FLOWER_N[L], rnd, (x, y, ty, r) => { const s = 1.1 + r()*0.4; return { x, y, ty, s, land: L, tier, ph: r()*TAU, full: true, t: 0, regrow: FLOWER_REGROW*(0.85 + r()*0.3), claim: null, bob: 0 }; });
-    if (LOT.decoN) place(L, LOT.decoN[L], mulberry(1300 + L*29), (x, y, ty, r) => ({ x, y, ty, s: 0.75 + r()*0.4, land: L }), true);
+      place(L, tier ? Math.round(FLOWER_N[L]*share) : FLOWER_N[L], rnd, (x, y, ty, r) => { const s = FP.s[0] + r()*FP.s[1]; return { x, y, ty, s, land: L, tier, ph: r()*TAU, full: true, t: 0, regrow: FLOWER_REGROW*(0.85 + r()*0.3), claim: null, bob: 0 }; });
+    if (LOT.decoN) place(L, LOT.decoN[L], mulberry(1300 + L*29), (x, y, ty, r) => ({ x, y, ty, s: FP.sDeco[0] + r()*FP.sDeco[1], land: L }), true);
   }
   FLOWERS.sort((a, b) => a.y - b.y);
   DECO.sort((a, b) => a.y - b.y);
@@ -2466,6 +2664,7 @@ function buildFlowers(){
 function drawDecoFlowers(g, V){
   for (const f of DECO){
     if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 || f.y > V.y1) continue;
+    if (ART.drawDeco){ ART.drawDeco(g, f); continue; }
     const sp = flowerSpr[f.ty], T = FLOWER_TYPES[f.ty]; if (!sp) continue;
     g.drawImage(sp.stem, f.x - sp.sox*f.s, f.y - sp.soy*f.s, sp.sw*f.s, sp.sh*f.s);
     const hs = sp.hw*f.s; g.drawImage(sp.head, f.x - hs/2, f.y - T.h*f.s - hs/2, hs, hs);
@@ -2475,7 +2674,7 @@ function drawDecoFlowers(g, V){
 const flowerOn = f => f.land <= S.land && (f.tier || 0) <= gl('seeding');
 const flowerHead = f => FLOWER_TYPES[f.ty].h*f.s;
 // a flower only opens its head when a bee can sip it again; until then the bud swells (V7: it used to look open too early)
-const bloomOf = f => f.full ? 1 : clamp((f.t/f.regrow - 0.75)/0.25, 0, 1)*0.3;
+const bloomOf = ART.bloomOf || (f => f.full ? 1 : clamp((f.t/f.regrow - 0.75)/0.25, 0, 1)*0.3);
 function updFlowers(dt){
   for (const f of FLOWERS){
     if (f.bob > 0) f.bob = Math.max(0, f.bob - dt);
@@ -2497,6 +2696,7 @@ const FLOWER_TYPES = LOT.FLOWER_TYPES || [
 function buildFlowerSprites(){
   const RES = 3;
   flowerSpr = FLOWER_TYPES.map((T, ti) => {
+    if (ART.flowerSprite) return ART.flowerSprite(T, ti);   // V14: the hollow's mushroom patches
     const rnd = mulberry(40 + ti);
     // stem + leaves + bud: origin at the foot of the stem
     const sw = 22, sh = T.h + 10, sox = 11, soy = T.h + 6;
@@ -2541,6 +2741,7 @@ function drawFlowers(V){
     if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 - 20 || f.y > V.y1 + 20) continue;
     const sp = flowerSpr[f.ty]; if (!sp) continue;
     const wild = f.land > S.land, b = wild || !active ? 1 : bloomOf(f);
+    if (ART.drawFlower){ ART.drawFlower(c, f, sp, b, wild); continue; }
     const sway = reduceMotion ? 0 : Math.sin(S.t*1.3 + f.ph)*0.05 + wind*0.0015 + (f.bob > 0 ? Math.sin(f.bob*30)*0.06 : 0);
     c.save(); c.translate(f.x, f.y); c.rotate(sway); c.scale(f.s, f.s);
     if (wild) c.globalAlpha = 0.72;
@@ -2571,7 +2772,7 @@ const HIVE_UP_COST = 180;
 const hiveUpCost = () => HIVE_UP_COST;
 // V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
 // prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.
-const hiveKnown = () => S.hive.built || !!S.flags.hiveKnown;
+const hiveKnown = () => S.hive.built || !!S.flags.hiveKnown || !!LOT.hiveKnown;   // (V14: the Rainy hollow's ant hill is known from the start)
 const hiveShown = () => S.hive.built || (hiveKnown() && !!S.flags.hiveShown);
 const hiveCost = () => S.flags.hiveDeal ? HIVE_DEAL : HIVE_COST;
 const beeCost = (n = S.hive.bees) => niceCost(4*Math.pow(1.18, n)*(S.hive.up.nursery ? 0.7 : 1));
@@ -2583,7 +2784,7 @@ const jarNectar = () => S.hive.up.recipe ? 20 : 25;
 const fanRate = () => hiveFloors()*FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1);
 // every second tank or store upgrade adds a floor (V7: there are more, smaller steps now, and the tower can't grow forever)
 const hiveFloors = () => 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore)/2);
-const HV = { plinth: 14, fh: 12, r: 21, k: 0.32 };
+const HV = LOT.HV || { plinth: 14, fh: 12, r: 21, k: 0.32 };
 const hiveTopZ = () => HV.plinth + hiveFloors()*HV.fh;
 const DOOR = { x: HIVE.x, y: HIVE.y + 0.866*HV.r*HV.k, z: HV.plinth + HV.fh*0.5 };
 // per-bee stats come from the upgrades the bee picked up last time it was home
@@ -2707,7 +2908,7 @@ function updBee(b, dt){
       b.timer -= dt; b.z = b.tz + Math.sin(b.anim*9)*0.3;
       if (b.timer > 0) break;
       const f = b.tgt;
-      if (f){ f.full = false; f.t = 0; f.claim = null; f.bob = 0.4; }
+      if (f){ f.full = false; f.t = 0; f.claim = null; f.bob = 0.4; b.mty = f.ty; }   // (mty: what it carries, for the hollow's ants)
       b.tgt = null; b.carry += beeSip(b); b.visits++;
       if (b.visits < beeTrip(b)){ const g = findFlower(b); if (g){ goFlower(b, g); break; } const w = nextBloom(b); if (w && (w.regrow - w.t)/regrowMul() < 4){ goWait(b, w); break; } }
       beeHome(b);
@@ -2762,6 +2963,7 @@ function prismFace(c, r, k, i, yb, yt){ const v = hexFront(r, k), a = v[i], b = 
 function drawPrism(c, r, k, yb, yt, cols){ for (let i=0;i<3;i++){ prismFace(c, r, k, i, yb, yt); c.fillStyle = cols[i]; c.fill(); } hexPath(c, 0, yt, r, k); c.fillStyle = cols[3]; c.fill(); }
 function hexCell(c, x, y, r, sx){ c.beginPath(); for (let i=0;i<6;i++){ const a = i/6*TAU + Math.PI/6, px = x + Math.cos(a)*r*sx, py = y + Math.sin(a)*r; i ? c.lineTo(px, py) : c.moveTo(px, py); } c.closePath(); }
 function drawJar(c, x, y, s){
+  if (ART.drawJar) return ART.drawJar(c, x, y, s);
   c.save(); c.translate(x, y); c.scale(s/6, s/6);
   c.fillStyle = '#c47d1c'; rr(c, -4, -3.5, 8, 8.5, 2.4); c.fill();
   c.fillStyle = '#eba53a'; rr(c, -3.4, -3, 6.8, 7.4, 2); c.fill();
@@ -2771,6 +2973,7 @@ function drawJar(c, x, y, s){
   c.restore();
 }
 function drawHive(){
+  if (ART.drawHive) return ART.drawHive();
   if (!hiveShown()) return;
   const c = ctx, H = S.hive, r = HV.r, k = HV.k, d = 0.866*r*k;
   c.save(); c.translate(HIVE.x, HIVE.y);
@@ -2995,6 +3198,7 @@ function drawBeeDrone(c, b, fl, glow){
   if (glow > 0){ c.fillStyle = 'rgba(255,207,90,' + (0.4 + 0.6*glow) + ')'; ell(c, 0, 2.1, 0.8, 0.5); c.fill(); }
 }
 function drawBees(V){
+  if (ART.drawBees) return ART.drawBees(V);
   const c = ctx;
   if (guest.on){
     // V13: the bee that comes along with your robot (a brass one, like the hive's first bee)
@@ -3038,7 +3242,7 @@ function step(dt){
   updHive(dt);
   updResearch(dt);
   updTruck(dt);
-  updDriver(dt); updGuest(dt);
+  updDriver(dt); updGuest(dt); updBoarding();
   updParts(dt);
   updMilestones();
   if (bumpBin > 0) bumpBin -= dt;
@@ -3068,14 +3272,14 @@ function step(dt){
     S.flags.saleShown = nxt; saleAppearT = S.t;
     const p = salePos(); sparkle(p.x, p.y - 30); pop(p.x, p.y - 84, MINE_LAND && nxt === MINE_LAND ? 'Land for sale: finally a chance to mine!' : 'Land for sale next door', 'note', 18, 0.3); sfx('chime', 'sale');
   }
-  if (!S.flags.finished && S.robots.length >= ROBOT_MAX && S.miners.length >= SPOTS.length && S.plant.built){
+  if (!S.flags.finished && S.robots.length >= ROBOT_MAX && S.miners.length >= SPOTS.length && (S.plant.built || !plantOpen())){
     S.flags.finished = true;
-    if (!simMode) showToast('The yard hums along nicely.', 'Ten robots, every vein worked and the furnaces roaring.', 9);
+    if (!simMode) showToast('The yard hums along nicely.', 'Ten robots, every vein worked' + (S.plant.built ? ' and the furnaces roaring.' : ' and the truck full every time.'), 9);
   }
 }
 const saleVisible = () => landForSale() && S.flags.saleShown >= S.land + 1;
 const baggerShown = () => S.bag.built || S.flags.bagShown;
-const plantShown = () => S.plant.built || S.flags.plantShown;
+const plantShown = () => S.plant.built || (!!S.flags.plantShown && plantOpen());
 const packShown = () => S.hive.built && (S.hive.packing || S.lv.honeyPrice >= 2);   // V8: labels go on past 2 steps; gift wrapping still shows after the second
 const shaftShown = () => S.miners.length > 0 && seenPrice(SHAFT_COST);
 // a mine shaft costs half once you already have one (like copying a robot upgrade)
@@ -3152,7 +3356,7 @@ function buy(o){
     const p = objPos(o.obj); if (p){ pop(p.x, p.y, (o.key === 'cleanup' ? UP.cleanup.name(S.lv.cleanup - 1) : UP[o.key].name) + '!', 'note', 16); sparkle(p.x, p.y + 20); }
     if (o.key === 'truck') S.truckT = Math.min(S.truckT, truckEvery());
   } else if (o.id === 'rall'){
-    peersFor(o.key).forEach(c => { const was = c.lv[o.key]; c.lv[o.key] = Math.max(c.lv[o.key], o.target); if (!was && c.lv[o.key]){ if (o.key === 'snip') putBeside(c, 'snip', 'shake'); if (o.key === 'dig') putBeside(c, 'dig', 'blow'); if (o.key === 'stoke') putBeside(c, 'stoke', 'blow'); } });
+    peersFor(o.key).forEach(c => { const was = c.lv[o.key]; c.lv[o.key] = Math.max(c.lv[o.key], o.target); if (!was && c.lv[o.key]){ if (o.key === 'snip') putBeside(c, 'snip', 'shake'); if (o.key === 'dig') putBeside(c, 'dig', 'blow'); if (o.key === 'stoke') putBeside(c, 'stoke', 'blow'); if (o.key === 'brolly') putBeside(c, 'brolly', 'blow'); } });
     for (const r of R) if (o.key === 'speed' || BOT_TRACKS.robot.includes(o.key)) sparkle(r.x, r.y - 30);
     for (const h of HB) if (BOT_TRACKS[h.kind].includes(o.key)) sparkle(h.x, h.y - 20);
     const p = objPos(o.obj); if (p) pop(p.x, p.y - 4, 'Every robot: ' + TRACKS[o.key].label + ' ' + o.target, 'note', 16);
@@ -3164,11 +3368,13 @@ function buy(o){
     if (o.key === 'snip' && hc.lv.snip === 1) putBeside(hc, 'snip', 'shake');
     if (o.key === 'dig' && hc.lv.dig === 1) putBeside(hc, 'dig', 'blow');
     if (o.key === 'stoke' && hc.lv.stoke === 1) putBeside(hc, 'stoke', 'blow');
+    if (o.key === 'brolly' && hc.lv.brolly === 1) putBeside(hc, 'brolly', 'blow');
     const h = HB.find(q => q.kind === o.kind && q.idx === o.ri); if (h){ pop(h.x, h.y - 60, TRACKS[o.key].label + ' upgraded', 'note', 16); sparkle(h.x, h.y - 20); }
   } else if (o.id === 'blower' || o.id === 'shaker'){
-    const i = cfgsOf(o.id).length;
-    cfgsOf(o.id).push(newHelperCfg(o.id)); syncHelpers();
-    const st = (o.id === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
+    const i = cfgsOf(o.id).length, cfg = newHelperCfg(o.id), sty = nextHelperStyle(o.id);
+    if (sty !== i) cfg.sty = sty;
+    cfgsOf(o.id).push(cfg); syncHelpers();
+    const st = helperStyleOf(o.id, i);
     pop(SHED.x, SHED.y - 112, st.name + ' joins the yard', 'note', 17); sparkle(SHED.x + 34, SHED.y);
   } else if (o.id === 'tech'){
     S.tech[o.key] = true; S.flags.research = true;
@@ -3295,12 +3501,16 @@ function buildGround(c){
   groundCv.width = Math.ceil((W + 2*mx)*rs); groundCv.height = Math.ceil((H + 2*my)*rs);
   const g = groundCv.getContext('2d');
   g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
+  // V14: on a lot with puddles the ground comes in two layers: the flat earth (with the puddles' beds) under the water,
+  // and everything standing up out of it (fence, wood piles, bracken...) on top of the water (G.gTop)
+  let gTop = g; groundTopCv = null;
+  if (RAINY){ groundTopCv = document.createElement('canvas'); groundTopCv.width = groundCv.width; groundTopCv.height = groundCv.height; gTop = groundTopCv.getContext('2d'); gTop.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my)); }
   const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
   const O = owned();
   const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
   const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
   // V13: each lot paints its own ground (the prairie's is in public/lots/prairie.js)
-  (LOT.paintGround || paintGroundHome)({ g, V, O, CS, i0, i1, j0, j1, inOwned });
+  (LOT.paintGround || paintGroundHome)({ g, gTop, V, O, CS, i0, i1, j0, j1, inOwned });
 }
 // the first yard: autumn grass, fallen leaves, toadstools; dark, overgrown land beyond the fence; a gravel verge
 function paintGroundHome(G){
@@ -3475,6 +3685,7 @@ function buildCanopies(){
     const c = document.createElement('canvas'); c.width = Math.ceil(w*RES); c.height = Math.ceil(h*RES);
     const g = c.getContext('2d'); g.scale(RES, RES); g.translate(ox, oy);
     const rnd = mulberry(t.seed);
+    if (LOT.paintCanopy){ const base = LOT.paintCanopy(g, t, ti, { R0, ox, oy, w, rnd }); return { c, ox, oy, w, h, base }; }   // V14: the hollow's half-bare trees
     const [fa, fb] = t.fam || TREE_FAMS[ti % TREE_FAMS.length], A = FOLIAGE[fa], B = FOLIAGE[fb];
     const bloom = !!BLOSSOM[fa];
     // trunk and roots, mostly hidden by the crown (cherry bark: dark red-brown with pale bands)
@@ -3567,6 +3778,7 @@ function drawBushObj(i){
 function buildVignette(){
   vignetteCv = document.createElement('canvas'); vignetteCv.width = cv.width; vignetteCv.height = cv.height;
   const g = vignetteCv.getContext('2d'); g.scale(DPR, DPR);
+  if (LOT.paintVignette){ LOT.paintVignette(g, W, H); return; }
   const rg = g.createRadialGradient(W*0.5, H*0.48, Math.min(W,H)*0.35, W*0.5, H*0.5, Math.hypot(W,H)*0.62);
   const VG = LOT.vignette || { edge: ['rgba(60,25,5,0)', 'rgba(50,20,5,.42)'], sun: ['rgba(255,205,120,.22)', 'rgba(255,205,120,0)'] };
   rg.addColorStop(0, VG.edge[0]); rg.addColorStop(1, VG.edge[1]);
@@ -3606,7 +3818,8 @@ function drawBin(){
   if (keepLeaves() > 0) keepMark(c, -40, -2, -48, keepLeaves()/binCap());
   c.restore();
 
-  if (S.metalSlot){
+  if (S.metalSlot && ART.drawTub) ART.drawTub(c);
+  else if (S.metalSlot){
     c.save(); c.translate(TUB.x, TUB.y);
     c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 1, 2, 20, 5); c.fill();
     const g = c.createLinearGradient(-17, 0, 17, 0); g.addColorStop(0, '#5b6368'); g.addColorStop(.45, '#8c959a'); g.addColorStop(1, '#565e63');
@@ -3634,6 +3847,7 @@ function keepMark(c, x, y0, y1, f){
   c.strokeStyle = 'rgba(255,155,61,.8)'; c.lineWidth = 1; c.setLineDash([2, 2]); c.beginPath(); c.moveTo(x + 4, y); c.lineTo(x + 14, y); c.stroke(); c.setLineDash([]);
 }
 function nugget(c, x, y, s, rot){
+  if (ART.nugget) return ART.nugget(c, x, y, s, rot);
   c.save(); c.translate(x, y); c.rotate(rot); c.scale(s/8, s/8);
   c.fillStyle = '#7d868c'; c.beginPath(); c.moveTo(-8,3); c.lineTo(-5,-6); c.lineTo(3,-8); c.lineTo(9,-2); c.lineTo(7,6); c.lineTo(-2,8); c.closePath(); c.fill();
   c.fillStyle = '#aeb6bb'; c.beginPath(); c.moveTo(-5,-6); c.lineTo(3,-8); c.lineTo(1,-1); c.closePath(); c.fill();
@@ -3703,6 +3917,7 @@ function drawShed(){
   for (let i=1;i<5;i++){ const yy = -58 - i*7.6, half = 54 - i*10.8; c.beginPath(); c.moveTo(-half, yy); c.lineTo(half, yy); c.stroke(); }
   for (const [lx, ly, ci] of [[-20,-66,2],[12,-74,0],[30,-62,3],[-6,-84,4]]) drawLeaf(c, lx, ly, 4, lx*0.1, ci, 1, 1, 0.8, 1, 0);
   c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3);
+  if (ART.shedExtra) ART.shedExtra(c);   // V14: moss and drips in the rain
   c.restore();
 }
 
@@ -3720,6 +3935,7 @@ function drawPumpkins(){
 }
 
 function drawSpotGlints(){
+  if (ART.drawSpotGlints) return ART.drawSpotGlints();
   const c = ctx;
   SPOTS.forEach((p, i) => {
     if (S.miners.includes(i) || p.land > S.land) return;
@@ -3735,6 +3951,7 @@ function drawSpotGlints(){
 }
 
 function drawMiner(i){
+  if (ART.drawMiner) return ART.drawMiner(i);
   if (S.shafts.includes(i)){ drawShaft(i); return; }
   const p = SPOTS[i], c = ctx;
   const working = minerWorkers(i).some(ri => R[ri] && R[ri].st === 'mine');
@@ -3794,7 +4011,8 @@ function drawLeafBag(c, x, y, s, tier){
   }
   c.restore();
 }
-function drawIngot(c, x, y, s, rot, grade){
+function drawIngot(c, x, y, s, rot, grade, wet){
+  if (ART.drawIngot) return ART.drawIngot(c, x, y, s, rot, grade, wet);
   // a cast bar seen from the front and a little above; better alloys are brighter
   grade = grade == null ? S.lv.ingotGrade : grade;
   const G = [['#5f666a','#8f979b','#40464a'], ['#6d777d','#a9b2b7','#495155'], ['#7f8a90','#c3ccd1','#555e63'], ['#93a0a7','#e3e9ec','#606b71'], ['#a39a7c','#ece2bc','#6e6650'], ['#b8933c','#f7dc8a','#7c5e1e']][clamp(grade, 0, 5)];
@@ -3807,6 +4025,7 @@ function drawIngot(c, x, y, s, rot, grade){
 }
 const BOW_COL = [['#e8eef4', '#aab4bf'], ['#2f6fb5', '#1f4f86'], ['#f2c443', '#b8862a']];
 function drawGiftJar(c, x, y, s, k = 1, tier = S.lv.giftPrice | 0){
+  if (ART.drawGiftJar) return ART.drawGiftJar(c, x, y, s, k, tier);
   drawJar(c, x, y, s);
   if (k < 0.3) return;
   c.save(); c.translate(x, y); c.scale(s/6, s/6);
@@ -3904,6 +4123,7 @@ function drawBinBags(c, tag){
 
 // ── the ingot pallet beside the metal tub: haulers stack the smelted ingots here and the truck takes them
 function drawPallet(){
+  if (ART.drawPallet) return ART.drawPallet();
   if (!S.plant.built) return;
   const c = ctx, n = S.ingots, cap = palletCap();
   const grow = clamp((S.t - plantRt.builtT - 0.4)/0.6, 0, 1); if (grow <= 0) return;
@@ -3943,6 +4163,7 @@ function brickWall(c, x0, y0, w, h, base){
   c.restore();
 }
 function drawPlant(){
+  if (ART.drawPlant) return ART.drawPlant();
   if (!plantShown()) return;
   const c = ctx;
   c.save(); c.translate(PLANT.x, PLANT.y);
@@ -4048,6 +4269,7 @@ function drawPlant(){
 
 // ── a mine shaft: a timber headframe with a turning wheel over a framed hole, and an ore cart beside it
 function drawShaft(i){
+  if (ART.drawShaft) return ART.drawShaft(i);
   const p = SPOTS[i], c = ctx, t = S.t;
   const ws = minerWorkers(i), working = ws.some(ri => R[ri] && R[ri].st === 'mine');
   const dug = HB.some(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i);
@@ -4414,7 +4636,8 @@ function drawRobot(r){
     const rnd = mulberry(r.id*31 + n + m*7 + q*13), iw = BW - 4;
     for (let i=0;i<n;i++) drawLeaf(c, bx0 + 2 + rnd()*iw, by0 - 2 - rnd()*(1 + n*0.5), 3.4, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 1, 1, 0);
     for (let i=0;i<m;i++) nugget(c, bx0 + 3 + rnd()*(iw - 2), by0 - 2 - rnd()*(1 + m*0.7), 2.6, rnd()*TAU);
-    for (let i=0;i<q;i++) drawIngot(c, bx0 + BW/2 + (i%2 ? 2 : -1), by0 + 1 - i*2.4, 8, 0);
+    const wq = Math.min(r.wetI || 0, q);   // V14: soaked bundles are drawn dark
+    for (let i=0;i<q;i++) drawIngot(c, bx0 + BW/2 + (i%2 ? 2 : -1), by0 + 1 - i*2.4, 8, 0, undefined, i >= q - wq);
   }
   drawBasket(c, bt, bx0, by0, BW, BH, true);
   }
@@ -4505,7 +4728,8 @@ function drawRobot(r){
     drawEnvelope(c, bx, by, 0.85, 0.1);
     c.beginPath(); c.moveTo(sx, sy); c.lineTo(bx, by + 3); c.stroke();
     c.fillStyle = armC; ell(c, bx, by + 3, 1.6, 1.4); c.fill();
-  } else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
+  } else if (r.st === 'mine' && ART.sawArm) ART.sawArm(c, r, sx, sy);
+  else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
   else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3.5, sy + 7); c.stroke(); }
   // head (V12: researchers tip it toward the book, and tilt it now and then, curious)
   const hx0 = bw/2 - hw + 3, hy0 = top - 3 - hh;
@@ -4605,6 +4829,7 @@ function drawRobot(r){
     c.fillStyle = on ? '#ff7a4d' : '#8a4a36'; ell(c, ax - 5, ay - ah - .5, 2.1, 2.1); c.fill();
     if (on){ c.fillStyle = 'rgba(255,122,77,.3)'; ell(c, ax - 5, ay - ah - .5, 4.5, 4.5); c.fill(); }
   }
+  if (st.brolly && ART.robotBrolly) ART.robotBrolly(c, r, st, hx0, hy0, hw, bob);   // V14: an umbrella on its head (the hollow)
   c.restore();   // the head's tilt
   c.restore();
   if (r.st === 'study' && bookRt.by === r.id) timers.push({ x: r.x, y: r.y - 98, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: researchRate() > 0 });
@@ -4634,6 +4859,10 @@ function blowerGeo(h){
     const hole = SHAFT_HOLE(h.dig), wob = Math.sin(h.anim*9)*0.8;
     tip = { x: (hole.x - h.x)*h.face + wob, y: hole.y - h.y + 2 };
     ctl = { x: root.x + (tip.x - root.x)*0.75, y: root.y - 6 };
+  } else if (h.st === 'brolly'){
+    // V14: the hose curls up and holds the handle of the wood umbrella
+    tip = { x: root.x + 6, y: hy0 - 9 };
+    ctl = { x: root.x + 10, y: root.y - 1 };
   } else if (h.st === 'lap'){
     const L = 15*st.trunk + 8, dx = Math.abs(h.dir.x), dy = h.dir.y;
     tip = { x: root.x + 6 + dx*L, y: Math.min(0, -6 + dy*L*0.6) };
@@ -4656,9 +4885,9 @@ function robotEye(c, ex, ey, r, blink, warm){
 }
 function drawBlower(h){
   const c = ctx, G = blowerGeo(h), st = G.st, blowing = h.st === 'lap' || h.st === 'dig' || h.st === 'stoke';
-  const bw = G.bw, bh = G.bh, top = G.top, hw = G.hw, hh = G.hh, hx0 = G.hx0, hy0 = G.hy0;
-  c.save(); c.translate(h.x, h.y);
-  c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, st.tw*0.6, 4.5); c.fill();
+  const bw = G.bw, bh = G.bh, top = G.top, hw = G.hw, hh = G.hh, hx0 = G.hx0, hy0 = G.hy0, hz = h.hz || 0;
+  c.save(); c.translate(h.x, h.y - hz);
+  c.fillStyle = 'rgba(35,28,12,' + (hz ? 0.18 : 0.3) + ')'; ell(c, 0, 1 + hz, st.tw*0.6, 4.5); c.fill();
   c.scale(h.face, 1);
   drawTreads(c, st.tw, 9, h.moving, h.anim, tierOf(helperCfg(h).lv.speed), (h.x + h.y*0.4)*h.face);
   const bob = h.moving ? -Math.abs(Math.sin(h.anim*10))*1.2 : Math.sin(h.anim*2 + h.idx)*0.3;
@@ -4716,6 +4945,7 @@ function drawBlower(h){
     c.lineTo(T.x + ux*4 + uy*fl, T.y + uy*4 - ux*fl); c.lineTo(T.x - ux*2 + uy*2.3, T.y - uy*2 - ux*2.3); c.closePath(); c.fill();
     c.fillStyle = st.band; c.fillRect(T.x - ux*2 - 1.2, T.y - uy*2 - 1.2, 2.4, 2.4);
     c.fillStyle = '#2a2420'; c.beginPath(); c.ellipse(T.x + ux*4, T.y + uy*4, fl*0.8, 1.2, Math.atan2(uy, ux) + Math.PI/2, 0, TAU); c.fill(); }
+  if (h.st === 'brolly' && ART.woodUmbrella) ART.woodUmbrella(c, T.x, T.y, st.band, h);
   c.restore();
 }
 
@@ -4794,7 +5024,9 @@ function drawShaker(h){
 
 // what the truck pays, in the same colours as the payout numbers: orange for leaves, shiny silver for metal, gold for honey
 const PAY_COL = { leaf: '#ff9b3d', bag: '#ffb866', honey: '#ffd23f', gift: '#ff8f7a', bonus: '#b5e36d' };
+if (ART.PAY_COL) Object.assign(PAY_COL, ART.PAY_COL);
 function payFill(c, kind, y0, y1){
+  if (ART.payFill) return ART.payFill(c, kind, y0, y1);
   if (kind === 'ingot'){ const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, '#f4f7f8'); g.addColorStop(0.5, '#b9c4ca'); g.addColorStop(0.52, '#7d8a91'); g.addColorStop(1, '#c9d3d8'); return g; }
   if (kind !== 'metal') return PAY_COL[kind] || '#fff4e0';
   const g = c.createLinearGradient(0, y0, 0, y1);
@@ -4865,8 +5097,8 @@ function drawTruck(){
     c.restore();
   }
   // V13: a robot riding along stands in the back, in front of the load, cut off by the stake sides
-  const rd = T.rider != null ? R[T.rider] : null;
-  if (rd && rd.st === 'ride'){ c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); drawRobot(rd); c.restore(); }
+  // (V14: a robot and a blower, the robot at the front)
+  for (const rd of T.riders) if (rd.st === 'ride'){ c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); if (rd.kind) drawBlower(rd); else drawRobot(rd); c.restore(); }
   c.fillStyle = '#5d412b'; c.fillRect(-18, BT - 2, 88, 3.5);
   drawTruckBoard(c, BT);
   c.fillStyle = '#4f7774'; rr(c, -84, -32, 16, 20, 4); c.fill();
@@ -4899,6 +5131,7 @@ function drawParts(){
       else if (p.kind === 'metal') nugget(c, x, y, 4.5, p.rot + t*5);
       else if (p.kind === 'jar') drawJar(c, x, y, 5.5);
       else if (p.kind === 'gift') drawGiftJar(c, x, y, 5.5);
+      else if (p.kind === 'honey' && ART.flyHoney) ART.flyHoney(c, x, y);
       else if (p.kind === 'honey'){ c.fillStyle = '#e8931c'; ell(c, x, y, 2.6, 2.2); c.fill(); c.fillStyle = 'rgba(255,236,160,.85)'; ell(c, x - 0.7, y - 0.6, 0.8, 0.7); c.fill(); }
       else if (p.kind === 'bag') drawLeafBag(c, x, y + 5, 12);
       else if (p.kind === 'ingot') drawIngot(c, x, y + 2, 9, Math.sin(t*6)*0.3);
@@ -4914,7 +5147,8 @@ function drawParts(){
       c.strokeStyle = 'rgba(250,246,232,' + (Math.sin(k*Math.PI)*0.32) + ')'; c.lineWidth = 1.1; c.lineCap = 'round';
       c.beginPath(); c.moveTo(p.x - ux*L, p.y - uy*L); c.quadraticCurveTo(p.x - ux*L*0.4 - uy*cu, p.y - uy*L*0.4 + ux*cu, p.x, p.y); c.quadraticCurveTo(p.x + ux*3 + uy*cu*0.6, p.y + uy*3 - ux*cu*0.6, p.x + ux*1.5 + uy*cu, p.y + uy*1.5 - ux*cu); c.stroke(); }
     else if (p.k === 'petal'){ c.save(); c.translate(p.x, p.y); c.rotate(p.t*7); c.globalAlpha = a; c.fillStyle = p.col; ell(c, 0, 0, 1.6, 0.9); c.fill(); c.restore(); }
-    else if (p.k === 'speck'){ c.fillStyle = 'rgba(120,110,60,' + a*0.7 + ')'; c.fillRect(p.x - 0.8, p.y - 0.8, 1.6, 1.6); }
+    else if (p.k === 'drop'){ const sp = Math.hypot(p.vx, p.vy) || 1, L = 1.6 + sp*0.012; c.strokeStyle = 'rgba(212,226,238,' + a*0.85 + ')'; c.lineWidth = 0.9; c.lineCap = 'round'; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x - p.vx/sp*L, p.y - p.vy/sp*L); c.stroke(); }   // V14: rain spray
+    else if (p.k === 'speck'){ c.fillStyle = p.saw ? 'rgba(226,190,130,' + a*0.9 + ')' : 'rgba(120,110,60,' + a*0.7 + ')'; c.fillRect(p.x - 0.8, p.y - 0.8, 1.6, 1.6); }   // (saw: sawdust)
     else if (p.k === 'gust'){ const sp = Math.hypot(p.vx, p.vy) || 1, L = 6 + 6*a; c.strokeStyle = 'rgba(255,250,235,' + a*0.6 + ')'; c.lineWidth = 1.5; c.lineCap = 'round'; c.beginPath(); c.moveTo(p.x, p.y); c.quadraticCurveTo(p.x - p.vx/sp*L*0.5 + p.vy/sp*2, p.y - p.vy/sp*L*0.5 - p.vx/sp*2, p.x - p.vx/sp*L, p.y - p.vy/sp*L); c.stroke(); }
     else if (p.k === 'ring'){ const r = p.r0 + (p.r1 - p.r0)*(p.t/p.life); c.strokeStyle = 'rgba(255,240,210,' + a*0.6 + ')'; c.lineWidth = 2; ell(c, p.x, p.y, r, r*0.55); c.stroke(); }
   }
@@ -4939,7 +5173,8 @@ function drawPops(){
     const w = c.measureText(p.text).width;
     const tx = (p.kind === 'leaf' || p.kind === 'metal' || p.kind === 'honey' || p.kind === 'gift' || p.kind === 'bag' || p.kind === 'ingot') ? 9 : 0;
     c.lineJoin = 'round'; c.lineWidth = Math.max(3, size*0.22); c.strokeStyle = 'rgba(55,30,14,.75)'; c.strokeText(p.text, tx, 0);
-    c.fillStyle = p.kind === 'cash' ? '#ffd56b' : p.kind === 'metal' || p.kind === 'ingot' ? '#dfe6ea' : p.kind === 'leaf' || p.kind === 'bag' ? '#ffd7a8' : p.kind === 'honey' || p.kind === 'gift' ? '#ffe08a' : '#fff4e0';
+    const PC = ART.popCol || {};
+    c.fillStyle = p.kind === 'cash' ? '#ffd56b' : p.kind === 'wet' ? '#a8d4f2' : p.kind === 'metal' ? PC.metal || '#dfe6ea' : p.kind === 'ingot' ? PC.ingot || '#dfe6ea' : p.kind === 'leaf' || p.kind === 'bag' ? '#ffd7a8' : p.kind === 'honey' || p.kind === 'gift' ? '#ffe08a' : '#fff4e0';
     c.fillText(p.text, tx, 0);
     if (p.kind === 'leaf') drawLeaf(c, tx - w/2 - 10, 0, 7.5, 0.3, 1, 1, 1, 1, 1, 0);
     if (p.kind === 'metal') nugget(c, tx - w/2 - 10, 0, 7, 0.2);
@@ -4953,7 +5188,7 @@ function drawPops(){
 // a sale number: pops up over the bin (or tub, pallet, crate) it came from, sits there a moment, then flies into the truck
 function drawSalePop(c, p){
   if (p.toHud && p.t < SALE_HOLD) return;   // the copy for the goal pill only shows once it leaves the crate
-  const ts = textScale(), size = Math.round(p.size*ts), src = w2s(p.x, p.y), dst = p.toHud ? goalPt() : w2s(p.tx, p.ty);
+  const ts = textScale(), size = Math.round(p.size*ts), src = w2s(p.x, p.y), dst = p.toHud ? goalPt('honey') : w2s(p.tx, p.ty);
   let x, y, sc, a = 1;
   if (p.toHud){
     const u = clamp((p.t - SALE_HOLD)/(p.life - SALE_HOLD), 0, 1), e = u*u*(3 - 2*u);
@@ -5014,10 +5249,10 @@ function drawBubbles(){
   for (const b of bubbles){
     const s = w2s(b.x, b.y), ts = textScale();
     c.save(); c.font = '700 ' + Math.round(15*ts) + 'px Caveat, cursive';
-    const w = c.measureText(b.t).width + 14, h = 18*ts;
+    const t = sayT(b.t), w = c.measureText(t).width + 14, h = 18*ts;
     c.fillStyle = 'rgba(246,234,212,.95)'; rr(c, s.x - w/2, s.y - h/2, w, h, 8); c.fill();
     c.beginPath(); c.moveTo(s.x - 4, s.y + h/2 - 1); c.lineTo(s.x, s.y + h/2 + 5); c.lineTo(s.x + 4, s.y + h/2 - 1); c.fill();
-    c.fillStyle = '#a8361d'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.t, s.x, s.y + 1);
+    c.fillStyle = '#a8361d'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, s.x, s.y + 1);
     c.restore();
   }
   bubbles = [];
@@ -5107,6 +5342,234 @@ function drawHints(){
   c.restore();
 }
 
+// ───────────────────────── V14 (from the Rainy hollow test copy): rain, puddles, splashes and wet tracks (LOT.rain)
+// None of this changes the game; it's all looks. The rain comes and goes slowly (rainLevel). Drops streak down the
+// screen in three depths, splash on the ground and ring the puddles. Puddles reflect whatever stands at or behind their
+// edge (robots, helpers, trees, buildings, the truck), mirrored about the thing's foot, with a wobble and the overcast
+// sky behind. Driving through one throws up spray and a wake, and the wheels leave wet prints for a while after.
+// ?dbg=nopud,norain,nomist,noglow switches layers off for profiling.
+const RAIN = { k: RAINY ? 0.7 : 0, drops: [], splash: [], ripples: [], tracks: [], mist: [], acc: 0, sacc: 0, t: 0 };
+let reflCv = null, reflCtx = null, mistSpr = null, mistCv = null;
+const rainLevel = t => clamp(0.6 + 0.24*Math.sin(t/83) + 0.14*Math.sin(t/29 + 1.3), 0.25, 1);
+const RAIN_SLANT = () => 0.16 + wind*0.0016;
+function rainDrop(rnd0){
+  const z = Math.random(), r = rnd0 ? Math.random() : 0;
+  return { x: Math.random()*(W + 200) - 100, y: rnd0 ? r*H : -Math.random()*60, z, v: 700 + 700*z, l: 10 + 22*z };
+}
+function updRain(dt){
+  const R0 = RAIN; R0.t += dt;
+  R0.k = rainLevel(S.t);
+  // screen-space streaks
+  const want = Math.round(R0.k*W*H/1500*(reduceMotion ? 0.35 : 1));
+  while (R0.drops.length < want) R0.drops.push(rainDrop(R0.drops.length < want*0.9));
+  if (R0.drops.length > want + 20) R0.drops.length = want;
+  const sl = RAIN_SLANT();
+  for (const d of R0.drops){
+    d.y += d.v*dt; d.x += d.v*sl*dt;
+    if (d.y > H + 20 || d.x > W + 120){ Object.assign(d, rainDrop(false)); d.x -= d.y*sl; }
+  }
+  // splashes on the ground and rings on the puddles (world units), only in view
+  const V = visRect(), area = Math.max(1, (V.x1 - V.x0)*(V.y1 - V.y0));
+  R0.sacc += dt*R0.k*Math.min(140, area*0.00016)*(reduceMotion ? 0.3 : 1);
+  while (R0.sacc >= 1){
+    R0.sacc -= 1;
+    const x = rand(V.x0, V.x1), y = rand(V.y0, V.y1);
+    if (puddleAt(x, y)) continue;
+    R0.splash.push({ x, y, t: 0, life: rand(0.18, 0.3), s: rand(0.8, 1.3)*(y > 8 ? 1.1 : 1) });
+  }
+  for (const p of PUDDLES){
+    if (p.x + p.rx < V.x0 || p.x - p.rx > V.x1 || p.y + p.ry < V.y0 || p.y - p.ry > V.y1) continue;
+    p.racc = (p.racc || 0) + dt*R0.k*p.rx*p.ry*0.0042;
+    while (p.racc >= 1){ p.racc -= 1; const a = rand(0, TAU), d = Math.sqrt(Math.random())*0.85; R0.ripples.push({ p, x: p.x + Math.cos(a)*p.rx*d, y: p.y + Math.sin(a)*p.ry*d, t: 0, life: rand(0.55, 0.9), r1: rand(3, 6.5), w: rand(0.5, 0.85) }); }
+    if (p.agit) p.agit = Math.max(0, p.agit - dt*0.7);
+  }
+  for (const s of R0.splash) s.t += dt;
+  R0.splash = R0.splash.filter(s => s.t < s.life);
+  for (const r of R0.ripples) r.t += dt;
+  R0.ripples = R0.ripples.filter(r => r.t < r.life);
+  if (R0.ripples.length > 700) R0.ripples.splice(0, R0.ripples.length - 700);
+  // things driving through puddles
+  for (const r of R){
+    if (r.st === 'gone' || r.st === 'ride') continue;
+    wade(r, r.moving, styleOf(r.id).tw*0.5, dt);
+    // now and then a drop splashes off a robot's head (or its umbrella)
+    if (!styleOf(r.id).brolly && Math.random() < dt*0.9*R0.k) parts.push({ k:'drop', x: r.x + rand(-6, 6), y: r.y - 8 - styleOf(r.id).bh - styleOf(r.id).hh - 2, vx: rand(-22, 22), vy: rand(-32, -12), g: 260, life: rand(.2, .35), t: 0 });
+  }
+  for (const h of HB) if (h.st !== 'gone' && h.st !== 'ride') wade(h, h.moving, h.kind === 'blower' ? helperStyle(h).tw*0.5 : 14, dt);
+  { const T = truck, on = T.st === 'arrive' || T.st === 'leave';
+    if (T.st !== 'away'){ for (const k of [0, 1]){ const w = T._w || (T._w = [{ face: -1 }, { face: -1 }]); const o = w[k]; o.x = T.x + (k ? 44 : -52); o.y = LANE + 4; o.face = T.x > (o.px || T.x) ? 1 : -1; o.px = T.x; wade(o, on, 9, dt, 1.8); } } }
+  for (const t of R0.tracks) t.t += dt;
+  R0.tracks = R0.tracks.filter(t => t.t < 9);
+  if (R0.tracks.length > 500) R0.tracks.splice(0, R0.tracks.length - 500);
+  // drifting mist
+  if (!R0.mist.length) for (let i=0;i<6;i++) R0.mist.push({ x: Math.random(), y: 0.15 + Math.random()*0.8, s: 0.5 + Math.random()*0.7, v: (Math.random() < .5 ? -1 : 1)*(0.004 + Math.random()*0.006), a: 0.05 + Math.random()*0.05 });
+  for (const m of R0.mist){ m.x += m.v*dt; if (m.x < -0.6) m.x = 1.6; if (m.x > 1.6) m.x = -0.6; }
+}
+function wade(o, moving, half, dt, big){
+  const p = puddleAt(o.x, o.y, 2), was = o._pud;
+  o._pud = p;
+  if (p && moving){
+    p.agit = Math.min(1, (p.agit || 0) + dt*3*(big || 1));
+    if (!was){
+      // in it goes: a burst of spray and a ring
+      for (let k=0;k<(big ? 16 : 10);k++){ const a = rand(-Math.PI, 0), v = rand(30, 70)*(big || 1); parts.push({ k:'drop', x: o.x + rand(-half, half), y: o.y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*1.3 - 20, g: 260, life: rand(0.35, 0.6), t: 0 }); }
+      RAIN.ripples.push({ p, x: o.x, y: o.y + 1, t: 0, life: 1.1, r1: 18*(big || 1), w: 1 });
+      if (!simMode){ const a = sndAt(o.x, o.y); sfx('grab', 1, a.pan, a.vol*0.35); }
+    }
+    o._wk = (o._wk || 0) - dt;
+    if (o._wk <= 0){
+      o._wk = 0.09;
+      RAIN.ripples.push({ p, x: o.x - (o.face || 1)*half*0.6, y: o.y + 1, t: 0, life: 0.9, r1: rand(9, 15)*(big || 1), w: 0.9 });
+      for (const sx of [-half*0.8, half*0.8]) for (let k=0;k<2;k++) parts.push({ k:'drop', x: o.x + sx, y: o.y - 1, vx: -(o.face || 1)*rand(15, 45)*(big || 1) + rand(-10, 10), vy: rand(-55, -25)*(big || 1), g: 280, life: rand(0.3, 0.5), t: 0 });
+    }
+    o._wet = big ? 1.4 : 3.2;
+  } else if (o._wet > 0 && moving){
+    // wet wheels leave prints on the ground for a few metres
+    o._wet -= dt;
+    const d = Math.hypot(o.x - (o._tx ?? o.x - 99), o.y - (o._ty ?? o.y));
+    if (d > 6){ o._tx = o.x; o._ty = o.y; RAIN.tracks.push({ x: o.x, y: o.y, h: half*0.8, t: 0, a: clamp(o._wet/3.2, 0.2, 1) }); }
+  }
+}
+function drawTracks(V){
+  const c = ctx;
+  for (const t of RAIN.tracks){
+    if (t.x < V.x0 || t.x > V.x1 || t.y < V.y0 || t.y > V.y1) continue;
+    const a = t.a*(1 - t.t/9)*0.32;
+    c.fillStyle = 'rgba(22,15,9,' + a + ')';
+    ell(c, t.x - t.h, t.y + 0.5, 3, 1.3); c.fill(); ell(c, t.x + t.h, t.y + 0.5, 3, 1.3); c.fill();
+  }
+}
+function drawSplashes(V){
+  const c = ctx;
+  c.lineCap = 'round';
+  for (const s of RAIN.splash){
+    const k = s.t/s.life, a = (1 - k)*0.55, r = 1 + k*3*s.s;
+    c.strokeStyle = 'rgba(214,226,236,' + a + ')'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(s.x - r*0.5, s.y - r*0.2); c.lineTo(s.x - r, s.y - r*1.1); c.moveTo(s.x + r*0.5, s.y - r*0.2); c.lineTo(s.x + r, s.y - r*1.1); c.moveTo(s.x, s.y - r*0.3); c.lineTo(s.x, s.y - r*1.4); c.stroke();
+    c.strokeStyle = 'rgba(214,226,236,' + a*0.6 + ')'; ell(c, s.x, s.y, r*1.2, r*0.45); c.stroke();
+  }
+}
+function reflectables(p){
+  const out = [], pad = 6, near = p.y + p.ry + pad, xs = (x, hw) => Math.abs(x - p.x) < p.rx + hw;
+  const rch = (y, h) => y < near && y + h > p.y - p.ry;
+  for (const r of R) if (r.st !== 'gone' && r.st !== 'ride' && xs(r.x, 26) && rch(r.y, 80)) out.push({ y: r.y, f: () => drawRobot(r) });
+  for (const h of HB) if (h.st !== 'gone' && h.st !== 'ride' && xs(h.x, 30) && rch(h.y, h.st === 'brolly' ? 95 : 60)) out.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
+  const B2 = [[BIN.x, BIN.y, 50, 70, drawBin], [SHED.x, SHED.y, 60, 105, drawShed], [SIGN.x, SIGN.y, 30, 75, drawSign], [BAGGER.x, BAGGER.y, 34, 50, drawBagger],
+              [PALLET.x, PALLET.y, 34, 60, drawPallet], [CRATE.x, CRATE.y, 30, 60, drawHoneyCrate], [HIVE.x, HIVE.y, 44, 110, drawHive], [PLANT.x, PLANT.y, 130, 175, drawPlant]];
+  for (const [x, y, hw, hh, f] of B2) if (xs(x, hw) && rch(y, hh)) out.push({ y, f });
+  for (const i of S.miners){ const sp = SPOTS[i]; if (xs(sp.x, 60) && rch(sp.y, 110)) out.push({ y: sp.y, f: () => drawMiner(i) }); }
+  if (p.road && truck.st !== 'away' && xs(truck.x, 90)) out.push({ y: LANE + 5, f: drawTruck });
+  out.sort((a, b) => a.y - b.y);
+  return out;
+}
+const REFL_SQ = 0.86;
+function drawPuddles(V){
+  const c = ctx, vis = PUDDLES.filter(p => p.x + p.rx > V.x0 && p.x - p.rx < V.x1 && p.y + p.ry > V.y0 && p.y - p.ry < V.y1);
+  if (!vis.length) return;
+  if (!reflCv || reflCv.width !== cv.width || reflCv.height !== cv.height){ reflCv = document.createElement('canvas'); reflCv.width = cv.width; reflCv.height = cv.height; reflCtx = reflCv.getContext('2d'); }
+  const rc = reflCtx, z = cam.z, t = RAIN.t;
+  rc.setTransform(1, 0, 0, 1, 0, 0);
+  for (const p of vis){ const x0 = DPR*(cam.ox + (p.x - p.rx*1.4)*z), y0 = DPR*(cam.oy + (p.y - p.ry*1.5)*z); rc.clearRect(x0 - 2, y0 - 2, DPR*z*p.rx*2.8 + 4, DPR*z*p.ry*3 + 4); }
+  rc.setTransform(DPR*z, 0, 0, DPR*z, DPR*cam.ox, DPR*cam.oy);
+  const keep = ctx, pl = parts.length, bl = bubbles.length, tl = timers.length;
+  for (const p of vis){
+    rc.save(); puddleTrace(rc, p, 0); rc.clip();
+    // the overcast sky: pale at the far edge of the puddle, deeper toward us, with slow cloud shapes drifting across
+    const sg = rc.createLinearGradient(0, p.y - p.ry, 0, p.y + p.ry);
+    if (p.road){ sg.addColorStop(0, '#77838f'); sg.addColorStop(1, '#3f4853'); } else { sg.addColorStop(0, '#9aa7b4'); sg.addColorStop(1, '#55626f'); }
+    rc.fillStyle = sg; rc.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
+    for (let k=0;k<3;k++){ const cx = p.x + ((t*4 + k*37 + p.seed*3) % (p.rx*2 + 40)) - p.rx - 20, cy = p.y - p.ry*0.3 + k*p.ry*0.35; rc.fillStyle = 'rgba(205,214,224,.22)'; ell(rc, cx, cy, p.rx*0.45, p.ry*0.28); rc.fill(); }
+    // and everything standing behind it, upside down
+    ctx = rc;
+    try {
+      for (const o of reflectables(p)){ rc.save(); rc.translate(0, o.y); rc.scale(1, -REFL_SQ); rc.translate(0, -o.y); o.f(); rc.restore(); }
+      for (let i=0;i<TREES.length;i++){
+        const tr = TREES[i], cc = canopyCvs[i]; if (!cc) continue;
+        const yb = tr.y + cc.base; if (yb > p.y + p.ry + 4 || yb + (cc.oy + cc.base)*REFL_SQ < p.y - p.ry || Math.abs(tr.x - p.x) > tr.r + p.rx + 10) continue;
+        rc.save(); rc.translate(tr.x, yb); rc.scale(1, -REFL_SQ); rc.globalAlpha = 0.95; rc.drawImage(cc.c, -cc.ox, -cc.oy - cc.base, cc.w, cc.h); rc.restore();
+      }
+    } catch(e){}
+    ctx = keep;
+    rc.restore();
+  }
+  parts.length = pl; bubbles.length = bl; timers.length = tl;
+  // lay the reflections in, in thin wobbling strips, then the water itself on top
+  const hs = Math.max(2, Math.round(2.2*DPR));
+  for (const p of vis){
+    const ag = p.agit || 0;
+    c.save(); puddleTrace(c, p, 0); c.clip();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    const x0 = Math.floor(DPR*(cam.ox + (p.x - p.rx*1.3)*z)), x1 = Math.ceil(DPR*(cam.ox + (p.x + p.rx*1.3)*z));
+    const y0 = Math.max(0, Math.floor(DPR*(cam.oy + (p.y - p.ry*1.3)*z))), y1 = Math.min(cv.height, Math.ceil(DPR*(cam.oy + (p.y + p.ry*1.3)*z)));
+    const amp = DPR*z*(0.45 + 0.35*RAIN.k + 2.6*ag), w = x1 - x0;
+    c.globalAlpha = 0.8;
+    for (let y = y0; y < y1; y += hs){
+      const wy = (y - DPR*cam.oy)/(DPR*z);   // world y of this strip, so the wobble sticks to the puddle
+      const off = Math.sin(wy*0.9 + t*3.1 + p.seed)*amp + Math.sin(wy*2.3 - t*5.7)*amp*0.45;
+      c.drawImage(reflCv, x0, y, w, hs, x0 + off, y, w, hs);
+    }
+    c.restore();
+    // the water: a cool tint, darker at the rim, a soft sheen near the far edge, rain rings and wakes
+    c.save(); puddleTrace(c, p, 0); c.clip();
+    c.fillStyle = p.road ? 'rgba(28,34,44,.26)' : 'rgba(44,54,66,.24)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
+    // out in the wild the ground is drawn a little darker, and so is the water there
+    if (!p.road){ const O = owned(); if (!(p.x > O.x0 && p.x < O.x1 && p.y > O.y0 && p.y < -VERGE)){ c.fillStyle = 'rgba(22,18,10,.26)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8); } }
+    c.save(); c.translate(p.x, p.y); c.scale(1, p.ry/p.rx);
+    const fr = c.createRadialGradient(0, 0, p.rx*0.55, 0, 0, p.rx*1.05); fr.addColorStop(0, 'rgba(30,24,18,0)'); fr.addColorStop(1, 'rgba(30,24,18,.45)');
+    c.fillStyle = fr; ell(c, 0, 0, p.rx*1.1, p.rx*1.1); c.fill(); c.restore();
+    c.fillStyle = 'rgba(235,242,248,.16)'; ell(c, p.x - p.rx*0.15, p.y - p.ry*0.55, p.rx*0.55, p.ry*0.12); c.fill();
+    c.lineCap = 'round';
+    for (const r of RAIN.ripples){
+      if (r.p !== p) continue;
+      const k = r.t/r.life, e = 1 - Math.pow(1 - k, 2.2), rad = 0.6 + r.r1*e, a = (1 - k)*0.55*r.w;
+      c.strokeStyle = 'rgba(225,235,244,' + a + ')'; c.lineWidth = 0.75; ell(c, r.x, r.y, rad, rad*0.42); c.stroke();
+      if (r.w > 0.8 && rad > 4){ c.strokeStyle = 'rgba(225,235,244,' + a*0.6 + ')'; ell(c, r.x, r.y, rad*0.62, rad*0.26); c.stroke(); }
+      if (k < 0.15){ c.fillStyle = 'rgba(235,242,250,' + (0.6*(1 - k/0.15)) + ')'; ell(c, r.x, r.y - 0.6, 0.6, 0.6); c.fill(); }
+    }
+    c.restore();
+    // a thin dark rim with a wet shine along the far edge
+    puddleTrace(c, p, 0); c.strokeStyle = 'rgba(18,12,8,.55)'; c.lineWidth = 1.1; c.stroke();
+    c.save(); puddleTrace(c, p, 0); c.clip(); puddleTrace(c, p, 0); c.strokeStyle = 'rgba(220,230,240,.22)'; c.lineWidth = 1.4; c.translate(0, 1.2); c.stroke(); c.restore();
+  }
+}
+function drawRain(){
+  const c = ctx, sl = RAIN_SLANT();
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.lineCap = 'round';
+  const layers = [[0, 0.35, 'rgba(190,204,220,.2)', 0.8], [0.35, 0.72, 'rgba(200,214,228,.3)', 1], [0.72, 1.01, 'rgba(214,226,238,.42)', 1.3]];
+  for (const [z0, z1, col, lw] of layers){
+    c.strokeStyle = col; c.lineWidth = lw; c.beginPath();
+    for (const d of RAIN.drops){ if (d.z < z0 || d.z >= z1) continue; c.moveTo(d.x, d.y); c.lineTo(d.x - d.l*sl, d.y - d.l); }
+    c.stroke();
+  }
+}
+function drawMist(){
+  const c = ctx;
+  if (!mistSpr){ mistSpr = document.createElement('canvas'); mistSpr.width = mistSpr.height = 256; const g = mistSpr.getContext('2d'); const rg = g.createRadialGradient(128, 128, 0, 128, 128, 128); rg.addColorStop(0, 'rgba(225,232,240,1)'); rg.addColorStop(0.6, 'rgba(225,232,240,.35)'); rg.addColorStop(1, 'rgba(225,232,240,0)'); g.fillStyle = rg; g.fillRect(0, 0, 256, 256); }
+  // the mist is drawn small (a quarter size) and laid over the screen in one go
+  const mw = Math.max(1, Math.ceil(W/4)), mh = Math.max(1, Math.ceil(H/4));
+  if (!mistCv || mistCv.width !== mw || mistCv.height !== mh){ mistCv = document.createElement('canvas'); mistCv.width = mw; mistCv.height = mh; }
+  const g = mistCv.getContext('2d'), sz = Math.max(mw, mh);
+  g.clearRect(0, 0, mw, mh);
+  for (const m of RAIN.mist){ g.globalAlpha = m.a*(0.6 + 0.5*RAIN.k); const s = sz*m.s; g.drawImage(mistSpr, m.x*mw - s/2, m.y*mh - s*0.25, s, s*0.5); }
+  g.globalAlpha = 1;
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.drawImage(mistCv, 0, 0, W, H);
+}
+function drawGlows(){
+  const c = ctx, z = cam.z;
+  c.setTransform(DPR*z, 0, 0, DPR*z, DPR*cam.ox, DPR*cam.oy);
+  c.globalCompositeOperation = 'lighter';
+  const glow = (x, y, r, a, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + (col || '255,170,80') + ',' + a + ')'); g.addColorStop(1, 'rgba(' + (col || '255,170,80') + ',0)'); c.fillStyle = g; c.fillRect(x - r, y - r, r*2, r*2); };
+  const fl = 0.85 + Math.sin(RAIN.t*3.1)*0.06 + Math.sin(RAIN.t*7.3)*0.04;
+  glow(SHED.x - 28, SHED.y - 44, 46, 0.2*fl); glow(SHED.x - 28, SHED.y + 6, 40, 0.08*fl);
+  if (S.hive.built) glow(HIVE.x, HIVE.y - 8, 30, 0.14*fl);
+  if (S.plant.built){ const busy = STN.smelt.some(v => v != null && R[v] && R[v].st === 'smelt'); glow(PLANT.x, PLANT.y - 30, 120, (busy ? 0.2 : 0.1)*fl); glow(PLANT.x, PLANT.y + 20, 110, (busy ? 0.12 : 0.06)*fl); }
+  for (const r of R) if (r.st !== 'gone' && styleOf(r.id).lantern) glow(r.x, r.y - 40, 26, 0.18*fl);
+  if (truck.st !== 'away'){ const hx = truck.x - 82; glow(hx, LANE - 18, 30, 0.22, '255,230,170'); glow(hx - 60, LANE + 4, 70, 0.1, '255,230,170'); }
+  c.globalCompositeOperation = 'source-over';
+}
+
 function draw(){
   const c = ctx;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -5115,6 +5578,12 @@ function draw(){
   c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
   const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
+  if (RAINY){
+    // V14: wet tracks and the puddles' water (with their reflections), then what stands up out of the ground over it
+    drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);
+    if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); c.drawImage(groundTopCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
+    drawSplashes(V);
+  }
   drawSpotGlints();
   for (const l of leaves){
     if ((l.st === 'ground' || l.st === 'fade') && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){
@@ -5136,9 +5605,10 @@ function draw(){
   BUSHES.forEach((b, i) => list.push({ y: b.y, f: () => drawBushObj(i) }));
   // a shaker hugging a trunk is drawn after the tree crowns, so it stays in front of the trunk
   const onTrunk = h => h.kind === 'shaker' && h.st === 'shake' && h.target && h.target.type === 'tree';
-  for (const h of HB) if (!onTrunk(h)) list.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
+  for (const h of HB) if (!onTrunk(h) && h.st !== 'ride' && h.st !== 'gone') list.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
+  if (LOT.antsOnGround) drawBees(V);   // V14: the hollow's ants walk on the ground, under the tree crowns
   drawTruck();
   if (driver && driver.y >= LANE - 26) drawRobot(driver);   // the driver on the road side of the truck
   for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
@@ -5148,7 +5618,7 @@ function draw(){
     if (t.x + t.r < V.x0 || t.x - t.r > V.x1 || t.y + t.r*1.3 < V.y0 || t.y - t.r > V.y1) return;
     const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
     // canopies fade when a robot or miner is underneath, so nothing gets lost under a tree
-    let under = R.some(r => Math.hypot(r.x - t.x, r.y - 30 - t.y) < t.r*0.92) || HB.some(h => !onTrunk(h) && Math.hypot(h.x - t.x, h.y - 24 - t.y) < t.r*0.92) || S.miners.some(m => Math.hypot(SPOTS[m].x - t.x, SPOTS[m].y - 30 - t.y) < t.r*0.92);
+    let under = R.some(r => Math.hypot(r.x - t.x, r.y - 30 - t.y) < t.r*0.92) || HB.some(h => !onTrunk(h) && h.st !== 'gone' && Math.hypot(h.x - t.x, h.y - 24 - t.y) < t.r*0.92) || S.miners.some(m => Math.hypot(SPOTS[m].x - t.x, SPOTS[m].y - 30 - t.y) < t.r*0.92);
     if (!under && saleVisible()){ const sp = salePos(); under = Math.hypot(sp.x - t.x, sp.y - 40 - t.y) < t.r*0.95; }
     // the hive stands in front of the little corner tree, so that crown fades when it overlaps the tower
     if (!under && plantShown()){ const px = clamp(t.x, PLANT.x - 100, PLANT.x + 100), py = clamp(t.y, PLANT.y - 150, PLANT.y); under = Math.hypot(px - t.x, py - t.y) < t.r*0.8; }
@@ -5157,10 +5627,12 @@ function draw(){
     c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(cc.c, -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
   });
   for (const h of HB) if (onTrunk(h)) drawShaker(h);
-  drawBees(V);
+  if (!LOT.antsOnGround) drawBees(V);
+  if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const f of fgLeaves){ const fx = Math.cos(f.ph); drawLeaf(c, f.x, f.y, f.s, f.rot, f.ci, f.sh, Math.abs(fx) < 0.15 ? 0.15 : fx, 1, 0.92, fx < 0 ? 0.2 : 0); }
   c.drawImage(vignetteCv, 0, 0, W, H);
+  if (RAINY){ if (!DBG.includes('nomist')) drawMist(); if (!DBG.includes('noglow')) drawGlows(); c.setTransform(DPR, 0, 0, DPR, 0, 0); }
   drawBubbles();
   drawTimers();
   drawMarkers();
@@ -5179,33 +5651,44 @@ function updHud(dt){
   updGoalHud(dt);
   updTestPanel();
 }
-// V13.4: the goal pill: an icon, how far along (12 / 300, or $12 / $100), a thin progress bar, and the goal itself on
-// hover or tap. Once reached it turns green with a tick for a few seconds.
+// V13.4: a goal pill: an icon, how far along (12 / 300, or $12 / $100), a thin progress bar, and the goal itself on
+// hover or tap. Once reached it turns green with a tick. V14: there can be several at once, stacked (#hGoals); quests
+// in a group say what they are right on the pill ("Buy a bigger yard"), and a yes/no quest has no numbers.
 function updGoalHud(dt){
   if (goalRt.pending > 0 && !pops.some(p => p.toHud && !p.got)) goalRt.pending = 0;   // nothing in the air any more (a reset or a reload)
-  const el = $('hGoal'), g = goalNow();
   if (goalRt.bumpT > 0) goalRt.bumpT -= dt;
-  if (goalRt.tipT > 0) goalRt.tipT -= dt;
-  if (!g){ if (!el.hidden){ el.hidden = true; goalRt.sig = ''; } return; }
-  const h = g.m.hud, v = Math.min(h.of, h.val()), k = g.done ? 1 : clamp(v/h.of, 0, 1);
-  const txt = g.done ? (h.cash ? '$' + h.of : h.of) + ' / ' + (h.cash ? '$' + h.of : h.of) : h.cash ? '$' + Math.floor(v) + ' / $' + h.of : Math.floor(v) + ' / ' + h.of;
-  const sig = g.m.id + '|' + g.done;
-  if (sig !== goalRt.sig){
-    goalRt.sig = sig; goalRt.txt = ''; el.hidden = false;
-    el.innerHTML = '<span class="gi">' + ic(h.icon) + '</span><span class="gv"></span>' + (g.done ? '<span class="gok">' + ic('tick') + '</span>' : '') +
-      '<i class="gbar"><b></b></i><span class="gtip">Goal: ' + sayT(g.m.goal) + '</span>';
-    el.classList.toggle('done', g.done);
-  }
-  if (txt !== goalRt.txt){
-    goalRt.txt = txt; el.querySelector('.gv').textContent = txt; el.querySelector('.gbar b').style.width = (k*100).toFixed(1) + '%';
-    el.setAttribute('aria-label', 'Goal: ' + sayT(g.m.goal) + ', ' + txt);
-  }
-  el.classList.toggle('bump', goalRt.bumpT > 0);
-  el.classList.toggle('open', goalRt.tipT > 0);
+  if (goalRt.tipT > 0) goalRt.tipT -= dt; else goalRt.tip = null;
+  const box = $('hGoals'), list = goalList(), want = new Set(list.map(g => g.m.id));
+  for (const id in goalRt.els) if (!want.has(id)){ goalRt.els[id].remove(); delete goalRt.els[id]; }
+  list.forEach((g, i) => {
+    const m = g.m, h = m.hud, id = m.id;
+    let el = goalRt.els[id];
+    if (!el){
+      el = goalRt.els[id] = document.createElement('div'); el.className = 'stat goal'; el.setAttribute('role', 'button'); el.dataset.id = id;
+      el.addEventListener('pointerdown', e => { e.stopPropagation(); if (goalRt.tip === id && goalRt.tipT > 0){ goalRt.tip = null; goalRt.tipT = 0; } else { goalRt.tip = id; goalRt.tipT = 3.5; } });
+    }
+    if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null);
+    const v = h.bool ? (g.done ? 1 : 0) : Math.min(h.of, h.val()), k = g.done ? 1 : h.bool ? 0 : clamp(v/h.of, 0, 1);
+    const num = h.bool ? '' : g.done && !m.live ? (h.cash ? '$' + h.of.toLocaleString('en-US') : h.of) + ' / ' + (h.cash ? '$' + h.of.toLocaleString('en-US') : h.of)
+      : h.cash ? '$' + Math.floor(v).toLocaleString('en-US') + ' / $' + h.of.toLocaleString('en-US') : Math.floor(v) + ' / ' + h.of;
+    const goal = sayT(m.goal), named = !!m.group, txt = named ? goal + (num ? ' · ' + num : '') : num;
+    const sig = id + '|' + g.done + '|' + goal;
+    if (el._sig !== sig){
+      el._sig = sig; el._txt = '';
+      el.innerHTML = '<span class="gi">' + ic(h.icon) + '</span><span class="gv"></span>' + (g.done ? '<span class="gok">' + ic('tick') + '</span>' : '') +
+        '<i class="gbar"><b></b></i><span class="gtip">' + (named ? 'Quest: ' : 'Goal: ') + goal + '</span>';
+      el.classList.toggle('done', g.done); el.classList.toggle('named', named); el.classList.toggle('nobar', !!h.bool);
+    }
+    if (txt !== el._txt){
+      el._txt = txt; el.querySelector('.gv').textContent = txt; el.querySelector('.gbar b').style.width = (k*100).toFixed(1) + '%';
+      el.setAttribute('aria-label', (named ? 'Quest: ' : 'Goal: ') + goal + (num ? ', ' + num : '') + (g.done ? ', done' : ''));
+    }
+    el.classList.toggle('bump', goalRt.bumpT > 0 && (id === 'honey' || id === goalRt.doneId));
+    el.classList.toggle('open', goalRt.tip === id && goalRt.tipT > 0);
+  });
 }
-// where the number flying up to the goal pill lands (on the icon), in canvas pixels
-function goalPt(){ const r = $('hGoal').getBoundingClientRect(); return r.width ? { x: r.left + 18, y: r.top + r.height/2 } : { x: 30, y: 70 }; }
-$('hGoal').addEventListener('pointerdown', e => { e.stopPropagation(); goalRt.tipT = goalRt.tipT > 0 ? 0 : 3.5; });
+// where the number flying up to a goal pill lands (on its icon), in canvas pixels
+function goalPt(id){ const el = goalRt.els[id || 'honey'], r = el && el.getBoundingClientRect(); return r && r.width ? { x: r.left + 18, y: r.top + r.height/2 } : { x: 30, y: 70 }; }
 // V13.8: tap the cash 3 times within 2 seconds to open the test panel: add money, or trigger the next story step.
 const cheat = { n: 0, first: 0, last: 0 };
 $('hCash').addEventListener('pointerdown', e => {
@@ -5230,12 +5713,20 @@ function nextStep(){
   if (li >= 0) return { label: 'Read the letter', run: () => readLetter(li) };
   if (S.post.length || driver) return { label: 'Bring the letter now', run: callTruck };
   if (S.trip){
-    if (tripHolder()) return { label: 'Call the truck', run: callTruck };
-    const i = S.robots.findIndex(tripFor);
-    if (i < 0) return null;
-    return { label: 'Send ' + styleOf(i).name + ' on the trip', run: () => { const c = S.robots[i]; taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged('robot', i); callTruck(); } };
+    // V14: everyone who goes in Do, the money in hand, then the truck
+    const send = [];
+    for (const kind of tripKinds()){ if (tripHolder(kind)) continue; const i = cfgsOf(kind).findIndex(tripFor); if (i < 0) return kind === 'blower' ? { label: 'Build a blower for the trip', run: () => { S.cash += helperCost('blower'); S.peak = Math.max(S.peak, S.cash); buy({ id:'blower', obj:'shed', cost: helperCost('blower') }); } } : null; send.push([kind, i]); }
+    if (send.length){
+      const names = send.map(([kind, i]) => kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name);
+      return { label: 'Send ' + names.join(' and ') + ' on the trip', run: () => { for (const [kind, i] of send){ const c = cfgsOf(kind)[i]; taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged(kind, i); } callTruck(); } };
+    }
+    if (!tripCashOK()) return { label: 'Get the travel money', run: () => { S.cash = Math.max(S.cash, S.trip.cash); S.peak = Math.max(S.peak, S.cash); } };
+    return { label: 'Call the truck', run: callTruck };
   }
-  if (S.flags.fareOpen && S.miles.fare == null) return { label: 'Get the travel money', run: () => { S.cash = Math.max(S.cash, TRIP_CASH); } };
+  if (LOT_ID === 'home' && hiveKnown() && !S.hive.built) return { label: 'Build the beehive', run: () => { S.cash += hiveCost(); S.peak = Math.max(S.peak, S.cash); S.flags.hiveShown = true; buy({ id:'hive', obj:'hive', cost: hiveCost() }); } };
+  if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter) return { label: 'Finish the quests', run: () => {
+    if (S.miles.qYard == null) S.miles.qYard = Math.round(S.t); if (S.miles.qMine == null) S.miles.qMine = Math.round(S.t);
+    S.cash = Math.max(S.cash, HOLLOW_CASH); S.peak = Math.max(S.peak, S.cash); } };
   const item = st.item || 'book', what = item === 'bee' ? 'the dead bee' : 'the book';
   if (!st.found){
     const mile = MILESTONES.find(m => m.on && (m.lot || 'home') === LOT_ID && m.goal && S.miles[m.id] == null && (m.id === 'book' || m.id === 'bee'));
@@ -5246,7 +5737,7 @@ function nextStep(){
       const O = owned(); findBook(r, { x: clamp(r.x, O.x0 + 40, O.x1 - 40), y: Math.min(FIND_ABOVE - 40, Math.max(O.y0 + 30, r.y)) });
     } };
   }
-  if (!st.done) return { label: 'Finish researching ' + what, run: finishResearch };
+  if (st.found && !st.done) return { label: 'Finish researching ' + what, run: finishResearch };
   if (LOT_ID === 'home' && S.miles.letter == null) return { label: 'Earn enough for the letter', run: () => { S.totals.cash = Math.max(S.totals.cash || 0, LETTER_EARNED); } };
   if (LOT_ID === 'prairie' && S.miles.honey == null) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };
   return null;
@@ -5449,14 +5940,16 @@ function upRow(k, extra){
 const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '') + '>' + h + '</span>';
 
 // ── robot upgrade tracks
-const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke' };
+const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke', brolly:'brolly' };
 const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
   drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills and wraps jars, and smelts', blow:'How hard it blows (range, push and glide)',
-  study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows' };
+  study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows',
+  brolly:'Lets it hold the big wood umbrella over a robot hauling dry wood, so none of it gets wet on the way' };
 const TRACK_VAL = {
   speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
   drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small>×2</small>'], pack: v => [v.toFixed(2) + '×', ''],
   study: v => [RESEARCH_MAIN*v, '<small>/s</small>'], blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
+  brolly: v => [v ? 'yes' : 'no', ''],
 };
 function robotRow(ri, k, kind){
   kind = kind || 'robot';
@@ -5629,7 +6122,7 @@ function taskListChanged(kind, i){
     if (r && ['wander', 'rest', 'seek', 'toStation', 'toMine', 'toTub', 'toRack', 'wait', 'waitI', 'toCurb', 'curb', ...RESEARCH_STATES].includes(r.st) || (r && r.st === 'mine' && !taskOn(cfg, 'mine'))){ release(r); r.st = 'idle'; r.mineP = 0; }
   } else {
     const h = HB.find(q => q.kind === kind && q.idx === i);
-    if (h && (['wander', 'rest', 'go'].includes(h.st) || (h.st === 'lap' && !taskOn(cfg, 'blow')) || (h.st === 'dig' && !taskOn(cfg, 'dig')))){ h.target = null; h.st = 'idle'; }
+    if (h && (['wander', 'rest', 'go', 'toCurb', 'curb'].includes(h.st) || (taskOn(cfg, 'travel') && ['lap', 'dig', 'stoke', 'brolly'].includes(h.st)) || (h.st === 'lap' && !taskOn(cfg, 'blow')) || (h.st === 'dig' && !taskOn(cfg, 'dig')))){ h.target = null; h.st = 'idle'; }
   }
   save();
 }
@@ -5706,7 +6199,7 @@ function cardModel(){
   const k = cardOpen.kind, rows = [], rows2 = [];
   let title = '', tag = '', live = '', top = '', foot = '', tabs = null, head = HEAD_ICON[k] || '';
   if (k === 'robot' || k === 'blower' || k === 'shaker'){
-    const i = cardOpen.i, st = k === 'robot' ? styleOf(i) : (k === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[i];
+    const i = cardOpen.i, st = k === 'robot' ? styleOf(i) : helperStyleOf(k, i);
     title = st.name; live = k === 'robot' ? 'robot' : 'helper'; head = 'portrait';
     const tp = tasksPanel(k, i);
     if (tp) tabs = { peek: tasksPeek(k, i) };
@@ -5746,7 +6239,7 @@ function cardModel(){
     if (n < ROBOT_MAX){ const ns = STYLES[nextStyle()]; rows.push(buyRow('Build ' + ns.name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', robotCost(n), '', ic('robot'), ns.blurb)); }
     else rows.push(buyRow('Robots', 'all <b>' + ROBOT_MAX + '</b> built', 'robot', 0, 'done', ic('robot')));
     for (const kind of ['blower', 'shaker']) if (helperShown(kind)){
-      const m = cfgsOf(kind).length, stl = (kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES)[m];
+      const m = cfgsOf(kind).length, stl = HELPER_LOOKS(kind)[nextHelperStyle(kind)];
       rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a blower: pushes leaves to the bin' : 'a shaker: more leaves from trees', kind, helperCost(kind), '', ic(kind === 'blower' ? 'elephant' : 'crab'), (kind === 'blower' ? 'A blower: blows far-off leaves toward the bin. ' : 'A shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
     } else if (cfgsOf(kind).length >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', ic(kind === 'blower' ? 'elephant' : 'crab')));
     if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
@@ -5823,8 +6316,16 @@ function cardModel(){
       rows2.push(crewRow('haul', 'Haulers', 'haul', ri => ingotCarry(ri) + '<small>/trip</small>'));
       const sk = stoker(), learnt = S.blowers.some(b => b.lv.stoke > 0);
       rows2.push({ sig:'stk' + (sk ? sk.idx + hv(sk, 'stoke') : '-') + learnt + S.blowers.length, html: row({ icon: ic('stoke'), name:'Bellows', cls:'crewrow',
-        val: sk ? BLOWER_STYLES[sk.idx].name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + 'Bellows</span> to a blower' : S.blowers.length ? 'a blower can learn it (Bellows, on its card)' : 'build a blower to work it') + '</span>',
+        val: sk ? helperStyle(sk).name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + 'Bellows</span> to a blower' : S.blowers.length ? 'a blower can learn it (Bellows, on its card)' : 'build a blower to work it') + '</span>',
         tip:'A blower working the bellows makes every smelter faster' }) });
+      if (WET_WOOD){
+        // V14: who's carrying the wood umbrella, and how much dry wood the rain has soaked so far
+        const ub = HB.filter(h => h.kind === 'blower' && h.st === 'brolly'), ul = S.blowers.some(b => b.lv.brolly > 0), soaked = S.totals.soaked || 0;
+        rows2.push({ sig:'brl' + ub.map(h => h.idx).join(',') + ul + soaked + S.blowers.length, html: row({ icon: ic('brolly'), name:'Wood umbrella', cls:'crewrow',
+          val: (ub.length ? ub.map(h => helperStyle(h).name).join(', ') + ' <span class="gain">keeps the wood dry</span>' : '<span class="none">' + (ul ? 'nobody carrying it · add <span class="chip mini" style="--tc:' + TASKS.brolly.col + '">' + ic('brolly') + 'Umbrella</span> to a blower' : S.blowers.length ? 'a blower can learn it (Umbrella, on its card)' : 'build a blower to carry it') + '</span>')
+            + (soaked ? '<br><small>' + ic('wet') + soaked + ' bundles soaked in the rain so far</small>' : ''),
+          tip:'Dry bundles get wet on the long walk to the road. A soaked bundle goes back in the log crib as two wet logs. A blower carrying the wood umbrella beside a hauler keeps its load dry' }) });
+      }
     }
   } else if (k === 'sound'){
     const P = SND.prefs;
@@ -5852,16 +6353,21 @@ function cardModel(){
     const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
     title = L ? L.title : 'A letter'; head = 'letter';
     if (L) top = '<div class="letter"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>' + (L.note ? '<div class="lnote">' + ic('info') + '<span>' + L.note() + '</span></div>' : '');
-    if (l && l.id === 'newLot' && S.flags.fareOpen && !S.trip && S.miles.fare == null)
-      rows.push({ sig:'fare' + Math.floor(S.cash), html: row({ icon: ic('coin'), name:'Travel money', tip:'Once you have $' + TRIP_CASH + ', it’s packed for the trip and the robot that goes starts the new yard with it',
-        val: cash2(S.cash) + ' of $' + TRIP_CASH }) });
     if (S.trip){
-      const h = tripHolder(), hi = h ? S.robots.indexOf(h) : -1, cand = S.robots.findIndex(tripFor);
+      // V14: one row for each one who goes (a robot, and maybe a blower), and one for the travel money
       const chip = '<span class="chip mini" style="--tc:' + TASKS.travel.col + '">' + ic('travel') + TASKS.travel.short + '</span>';
-      const whose = S.trip.to === 'home' && cand >= 0 ? styleOf(cand).name + '’s' : 'a robot’s';
-      rows.push({ sig:'trip' + hi + (hi >= 0 ? R[hi] && R[hi].st : ''), html: row({ icon: ic('travel'), name: TASKS.travel.name,
-        tip:'The robot waits at the curb and hops into the back of the truck at the next pickup' + (S.trip.bee ? ', and a bee comes along' : ''),
-        val: hi >= 0 ? styleOf(hi).name + (R[hi] && (R[hi].st === 'curb' || R[hi].st === 'toCurb') ? ' is waiting for the truck' : ' will go with the next pickup') : '<span class="none">add ' + chip + ' to ' + whose + ' Do list</span>' }) });
+      for (const kind of tripKinds()){
+        const h = tripHolder(kind), list = cfgsOf(kind), hi = h ? list.indexOf(h) : -1, cand = list.findIndex(tripFor), o = h && runtimeOf(kind, h);
+        const nm = i => kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
+        const whose = cand < 0 ? null : (S.trip.to === 'home' || (kind === 'robot' && S.trip.who != null)) ? nm(cand) + '’s' : kind === 'blower' ? 'a blower’s' : 'a robot’s';
+        const st = o && o.st, val = hi >= 0 ? nm(hi) + (st === 'curb' ? ' is waiting at the curb' : st === 'toCurb' ? ' is on its way to the curb' : !tripCashOK() ? ' goes once the money is there' : ' will go with the next pickup')
+          : whose ? '<span class="none">add ' + chip + ' to ' + whose + ' Do list</span>' : '<span class="none">' + (kind === 'blower' ? 'build a blower in the workshop first' : 'no robot can go') + '</span>';
+        rows.push({ sig:'trip' + kind + hi + st + tripCashOK(), html: row({ icon: ic(kind === 'blower' ? 'blow' : 'travel'), name: TASKS.travel.name + (tripKinds().length > 1 ? (kind === 'blower' ? ' · blower' : ' · robot') : ''),
+          tip:'Waits at the curb and hops into the back of the truck at the next pickup' + (tripKinds().length > 1 ? ', once both are there' : '') + (S.trip.bee ? ', and a bee comes along' : ''), val }) });
+      }
+      if (S.trip.cash && !S.trip.paid) rows.push({ sig:'fare' + Math.floor(S.cash) + tripCashOK(), html: row({ icon: ic('coin'), name:'Travel money', cls: tripCashOK() ? '' : 'soon',
+        tip:'The robots only head for the curb while you hold ' + cash2(S.trip.cash).replace('.00', '') + '. It comes out of your cash when they climb into the truck, and the new yard starts with it.',
+        val: (tripCashOK() ? '<b>' + cash2(S.trip.cash).replace('.00', '') + '</b> ready' : cash2(S.cash) + ' of ' + cash2(S.trip.cash).replace('.00', '')) }) });
     }
   } else if (k === 'sale'){
     const A = AREAS[S.land + 1], cur = AREAS[S.land], newSpots = SPOTS.filter(p => p.land === S.land + 1).length;
@@ -5890,7 +6396,7 @@ function cardModel(){
       if (shaft){
         const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i), learnt = S.blowers.some(b => b.lv.dig > 0);
         rows.push({ sig:'ex' + (ex ? ex.idx + hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A blower sucking the dirt out makes mining here faster',
-          val: ex ? BLOWER_STYLES[ex.idx].name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + 'Dig</span> to a blower' : S.blowers.length ? 'a blower can learn it (Excavate, on its card)' : 'build a blower to dig here') + '</span>' }) });
+          val: ex ? helperStyle(ex).name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + 'Dig</span> to a blower' : S.blowers.length ? 'a blower can learn it (Excavate, on its card)' : 'build a blower to dig here') + '</span>' }) });
       }
     } else {
       title = 'Metal vein';
@@ -5983,8 +6489,11 @@ function liveHTML(kind){
   if (kind === 'helper'){
     const h = HB.find(q => q.kind === cardOpen.kind && q.idx === cardOpen.i); if (!h) return '';
     let s;
-    if (h.kind === 'blower'){
+    const trav = { toCurb: 'To the curb', curb: 'Waiting for the truck', hopIn: 'Riding the truck', hopOut: 'Riding the truck', ride: 'Riding the truck' }[h.st];
+    if (trav) s = ['travel', trav];
+    else if (h.kind === 'blower'){
       s = h.st === 'stoke' ? ['stoke', 'Bellows <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', 'Excavating <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
+        : h.st === 'brolly' ? ['brolly', h.brolly >= 0 && R[h.brolly] ? 'Umbrella over ' + styleOf(h.brolly).name : 'Waiting with the umbrella']
         : h.st === 'go' && h.task === 'stoke' ? ['stoke', 'To the plant'] : h.st === 'go' && h.task === 'dig' ? ['dig', 'To a shaft'] : h.st === 'lap' ? ['blow', h.lap ? 'Blowing · lap ' + (h.lap + 1) : 'Blowing along the fence']
         : h.st === 'go' ? ['blow', 'To the next lap'] : ['clock', 'Waiting for leaves'];
     } else {
@@ -6135,7 +6644,7 @@ card.addEventListener('click', e => {
   else if (act === 'land'){ if (landForSale()) buy({ id:'land', obj:'sale', cost:AREAS[S.land + 1].cost }); return; }
   else if (act === 'bagger'){ if (!S.bag.built) buy({ id:'bagger', obj:'bagger', cost:BAGGER_COST }); }
   else if (act === 'honeyPack'){ if (S.hive.built && !S.hive.packing) buy({ id:'honeyPack', obj:'hive', cost:HONEY_PACK_COST }); }
-  else if (act === 'plant'){ if (!S.plant.built) buy({ id:'plant', obj:'plant', cost:PLANT_COST }); }
+  else if (act === 'plant'){ if (!S.plant.built && plantShown()) buy({ id:'plant', obj:'plant', cost:PLANT_COST }); }
   else if (act === 'shaft'){ if (S.miners.includes(i) && !S.shafts.includes(i)) buy({ id:'shaft', arg:i, obj:'spot'+i, cost:shaftCost() }); }
   else if (act.startsWith('release:')){ const w = +act.slice(8); if (S.robots[w] && S.robots[w].miner === i) unassign(w); }
   else if (act === 'send'){ const p = SPOTS[i]; const cand = R.filter(r => S.robots[r.id].miner == null).sort((a,b) => Math.hypot(a.x-p.x,a.y-p.y) - Math.hypot(b.x-p.x,b.y-p.y))[0]; if (cand) assign(cand.id, i); }
@@ -6161,12 +6670,12 @@ function hit(x, y){
   }
   for (const r of [...R].sort((a,b) => b.y - a.y)){ if (r.st === 'gone') continue; const st = styleOf(r.id); if (Math.abs(x - r.x) < st.tw/2 + 8 && y < r.y + 10 && y > r.y - 62 && !hiddenBehind(r, x, y)) return ['robot', r.id]; }
   if (S.hive.built && Math.abs(x - CRATE.x) < 25 && y > CRATE.y - 62 && y < CRATE.y + 6) return ['hive'];
-  if (hiveShown()){ const top = S.hive.built ? hiveTopZ() + 24 : 52; if (x > HIVE.x - 24 && x < HIVE.x + (S.hive.built ? 30 : 48) && y > HIVE.y - top && y < HIVE.y + 8) return ['hive']; }
+  if (hiveShown()){ const top = S.hive.built ? hiveTopZ() + 24 : 52; if (x > HIVE.x - (S.hive.built && LOT.hiveWide ? 48 : 24) && x < HIVE.x + (S.hive.built ? (LOT.hiveWide ? 46 : 30) : 48) && y > HIVE.y - top && y < HIVE.y + 8) return ['hive']; }
   if (Math.abs(x - SHED.x) < 58 && y > SHED.y - 98 && y < SHED.y - 44) return ['shed'];   // the shed's walls and roof win over a helper parked in front
   if (plantShown() && x > PLANT.x - 104 && x < PLANT.x + 104 && y > PLANT.y - (S.plant.built ? 120 : 60) && y < PLANT.y + 8) return ['plant'];
   if (S.plant.built && Math.abs(x - PALLET.x) < 28 && y > PALLET.y - 44 && y < PALLET.y + 6) return ['plant'];
   if (baggerShown() && Math.abs(x - BAGGER.x) < 32 && y > BAGGER.y - (S.bag.built ? 48 : 60) && y < BAGGER.y + 6) return ['bagger'];
-  for (const h of [...HB].sort((a,b) => b.y - a.y)){ const w = helperStyle(h).bw/2 + (h.kind === 'blower' ? 12 : 20), top = h.kind === 'blower' ? 48 : 50; if (Math.abs(x - h.x) < w && y < h.y + 9 && y > h.y - top) return [h.kind, h.idx]; }
+  for (const h of [...HB].filter(q => q.st !== 'gone' && q.st !== 'ride').sort((a,b) => b.y - a.y)){ const w = helperStyle(h).bw/2 + (h.kind === 'blower' ? 12 : 20), top = h.kind === 'blower' ? 48 : 50; if (Math.abs(x - h.x) < w && y < h.y + 9 && y > h.y - top) return [h.kind, h.idx]; }
   if (saleVisible()){ const p = salePos(); if (Math.abs(x - p.x) < 38 && y > p.y - 80 && y < p.y + 6) return ['sale']; }
   if (truck.st !== 'away' && x > truck.x - 88 && x < truck.x + 76 && y > LANE - 56 && y < LANE + 8) return ['sign'];
   if (x > BIN.x - 44 && x < BIN.x + (S.metalSlot ? 80 : 44) && y > BIN.y - 64 && y < BIN.y + 8) return ['bin'];
@@ -6361,6 +6870,7 @@ function load(data){
       else if (kind === 'shaker' && h.job === 'flower') c.prio = [['snip'], ['shake']];
       else if (kind === 'shaker') c.prio = [['shake']];
       else c.prio = [['blow']];
+      if (h.sty != null) c.sty = h.sty; if (h.home != null) c.home = h.home; if (h.away) c.away = h.away;   // V14: helpers travel too
       return tasksFix(c, kind);
     });
     S.shafts = (src.shafts || []).filter(sp => S.miners.includes(sp));
@@ -6435,6 +6945,10 @@ function load(data){
     if (!src.peak) S.peak = Math.max(S.cash, 0);
     if (!S.robots.length) S.robots = [newRobotCfg()];
     S.land = clamp(S.land | 0, 0, AREAS.length - 1);
+    // V14: the travel money no longer comes out when it's first reached: a save that was still saving up for the prairie
+    // gets the trip opened now, with the $100 to be taken at the truck
+    if (S.flags.fareOpen && !S.trip && S.miles.fare == null && !S.flags.fare && LOT_ID === 'home' && !S.robots.some(c => c.away)) openTrip({ to: 'prairie', cash: TRIP_CASH }, true);
+    if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
   }
 }
 function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
@@ -6442,7 +6956,7 @@ function hardReset(){
   // V13: starting over wipes every lot and goes back to the first yard
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
-  delete WORLD.arrive; driver = null; guest.on = false; truck.rider = null; truck.arriving = false;
+  delete WORLD.arrive; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
   S = freshState(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
@@ -6471,9 +6985,10 @@ function frame(ts){
   updCamFollow(dt);
   if (!camAnim && performance.now() - camMovedT > 140 && !groundCovers()) buildGround({ z: cam.z, ox: cam.ox, oy: cam.oy });
   updHud(dt);
-  if (SND){ SND.update(dt, wind); ambientChatter(dt); }
+  if (SND){ SND.update(dt, wind); if (RAINY && SND.rain) SND.rain(dt, RAIN.k); ambientChatter(dt); }
   if (cardOpen){ renderCard(false); if ((seenT -= dt) <= 0){ seenT = 0.25; markSeen(); } }
   updHints(dt);
+  if (RAINY) updRain(dt*TIME_SCALE);
   draw();
   requestAnimationFrame(frame);
 }
@@ -6501,9 +7016,9 @@ window.__leafYard = {
     opts = opts || {};
     simMode = true;
     const keep = { S, R, HB, B, leaves, parts, pops, tst: truck.st, fl: FLOWERS.map(f => [f.full, f.t, f.claim]), stn: JSON.stringify(STN), bk: Object.assign({}, bookRt),
-      drv: driver, gst: Object.assign({}, guest), rider: truck.rider, arr: truck.arriving };
+      drv: driver, gst: Object.assign({}, guest), riders: truck.riders, arr: truck.arriving };
     S = freshState(); R = []; HB = []; B = []; truck.st = 'away'; parts = []; pops = []; resetStations(); seedLeaves();
-    driver = null; guest.on = false; truck.rider = null; truck.arriving = false;
+    driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
     bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
     for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
     if (opts.setup) opts.setup(S);
@@ -6533,7 +7048,7 @@ window.__leafYard = {
     const out = { blown: S.totals.blown || 0, near, groundAll: gl0.length, avgD: Math.round(gl0.reduce((a, l) => a + Math.hypot(l.x - BIN.x, l.y - BIN.y), 0)/Math.max(1, gl0.length)), log, t:S.t, cash:S.cash, land:S.land, robots:S.robots.map(r => r.lv), extra:{ blowers:S.blowers.map(b => b.lv), shakers:S.shakers.map(b => b.lv), lv:S.lv }, miners:S.miners.length, totals:S.totals, miles:S.miles, story:S.story, tech:Object.keys(S.tech), jobs:S.robots.map(r => r.prio.map(row => row.join('+')).join(' > ')) };
     S = keep.S; R = keep.R; HB = keep.HB; B = keep.B; leaves = keep.leaves; parts = keep.parts; pops = keep.pops; truck.st = keep.tst; simMode = false;
     Object.assign(bookRt, keep.bk);
-    driver = keep.drv; Object.assign(guest, keep.gst); truck.rider = keep.rider; truck.arriving = keep.arr;
+    driver = keep.drv; Object.assign(guest, keep.gst); truck.riders = keep.riders; truck.arriving = keep.arr;
     { const st = JSON.parse(keep.stn); for (const k in STN) STN[k] = st[k]; }
     FLOWERS.forEach((f, i) => { [f.full, f.t, f.claim] = keep.fl[i]; });
     return out;
@@ -6564,11 +7079,27 @@ function devTraveller(){
   for (const k of DEV_TRAVELLER.tech) S.tech[k] = true;
   S.cash = S.peak = TRIP_CASH;
   S.lv.truck = DEV_TRAVELLER.truck; S.lv.cleanup = DEV_TRAVELLER.cleanup; S.flags.helpers = true; S.flags.research = true;
+  if (LOT.tripHome){
+    // V14 (?fresh&lot=hollow): Tinker and a blower, like a crew sent from a first yard with a hive, a meadow and a mine
+    Object.assign(c.lv, { speed: 9, carry: 11, pick: 7, grab: 4, reach: 4, drill: 3, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe', 'turbine']) S.tech[k] = true;
+    const b = newHelperCfg('blower'); b.home = 0; Object.assign(b.lv, { speed: 6, blow: 4 }); S.blowers = [b];
+    S.cash = S.peak = HOLLOW_CASH; S.lv.truck = 3;
+    openTrip({ to: 'home', crew: ['robot', 'blower'], earned: LOT.tripHome.earned }, true);
+  }
 }
 function start(data){
+  // V14: a lot can change a few robots' looks (the hollow's umbrellas) and task colours
+  if (LOT.styles) for (const k in LOT.styles) Object.assign(STYLES[k], LOT.styles[k]);
+  if (LOT.taskCols) for (const k in LOT.taskCols) if (TASKS[k]) TASKS[k].col = LOT.taskCols[k];
   // the helpers lot files use (see public/lots/); they only call them once the game is running
-  Object.assign(LH, { ell, rr, TAU, clamp, lerp, mulberry, cellRnd, shade, leafPath, leafBlob, drawLeaf, LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE,
-    drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, gl, S: () => S, flowerSpr: () => flowerSpr });
+  Object.assign(LH, { ell, rr, TAU, clamp, lerp, ease, rand, mulberry, cellRnd, shade, leafPath, leafBlob, scallop, drawLeaf, chalk, keepMark, drawPlot,
+    LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE, HIVE, TUB, PALLET, PLANT_VENT, HOPPER, RACK, RACK_CAP, mainCtx, reduceMotion,
+    drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, puddleTrace, puddleAt, gl, flowerSpr: () => flowerSpr,
+    hiveShown, hiveFloors, hiveTopZ, honeyCap, tankCap, tankFull, beeSip, hiveRt, plantRt, STN, stoker, minerWorkers, palletCap, plantShown,
+    hopperCap, metalPerIngot, metalCap, tubRoom, keepMetal });
+  for (const [k, f] of Object.entries({ S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
+    parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck })) Object.defineProperty(LH, k, { get: f, enumerable: true });
+  LH_READY = true;
   load(data);
   // V13: arriving from another lot (or, for testing, a new lot with nobody arriving)
   let A = null;
