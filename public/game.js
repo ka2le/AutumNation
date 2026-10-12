@@ -331,7 +331,7 @@ const DISCOUNT = 0.5;
 const NO_DISCOUNT = ['pack'];   // V7: packing levels are always bought at full price
 
 const STYLES = [
-  { name:'Tinker',  blurb:'The original yard bot. Dusty, squeaky, never complains.', body:'#d6c9ab', body2:'#a39376', head:'#e0d4b8', head2:'#b4a586', band:'#5f8f88', bw:24, bh:22, hw:18, hh:13, tw:28, rust:.8, dust:true },
+  { name:'Tinker',  blurb:'The original yard bot. Dusty, squeaky, wears an old tin bucket for a hat, never complains.', body:'#cfc09f', body2:'#94825f', head:'#e0d4b8', head2:'#b4a586', band:'#5f8f88', bw:24, bh:22, hw:18, hh:13, tw:28, rust:1, dust:true, look:'bucket' },   // V14.2: the bucket hat (ROBOT_LOOKS)
   { name:'Pip',     blurb:'Slim and quick. Rebuilt from a lawnmower and a toaster.', body:'#e8e2d1', body2:'#bcb39d', head:'#efe9d9', head2:'#c5bca6', band:'#d9a43a', bw:18, bh:26, hw:16, hh:14, tw:22, rust:.3, slim:true },
   { name:'Clunk',   blurb:'Built like a mailbox. Heavy treads, steady pace.',        body:'#c9b99b', body2:'#8c7b5f', head:'#d3c5a8', head2:'#a29173', band:'#b8452d', bw:32, bh:21, hw:21, hh:13, tw:38, rust:.6, chunky:true },
   { name:'Rivet',   blurb:'Patched together from three other robots. Rough, but it works.', body:'#bbb4a2', body2:'#7d7668', head:'#c7c0ae', head2:'#8b8474', band:'#6f7d3c', bw:25, bh:22, hw:18, hh:13, tw:28, rust:1, patches:true },
@@ -522,6 +522,22 @@ function tripFor(cfg){
 }
 const tripHolder = (kind = 'robot') => (cfgsOf(kind) || []).find(c => tripFor(c) && taskOn(c, 'travel')) || null;
 const tripCashOK = () => !S.trip || !S.trip.cash || !!S.trip.paid || S.cash >= S.trip.cash;
+// V14.1: a crew member waiting at the curb for the rest of the crew: who it's waiting for ('the blower', 'Tinker'), or ''
+function crewWaitFor(cfg){
+  if (!S.trip || tripKinds().length < 2 || !cfg || !taskOn(cfg, 'travel')) return '';
+  const kind = kindOfCfg(cfg), me = runtimeOf(kind, cfg);
+  if (!me || me.st !== 'curb') return '';
+  for (const k of tripKinds()){
+    if (k === kind) continue;
+    const h = tripHolder(k), o = h && runtimeOf(k, h);
+    if (o && o.st === 'curb') continue;
+    if (k === 'robot'){ const i = h ? S.robots.indexOf(h) : S.trip.who != null ? S.trip.who : S.robots.findIndex(tripFor); return i >= 0 ? styleOf(i).name : 'a robot'; }
+    return h ? 'the ' + k : 'a ' + k;
+  }
+  return '';
+}
+const taskShort = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : ''; return TASKS[t].short + (w ? ' - waiting for ' + w : ''); };
+const taskName = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : ''; return TASKS[t].name + (w ? ' - waiting for ' + w : ''); };
 function tasksFix(cfg, kind){
   // every task of this kind appears exactly once, in Do or in Don't; rows hold at most two
   const all = KIND_TASKS[kind], seen = new Set();
@@ -1920,7 +1936,7 @@ function updGuest(dt){
 }
 // leaving: everything this lot hands on goes into WORLD.arrive, this lot is saved as it is, and the page reloads into
 // the other lot (it stays paused until you come back)
-function travel(){
+function travel(quick){
   const T = truck, trip = S.trip || { to: 'prairie' };
   const crew = T.riders.map(o => { const kind = o.kind || 'robot', i = kind === 'robot' ? o.id : o.idx; return { kind, i, cfg: cfgsOf(kind)[i] }; }).filter(q => q.cfg);
   if (!crew.length){ T.riders = []; return; }
@@ -1939,8 +1955,8 @@ function travel(){
   if (FRESH){ FRESH_SAVES[KEY] = json; try { sessionStorage.setItem(HOP_KEY, JSON.stringify({ world: WORLD, saves: FRESH_SAVES })); } catch(e){} }
   else { try { localStorage.setItem(KEY, json); } catch(e){} saveWorld(); }
   closeCard();
-  lotFade(true, 'Off to ' + lotTitle(trip.to) + '…');
-  setTimeout(() => location.reload(), 1300);
+  lotFade(true, quick ? 'Jumping ahead…' : 'Off to ' + lotTitle(trip.to) + '…', !!quick);
+  setTimeout(() => location.reload(), quick ? 80 : 1300);
 }
 // a full-screen curtain while the truck drives between lots
 function lotFade(on, text, instant){
@@ -2002,10 +2018,11 @@ function arriveScene(A){
   const names = A.crew.map(q => q.kind === 'robot' ? styleOf(q.i).name : helperStyleOf(q.kind, q.i).name);
   if (A.home){
     setTimeout(() => {
+      if (jumpQuiet) return;   // (a test jump went on to set this yard up: the welcome no longer fits)
       pop(BIN.x, BIN.y - 110, '+' + cash2(A.earned) + ' earned while you were away', 'cash', 20, 0, 4);
       showToast('Back home!', 'The yard kept going without you and made ' + money(A.earned) + '.' + (A.bee ? ' The bee is looking for a home: build it a beehive.' : ''), 11);
     }, 1800);
-  } else if (LOT.arrive) setTimeout(() => showToast(LOT.arrive.title, LOT.arrive.text(names[0], names), 12), 1500);
+  } else if (LOT.arrive) setTimeout(() => { if (!jumpQuiet) showToast(LOT.arrive.title, LOT.arrive.text(names[0], names), 12); }, 1500);
 }
 
 // ───────────────────────── helper robots: blowers and shakers
@@ -2788,7 +2805,7 @@ const HV = LOT.HV || { plinth: 14, fh: 12, r: 21, k: 0.32 };
 const hiveTopZ = () => HV.plinth + hiveFloors()*HV.fh;
 const DOOR = { x: HIVE.x, y: HIVE.y + 0.866*HV.r*HV.k, z: HV.plinth + HV.fh*0.5 };
 // per-bee stats come from the upgrades the bee picked up last time it was home
-const beeSpeed = b => BEE_SPEED*(b.up.wings ? 1.25 : 1);
+const beeSpeed = b => BEE_SPEED*(b.up.wings ? 1.25 : 1)*(LOT.antSpeed || 1);   // (V14.1: the hollow's ants walk slower than bees fly)
 const beeTrip = b => b.up.third ? 3 : 2;
 const beeSip = b => b.up.tongue ? 5 : 4;
 
@@ -2803,8 +2820,9 @@ function refreshBee(b){
   for (const k of ['wings', 'third', 'tongue']) if (b.up[k] !== H[k]){ b.up[k] = H[k]; ch = true; }
   if (ch && !simMode) parts.push({ k:'star', x: DOOR.x + rand(-4, 4), y: DOOR.y - DOOR.z - 4, vx: rand(-30, 30), vy: rand(-50, -20), g: 60, life: 0.6, t: 0 });
 }
-function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); }
+function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); if (ANTS){ b.path = antRoute(b.x, b.y, tx, ty); b.pi = 0; } }
 function beeMove(b, sp, dt){
+  if (ANTS) return antMove(b, sp, dt);
   const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
   if (Math.abs(dx) > 0.5) b.face = dx > 0 ? 1 : -1;
   const p = clamp(1 - d/b.len, 0, 1), lift = Math.min(34, b.len*0.14);
@@ -2812,6 +2830,169 @@ function beeMove(b, sp, dt){
   b.x += dx/d*sp*dt; b.y += dy/d*sp*dt;
   b.z = lerp(b.lz, b.tz, p) + Math.sin(p*Math.PI)*lift;
   return false;
+}
+// ── V14.1: ants walk (LOT.antsOnGround: the Rainy hollow). Instead of flying straight at a mushroom like a bee, an ant
+// follows ant trails on a coarse grid over the yard: round tree trunks, bushes, wood piles, puddles and buildings. The
+// trails are worked out from the ant hill's door to every mushroom patch (antGrid), each one preferring the cells earlier
+// trails already use, so they merge into a few well-trodden trunks that branch out; every ant on a trail walks the same
+// wiggly line, so they go in single file, and one close behind another slows down instead of walking through it.
+const ANTS = !!LOT.antsOnGround, ANT_CELL = 10;
+const antNav = { sig: '', g: null };
+function antBlocks(){
+  // what ants walk round: ellipses ({ x, y, rx, ry }) and boxes ({ x0, x1, y0, y1 })
+  const E = [], X = obstacles().slice();
+  for (const t of TREES){ const r = Math.max(8, t.r*0.11); E.push({ x: t.x, y: trunkBase(t) - 2, rx: r, ry: r*0.62 }); }
+  for (const b of BUSHES) E.push({ x: b.x, y: b.y + 2, rx: 17*b.s, ry: 9*b.s });
+  SPOTS.forEach((p, i) => { if (p.land <= S.land) E.push({ x: p.x, y: p.y, rx: S.miners.includes(i) ? 40 : 32, ry: S.miners.includes(i) ? 19 : 15 }); });
+  for (const p of PUDDLES) if (p.y < 0) E.push({ x: p.x, y: p.y, rx: p.rx*0.92, ry: p.ry*0.92 });
+  if (S.bag.built) X.push({ x0: BAGGER.x - 26, x1: BAGGER.x + 26, y0: BAGGER.y - 12, y1: BAGGER.y + 4 });
+  if (S.metalSlot) X.push({ x0: PALLET.x - 26, x1: PALLET.x + 26, y0: PALLET.y - 16, y1: PALLET.y + 4 });
+  if (S.hive.built){ X.push({ x0: CRATE.x - 24, x1: CRATE.x + 24, y0: CRATE.y - 12, y1: CRATE.y + 4 }); X.push({ x0: HIVE.x - 36, x1: HIVE.x + 36, y0: HIVE.y - 16, y1: HIVE.y + 1 }); }
+  if (S.plant.built) X.push({ x0: PLANT.x - 92, x1: PLANT.x + 92, y0: PLANT.y - 46, y1: PLANT.y + 8 });
+  return { E, X };
+}
+function antGrid(){
+  const sig = [S.land, S.metalSlot, S.bag.built, S.hive.built, S.plant.built, S.miners.join('.'), gl('seeding')].join(',');
+  if (antNav.g && antNav.sig === sig) return antNav.g;
+  const O = owned(), x0 = O.x0 - 4, y0 = O.y0 - 4, nx = Math.ceil((O.x1 + 4 - x0)/ANT_CELL), ny = Math.ceil((6 - y0)/ANT_CELL);
+  const { E, X } = antBlocks(), m = 3;
+  const block = new Uint8Array(nx*ny);
+  for (let j=0;j<ny;j++) for (let i=0;i<nx;i++){
+    const x = x0 + (i + 0.5)*ANT_CELL, y = y0 + (j + 0.5)*ANT_CELL;
+    if (E.some(e => { const dx = (x - e.x)/(e.rx + m), dy = (y - e.y)/(e.ry + m); return dx*dx + dy*dy < 1; }) || X.some(o => x > o.x0 - m && x < o.x1 + m && y > o.y0 - m && y < o.y1 + m)) block[j*nx + i] = 1;
+  }
+  const g = { x0, y0, nx, ny, block, trail: new Uint16Array(nx*ny), cache: new Map(), lines: [] };
+  antNav.g = g; antNav.sig = sig;
+  // the trails: from the door out to every patch, nearest first; later ones join the ones already trodden
+  if (S.hive.built){
+    const fl = FLOWERS.filter(flowerOn).sort((a, b) => Math.hypot(a.x - DOOR.x, a.y - DOOR.y) - Math.hypot(b.x - DOOR.x, b.y - DOOR.y));
+    const done = new Set();
+    for (const f of fl){
+      const cf = antCell(g, f.x, f.y); if (done.has(cf)) continue; done.add(cf);
+      const cells = antPath(g, antCell(g, DOOR.x, DOOR.y), cf); if (!cells) continue;
+      for (const k of cells) g.trail[k]++;
+      g.lines.push(antPts(g, cells));
+    }
+    g.cache.clear();
+  }
+  return g;
+}
+// the free cell at (or nearest to) a point
+function antCell(g, x, y){
+  const i0 = clamp(Math.floor((x - g.x0)/ANT_CELL), 0, g.nx - 1), j0 = clamp(Math.floor((y - g.y0)/ANT_CELL), 0, g.ny - 1);
+  if (!g.block[j0*g.nx + i0]) return j0*g.nx + i0;
+  for (let r=1; r<12; r++) for (let dj=-r; dj<=r; dj++) for (let di=-r; di<=r; di++){
+    if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+    const i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) continue;
+    if (!g.block[j*g.nx + i]) return j*g.nx + i;
+  }
+  return j0*g.nx + i0;
+}
+// A* over the grid; cells on a trail cost less, so ants (and new trails) keep to the trails
+function antPath(g, a, b){
+  if (a === b) return [a];
+  const N = g.nx*g.ny, cost = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), shut = new Uint8Array(N);
+  const bi = b % g.nx, bj = (b/g.nx) | 0, heap = [];
+  const push = (k, f) => { heap.push([f, k]); let n = heap.length - 1; while (n){ const p = (n - 1) >> 1; if (heap[p][0] <= heap[n][0]) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p; } };
+  const pop1 = () => { const top = heap[0], last = heap.pop(); if (heap.length){ heap[0] = last; let n = 0; for (;;){ const l = 2*n + 1, r = l + 1; let s = n; if (l < heap.length && heap[l][0] < heap[s][0]) s = l; if (r < heap.length && heap[r][0] < heap[s][0]) s = r; if (s === n) break; [heap[s], heap[n]] = [heap[n], heap[s]]; n = s; } } return top; };
+  cost[a] = 0; push(a, 0);
+  while (heap.length){
+    const [, k] = pop1(); if (shut[k]) continue; shut[k] = 1;
+    if (k === b) break;
+    const i = k % g.nx, j = (k/g.nx) | 0;
+    for (let dj=-1; dj<=1; dj++) for (let di=-1; di<=1; di++){
+      if (!di && !dj) continue;
+      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.ny) continue;
+      const n = jj*g.nx + ii; if (shut[n] || (g.block[n] && n !== b)) continue;
+      if (di && dj && (g.block[j*g.nx + ii] || g.block[jj*g.nx + i])) continue;   // no squeezing past a corner
+      const c2 = cost[k] + (di && dj ? 1.414 : 1)*(g.trail[n] ? 0.42 : 1);
+      if (c2 < cost[n]){ cost[n] = c2; from[n] = k; push(n, c2 + 0.42*Math.hypot(ii - bi, jj - bj)); }
+    }
+  }
+  if (from[b] < 0) return null;
+  const out = [b]; for (let k = b; k !== a; ){ k = from[k]; out.push(k); }
+  return out.reverse();
+}
+// cells to a smooth, slightly wiggly line (the same cells always give the same line, so ants walk in single file)
+function antPts(g, cells){
+  let P = cells.map(k => { const i = k % g.nx, j = (k/g.nx) | 0, r = cellRnd(i, j, 5); return [g.x0 + (i + 0.5)*ANT_CELL + (r() - 0.5)*5, g.y0 + (j + 0.5)*ANT_CELL + (r() - 0.5)*4]; });
+  for (let it=0; it<2 && P.length > 2; it++){
+    const Q = [P[0]];
+    for (let k=0;k<P.length - 1;k++){ const [ax, ay] = P[k], [bx, by] = P[k + 1]; Q.push([ax*0.75 + bx*0.25, ay*0.75 + by*0.25], [ax*0.25 + bx*0.75, ay*0.25 + by*0.75]); }
+    Q.push(P[P.length - 1]); P = Q;
+  }
+  return P;
+}
+// an ant's way from where it is to (tx, ty): the points to walk through, ending at the target itself
+function antRoute(x, y, tx, ty){
+  const g = antGrid(), a = antCell(g, x, y), b = antCell(g, tx, ty);
+  if (a === b || Math.hypot(tx - x, ty - y) < ANT_CELL*1.5) return [[tx, ty]];
+  const key = a*65536 + b;
+  let P = g.cache.get(key);
+  if (!P){ const cells = antPath(g, a, b); P = cells ? antPts(g, cells).slice(1, -1) : []; if (g.cache.size > 4000) g.cache.clear(); g.cache.set(key, P); }
+  return P.concat([[tx, ty]]);
+}
+// walk along the route. V14.2: no more slowing down behind each other (it made slow queues); instead every ant keeps
+// to its own lane a step to one side of the trail line (b.i decides) and walks at its own pace (90-110%), so a busy trail
+// looks like a loose line of ants going both ways rather than a jam
+const antLane = b => ((b.i*37) % 7 - 3)*0.55;
+const antPace = b => 0.9 + ((b.i*53) % 9)/40;
+function antMove(b, sp, dt){
+  let left = sp*dt*antPace(b);
+  const start = left, lane = antLane(b);
+  if (!b.path) b.path = [[b.tx, b.ty]], b.pi = 0;
+  for (let guard = 0; guard < 8; guard++){
+    const last = b.pi >= b.path.length - 1, q = b.path[Math.min(b.pi, b.path.length - 1)];
+    let px = q[0], py = q[1];
+    const rx = px - b.x, ry = py - b.y, rd = Math.hypot(rx, ry);
+    if (!last && rd > 2){ px -= ry/rd*lane; py += rx/rd*lane; }
+    const dx = px - b.x, dy = py - b.y, d = Math.hypot(dx, dy);
+    if (d > 0.05){ b.hx = dx/d; b.hy = dy/d; if (Math.abs(dx) > 0.3) b.face = dx > 0 ? 1 : -1; }
+    if (d <= left){
+      b.x = px; b.y = py; left -= d;
+      if (!last){ b.pi++; continue; }
+      b.z = b.tz; b.walk = start - left > 0.01; b.gait = (b.gait || 0) + (start - left);
+      return true;
+    }
+    b.x += dx/d*left; b.y += dy/d*left; left = 0; break;
+  }
+  b.walk = start - left > 0.01; b.gait = (b.gait || 0) + (start - left); b.z = 0;
+  return false;
+}
+// V14.2: the trails themselves aren't drawn. Only a few dry pine needles lie along them here and there (at most one little
+// bunch in any 9 × 9 spot, so the busy trunks aren't outlined either): enough to hint that the ants have a way they go.
+// Painted once per layout into a layer of their own.
+const ANT_TRAIL_K = 2;
+function antTrailLayer(g){
+  if (g.cv) return g.cv;
+  const k = ANT_TRAIL_K, cv = document.createElement('canvas'); cv.width = Math.ceil(g.nx*ANT_CELL*k); cv.height = Math.ceil(g.ny*ANT_CELL*k);
+  const c = cv.getContext('2d'); c.setTransform(k, 0, 0, k, -g.x0*k, -g.y0*k); c.lineCap = 'round';
+  const rnd = mulberry(4242), taken = new Set(), COLS = ['#b8743a', '#c98b48', '#a9622f', '#d39a55', '#9c5a2c'];
+  for (const P of g.lines){
+    let acc = rnd()*16;
+    for (let n=1; n<P.length; n++){
+      const [ax, ay] = P[n - 1], [bx, by] = P[n], L = Math.hypot(bx - ax, by - ay);
+      acc += L; if (acc < 14) continue; acc = rnd()*6;
+      if (rnd() < 0.3) continue;
+      const x = bx + (rnd() - 0.5)*7, y = by + (rnd() - 0.5)*4, key = Math.floor(x/9) + ',' + Math.floor(y/9);
+      if (taken.has(key)) continue; taken.add(key);
+      // a pair of needles joined at the base (sometimes a single one), lying roughly along the trail
+      const a = Math.atan2(by - ay, bx - ax) + (rnd() - 0.5)*1.6, len = 3.4 + rnd()*2.6, two = rnd() < 0.7, spread = 0.18 + rnd()*0.3;
+      c.strokeStyle = COLS[Math.floor(rnd()*COLS.length)]; c.globalAlpha = 0.6 + rnd()*0.3; c.lineWidth = 0.55;
+      c.beginPath();
+      c.moveTo(x, y); c.quadraticCurveTo(x + Math.cos(a - spread*0.4)*len*0.5, y + Math.sin(a - spread*0.4)*len*0.5, x + Math.cos(a - spread)*len, y + Math.sin(a - spread)*len);
+      if (two){ c.moveTo(x, y); c.quadraticCurveTo(x + Math.cos(a + spread*0.4)*len*0.5, y + Math.sin(a + spread*0.4)*len*0.5, x + Math.cos(a + spread)*len*0.95, y + Math.sin(a + spread)*len*0.95); }
+      c.stroke();
+      c.fillStyle = '#4e3220'; ell(c, x, y, 0.35, 0.35); c.fill();
+    }
+  }
+  g.cv = cv;
+  return cv;
+}
+function drawAntTrails(V){
+  if (!ANTS || !S.hive.built || simMode) return;
+  const g = antGrid(), cv = antTrailLayer(g), c = ctx;
+  c.drawImage(cv, g.x0, g.y0, g.nx*ANT_CELL, g.ny*ANT_CELL);
 }
 function findFlower(b){
   let best = null, bs = 1e18;
@@ -2871,6 +3052,7 @@ function beeSetOff(b){
 }
 function updBee(b, dt){
   b.anim += dt;
+  if (ANTS) b.walk = false;   // (antMove sets it again while it walks)
   const sp = beeSpeed(b);
   switch (b.st){
     case 'in': {
@@ -4427,7 +4609,7 @@ function drawGroundBook(){
     // V13: the dead bee, with a petal half over it
     c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, x + 1, y + 1, 7, 2.2); c.fill();
     drawDeadBee(c, x, y - 2.5, 1.35, 0.15);
-    drawLeaf(c, x - 5, y - 1, 4.5, 2.2, 0, 1, 1, 0.8, 1, 0);
+    drawLeaf(c, x - 8, y + 0.5, 4, 2.2, 0, 1, 1, 0.8, 1, 0);
     if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
     return;
   }
@@ -4445,28 +4627,32 @@ function drawGroundBook(){
   drawLeaf(c, x + 6, y - 9, 5.5, 0.6, 1, 1, 1, 0.8, 1, 0);
   if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
 }
-// ── V13: the dead bee from the prairie: a real one, small and fuzzy, lying on its side with its legs folded
+// ── V13: the dead bee from the prairie: a real one, small and fuzzy. V14.1: lying on its back, legs in the air, so it reads as dead
 function drawDeadBee(c, x, y, s, rot){
   c.save(); c.translate(x, y); c.rotate(rot || 0); c.scale(s, s);
-  // crumpled see-through wings
+  // crumpled see-through wings, squashed flat underneath it
   c.fillStyle = 'rgba(228,238,242,.7)'; c.strokeStyle = 'rgba(105,115,120,.75)'; c.lineWidth = 0.25;
-  c.save(); c.translate(-0.2, -1.3); c.rotate(-0.95); ell(c, -1.7, 0, 2.5, 1.1); c.fill(); c.stroke(); c.restore();
-  c.save(); c.translate(0.5, -1.4); c.rotate(-0.3); ell(c, -1.2, 0, 1.9, 0.9); c.fill(); c.stroke(); c.restore();
-  // fuzzy striped abdomen
+  c.save(); c.translate(-0.6, 1.5); c.rotate(0.25); ell(c, -1.6, 0, 2.6, 0.75); c.fill(); c.stroke(); c.restore();
+  c.save(); c.translate(0.9, 1.6); c.rotate(-0.2); ell(c, 1.3, 0, 1.9, 0.6); c.fill(); c.stroke(); c.restore();
+  // fuzzy striped abdomen (the paler belly up)
   c.fillStyle = '#6b4a1a'; ell(c, -2, 0.25, 2.8, 2); c.fill();
-  c.fillStyle = '#e2a83a'; ell(c, -2.1, 0, 2.6, 1.8); c.fill();
-  c.save(); ell(c, -2, 0.25, 2.8, 2); c.clip(); c.fillStyle = '#3a2614'; c.fillRect(-3.7, -2.5, 0.8, 5); c.fillRect(-2.1, -2.5, 0.8, 5); c.fillRect(-0.6, -2.5, 0.7, 5); c.restore();
+  c.fillStyle = '#e8b54c'; ell(c, -2.1, 0, 2.6, 1.8); c.fill();
+  c.save(); ell(c, -2, 0.25, 2.8, 2); c.clip(); c.fillStyle = '#4a321a'; c.fillRect(-3.7, -2.5, 0.7, 5); c.fillRect(-2.1, -2.5, 0.7, 5); c.fillRect(-0.6, -2.5, 0.6, 5); c.restore();
   c.fillStyle = 'rgba(255,238,175,.6)'; ell(c, -2.5, -1, 1.6, 0.5); c.fill();
-  c.fillStyle = '#2a1e14'; c.beginPath(); c.moveTo(-4.7, 0.3); c.lineTo(-5.5, 0.6); c.lineTo(-4.6, 0.9); c.closePath(); c.fill();
-  // fuzzy thorax and a dark head
-  c.fillStyle = '#4a3218'; ell(c, 1.2, -0.05, 1.6, 1.5); c.fill();
-  c.fillStyle = '#c99434'; ell(c, 1.1, -0.5, 1.1, 0.8); c.fill();
-  c.fillStyle = '#2a1e14'; ell(c, 3, 0.1, 1.1, 1.05); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.45)'; ell(c, 3.25, -0.3, 0.35, 0.3); c.fill();
-  // feelers and folded legs
-  c.strokeStyle = '#2a1e14'; c.lineWidth = 0.3; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(3.4, -0.6); c.quadraticCurveTo(4.2, -1.8, 4.8, -1.4); c.moveTo(3.2, -0.7); c.quadraticCurveTo(3.6, -2, 4.3, -2.2); c.stroke();
-  c.beginPath(); for (const lx of [0.3, 1.1, 1.9]){ c.moveTo(lx, 1.1); c.lineTo(lx - 0.5, 1.9); c.lineTo(lx + 0.2, 2.4); } c.stroke();
+  c.fillStyle = '#2a1e14'; c.beginPath(); c.moveTo(-4.7, 0); c.lineTo(-5.5, -0.4); c.lineTo(-4.6, 0.5); c.closePath(); c.fill();
+  // fuzzy thorax and a dark head, tipped back
+  c.fillStyle = '#4a3218'; ell(c, 1.2, 0.05, 1.6, 1.5); c.fill();
+  c.fillStyle = '#c99434'; ell(c, 1.1, -0.6, 1.1, 0.7); c.fill();
+  c.fillStyle = '#2a1e14'; ell(c, 3, 0.35, 1.1, 1.05); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.45)'; ell(c, 3.2, -0.1, 0.35, 0.3); c.fill();
+  c.strokeStyle = '#2a1e14'; c.lineCap = 'round'; c.lineJoin = 'round';
+  // feelers drooping to the ground
+  c.lineWidth = 0.3; c.beginPath(); c.moveTo(3.7, 0.9); c.quadraticCurveTo(4.7, 1.7, 5.4, 1.2); c.moveTo(3.5, 1.1); c.quadraticCurveTo(4, 2.1, 4.8, 2.1); c.stroke();
+  // six crooked legs sticking up in the air (the far three fainter)
+  c.globalAlpha = 0.55; c.lineWidth = 0.28;
+  c.beginPath(); for (const lx of [0.7, 1.5, 2.2]){ c.moveTo(lx, -1); c.lineTo(lx + 0.5, -2.3); c.lineTo(lx + 0.1, -3.1); } c.stroke();
+  c.globalAlpha = 1; c.lineWidth = 0.34;
+  c.beginPath(); for (const lx of [0.2, 1.1, 1.9]){ c.moveTo(lx, -1.1); c.lineTo(lx - 0.45, -2.6); c.lineTo(lx + 0.25, -3.5); c.lineTo(lx + 0.6, -3.3); } c.stroke();
   c.restore();
 }
 // what the robots found, carried (closed book / the bee) and studied (open book / the bee under a magnifying glass)
@@ -4533,6 +4719,39 @@ function drawTimers(){
   }
   timers = [];
 }
+// ── V14.2: robot looks drawn on top of the usual robot (STYLES[].look). Tinker wears an old dented tin bucket upside
+// down as a hat, the handle swinging as it drives and the antenna poking out through a hole in the bottom, so the first
+// robot is easy to pick out in a crowd. (Four other looks tried for Tinker are kept in public/parked/robot-looks.js.)
+// Parts: 'body' (on the shell), 'back' (after the basket), 'face' (after the eye), 'antenna' (true: replaces the antenna).
+const ROBOT_LOOKS = {
+  bucket(part, c, r, g){
+    const t = r.anim, mv = r.moving;
+    if (part === 'body'){
+      const { bw, bh, top } = g;
+      c.fillStyle = 'rgba(138,66,30,.5)'; for (const [x, y] of [[-bw*0.3, top + bh*0.45], [bw*0.12, top + bh*0.85], [bw*0.36, top + bh*0.6]]){ ell(c, x, y, 2.4, 1.6); c.fill(); }
+      return;
+    }
+    if (part !== 'antenna') return;
+    const { hx0, hy0, hw } = g, cx = hx0 + hw*0.48, by = hy0 + 3.5, w0 = hw + 3, w1 = hw*0.62, H = 11;
+    c.save(); c.translate(cx, by); c.rotate(-0.16);
+    const bg = c.createLinearGradient(-w0/2, 0, w0/2, 0); bg.addColorStop(0, '#7f8a8d'); bg.addColorStop(0.35, '#c4cbcc'); bg.addColorStop(0.6, '#98a2a5'); bg.addColorStop(1, '#6a7376');
+    c.fillStyle = bg; c.beginPath(); c.moveTo(-w0/2, 0); c.lineTo(w0/2, 0); c.lineTo(w1/2, -H); c.lineTo(-w1/2, -H); c.closePath(); c.fill();
+    c.fillStyle = '#5d6669'; rr(c, -w0/2 - 1, -1.2, w0 + 2, 2.4, 1.1); c.fill();
+    c.strokeStyle = 'rgba(60,66,68,.6)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(-w0*0.42, -H*0.35); c.lineTo(w0*0.42, -H*0.4); c.moveTo(-w0*0.32, -H*0.72); c.lineTo(w0*0.3, -H*0.75); c.stroke();
+    c.fillStyle = 'rgba(70,74,76,.45)'; ell(c, w0*0.15, -H*0.5, 2.6, 1.8); c.fill();   // a dent
+    c.fillStyle = 'rgba(150,76,34,.7)'; for (const [x, y, rx] of [[-w0*0.3, -2.5, 1.8], [w0*0.25, -H*0.85, 1.3], [-w0*0.05, -H*0.6, 1]]){ ell(c, x, y, rx, rx*0.7); c.fill(); }
+    // the handle hangs down the side, swinging as it drives
+    const sw = Math.sin(t*(mv ? 10 : 1.5))*(mv ? 0.25 : 0.06);
+    c.save(); c.translate(-w0/2 + 1, -2); c.rotate(sw); c.strokeStyle = '#4c5355'; c.lineWidth = 0.9; c.beginPath(); c.arc(4, 0, 4.6, 0.2, 2.9); c.stroke(); c.restore();
+    c.strokeStyle = '#4a423b'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(-1, -H); c.quadraticCurveTo(-2.5, -H - 4, -5, -H - 7); c.stroke();
+    const on = Math.sin(t*3 + r.id) > 0.6;
+    c.fillStyle = on ? '#ff7a4d' : '#8a4a36'; ell(c, -5, -H - 7.5, 2.1, 2.1); c.fill();
+    if (on){ c.fillStyle = 'rgba(255,122,77,.3)'; ell(c, -5, -H - 7.5, 4.5, 4.5); c.fill(); }
+    c.restore();
+    return true;
+  },
+};
+const robotLook = (st, part, c, r, g) => { const f = ROBOT_LOOKS[st.look]; return f ? f(part, c, r, g) : false; };
 function drawRobot(r){
   // V13: r.sty / r.cfg let the truck driver (who isn't one of your robots) use the same drawing; r.hz lifts a robot
   // off the ground while it hops in or out of the truck
@@ -4609,6 +4828,7 @@ function drawRobot(r){
     const dg = c.createLinearGradient(0, top + bh*0.6, 0, -8); dg.addColorStop(0, 'rgba(110,86,54,0)'); dg.addColorStop(1, 'rgba(110,86,54,.35)');
     c.fillStyle = dg; rr(c, -bw/2, top + bh*0.6, bw, bh*0.4, 4); c.fill();
   }
+  if (st.look) robotLook(st, 'body', c, r, { bw, bh, top });
   if (!st.round && !st.patches && !md){ c.fillStyle = shade(st.body2, 0.8); for (const [px, py] of [[-bw/2+3,top+2.5],[bw/2-2.5,-11],[-bw/2+3,-11]]){ ell(c, px, py, .9, .9); c.fill(); } }
   // a robot whose first job is mining gets sooty down its front
   const sooty = cfg && cfg.prio.length && cfg.prio[0].includes('mine');
@@ -4641,6 +4861,7 @@ function drawRobot(r){
   }
   drawBasket(c, bt, bx0, by0, BW, BH, true);
   }
+  if (st.look) robotLook(st, 'back', c, r, { bw, bh, top, bx0, by0, BW, BH, bob });
   if (st.lantern){
     // a hooked pole on its back with a little lantern swinging from it
     const sw = Math.sin(r.anim*(r.moving ? 7 : 1.6) + r.id)*(r.moving ? 0.35 : 0.12);
@@ -4765,6 +4986,7 @@ function drawRobot(r){
   c.fillStyle = r.full ? '#ff9a6b' : st.ember ? '#ff8a3a' : '#ffc457'; ell(c, ex + .6, ey, 2.6, 2.6*bl); c.fill();
   c.fillStyle = 'rgba(255,255,255,.7)'; ell(c, ex + 1.6, ey - 1.1, .8, .8*bl); c.fill();
   if (st.patches){ c.strokeStyle = '#4c4840'; c.lineWidth = 1; c.beginPath(); c.moveTo(ex - 5, ey - 5.5); c.lineTo(ex + 5, ey - 4.5); c.stroke(); }
+  if (st.look) robotLook(st, 'face', c, r, { bw, bh, top, hx0, hy0, hw, hh, ex, ey, bl });
   // V12: a robot with Research upgrades puts on reading glasses while it studies (gold rims once it's a speed reader)
   const sL = cfg.lv.study || 0;
   if (sL && !md && (r.st === 'study' || r.st === 'assist')){
@@ -4808,6 +5030,7 @@ function drawRobot(r){
   // antenna
   const ax = hx0 + 5, ay = st.round ? hy0 + 2 : hy0, ah = st.slim ? 11 : 8;
   if (st.hazard || st.driver){ /* the hard hat and the driver's cap have no antenna */ }
+  else if (st.look && robotLook(st, 'antenna', c, r, { ax, ay, ah, hx0, hy0, hw, hh })){ /* its look has its own antenna (Tinker's comes out of the bucket) */ }
   else if (md){
     // a short, straight chrome mast with a polished ball that glows a cool white now and then
     c.strokeStyle = '#9aa6ac'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax - 3, ay - 9); c.stroke();
@@ -5578,6 +5801,7 @@ function draw(){
   c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
   const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
+  drawAntTrails(V);
   if (RAINY){
     // V14: wet tracks and the puddles' water (with their reflections), then what stands up out of the ground over it
     drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);
@@ -5742,14 +5966,186 @@ function nextStep(){
   if (LOT_ID === 'prairie' && S.miles.honey == null) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };
   return null;
 }
-let testSig = '';
+// ── V14.1: test jumps. "Jump to" in the test panel starts a new game (every lot wiped) and plays it forward to a story
+// point: on each lot it passes through, it buys what a player would have by then (JUMP_KITS: what must be bought by
+// that point) and rides the truck on (the real trip code: travel() and arrive()), one quick page load per lot.
+// Tweak the kits to change what each point starts with. Robots are listed in order, the first one is Tinker.
+const JUMP_KEY = 'leaf-yard-jump';
+const JUMP_KITS = {
+  // the first yard, ~6 min in: cheap robot upgrades and a few bin sizes
+  home6:  { robots: [{ speed:3, carry:3, pick:3 }], up: { bin:3, leafPrice:1 }, cash: 4, earned: 20 },
+  // ~12 min: the book is read; the first unlocks, a second robot and the bagging table
+  home12: { tech: ['treads', 'hamper', 'servos'], robots: [{ speed:5, carry:5, pick:5, study:1 }, { speed:3, carry:3, pick:2 }],
+            up: { bin:4, leafPrice:3, truck:1 }, bag: true, cash: 10, earned: 150 },
+  // ~27 min: three robots with claws, a blower and a shaker, the cleanup program; earned enough for the first letter
+  home27: { base: 'home12', tech: ['claw', 'arm', 'turbine'],
+            robots: [{ speed:7, carry:7, pick:6, grab:2, reach:2 }, { speed:6, carry:6, pick:5, grab:2, reach:1 }, { speed:4, carry:4, pick:3, grab:1 }],
+            blowers: [{ speed:2, blow:3 }], shakers: [{ speed:1, shake:2 }],
+            up: { bin:5, leafPrice:5, bagPrice:3, truck:2, cleanup:1 }, gen: { oil:1, basket:1 }, cash: 120, earned: LETTER_EARNED },
+  // the prairie, ~5 min after arriving: the petal goal just reached (the dead bee is under the next petal)
+  prairie5: { up: { bin:3, leafPrice:2 }, cash: 30, leaves: BEE_LEAVES },
+  // ~20 min on the prairie: the bee is worked out, the beehive and five bees, two more robots; $60 of the $100 honey money
+  prairieHive: { base: 'prairie5', robots: [{}, { speed:4, carry:4, pick:3 }, { speed:3, carry:3, pick:3 }],
+            up: { bin:5, leafPrice:4, bagPrice:2, hiveTank:1, hiveStore:1 }, gen: { press:1 }, bag: true, hive: { bees:5 }, story: 'done',
+            leaves: 2400, honeyCash: 60, cash: 80 },
+  // the first yard again, ~15 min after the bee came home: the beehive built, a fourth robot, more of everything
+  homeHive: { base: 'home27', tech: ['hubs', 'hopper', 'jig'],
+            robots: [{ speed:9, carry:9, pick:7, grab:3, reach:3 }, { speed:8, carry:8, pick:6, grab:3, reach:2, pack:3 }, { speed:6, carry:6, pick:5, grab:2, reach:2 }, { speed:4, carry:4, pick:3 }],
+            blowers: [{ speed:4, blow:4 }, { speed:2, blow:2 }], shakers: [{ speed:2, shake:3 }],
+            up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:2, fingers:1, market:1 }, hive: { bees:6 }, cash: 250 },
+  // the quests done: the bigger yard and a mine with a robot on it; holding $1,000 brings the hollow letter
+  homeQuests: { base: 'homeHive', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
+            robots: [{ drill:3 }, { drill:4, magnet:2 }, {}, {}, { speed:4, carry:4, pick:3 }],
+            up: { bin:7, metalBin:2, metalPrice:1, truck:4 }, gen: { blueprint:1 }, hive: { bees:9 }, cash: HOLLOW_CASH + 80 },
+  // ~15 min in the Rainy hollow: a saw station on the wood pile, the drying shed, an ant hill, and the blower's umbrella
+  hollowShed: { robots: [{}, { speed:4, carry:4, pick:3 }, { speed:4, carry:4, pick:3, drill:2 }], blowers: [{ brolly:1 }],
+            up: { bin:5, leafPrice:3, metalBin:2, metalPrice:2 }, metalSlot: true, miners: [0], plant: true, bag: true, hive: { bees:4 }, cash: 200 },
+};
+// the trips a jump makes on its way (a stage: the lot it's on, the kit to buy there, then go: ride on)
+const J_PRAIRIE = { lot: 'home', kit: 'home27', story: 'done', go: { letter: 'newLot' } };
+const J_BEE_HOME = { lot: 'prairie', kit: 'prairieHive', go: { letter: 'goHome' } };
+const J_HOLLOW = { lot: 'home', kit: 'homeQuests', go: { letter: 'hollow' } };
+const J_BACK = { lot: 'hollow', kit: 'hollowShed', go: {} };
+const JUMPS = [
+  { id: 'new',     label: 'First yard: a new game',                    stages: [{ lot: 'home' }] },
+  { id: 'book',    label: 'First yard: the old book turns up',         stages: [{ lot: 'home', kit: 'home6', story: 'armed' }] },
+  { id: 'helpers', label: 'First yard: book read, blowers and shakers', stages: [{ lot: 'home', kit: 'home12', story: 'done' }] },
+  { id: 'letter',  label: 'First yard: the prairie letter comes',      stages: [{ lot: 'home', kit: 'home27', story: 'done' }] },
+  { id: 'fare',    label: 'First yard: saving $100 for the prairie',   stages: [{ lot: 'home', kit: 'home27', story: 'done', letter: 'newLot', cash: 60 }] },
+  { id: 'prairie', label: 'Prairie: just arrived',                     stages: [J_PRAIRIE, { lot: 'prairie' }] },
+  { id: 'bee',     label: 'Prairie: the dead bee turns up',            stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairie5', story: 'armed' }] },
+  { id: 'honey',   label: 'Prairie: beehive built, honey money',       stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairieHive' }] },
+  { id: 'goHome',  label: 'Prairie: ready to ride home with a bee',    stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairieHive', letter: 'goHome' }] },
+  { id: 'homeBee', label: 'First yard: home with the bee',             stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home' }] },
+  { id: 'quests',  label: 'First yard: beehive built, the three quests', stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeHive' }] },
+  { id: 'letter3', label: 'First yard: the hollow letter comes',       stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeQuests' }] },
+  { id: 'crew',    label: 'First yard: sending Tinker and a blower',   stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeQuests', letter: 'hollow' }] },
+  { id: 'hollow',  label: 'Rainy hollow: just arrived',                stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow' }] },
+  { id: 'shed',    label: 'Rainy hollow: drying shed and umbrella',    stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowShed' }] },
+  { id: 'back',    label: 'First yard: back from the hollow',          stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home' }] },
+];
+// buy everything in a kit (and the kit it builds on) for free; levels only ever go up
+function applyKit(name){
+  const K = JUMP_KITS[name]; if (!K) return;
+  if (K.base) applyKit(K.base);
+  const free = o => buy(Object.assign({ cost: 0 }, o));
+  for (const k of (K.tech || [])) S.tech[k] = true;
+  for (const k in (K.up || {})) if (UP[k]) S.lv[k] = Math.max(S.lv[k] | 0, Math.min(UP[k].max, K.up[k]));
+  for (const k in (K.gen || {})) if (GEN[k]) S.gen[k] = Math.max(gl(k), Math.min(GEN[k].max, K.gen[k]));
+  if (K.gen || K.tech) S.flags.general = S.flags.research = true;
+  while (K.land && S.land < K.land && S.land + 1 < AREAS.length) free({ id: 'land' });
+  if (K.bag && !S.bag.built) free({ id: 'bagger' });
+  if (K.metalSlot && !S.metalSlot) free({ id: 'metalSlot' });
+  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, lv[k]); };
+  (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX) free({ id: 'robot' }); if (S.robots[i]) levels(S.robots[i], lv); });
+  for (const kind of ['blower', 'shaker']) (K[KIND_LIST[kind]] || []).forEach((lv, i) => {
+    while (cfgsOf(kind).length <= i) free({ id: kind });
+    const c = cfgsOf(kind)[i]; levels(c, lv);
+    for (const [t, main] of [['snip', 'shake'], ['dig', 'blow'], ['stoke', 'blow'], ['brolly', 'blow']]) if (c.lv[t]) putBeside(c, t, main);
+  });
+  for (const sp of (K.miners || [])) if (S.metalSlot && !S.miners.includes(sp) && SPOTS[sp] && SPOTS[sp].land <= S.land) free({ id: 'miner', arg: sp });
+  if (K.plant && !S.plant.built && plantOpen()) free({ id: 'plant' });
+  if (K.hive){
+    if (!S.hive.built){ S.flags.hiveKnown = true; free({ id: 'hive' }); }
+    if (K.hive.bees > S.hive.bees){ S.hive.bees = Math.min(MAX_BEES, K.hive.bees); syncBees(); }
+  }
+  if (K.story) jumpStory(K.story);
+  if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
+  if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
+  if (K.honeyCash) S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, K.honeyCash);
+  if (K.cash != null){ S.cash = K.cash; S.peak = Math.max(S.peak || 0, S.cash); }
+}
+// this lot's find: 'armed' (it turns up under the next leaf a robot picks), or 'done' (found and worked out)
+function jumpStory(how){
+  const st = S.story, id = (st.item || 'book') === 'bee' ? 'bee' : 'book';
+  if (S.miles[id] == null) S.miles[id] = Math.round(S.t);
+  if (how === 'armed'){ if (!st.found) st.armed = true; return; }
+  if (st.done) return;
+  Object.assign(st, { armed: true, found: true, opened: true, cam: true, prog: researchNeed(), done: true, doneT: S.t, x: STUDY.x, y: STUDY.y });
+  if (id === 'bee'){ S.flags.hiveKnown = true; S.flags.hiveShown = true; }
+  else S.flags.helpers = true;
+}
+// read a letter (it opens its trip)
+function jumpLetter(id){
+  const L = LETTERS[id]; if (!L) return;
+  if (id === 'hollow') S.flags.hollowLetter = true;
+  // the milestone that would post it counts as reached, so it doesn't come again
+  if (id === 'newLot' && S.miles.letter == null) S.miles.letter = Math.round(S.t);
+  if (id === 'goHome'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honey == null) S.miles.honey = Math.round(S.t); }
+  S.post = S.post.filter(x => x !== id); S.letters = S.letters.filter(l => l.id !== id);
+  S.letters.push(Object.assign({ id, read: true }, L.at()));
+  L.open();
+}
+// everyone the open trip takes gets in the truck (with the travel money), and off it goes
+function jumpGo(g){
+  if (g.letter) jumpLetter(g.letter);
+  if (!S.trip) return false;
+  if (tripKinds().includes('blower') && !S.blowers.some(tripFor)) buy({ id: 'blower', cost: 0 });
+  syncRobots(); syncHelpers();
+  const riders = [];
+  for (const kind of tripKinds()){
+    const c = cfgsOf(kind).find(tripFor); if (!c) return false;
+    taskRemove(c, 'travel'); c.prio.unshift(['travel']);
+    const o = runtimeOf(kind, c); if (o) riders.push(o);
+  }
+  if (S.trip.cash && !S.trip.paid){ S.cash = Math.max(S.cash, S.trip.cash) - S.trip.cash; S.trip.paid = S.trip.cash; }
+  truck.riders = riders;
+  travel(true);
+  return true;
+}
+// start a jump: wipe every lot and load the first yard as a new game (the jump goes on from there, see runJump)
+function startJump(id){
+  try { sessionStorage.setItem(JUMP_KEY, JSON.stringify({ id, i: 0 })); } catch(e){ return; }
+  travelling = true;   // nothing gets saved on the way out
+  lotFade(true, 'Jumping ahead…', true);
+  if (FRESH){
+    try { sessionStorage.removeItem(HOP_KEY); } catch(e){}
+    const p = new URLSearchParams(location.search); p.delete('lot');
+    const q = '?' + p.toString().replace(/=(&|$)/g, '$1');
+    if (location.search === q) location.reload(); else location.search = q;
+  } else {
+    try { for (const k of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(k)); localStorage.removeItem(WORLD_KEY); } catch(e){}
+    location.reload();
+  }
+}
+// on every page load: a jump on its way does this lot's stage (buys its kit, then rides on, or stops here)
+function runJump(){
+  let j = null; try { j = JSON.parse(sessionStorage.getItem(JUMP_KEY) || 'null'); } catch(e){}
+  if (!j) return;
+  const J = JUMPS.find(q => q.id === j.id), st = J && J.stages[j.i];
+  const stop = () => { try { sessionStorage.removeItem(JUMP_KEY); } catch(e){} };
+  if (!st || st.lot !== LOT_ID){ stop(); return; }
+  if (st.kit || st.story || st.letter || st.go){
+    // the early tips are long done by now
+    S.flags.hints = Object.assign({ tap: 1, unlock: 1, tasks: 1 }, S.flags.hints || {}); S.flags.opened = S.flags.taskHint = S.flags.sentHint = true;
+  }
+  const np = pops.length, nq = parts.length;
+  if (st.kit) applyKit(st.kit);
+  if (!st.go && (st.kit || st.letter)) jumpQuiet = true;
+  if (st.story) jumpStory(st.story);
+  if (st.cash != null){ S.cash = st.cash; S.peak = Math.max(S.peak || 0, S.cash); }
+  if (st.letter) jumpLetter(st.letter);
+  pops.length = Math.min(pops.length, np); parts.length = Math.min(parts.length, nq);   // no "built!" notes for everything bought on the way
+  dispCash = S.cash;
+  if (st.go){
+    j.i++; try { sessionStorage.setItem(JUMP_KEY, JSON.stringify(j)); } catch(e){}
+    lotFade(true, 'Jumping ahead…', true);
+    if (!jumpGo(st.go)){ stop(); lotFade(false); }
+    return;
+  }
+  stop(); save();
+  setTimeout(() => showToast('Test', 'Jumped to: ' + J.label, 5), 300);
+}
+let testSig = '', jumpArm = null, jumpQuiet = false;
 function toggleTestPanel(force){
   let el = $('testPanel');
   if (!el){
     el = document.createElement('div'); el.id = 'testPanel'; el.hidden = true;
     el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div><div class="tpm">' +
       TEST_AMOUNTS.map(a => '<button data-t="cash:' + a + '">+' + (a >= 1000 ? (a/1000).toLocaleString('en-US') + 'k' : a) + '</button>').join('') +
-      '</div><button class="tpn" data-t="next"></button>';
+      '</div><button class="tpn" data-t="next"></button>' +
+      '<div class="tpj"><select aria-label="Jump to a story point">' + JUMPS.map(J => '<option value="' + J.id + '">' + J.label + '</option>').join('') + '</select>' +
+      '<button data-t="jump">Jump to this step</button></div><div class="tpw" hidden></div>';
     el.addEventListener('pointerdown', e => e.stopPropagation());
     el.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -5757,7 +6153,14 @@ function toggleTestPanel(force){
       if (t === 'close') toggleTestPanel(false);
       else if (t.startsWith('cash:')) testCash(+t.slice(5));
       else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
+      else if (t === 'jump'){
+        // V14.1: jumping starts a new game; outside ?fresh that wipes your saves, so it asks once
+        const id = el.querySelector('.tpj select').value, w = el.querySelector('.tpw');
+        if (FRESH || jumpArm === id) startJump(id);
+        else { jumpArm = id; w.hidden = false; w.textContent = 'This wipes every yard and starts a new game at that point. Tap again to go.'; b.textContent = 'Yes, jump'; }
+      }
     });
+    el.querySelector('.tpj select').addEventListener('change', () => { jumpArm = null; el.querySelector('.tpw').hidden = true; el.querySelector('[data-t="jump"]').textContent = 'Jump to this step'; });
     document.body.appendChild(el);
   }
   el.hidden = force != null ? !force : !el.hidden;
@@ -6039,7 +6442,7 @@ function crewRow(icon, label, task, tagOf){
 function tasksPanel(kind, i){
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   if (vis.length < 2) return '';
-  const chip = t => '<span class="chip" data-task="' + t + '" style="--tc:' + TASKS[t].col + '" title="' + TASKS[t].name + ' · drag to move">' + ic(t) + TASKS[t].short + '</span>';
+  const chip = t => '<span class="chip" data-task="' + t + '" style="--tc:' + TASKS[t].col + '" title="' + taskName(t, cfg) + ' · drag to move">' + ic(t) + taskShort(t, cfg) + '</span>';
   const rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length), off = cfg.off.filter(t => vis.includes(t));
   let h = '<div class="tasks" data-kind="' + kind + '" data-i="' + i + '"><div class="th"><b>Do</b><span title="Side by side: they take turns">top row first</span></div><div class="tdo">';
   rows.forEach((row, ri) => { h += '<div class="trow" data-row="' + ri + '"><span class="tn">' + (ri + 1) + '</span>' + row.map(chip).join('') + (row.length < 2 ? '<span class="tslot"></span>' : '') + '</div>'; });
@@ -6079,7 +6482,7 @@ function robotDoing(r){
     case 'toAssist': return ['research', 'Going to help'];
     case 'assist': return ['research', 'Helping with research'];
     case 'toCurb': return ['travel', 'To the curb'];
-    case 'curb': return ['travel', 'Waiting for the truck'];
+    case 'curb': { const w = crewWaitFor(cfg); return ['travel', w ? 'Waiting for ' + w : 'Waiting for the truck']; }
     case 'hopIn': case 'hopOut': case 'ride': return ['travel', 'Riding the truck'];
   }
   if (!cfg.prio.some(row => row.some(t => taskOpen(t, cfg)))) return ['list', 'Nothing on its list', 1];
@@ -6441,30 +6844,30 @@ const BOOK_SVG = '<svg viewBox="0 0 300 172" role="img" aria-label="An old pictu
   // a dried leaf stuck to the page
   '<path d="M126,140 c8,-8 20,-6 22,2 c-6,8 -18,8 -22,-2z" fill="#c96a22" opacity=".9"/><path d="M128,141 l18,1" stroke="#8c3215" stroke-width="1"/>' +
   '</svg>';
-// V13: the dead bee from the prairie, as its card shows it: lying on a big pink petal, legs folded, wings crumpled
-const BEE_SVG = '<svg viewBox="0 0 300 172" role="img" aria-label="A small dead bee lying on its side on a pink petal">' +
+// V13: the dead bee from the prairie, as its card shows it: lying on a big pink petal, on its back with its legs in the air, wings squashed under it
+const BEE_SVG = '<svg viewBox="0 0 300 172" role="img" aria-label="A small dead bee lying on its back on a pink petal, legs in the air">' +
   '<defs><radialGradient id="bePt" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#fde6ec"/><stop offset=".7" stop-color="#f4b3c6"/><stop offset="1" stop-color="#e58fac"/></radialGradient>' +
-  '<radialGradient id="beAb" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#f6cf6a"/><stop offset="1" stop-color="#c98a26"/></radialGradient></defs>' +
+  '<radialGradient id="beAb" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#f8d97e"/><stop offset="1" stop-color="#cf952e"/></radialGradient></defs>' +
   '<path d="M150,160 C70,156 22,112 30,64 C38,24 96,8 132,30 C142,12 168,6 180,24 C222,6 282,30 276,80 C270,128 224,158 150,160Z" fill="url(#bePt)"/>' +
   '<path d="M150,150 C146,112 140,80 136,40 M150,150 C176,118 196,92 212,58 M150,150 C122,128 96,110 70,92" stroke="#d27f9b" stroke-width="2" fill="none" opacity=".45"/>' +
-  '<ellipse cx="150" cy="128" rx="88" ry="12" fill="#7d3550" opacity=".12"/>' +
-  // wings, crumpled and see-through
-  '<g fill="#eef6f8" fill-opacity=".72" stroke="#7d878c" stroke-width="1.4"><path d="M150,72 C126,40 92,34 84,52 C78,68 110,80 150,80Z"/><path d="M160,70 C160,40 182,28 196,38 C208,48 190,70 164,78Z"/></g>' +
-  '<path d="M146,76 C122,58 104,52 96,56 M162,72 C170,52 182,42 190,44" stroke="#7d878c" stroke-width="1" fill="none" opacity=".7"/>' +
-  // abdomen with fuzzy stripes and a sting
+  '<ellipse cx="150" cy="140" rx="92" ry="10" fill="#7d3550" opacity=".12"/>' +
+  // wings, crumpled and squashed flat underneath
+  '<g fill="#eef6f8" fill-opacity=".72" stroke="#7d878c" stroke-width="1.4"><path d="M146,122 C122,142 88,146 80,136 C74,126 104,118 146,116Z"/><path d="M164,120 C168,142 190,148 202,140 C210,132 192,124 168,116Z"/></g>' +
+  // abdomen, belly up, with fuzzy stripes and a sting
   '<ellipse cx="120" cy="104" rx="44" ry="30" fill="url(#beAb)"/>' +
-  '<g fill="#3a2614"><path d="M96,78 q-8,26 2,52 l10,-2 q-8,-24 0,-48z"/><path d="M118,74 q-8,30 2,60 l11,-1 q-8,-28 0,-58z"/><path d="M140,76 q-6,28 2,56 l9,-4 q-6,-24 0,-50z"/></g>' +
-  '<path d="M77,108 l-14,4 l14,4z" fill="#3a2614"/>' +
+  '<g fill="#4a321a"><path d="M96,78 q-8,26 2,52 l9,-2 q-8,-24 0,-48z"/><path d="M118,74 q-8,30 2,60 l10,-1 q-8,-28 0,-58z"/><path d="M140,76 q-6,28 2,56 l8,-4 q-6,-24 0,-50z"/></g>' +
+  '<path d="M77,102 l-14,-6 l12,12z" fill="#3a2614"/>' +
   '<ellipse cx="110" cy="88" rx="22" ry="6" fill="#fff4c8" opacity=".45"/>' +
-  // fuzzy thorax and head
-  '<circle cx="176" cy="98" r="22" fill="#4a3218"/><ellipse cx="172" cy="90" rx="14" ry="9" fill="#c99434" opacity=".85"/>' +
-  '<g stroke="#c99434" stroke-width="1.2" opacity=".6"><path d="M160,82 l-3,-4 M168,78 l-1,-5 M178,77 l1,-5 M188,80 l3,-4"/></g>' +
-  '<circle cx="208" cy="104" r="15" fill="#2a1e14"/><ellipse cx="213" cy="98" rx="5" ry="4" fill="#fff" opacity=".35"/>' +
-  '<path d="M216,92 C228,72 240,70 246,78 M212,90 C216,70 226,62 234,64" stroke="#2a1e14" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
-  // legs folded up
-  '<g stroke="#2a1e14" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M164,118 l-8,14 l10,8"/><path d="M178,120 l-2,16 l11,5"/><path d="M190,116 l6,14 l10,2"/></g>' +
+  // fuzzy thorax and head, tipped back
+  '<circle cx="176" cy="100" r="22" fill="#4a3218"/><ellipse cx="174" cy="88" rx="13" ry="7" fill="#c99434" opacity=".85"/>' +
+  '<circle cx="208" cy="110" r="15" fill="#2a1e14"/><ellipse cx="211" cy="103" rx="5" ry="4" fill="#fff" opacity=".35"/>' +
+  // feelers drooping onto the petal
+  '<path d="M219,116 C230,128 240,132 249,126 M215,121 C219,136 227,144 238,143" stroke="#2a1e14" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+  // six crooked legs up in the air
+  '<g stroke="#2a1e14" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".5"><path d="M170,80 l6,-16 l-3,-10"/><path d="M182,80 l7,-14 l-1,-11"/><path d="M193,86 l9,-12 l2,-10"/></g>' +
+  '<g stroke="#2a1e14" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M162,82 l-5,-18 l7,-12 l5,2"/><path d="M175,79 l-3,-20 l8,-10 l5,3"/><path d="M188,82 l2,-19 l10,-8 l4,3"/></g>' +
   // a dot of pollen still on it
-  '<circle cx="186" cy="132" r="4" fill="#f7d56a"/><circle cx="183" cy="130" r="1.4" fill="#fff6c8"/>' +
+  '<circle cx="168" cy="112" r="4" fill="#f7d56a"/><circle cx="165" cy="110" r="1.4" fill="#fff6c8"/>' +
   '</svg>';
 // packing speed, for the bagger and packer crews
 const smeltSkillPack = ri => rv(ri, 'pack').toFixed(1) + '×';
@@ -6489,7 +6892,8 @@ function liveHTML(kind){
   if (kind === 'helper'){
     const h = HB.find(q => q.kind === cardOpen.kind && q.idx === cardOpen.i); if (!h) return '';
     let s;
-    const trav = { toCurb: 'To the curb', curb: 'Waiting for the truck', hopIn: 'Riding the truck', hopOut: 'Riding the truck', ride: 'Riding the truck' }[h.st];
+    const w = h.st === 'curb' ? crewWaitFor(helperCfg(h)) : '';
+    const trav = { toCurb: 'To the curb', curb: w ? 'Waiting for ' + w : 'Waiting for the truck', hopIn: 'Riding the truck', hopOut: 'Riding the truck', ride: 'Riding the truck' }[h.st];
     if (trav) s = ['travel', trav];
     else if (h.kind === 'blower'){
       s = h.st === 'stoke' ? ['stoke', 'Bellows <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', 'Excavating <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
@@ -7064,6 +7468,8 @@ window.__leafYard = {
   cam: () => ({ ...cam }),
   setCam: (x, y, z) => { camAnim = null; camFollow = null; userCam = true; cam.z = z; cam.ox = W/2 - x*z; cam.oy = H/2 - y*z; buildGround(cam); },   // V13: for screenshots
   world: () => WORLD,
+  jump: id => startJump(id),
+  ants: () => (ANTS ? antGrid() : null),   // V14.1: the ants' grid and trails (for tests)   // V14.1: the test panel's Jump to
   robots: () => R,
   helpers: () => HB,
   bees: () => B,
@@ -7115,6 +7521,7 @@ function start(data){
   dispCash = S.cash;
   if (S.flags.guestBee && !S.hive.built) Object.assign(guest, { on: true, mode: 'hover' }, GUEST_SPOT());
   if (A){ arriveScene(A); save(); setTimeout(() => lotFade(false), 700); }
+  runJump();   // V14.1: a test jump that's on its way through the lots
   addEventListener('resize', resize);
   if (window.claude && window.claude.hot && window.claude.hot.snapshot){ try { window.claude.hot.snapshot(() => ({ S })); } catch(e){} }
   requestAnimationFrame(ts => { last = ts; requestAnimationFrame(frame); });

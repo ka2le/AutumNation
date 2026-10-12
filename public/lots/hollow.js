@@ -654,9 +654,19 @@ LOTS.hollow = H => {
   function drawAntShape(c, m, ph, moving, n, cap){
     const { ell, leafPath, rr, shade } = H;
     const step = moving ? Math.sin(ph) : 0, step2 = moving ? Math.sin(ph + Math.PI) : 0;
+    // V14.1: six legs in a tripod walk: the near three and the far three (fainter, behind) swing in turns, each foot
+    // lifting as it swings forward, so the walking shows
     const legs = (xs, len, col, w) => {
-      c.strokeStyle = col; c.lineWidth = w || 0.5; c.lineCap = 'round';
-      xs.forEach((x, i) => { const s = (i % 2 ? step : step2)*1.4; c.beginPath(); c.moveTo(x, -2.4); c.lineTo(x + s*0.5 + (i - 1)*0.6, -3.6); c.lineTo(x + s + (i - 1)*1.3, 0); c.stroke(); });
+      c.strokeStyle = col; c.lineWidth = (w || 0.5)*1.15; c.lineCap = 'round'; c.lineJoin = 'round';
+      for (const far of [1, 0]){
+        c.globalAlpha = far ? 0.5 : 1;
+        xs.forEach((x, i) => {
+          const q = ph + (i % 2 ? Math.PI : 0) + (far ? Math.PI : 0), s = moving ? Math.sin(q)*1.9 : 0, lift = moving ? Math.max(0, Math.cos(q))*1.1 : 0;
+          const fx = x + s + (i - 1)*1.5 + (far ? 0.5 : 0), fy = (far ? -0.5 : 0) - lift;
+          c.beginPath(); c.moveTo(x, -2.4); c.lineTo((x + fx)/2 + (i - 1)*0.3, -4 - lift*0.8); c.lineTo(fx, fy); c.stroke();
+        });
+      }
+      c.globalAlpha = 1;
     };
     const eye = (x, y, r) => { c.fillStyle = '#1e1a18'; ell(c, x, y, r, r); c.fill(); c.fillStyle = '#ffc457'; ell(c, x + r*0.25, y - r*0.1, r*0.55, r*0.55); c.fill(); };
     const feelers = (x, y, col) => { c.strokeStyle = col; c.lineWidth = 0.4; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 1.2, y - 2.6, x + 2.8, y - 3.2); c.moveTo(x - 0.4, y); c.quadraticCurveTo(x + 0.4, y - 2.8, x + 1.6, y - 3.8); c.stroke(); c.fillStyle = '#ff7a4d'; ell(c, x + 2.8, y - 3.2, 0.45, 0.45); c.fill(); };
@@ -712,13 +722,15 @@ LOTS.hollow = H => {
       if (b.st === 'in') continue;
       const x = b.x, y = b.y;
       if (x < V.x0 || x > V.x1 || y < V.y0 || y > V.y1 + 20) continue;
-      const moving = b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue' || (b.st === 'loiter' && Math.hypot(b.tx - b.x, b.ty - b.y) > 1);
-      const tilt = moving ? clamp(Math.atan2(b.ty - b.y, Math.abs(b.tx - b.x) + 0.01)*0.45, -0.4, 0.4) : 0;
+      // V14.1: they walk now (game.js antMove): b.walk says it moved this frame, b.gait how far it has walked, b.hx/hy its heading
+      const moving = b.walk != null ? b.walk : b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue';
+      const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.01)*0.4, -0.45, 0.45) : 0;
+      const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0;
       c.fillStyle = 'rgba(20,12,6,.28)'; ell(c, x, y + 0.6, 5, 1.3); c.fill();
-      c.save(); c.translate(x, y); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
+      c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
       if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
       const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
-      drawAntShape(c, BEE_MODELS[b.i % BEE_MODELS.length], b.anim*14 + b.ph, moving, n, cap);
+      drawAntShape(c, BEE_MODELS[b.i % BEE_MODELS.length], (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph, moving, n, cap);
       c.restore();
       if (b.st === 'sip' && !simMode && Math.random() < 0.08) parts.push({ k:'speck', x: x + b.face*5, y: y - 2, vx: rand(-14, 14), vy: rand(-20, -8), g: 60, life: rand(.3, .5), t: 0 });
     }
@@ -1269,7 +1281,8 @@ LOTS.hollow = H => {
     bg: '#4a3c2a',
     HV: { plinth: 12, fh: 8, r: 21, k: 0.32 },   // the ant hill's height (a chamber per "floor")
     hiveWide: true,                              // the ant hill is wider than the beehive tower (hit box, falling leaves)
-    antsOnGround: true,                          // the ants walk under the tree crowns, not over them
+    antsOnGround: true,
+    antSpeed: 0.7,                               // V14.1: ants walk at 70% of a bee's speed (and round things, on their trails)                          // the ants walk under the tree crowns, not over them
     hiveKnown: true,                             // the ant hill can be built from the start (for now)
     art: { flowerSprite, drawFlower, drawDeco, bloomOf, drawJar, drawGiftJar, drawHive, drawBees, drawTub, logEnd, nugget, drawIngot, drawPallet, drawPlant,
       drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney,
