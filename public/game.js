@@ -5102,7 +5102,7 @@ function updHud(dt){
   $('hCash').classList.toggle('bump', cashBumpT > 0);
   if (cashBumpT > 0) cashBumpT -= dt;
 }
-// Tap the cash 3 times within 2 seconds: +$1,000. Keep tapping: +$10,000, then +$100,000 per tap.
+// Tap the cash 3 times within 2 seconds to start the test-money ladder: $100, $200, $500, $500, $1,000, $10,000, then $100,000 per tap.
 const cheat = { n: 0, first: 0, last: 0 };
 $('hCash').addEventListener('pointerdown', e => {
   e.stopPropagation();
@@ -5111,7 +5111,7 @@ $('hCash').addEventListener('pointerdown', e => {
   cheat.n++; cheat.last = now;
   if (cheat.n < 3) return;
   if (cheat.n === 3 && now - cheat.first > 2000){ cheat.n = 1; cheat.first = now; return; }
-  const add = cheat.n === 3 ? 1000 : cheat.n === 4 ? 10000 : 100000;
+  const add = cheat.n === 3 ? 100 : cheat.n === 4 ? 200 : cheat.n <= 6 ? 500 : cheat.n === 7 ? 1000 : cheat.n === 8 ? 10000 : 100000;
   S.cash += add; cashBumpT = 0.25;
   sfx('coins', add);
   const tgt = s2w(130, 76);

@@ -32,7 +32,7 @@ Useful development URL options:
 - `/?speed=4` runs the game at four times normal speed (the supported range is 0.25× to 20×).
 - Combine them as `/?fresh&speed=10`.
 
-Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves are not carried over). Tapping the cash counter 3 times within 2 seconds adds test money ($1,000, then $10,000, then $100,000 per tap). The Workshop card provides a Start over control.
+Progress is stored in browser `localStorage` under `leaf-yard-save-v2` (v1 saves are not carried over). Tapping the cash counter 3 times within 2 seconds starts the test-money ladder ($100, $200, $500, $500, $1,000, $10,000, then $100,000 per tap). The Workshop card provides a Start over control.
 
 ## Git workflow (who commits, who pushes)
 

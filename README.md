@@ -51,7 +51,7 @@ Progress saves in the browser's localStorage (key `leaf-yard-save-v2`). The Work
 
 **Camera:** scroll (or pinch) to zoom, drag to look around, WASD or arrow keys to pan, `+`/`-` to zoom, Home or `0` (or the round button bottom right) to go back to the framed yard.
 
-**Test money:** tap the cash counter 3 times within 2 seconds for +$1,000. Keep tapping: the 4th tap gives +$10,000 and every tap after that +$100,000.
+**Test money:** tap the cash counter 3 times within 2 seconds to start the payout ladder: +$100, +$200, +$500, +$500, +$1,000, +$10,000, then +$100,000 on every further tap. Wait more than 2 seconds between taps to restart the sequence.
 
 ### Test locations (`?location2`)
 
