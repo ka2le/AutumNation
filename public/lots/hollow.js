@@ -96,7 +96,7 @@ LOTS.hollow = H => {
 
   // ── the ground: soaked brown earth in two layers (G.g: flat earth with the puddles' beds, under the water; G.gTop:
   // everything standing up out of it, drawn over the water)
-  function paintGround(G){
+  function* paintGround(G){
     const { LANE, ROAD, TAU, VERGE, cellRnd, drawDecoFlowers, drawLeaf, ell, lerp, mulberry, puddleAt, puddleTrace, rr, shade } = H;
     let g = G.g; const gBase = G.g, gTop = G.gTop, { V, O, CS, i0, i1, j0, j1, inOwned } = G;
     const gr = g.createLinearGradient(0, V.y0, 0, 0);
@@ -105,7 +105,7 @@ LOTS.hollow = H => {
     const glow = (x, y, r, col, a) => { const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0, col + a); rg.addColorStop(1, col + '00'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); };
     // big soft patches: darker mud, olive-brown earth and the odd tired green
     const patch = ['#3a2f21', '#62523a', '#4e5a2e', '#6b5838', '#433726', '#56602f', '#705d3c'];
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 1);
       for (let k=0;k<2;k++) glow((i + rnd())*CS, (j + rnd())*CS, 50 + rnd()*110, patch[Math.floor(rnd()*patch.length)], '80');
     }
@@ -123,7 +123,7 @@ LOTS.hollow = H => {
       if (!p.road){ const rnd = mulberry(p.seed + 5); for (let k=0;k<10;k++){ const a = rnd()*TAU, x = p.x + Math.cos(a)*(p.rx + 4 + rnd()*5), y = p.y + Math.sin(a)*(p.ry + 2 + rnd()*3); g.fillStyle = rnd() < .5 ? 'rgba(120,98,70,.5)' : 'rgba(22,16,10,.4)'; ell(g, x, y, 1.6 + rnd()*2.2, 0.8 + rnd()); g.fill(); } }
     }
     g.lineCap = 'round';
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 2);
       // mottled earth: little dark and light flecks of mud
       for (let k=0;k<90;k++){
@@ -180,7 +180,7 @@ LOTS.hollow = H => {
     g = gTop;
     drawDecoFlowers(g, V);
     SPOTS.forEach((p, i) => drawRockBed(g, p.x, p.y, 100 + i));
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 3);
       // dead bracken: rust-brown fern fronds
       for (let k=0;k<4;k++){
@@ -221,7 +221,7 @@ LOTS.hollow = H => {
     const vy = -VERGE;
     g.fillStyle = '#7c7262'; g.fillRect(V.x0, vy, V.x1 - V.x0, VERGE);
     const vg = g.createLinearGradient(0, vy - 6, 0, vy + 7); vg.addColorStop(0, 'rgba(70,62,38,1)'); vg.addColorStop(1, 'rgba(70,62,38,0)'); g.fillStyle = vg; g.fillRect(V.x0, vy - 6, V.x1 - V.x0, 13);
-    for (let i=i0;i<i1;i++){
+    for (let i=i0;i<i1;i++){ yield;
       const rnd = cellRnd(i, 0, 4);
       for (let k=0;k<110;k++){ const x = (i + rnd())*CS, y = vy + 4 + rnd()*(VERGE - 5), ci = Math.floor(rnd()*4), rx = 1 + rnd()*1.6, ry = 0.8 + rnd()*1.1; g.fillStyle = ['#6a6152','#958a77','#5e564a','#a39883'][ci]; ell(g, x, y, rx, ry); g.fill(); if (rnd() < 0.18){ g.fillStyle = 'rgba(230,236,242,.4)'; ell(g, x - rx*0.3, y - ry*0.4, rx*0.4, ry*0.25); g.fill(); } }
       for (let k=0;k<16;k++){ const x = (i + rnd())*CS, tone = rnd(), dx = (rnd()-.5)*4, h = 2 + rnd()*5; g.strokeStyle = tone < .5 ? '#55602c' : '#6f7438'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, vy + 2); g.lineTo(x + dx, vy + 2 + h); g.stroke(); }
@@ -232,7 +232,7 @@ LOTS.hollow = H => {
     g.fillStyle = '#6f675a'; g.fillRect(V.x0, 6, V.x1 - V.x0, 2);
     const rg2 = g.createLinearGradient(0, 8, 0, ROAD + 40); rg2.addColorStop(0, '#3b3738'); rg2.addColorStop(0.5, '#423e40'); rg2.addColorStop(1, '#343032');
     g.fillStyle = rg2; g.fillRect(V.x0, 8, V.x1 - V.x0, V.y1 - 8);
-    for (let i=i0;i<i1;i++){
+    for (let i=i0;i<i1;i++){ yield;
       const rnd = cellRnd(i, 1, 5);
       for (let k=0;k<70;k++){ const x = (i + rnd())*CS, y = 9 + rnd()*(ROAD + 10), light = rnd() < .5; g.fillStyle = light ? 'rgba(220,230,240,.05)' : 'rgba(0,0,0,.1)'; g.fillRect(x, y, 1.6, 1.6); }
       // long soft streaks where the sky shows in the wet road
@@ -915,6 +915,32 @@ LOTS.hollow = H => {
     }
   }
 
+  // V16.1 (speed): an ant takes 40-odd canvas calls to draw, and there can be 60 of them, so each look an ant can have
+  // (build, caps carried, cap colour, walking or not, and the step it's at, in 12 steps a stride) is drawn once into a
+  // small picture at about the size it shows on screen, and stamped from then on. A few new ones are made a frame (after
+  // a zoom); the rest are drawn as before until their turn comes.
+  const ANT_SPR = new Map(), ANT_BOX = { x: -9, y: -15, w: 18, h: 19 }, ANT_STEPS = 12;
+  const antSpr = { lvl: 0, made: 0, frame: -1 };
+  function antSprite(m, ph, moving, n, cap, px){
+    const { TAU } = H;
+    // sizes in steps of √2, at least as big as needed
+    const lvl = Math.ceil(Math.log2(Math.max(0.25, px))*2), res = Math.pow(2, lvl/2);
+    const step = ((Math.round(ph/TAU*ANT_STEPS) % ANT_STEPS) + ANT_STEPS) % ANT_STEPS;
+    const key = lvl + '|' + m + '|' + n + '|' + (n ? cap : '') + '|' + (moving ? 1 : 0) + '|' + step;
+    let cv = ANT_SPR.get(key);
+    if (cv){ ANT_SPR.delete(key); ANT_SPR.set(key, cv); return cv; }   // (most recently used last)
+    const f = H.S.t; if (antSpr.frame !== f){ antSpr.frame = f; antSpr.made = 0; }
+    if (antSpr.made >= 24) return null;
+    antSpr.made++;
+    cv = document.createElement('canvas');
+    cv.width = Math.ceil(ANT_BOX.w*res); cv.height = Math.ceil(ANT_BOX.h*res);
+    const g = cv.getContext('2d');
+    g.setTransform(cv.width/ANT_BOX.w, 0, 0, cv.height/ANT_BOX.h, -ANT_BOX.x*cv.width/ANT_BOX.w, -ANT_BOX.y*cv.height/ANT_BOX.h);
+    drawAntShape(g, m, step/ANT_STEPS*TAU, moving, n, cap);
+    ANT_SPR.set(key, cv);
+    if (ANT_SPR.size > 900) ANT_SPR.delete(ANT_SPR.keys().next().value);
+    return cv;
+  }
   // one ant (V15: game.js draws them one by one in depth order, so the ant hill hides the ones behind it)
   function drawAnt(c, b){
     const { beeSip, clamp, ell, parts, rand, simMode } = H;
@@ -927,7 +953,10 @@ LOTS.hollow = H => {
     c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
     if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
     const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
-    drawAntShape(c, BEE_MODELS[b.i % BEE_MODELS.length], (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph, moving, n, cap);
+    const m = BEE_MODELS[b.i % BEE_MODELS.length], ph = (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph;
+    const spr = c === H.mainCtx ? antSprite(m, ph, moving, n, cap, H.px*1.35) : null;
+    if (spr) c.drawImage(spr, ANT_BOX.x, ANT_BOX.y, ANT_BOX.w, ANT_BOX.h);
+    else drawAntShape(c, m, ph, moving, n, cap);
     c.restore();
     if (b.st === 'sip' && !simMode && Math.random() < 0.08) parts.push({ k:'speck', x: x + b.face*5, y: y - 2, vx: rand(-14, 14), vy: rand(-20, -8), g: 60, life: rand(.3, .5), t: 0 });
   }

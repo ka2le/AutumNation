@@ -119,9 +119,18 @@ const DBG = (PARAMS.get('dbg') || '').split(',');   // dev: ?dbg=nopud,norain,no
 const PUDDLES = LOT.PUDDLES || [];
 // the outline of a puddle: a wobbly ellipse
 function puddlePts(p, grow){
+  const key = 'pts' + (grow || 0); if (p[key]) return p[key];   // V16.1: worked out once per puddle and size
   const rnd = mulberry(p.seed), s1 = rnd()*TAU, s2 = rnd()*TAU, s3 = rnd()*TAU, N = 22, out = [];
   for (let k=0;k<N;k++){ const a = k/N*TAU, r = 1 + 0.16*Math.sin(2*a + s1) + 0.09*Math.sin(3*a + s2) + 0.05*Math.sin(5*a + s3); out.push([p.x + Math.cos(a)*(p.rx*r + grow), p.y + Math.sin(a)*(p.ry*r + grow*0.45)]); }
-  return out;
+  return (p[key] = out);
+}
+// V16.1: the outline as a Path2D (world units), made once: for clipping and stroking without rebuilding the curve
+function puddlePath(p, grow){
+  const key = 'path' + (grow || 0); if (p[key]) return p[key];
+  const P = puddlePts(p, grow || 0), path = new Path2D();
+  P.forEach(([x, y], i) => { const n = P[(i + 1) % P.length], mx = (x + n[0])/2, my = (y + n[1])/2; i ? path.quadraticCurveTo(x, y, mx, my) : path.moveTo(mx, my); });
+  const f = P[0]; path.quadraticCurveTo(f[0], f[1], (f[0] + P[1][0])/2, (f[1] + P[1][1])/2); path.closePath();
+  return (p[key] = path);
 }
 function puddleTrace(c, p, grow){ const P = puddlePts(p, grow || 0); c.beginPath(); P.forEach(([x, y], i) => { const n = P[(i + 1) % P.length], mx = (x + n[0])/2, my = (y + n[1])/2; i ? c.quadraticCurveTo(x, y, mx, my) : c.moveTo(mx, my); }); const f = P[0], n = P[1]; c.quadraticCurveTo(f[0], f[1], (f[0] + n[0])/2, (f[1] + n[1])/2); c.closePath(); }
 const inPuddle = (p, x, y, m = 0) => { const dx = (x - p.x)/(p.rx*0.92 + m), dy = (y - p.y)/(p.ry*0.92 + m*0.45); return dx*dx + dy*dy < 1; };
@@ -710,11 +719,6 @@ function recenter(){
   Object.assign(cam, camTarget(S.land)); buildGround(cam);
   if (cardOpen) placeCard();
 }
-function groundCovers(){
-  const G = groundCam; if (Math.abs(cam.z/G.z - 1) > 0.12) return false;
-  const V = visRect();
-  return V.x0 >= -(G.ox + G.mx)/G.z && V.x1 <= (W + G.mx - G.ox)/G.z && V.y0 >= -(G.oy + G.my)/G.z && V.y1 <= (H + G.my - G.oy)/G.z;
-}
 
 // ───────────────────────── leaves
 // (V13: a lot can bring its own: the prairie's are mostly flower petals, marked petal:true)
@@ -771,6 +775,29 @@ function drawLeaf(c, x, y, s, rot, ci, shape, flipX, squash, alpha, dark){
   c.restore();
 }
 
+// V16.1 (speed): a leaf lying on the ground is stamped from a small picture of it (by colour, shape and which way it's
+// flipped, at about the size it shows on screen) instead of being traced every frame
+const LEAF_SPR = new Map(), LEAF_BOX = { x: 1.08, y: 1.08, w: 2.16, h: 2.3 };
+function leafSprite(ci, shape, flip, px){
+  const lvl = Math.ceil(Math.log2(Math.max(2, px))*2), res = Math.pow(2, lvl/2), key = lvl + '|' + ci + '|' + shape + '|' + flip;
+  let cv = LEAF_SPR.get(key);
+  if (!cv){
+    cv = document.createElement('canvas'); cv.width = Math.ceil(LEAF_BOX.w*res); cv.height = Math.ceil(LEAF_BOX.h*res); cv.res = res;
+    drawLeaf(cv.getContext('2d'), LEAF_BOX.x*res, LEAF_BOX.y*res, res, 0, ci, shape, flip, 1, 1, 0);
+    LEAF_SPR.set(key, cv);
+    if (LEAF_SPR.size > 600) LEAF_SPR.delete(LEAF_SPR.keys().next().value);
+  }
+  return cv;
+}
+// drawLeaf's arguments (no darkening), for leaves that lie still: on the ground, in the bin
+function stampLeaf(c, x, y, s, rot, ci, shape, flip, squash, alpha){
+  if (Math.abs(flip) !== 1){ drawLeaf(c, x, y, s, rot, ci, shape, flip, squash, alpha, 0); return; }
+  const sp = leafSprite(ci, shape, flip, s*DPR*cam.z), k = s/sp.res;
+  c.save(); c.translate(x, y); if (squash !== 1) c.scale(1, squash); c.rotate(rot);
+  if (alpha !== 1) c.globalAlpha *= alpha;
+  c.drawImage(sp, -LEAF_BOX.x*s, -LEAF_BOX.y*s, sp.width*k, sp.height*k);
+  c.restore();
+}
 let leaves = [], fgLeaves = [];
 let groundN = 0;
 
@@ -3499,11 +3526,6 @@ function antTrailLayer(g){
   g.cv = cv;
   return cv;
 }
-function drawAntTrails(V){
-  if (!ANTS || !S.hive.built || simMode || hiveGrounded()) return;
-  const g = antGrid(), cv = antTrailLayer(g), c = ctx;
-  c.drawImage(cv, g.x0, g.y0, g.nx*ANT_CELL, g.ny*ANT_CELL);
-}
 function findFlower(b){
   let best = null, bs = 1e18;
   for (const f of FLOWERS){
@@ -4199,40 +4221,147 @@ function autoAssign(t, at, says){
 }
 
 // ───────────────────────── static art: ground, canopies, vignette
-function buildGround(c){
+// V16.1 (speed): the ground used to be repainted in one go whenever the view stopped after a zoom or a pan, which took
+// a quarter of a second or more on the bigger lots (a visible hitch). Now the painters are generators that yield after
+// each 128-unit cell, and a new ground is painted a few milliseconds a frame into spare canvases (groundJob) while the
+// old one stays on screen, scaled; when it's done the two swap. It starts a little before the view runs off the old
+// one, so a slow pan rarely shows its edge. buildGround(c) still paints in one go (start, resize, recenter, land).
+let groundJob = null, groundSpare = null, groundSpareT = 0;
+const GROUND_BUDGET = 4;   // ms a frame for painting the next ground in the background
+function groundLayers(w, h){
+  // reuse the canvases of the ground before last when they're the right size
+  const sp = groundSpare; groundSpare = null;
+  // (kept in main memory, willReadFrequently: the browser would otherwise put off drawing what was painted until the
+  // canvas is first shown, and do it all in that one frame; stepGround makes it draw as it goes instead)
+  const mk = old => { if (old && old.width === w && old.height === h){ const g = old.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h); return old; } const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d', { willReadFrequently: true }); return cv; };
+  return { cv: mk(sp && sp.cv), top: RAINY ? mk(sp && sp.top) : null };
+}
+function startGround(c){
   const mx = Math.round(W*0.35), my = Math.round(H*0.35);
   const rs = Math.min(DPR, Math.sqrt(9e6/((W + 2*mx)*(H + 2*my))));
-  groundCam = { z: c.z, ox: c.ox, oy: c.oy, mx, my, rs };
-  groundCv = document.createElement('canvas');
-  groundCv.width = Math.ceil((W + 2*mx)*rs); groundCv.height = Math.ceil((H + 2*my)*rs);
-  const g = groundCv.getContext('2d');
+  const G = { z: c.z, ox: c.ox, oy: c.oy, mx, my, rs };
+  if (groundJob && groundJob.cv !== groundCv) groundSpare = { cv: groundJob.cv, top: groundJob.top };   // an unfinished one is dropped
+  const L = groundLayers(Math.ceil((W + 2*mx)*rs), Math.ceil((H + 2*my)*rs));
+  const g = L.cv.getContext('2d');
   g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
   // V14: on a lot with puddles the ground comes in two layers: the flat earth (with the puddles' beds) under the water,
   // and everything standing up out of it (fence, wood piles, bracken...) on top of the water (G.gTop)
-  let gTop = g; groundTopCv = null;
-  if (RAINY){ groundTopCv = document.createElement('canvas'); groundTopCv.width = groundCv.width; groundTopCv.height = groundCv.height; gTop = groundTopCv.getContext('2d'); gTop.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my)); }
+  let gTop = g;
+  if (L.top){ gTop = L.top.getContext('2d'); gTop.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my)); }
   const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
   const O = owned();
   const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
   const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
-  // V13: each lot paints its own ground (the prairie's is in public/lots/prairie.js)
-  (LOT.paintGround || paintGroundHome)({ g, gTop, V, O, CS, i0, i1, j0, j1, inOwned });
+  // V13: each lot paints its own ground (the prairie's is in public/lots/prairie.js). V16.1: painters are generators
+  // (function*) that yield now and then; an old-style painter just paints in one go. On a rainy lot the puddles' still
+  // water (tint, darker rim, sheen, rim line) goes in first, under whatever stands up out of the ground, instead of
+  // being drawn every frame; drawPuddles only adds the reflections and the rain rings
+  const paint = LOT.paintGround || paintGroundHome, args = { g, gTop, V, O, CS, i0, i1, j0, j1, inOwned };
+  const it = (function*(){
+    if (RAINY) yield* paintPuddleWater(gTop, V, O);
+    const r = paint(args);
+    if (r && typeof r.next === 'function') yield* r;
+  })();
+  G.sig = groundSig();
+  groundJob = { cam: G, cv: L.cv, top: L.top, it, g };
+}
+// what the ground depends on besides the camera: the land you own, and (the hollow) the ants' trails, worn in once the
+// ant hill is up
+const trailsShown = () => !!(ANTS && S.hive.built && !simMode && !hiveGrounded());
+function groundSig(){ return S.land + '|' + (trailsShown() ? (antGrid(), antNav.sig) : '-'); }
+// paint on for up to ms milliseconds; true once the new ground is on screen
+function stepGround(ms){
+  const J = groundJob; if (!J) return true;
+  if (J.it){
+    const end = performance.now() + ms, flush = ms !== Infinity;
+    // (reading a pixel back makes the browser actually draw the cells painted so far, so that work is spread too)
+    while (!J.it.next().done){ if (flush){ J.g.getImageData(0, 0, 1, 1); if (J.top) J.top.getContext('2d').getImageData(0, 0, 1, 1); } if (performance.now() >= end) return false; }
+  }
+  // V16.1: the pine needles along the ant trails go into the ground too (they used to be laid over it every frame)
+  if (trailsShown()){
+    const G = J.cam, a = antGrid(), tc = antTrailLayer(a), g = J.g;
+    g.setTransform(G.rs*G.z, 0, 0, G.rs*G.z, G.rs*(G.ox + G.mx), G.rs*(G.oy + G.my)); g.globalAlpha = 1;
+    g.drawImage(tc, a.x0, a.y0, a.nx*ANT_CELL, a.ny*ANT_CELL);
+  }
+  if (groundCv && groundCv !== J.cv){ groundSpare = { cv: groundCv, top: groundTopCv }; groundSpareT = performance.now(); }
+  groundCv = J.cv; groundTopCv = J.top; groundCam = J.cam; groundJob = null;
+  return true;
+}
+function buildGround(c){ startGround(c); stepGround(Infinity); }
+// is the ground painted for camera G good for the view now: about the same zoom, and the view inside it (with slack,
+// a share of its margins left over)
+function groundFits(G, slack){
+  if (!G || Math.abs(cam.z/G.z - 1) > 0.12) return false;
+  const V = visRect(), sx = G.mx*(slack || 0)/G.z, sy = G.my*(slack || 0)/G.z;
+  return V.x0 >= -(G.ox + G.mx)/G.z + sx && V.x1 <= (W + G.mx - G.ox)/G.z - sx && V.y0 >= -(G.oy + G.my)/G.z + sy && V.y1 <= (H + G.my - G.oy)/G.z - sy;
+}
+// how much of the view the ground painted for camera G covers (0..1)
+function groundCover(G){
+  const V = visRect(), x0 = -(G.ox + G.mx)/G.z, x1 = (W + G.mx - G.ox)/G.z, y0 = -(G.oy + G.my)/G.z, y1 = (H + G.my - G.oy)/G.z;
+  const w = Math.max(0, Math.min(V.x1, x1) - Math.max(V.x0, x0)), h = Math.max(0, Math.min(V.y1, y1) - Math.max(V.y0, y0));
+  return w*h/Math.max(1e-6, (V.x1 - V.x0)*(V.y1 - V.y0));
+}
+function updGround(){
+  const stable = !camAnim && performance.now() - camMovedT > 140;
+  if (groundJob){
+    // the one being painted no longer fits the view (zoomed or panned on): start over once the camera settles
+    if (groundJob.cam.sig !== groundSig() || (!groundFits(groundJob.cam, 0) && stable)) startGround(cam);
+    // a bit at a time while the old ground still fills the screen; quicker while part of the view has none (after a
+    // big zoom out or a fast pan)
+    const gap = 1 - groundCover(groundCam);
+    stepGround(gap > 0.2 ? 24 : gap > 0.01 ? 10 : GROUND_BUDGET);
+    return;
+  }
+  // (the spare pair is big; let it go once nothing has been painted for a few seconds)
+  if (groundSpare && performance.now() - groundSpareT > 4000){ for (const c of [groundSpare.cv, groundSpare.top]) if (c){ c.width = c.height = 0; } groundSpare = null; }
+  if (groundCam.sig !== groundSig()){ startGround(cam); return; }
+  if (groundFits(groundCam, 0.45)){
+    // close enough, but painted at a slightly different zoom: once the camera has been still for a moment, paint it
+    // again at this zoom (sharper, and quicker to lay on)
+    if (Math.abs(cam.z/groundCam.z - 1) > 0.002 && !camAnim && performance.now() - camMovedT > 400) startGround(cam);
+    return;
+  }
+  // the view has (nearly) run off the painted ground: paint a new one once the camera settles, or already while
+  // panning at the same zoom, so it's usually ready before the edge shows
+  const sameZoom = Math.abs(cam.z/groundCam.z - 1) <= 0.12;
+  if (stable || (sameZoom && !camAnim)) startGround(cam);
+}
+// V16.1: the puddles' still water, painted with the ground (see startGround)
+function* paintPuddleWater(g, V, O){
+  for (const p of PUDDLES){
+    if (p.x + p.rx*1.2 < V.x0 || p.x - p.rx*1.2 > V.x1 || p.y + p.ry*1.5 < V.y0 || p.y - p.ry*1.5 > V.y1) continue;
+    yield;
+    const path = puddlePath(p);
+    g.save(); g.clip(path);
+    // the water: a cool tint, darker at the rim, a soft sheen near the far edge
+    g.fillStyle = p.road ? 'rgba(28,34,44,.26)' : 'rgba(44,54,66,.24)'; g.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
+    // out in the wild the ground is drawn a little darker, and so is the water there
+    if (!p.road && !(p.x > O.x0 && p.x < O.x1 && p.y > O.y0 && p.y < -VERGE)){ g.fillStyle = 'rgba(22,18,10,.26)'; g.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8); }
+    g.save(); g.translate(p.x, p.y); g.scale(1, p.ry/p.rx);
+    const fr = g.createRadialGradient(0, 0, p.rx*0.55, 0, 0, p.rx*1.05); fr.addColorStop(0, 'rgba(30,24,18,0)'); fr.addColorStop(1, 'rgba(30,24,18,.45)');
+    g.fillStyle = fr; ell(g, 0, 0, p.rx*1.1, p.rx*1.1); g.fill(); g.restore();
+    g.fillStyle = 'rgba(235,242,248,.16)'; ell(g, p.x - p.rx*0.15, p.y - p.ry*0.55, p.rx*0.55, p.ry*0.12); g.fill();
+    g.restore();
+    // a thin dark rim with a wet shine just inside it
+    g.strokeStyle = 'rgba(18,12,8,.55)'; g.lineWidth = 1.1; g.stroke(path);
+    g.save(); g.clip(path); g.strokeStyle = 'rgba(220,230,240,.22)'; g.lineWidth = 1.4; g.stroke(path); g.restore();
+  }
 }
 // the first yard: autumn grass, fallen leaves, toadstools; dark, overgrown land beyond the fence; a gravel verge
-function paintGroundHome(G){
+function* paintGroundHome(G){
   const { g, V, O, CS, i0, i1, j0, j1, inOwned } = G;
   const gr = g.createLinearGradient(0, V.y0, 0, 0);
   gr.addColorStop(0, '#66753a'); gr.addColorStop(0.6, '#74823e'); gr.addColorStop(1, '#7e8a43');
   g.fillStyle = gr; g.fillRect(V.x0, V.y0, V.x1 - V.x0, -V.y0 + 2);
   const patch = ['#86924a','#62713a','#8f8a46','#707f3c','#94914c','#5d6b36'];
-  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
     const rnd = cellRnd(i, j, 1);
     const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 60 + rnd()*120, col = patch[Math.floor(rnd()*patch.length)];
     const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0, col+'88'); rg.addColorStop(1, col+'00'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2);
   }
   for (const t of TREES){ const x = t.x + t.r*0.22, y = t.y + t.r*0.5, r = t.r*1.12; const rg = g.createRadialGradient(x,y,r*0.2,x,y,r); rg.addColorStop(0,'rgba(30,35,10,.32)'); rg.addColorStop(1,'rgba(30,35,10,0)'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); }
   g.lineCap = 'round';
-  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
     const rnd = cellRnd(i, j, 2);
     for (let k=0;k<62;k++){
       const x = (i + rnd())*CS, y = (j + rnd())*CS, h = 3 + rnd()*5, lean = (rnd()-0.5)*3, tone = rnd();
@@ -4260,7 +4389,7 @@ function paintGroundHome(G){
   g.beginPath(); g.rect(V.x0, V.y0, V.x1 - V.x0, -VERGE - V.y0); g.rect(O.x0, O.y0, O.x1 - O.x0, O.y1 - O.y0);
   g.fillStyle = 'rgba(40,42,14,.26)'; g.fill('evenodd');
   g.restore();
-  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
     const rnd = cellRnd(i, j, 3);
     for (let k=0;k<5;k++){
       const x = (i + rnd())*CS, y = (j + rnd())*CS, tone = rnd() < .5 ? '#56622c' : '#8a8a46';
@@ -4278,7 +4407,7 @@ function paintGroundHome(G){
   const vy = -VERGE;
   g.fillStyle = '#b9a98a'; g.fillRect(V.x0, vy, V.x1 - V.x0, VERGE);
   const vg = g.createLinearGradient(0, vy - 6, 0, vy + 6); vg.addColorStop(0, 'rgba(118,132,63,1)'); vg.addColorStop(1, 'rgba(118,132,63,0)'); g.fillStyle = vg; g.fillRect(V.x0, vy - 6, V.x1 - V.x0, 12);
-  for (let i=i0;i<i1;i++){
+  for (let i=i0;i<i1;i++){ yield;
     const rnd = cellRnd(i, 0, 4);
     for (let k=0;k<120;k++){ const x = (i + rnd())*CS, y = vy + 3 + rnd()*(VERGE - 4), ci = Math.floor(rnd()*4), rx = 1 + rnd()*1.6, ry = 0.8 + rnd()*1.1; g.fillStyle = ['#a2937a','#cdbfa3','#988a72','#d8ccb3'][ci]; ell(g, x, y, rx, ry); g.fill(); }
     for (let k=0;k<14;k++){ const x = (i + rnd())*CS, tone = rnd(), dx = (rnd()-.5)*4, h = 2 + rnd()*5; g.strokeStyle = tone < .5 ? '#5f6e33' : '#7b8a45'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, vy + 2); g.lineTo(x + dx, vy + 2 + h); g.stroke(); }
@@ -4288,7 +4417,7 @@ function paintGroundHome(G){
   g.fillStyle = '#a99a80'; g.fillRect(V.x0, 6, V.x1 - V.x0, 2);
   const rg2 = g.createLinearGradient(0, 8, 0, ROAD + 40); rg2.addColorStop(0, '#5d5550'); rg2.addColorStop(1, '#4f4742');
   g.fillStyle = rg2; g.fillRect(V.x0, 8, V.x1 - V.x0, V.y1 - 8);
-  for (let i=i0;i<i1;i++){
+  for (let i=i0;i<i1;i++){ yield;
     const rnd = cellRnd(i, 1, 5);
     for (let k=0;k<70;k++){ const x = (i + rnd())*CS, y = 9 + rnd()*(ROAD + 10), light = rnd() < .5; g.fillStyle = light ? 'rgba(255,240,220,.05)' : 'rgba(0,0,0,.08)'; g.fillRect(x, y, 1.6, 1.6); }
     for (let k=0;k<2;k++){ const x = (i + rnd())*CS, y = 14 + rnd()*(ROAD - 18), rot = rnd()*TAU, ci = Math.floor(rnd()*LEAFC.length); g.globalAlpha = .5; drawLeaf(g, x, y, 5, rot, ci, 1, 1, .7, 1, .35); g.globalAlpha = 1; }
@@ -4384,6 +4513,24 @@ function blossomDot(g, x, y, r, col, eye){
   g.fillStyle = eye; ell(g, x, y, r*0.26, r*0.24); g.fill();
 }
 function leafBlob(g, x, y, s, rot, col){ g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s); leafPath(g, 1); g.fillStyle = col; g.fill(); g.restore(); }
+// V16.1 (speed): the crowns are painted at 2× and were always drawn from that, even zoomed right out where a tree is a
+// few dozen pixels across. canopyImg(i, px) hands back a copy halved as often as it can be for px screen pixels per
+// world unit (made the first time it's needed), so a small tree is drawn from a small picture.
+function canopyImg(i, px){
+  const cc = canopyCvs[i]; if (!cc) return null;
+  const M = cc.mips || (cc.mips = [cc.c]);
+  let L = 0; while (L < 3 && 2/Math.pow(2, L + 1) >= px) L++;
+  // (at most two new copies a frame, so zooming out doesn't make them all at once; until then the bigger one does)
+  const f = S.t; if (canopyMade.t !== f){ canopyMade.t = f; canopyMade.n = 0; }
+  while (M.length <= L && canopyMade.n++ < 2){
+    const src = M[M.length - 1], m = document.createElement('canvas');
+    m.width = Math.max(1, Math.ceil(src.width/2)); m.height = Math.max(1, Math.ceil(src.height/2));
+    const g = m.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, m.width, m.height);
+    M.push(m);
+  }
+  return M[Math.min(L, M.length - 1)];
+}
+const canopyMade = { t: -1, n: 0 };
 function buildCanopies(){
   const RES = 2;
   canopyCvs = TREES.map((t, ti) => {
@@ -4414,6 +4561,38 @@ function buildCanopies(){
         const a = -Math.PI*0.92 + k/6*Math.PI*0.84 + (rnd() - 0.5)*0.2, ex = Math.cos(a)*R0*0.86, ey = Math.sin(a)*R0*0.86*fy;
         g.lineWidth = tw*0.55; g.beginPath(); g.moveTo((rnd() - 0.5)*tw*0.6, R0*0.5); g.quadraticCurveTo(ex*0.35, R0*0.2 + ey*0.2, ex, ey); g.stroke();
         g.lineWidth = tw*0.22; g.beginPath(); g.moveTo(ex*0.6, ey*0.6 + R0*0.08); g.quadraticCurveTo(ex*0.8 + (rnd() - 0.5)*20, ey*0.9, ex*0.95 + (rnd() - 0.5)*R0*0.3, ey + (rnd() - 0.6)*R0*0.25); g.stroke();
+      }
+    }
+    else {
+      // V16.2: autumn trees get a shaded inner crown with the trunk carried up into it and forking into limbs (like the
+      // prairie's cherries), so the small gaps between clumps show bark and shade instead of grass. No extra gaps.
+      g.fillStyle = '#2c1c10'; g.globalAlpha = 0.55;
+      ell(g, 0, R0*0.02, R0*0.62, R0*0.6*fy); g.fill();
+      g.globalAlpha = 0.3; ell(g, 0, R0*0.06, R0*0.42, R0*0.42*fy); g.fill(); g.globalAlpha = 1;
+      const bark = '#6e4a30', barkHi = 'rgba(190,140,95,.55)';
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      // the trunk carries on up into the crown and tapers
+      const fork = R0*0.12;
+      g.fillStyle = bark; g.beginPath();
+      g.moveTo(-tw*0.85, R0*0.5); g.quadraticCurveTo(-tw*0.75, R0*0.3, -tw*0.5, fork); g.lineTo(tw*0.5, fork);
+      g.quadraticCurveTo(tw*0.75, R0*0.3, tw*0.85, R0*0.5); g.closePath(); g.fill();
+      const limb = (x0, y0, a, len, wd, depth) => {
+        const ex = x0 + Math.cos(a)*len, ey = y0 + Math.sin(a)*len*fy, bend = (rnd() - 0.5)*len*0.35;
+        const mx = (x0 + ex)/2 + Math.cos(a + Math.PI/2)*bend, my = (y0 + ey)/2 + Math.sin(a + Math.PI/2)*bend*fy;
+        g.strokeStyle = bark; g.lineWidth = wd; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+        if (wd > 4){ g.strokeStyle = barkHi; g.lineWidth = wd*0.22; g.beginPath(); g.moveTo(x0 - wd*0.25, y0); g.quadraticCurveTo(mx - wd*0.25, my, ex - wd*0.12, ey); g.stroke(); }
+        if (depth > 0){
+          const kids = depth > 1 ? 2 : 2 + Math.floor(rnd()*2);
+          for (let i=0;i<kids;i++){
+            const t = 0.55 + rnd()*0.4, px = x0 + (ex - x0)*t, py = y0 + (ey - y0)*t, sa = a + (i % 2 ? 1 : -1)*(0.35 + rnd()*0.45);
+            limb(px, py, sa, len*(0.45 + rnd()*0.2), wd*0.6, depth - 1);
+          }
+        }
+      };
+      const nL = R0 > 90 ? 4 : 3;
+      for (let k=0;k<nL;k++){
+        const a = -Math.PI/2 + (k - (nL - 1)/2)*(R0 > 90 ? 0.55 : 0.62) + (rnd() - 0.5)*0.18;
+        limb((k - (nL - 1)/2)*tw*0.25, fork + tw*0.4, a, R0*(0.5 + rnd()*0.12), tw*1.15, 2);
       }
     }
     const add = (cx, cy, cr) => {
@@ -4509,7 +4688,7 @@ function drawBin(){
     c.save(); c.beginPath(); c.moveTo(-35, -44); c.bezierCurveTo(-26, -46 - h*1.2, 26, -46 - h*1.2, 35, -44); c.closePath(); c.clip();
     c.fillStyle = '#b8582a'; c.fillRect(-36, -50 - h*1.3, 72, h*1.4 + 8);
     const rnd = mulberry(5);
-    for (let i=0;i<46;i++){ const px = -32 + rnd()*64, py = -44 - rnd()*h*1.1; drawLeaf(c, px, py, 4 + rnd()*2, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 0.8, 1, 0); }
+    for (let i=0;i<46;i++){ const px = -32 + rnd()*64, py = -44 - rnd()*h*1.1; stampLeaf(c, px, py, 4 + rnd()*2, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 0.8, 1); }
     c.restore();
   }
   drawBinBags(c, false);
@@ -4802,7 +4981,7 @@ function drawBagger(){
     if (fill > 0){
       const h = 15*fill, rnd = mulberry(30 + k + Math.floor(fill*8));
       c.save(); c.beginPath(); c.rect(bx - 7, -29 - h, 14, h); c.clip();
-      for (let i=0;i<10;i++) drawLeaf(c, bx - 5 + rnd()*10, -30 - rnd()*h, 2.6, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd() < .5 ? 1 : 0, 1, 0.8, 1, 0);
+      for (let i=0;i<10;i++) stampLeaf(c, bx - 5 + rnd()*10, -30 - rnd()*h, 2.6, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd() < .5 ? 1 : 0, 1, 0.8, 1);
       c.restore();
     }
     c.fillStyle = 'rgba(255,245,225,.3)'; c.fillRect(bx - 5, -42, 1.2, 11);
@@ -5381,7 +5560,7 @@ function drawRobot(r){
   const n = Math.min(r.carryL, 9 + bt*3), m = Math.min(r.carryM, 6), q = Math.min(r.carryI, 4);
   if (n || m || q){
     const rnd = mulberry(r.id*31 + n + m*7 + q*13), iw = BW - 4;
-    for (let i=0;i<n;i++) drawLeaf(c, bx0 + 2 + rnd()*iw, by0 - 2 - rnd()*(1 + n*0.5), 3.4, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 1, 1, 0);
+    for (let i=0;i<n;i++) stampLeaf(c, bx0 + 2 + rnd()*iw, by0 - 2 - rnd()*(1 + n*0.5), 3.4, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, 1, 1);
     for (let i=0;i<m;i++) nugget(c, bx0 + 3 + rnd()*(iw - 2), by0 - 2 - rnd()*(1 + m*0.7), 2.6, rnd()*TAU);
     const wq = Math.min(r.wetI || 0, q);   // V14: soaked bundles are drawn dark
     for (let i=0;i<q;i++) drawIngot(c, bx0 + BW/2 + (i%2 ? 2 : -1), by0 + 1 - i*2.4, 8, 0, undefined, i >= q - wq);
@@ -5893,7 +6072,7 @@ function drawTruck(){
     const h = 4 + T.fill*18, rnd = mulberry(3);
     c.save(); c.beginPath(); c.moveTo(-16, BT); c.bezierCurveTo(-4, BT - h*1.3, 56, BT - h*1.3, 68, BT); c.closePath(); c.clip();
     c.fillStyle = '#b8582a'; c.fillRect(-16, BT - 4 - h*1.4, 84, h*1.5);
-    for (let i=0;i<50;i++) drawLeaf(c, -14 + rnd()*80, BT - rnd()*h*1.15, 4.5, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, .8, 1, 0);
+    for (let i=0;i<50;i++) stampLeaf(c, -14 + rnd()*80, BT - rnd()*h*1.15, 4.5, rnd()*TAU, Math.floor(rnd()*LEAFC.length), rnd()<.5?1:0, 1, .8, 1);
     if (T.takeM) for (let i=0;i<Math.min(8, T.takeM);i++) nugget(c, 6 + rnd()*44, BT - rnd()*h*0.8, 3.4, rnd()*TAU);
     if (T.takeH) for (let i=0;i<Math.min(7, T.takeH);i++) drawJar(c, 2 + rnd()*52, BT - rnd()*h*0.7, 5);
     if (T.takeG) for (let i=0;i<Math.min(5, T.takeG);i++) drawGiftJar(c, 2 + rnd()*52, BT - rnd()*h*0.7, 5);
@@ -6239,13 +6418,15 @@ function wade(o, moving, half, dt, big){
   }
 }
 function drawTracks(V){
-  const c = ctx;
+  // V16.1 (speed): the prints are grouped into a few shades and each shade is filled in one go
+  const c = ctx, N = 10, paths = [];
   for (const t of RAIN.tracks){
     if (t.x < V.x0 || t.x > V.x1 || t.y < V.y0 || t.y > V.y1) continue;
-    const a = t.a*(1 - t.t/9)*0.32;
-    c.fillStyle = 'rgba(22,15,9,' + a + ')';
-    ell(c, t.x - t.h, t.y + 0.5, 3, 1.3); c.fill(); ell(c, t.x + t.h, t.y + 0.5, 3, 1.3); c.fill();
+    const q = Math.round(t.a*(1 - t.t/9)*N); if (q <= 0) continue;
+    const P = paths[q] || (paths[q] = new Path2D());
+    for (const x of [t.x - t.h, t.x + t.h]){ P.moveTo(x + 3, t.y + 0.5); P.ellipse(x, t.y + 0.5, 3, 1.3, 0, 0, TAU); }
   }
+  paths.forEach((P, q) => { if (!P) return; c.fillStyle = 'rgba(22,15,9,' + (q/N*0.32).toFixed(3) + ')'; c.fill(P); });
 }
 function drawSplashes(V){
   const c = ctx;
@@ -6271,41 +6452,56 @@ function reflectables(p){
   return out;
 }
 const REFL_SQ = 0.86;
+// V16.1 (speed): the reflections are painted at one canvas pixel per screen point (half resolution on a high-density
+// screen: they're laid in wobbling and dimmed anyway), and only every other frame while the camera stands still; the still water (tint, rim, sheen) is painted with the ground
+// (paintPuddleWater), so each frame only lays in the reflections and the rain rings
+const reflRt = { key: '', n: 0 };
 function drawPuddles(V){
   const c = ctx, vis = PUDDLES.filter(p => p.x + p.rx > V.x0 && p.x - p.rx < V.x1 && p.y + p.ry > V.y0 && p.y - p.ry < V.y1);
   if (!vis.length) return;
-  if (!reflCv || reflCv.width !== cv.width || reflCv.height !== cv.height){ reflCv = document.createElement('canvas'); reflCv.width = cv.width; reflCv.height = cv.height; reflCtx = reflCv.getContext('2d'); }
-  const rc = reflCtx, z = cam.z, t = RAIN.t;
-  rc.setTransform(1, 0, 0, 1, 0, 0);
-  for (const p of vis){ const x0 = DPR*(cam.ox + (p.x - p.rx*1.4)*z), y0 = DPR*(cam.oy + (p.y - p.ry*1.5)*z); rc.clearRect(x0 - 2, y0 - 2, DPR*z*p.rx*2.8 + 4, DPR*z*p.ry*3 + 4); }
-  rc.setTransform(DPR*z, 0, 0, DPR*z, DPR*cam.ox, DPR*cam.oy);
-  const keep = ctx, pl = parts.length, bl = bubbles.length, tl = timers.length;
-  for (const p of vis){
-    rc.save(); puddleTrace(rc, p, 0); rc.clip();
-    // the overcast sky: pale at the far edge of the puddle, deeper toward us, with slow cloud shapes drifting across
-    const sg = rc.createLinearGradient(0, p.y - p.ry, 0, p.y + p.ry);
-    if (p.road){ sg.addColorStop(0, '#77838f'); sg.addColorStop(1, '#3f4853'); } else { sg.addColorStop(0, '#9aa7b4'); sg.addColorStop(1, '#55626f'); }
-    rc.fillStyle = sg; rc.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
-    for (let k=0;k<3;k++){ const cx = p.x + ((t*4 + k*37 + p.seed*3) % (p.rx*2 + 40)) - p.rx - 20, cy = p.y - p.ry*0.3 + k*p.ry*0.35; rc.fillStyle = 'rgba(205,214,224,.22)'; ell(rc, cx, cy, p.rx*0.45, p.ry*0.28); rc.fill(); }
-    // and everything standing behind it, upside down
-    ctx = rc;
-    try {
-      for (const o of reflectables(p)){ rc.save(); rc.translate(0, o.y); rc.scale(1, -REFL_SQ); rc.translate(0, -o.y); o.f(); rc.restore(); }
-      for (let i=0;i<TREES.length;i++){
-        const tr = TREES[i], cc = canopyCvs[i]; if (!cc) continue;
-        const yb = tr.y + cc.base; if (yb > p.y + p.ry + 4 || yb + (cc.oy + cc.base)*REFL_SQ < p.y - p.ry || Math.abs(tr.x - p.x) > tr.r + p.rx + 10) continue;
-        rc.save(); rc.translate(tr.x, yb); rc.scale(1, -REFL_SQ); rc.globalAlpha = 0.95; rc.drawImage(cc.c, -cc.ox, -cc.oy - cc.base, cc.w, cc.h); rc.restore();
-      }
-    } catch(e){}
-    ctx = keep;
-    rc.restore();
+  const REFL_RES = 1/DPR;
+  const rw = Math.max(1, Math.ceil(cv.width*REFL_RES)), rh = Math.max(1, Math.ceil(cv.height*REFL_RES));
+  if (!reflCv || reflCv.width !== rw || reflCv.height !== rh){ reflCv = document.createElement('canvas'); reflCv.width = rw; reflCv.height = rh; reflCtx = reflCv.getContext('2d'); reflRt.key = ''; }
+  const rc = reflCtx, z = cam.z, t = RAIN.t, k = DPR*REFL_RES;
+  const key = cam.z + ',' + cam.ox + ',' + cam.oy + ',' + vis.length;
+  reflRt.n = (reflRt.n + 1) % 2;
+  if (key !== reflRt.key || reflRt.n === 0){
+    reflRt.key = key;
+    rc.setTransform(1, 0, 0, 1, 0, 0);
+    for (const p of vis){ const x0 = k*(cam.ox + (p.x - p.rx*1.4)*z), y0 = k*(cam.oy + (p.y - p.ry*1.5)*z); rc.clearRect(x0 - 2, y0 - 2, k*z*p.rx*2.8 + 4, k*z*p.ry*3 + 4); }
+    rc.setTransform(k*z, 0, 0, k*z, k*cam.ox, k*cam.oy);
+    const keep = ctx, pl = parts.length, bl = bubbles.length, tl = timers.length;
+    for (const p of vis){
+      rc.save(); rc.clip(puddlePath(p));
+      // the overcast sky: pale at the far edge of the puddle, deeper toward us, with slow cloud shapes drifting across
+      const sg = rc.createLinearGradient(0, p.y - p.ry, 0, p.y + p.ry);
+      if (p.road){ sg.addColorStop(0, '#77838f'); sg.addColorStop(1, '#3f4853'); } else { sg.addColorStop(0, '#9aa7b4'); sg.addColorStop(1, '#55626f'); }
+      rc.fillStyle = sg; rc.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
+      rc.fillStyle = 'rgba(205,214,224,.22)';
+      for (let q=0;q<3;q++){ const cx = p.x + ((t*4 + q*37 + p.seed*3) % (p.rx*2 + 40)) - p.rx - 20, cy = p.y - p.ry*0.3 + q*p.ry*0.35; ell(rc, cx, cy, p.rx*0.45, p.ry*0.28); rc.fill(); }
+      // and everything standing behind it, upside down
+      ctx = rc;
+      try {
+        for (const o of reflectables(p)){ rc.save(); rc.translate(0, o.y); rc.scale(1, -REFL_SQ); rc.translate(0, -o.y); o.f(); rc.restore(); }
+        for (let i=0;i<TREES.length;i++){
+          const tr = TREES[i], cc = canopyCvs[i]; if (!cc) continue;
+          const yb = tr.y + cc.base; if (yb > p.y + p.ry + 4 || yb + (cc.oy + cc.base)*REFL_SQ < p.y - p.ry || Math.abs(tr.x - p.x) > tr.r + p.rx + 10) continue;
+          rc.save(); rc.translate(tr.x, yb); rc.scale(1, -REFL_SQ); rc.globalAlpha = 0.95; rc.drawImage(canopyImg(i, k*z), -cc.ox, -cc.oy - cc.base, cc.w, cc.h); rc.restore();
+        }
+      } catch(e){}
+      ctx = keep;
+      rc.restore();
+    }
+    parts.length = pl; bubbles.length = bl; timers.length = tl;
   }
-  parts.length = pl; bubbles.length = bl; timers.length = tl;
-  // lay the reflections in, in thin wobbling strips, then the water itself on top
+  // the rain rings and wakes, sorted by puddle
+  const rings = new Map();
+  for (const r of RAIN.ripples){ let a = rings.get(r.p); if (!a) rings.set(r.p, a = []); a.push(r); }
+  // lay the reflections in, in thin wobbling strips, then the rings on top (the still water is in the ground's top layer)
   const hs = Math.max(2, Math.round(2.2*DPR));
   for (const p of vis){
     const ag = p.agit || 0;
-    c.save(); puddleTrace(c, p, 0); c.clip();
+    c.save(); c.clip(puddlePath(p));
     c.setTransform(1, 0, 0, 1, 0, 0);
     const x0 = Math.floor(DPR*(cam.ox + (p.x - p.rx*1.3)*z)), x1 = Math.ceil(DPR*(cam.ox + (p.x + p.rx*1.3)*z));
     const y0 = Math.max(0, Math.floor(DPR*(cam.oy + (p.y - p.ry*1.3)*z))), y1 = Math.min(cv.height, Math.ceil(DPR*(cam.oy + (p.y + p.ry*1.3)*z)));
@@ -6314,30 +6510,22 @@ function drawPuddles(V){
     for (let y = y0; y < y1; y += hs){
       const wy = (y - DPR*cam.oy)/(DPR*z);   // world y of this strip, so the wobble sticks to the puddle
       const off = Math.sin(wy*0.9 + t*3.1 + p.seed)*amp + Math.sin(wy*2.3 - t*5.7)*amp*0.45;
-      c.drawImage(reflCv, x0, y, w, hs, x0 + off, y, w, hs);
+      c.drawImage(reflCv, x0*REFL_RES, y*REFL_RES, w*REFL_RES, hs*REFL_RES, x0 + off, y, w, hs);
+    }
+    c.globalAlpha = 1;
+    const rs = rings.get(p);
+    if (rs){
+      // (a little stronger than they used to be, since the water's tint now lies over them)
+      c.setTransform(DPR*z, 0, 0, DPR*z, DPR*cam.ox, DPR*cam.oy);
+      c.lineCap = 'round'; c.lineWidth = 0.75;
+      for (const r of rs){
+        const q = r.t/r.life, e = 1 - Math.pow(1 - q, 2.2), rad = 0.6 + r.r1*e, a = (1 - q)*0.7*r.w;
+        c.strokeStyle = 'rgba(225,235,244,' + a + ')'; ell(c, r.x, r.y, rad, rad*0.42); c.stroke();
+        if (r.w > 0.8 && rad > 4){ c.strokeStyle = 'rgba(225,235,244,' + a*0.6 + ')'; ell(c, r.x, r.y, rad*0.62, rad*0.26); c.stroke(); }
+        if (q < 0.15){ c.fillStyle = 'rgba(235,242,250,' + (0.75*(1 - q/0.15)) + ')'; ell(c, r.x, r.y - 0.6, 0.6, 0.6); c.fill(); }
+      }
     }
     c.restore();
-    // the water: a cool tint, darker at the rim, a soft sheen near the far edge, rain rings and wakes
-    c.save(); puddleTrace(c, p, 0); c.clip();
-    c.fillStyle = p.road ? 'rgba(28,34,44,.26)' : 'rgba(44,54,66,.24)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8);
-    // out in the wild the ground is drawn a little darker, and so is the water there
-    if (!p.road){ const O = owned(); if (!(p.x > O.x0 && p.x < O.x1 && p.y > O.y0 && p.y < -VERGE)){ c.fillStyle = 'rgba(22,18,10,.26)'; c.fillRect(p.x - p.rx - 4, p.y - p.ry - 4, p.rx*2 + 8, p.ry*2 + 8); } }
-    c.save(); c.translate(p.x, p.y); c.scale(1, p.ry/p.rx);
-    const fr = c.createRadialGradient(0, 0, p.rx*0.55, 0, 0, p.rx*1.05); fr.addColorStop(0, 'rgba(30,24,18,0)'); fr.addColorStop(1, 'rgba(30,24,18,.45)');
-    c.fillStyle = fr; ell(c, 0, 0, p.rx*1.1, p.rx*1.1); c.fill(); c.restore();
-    c.fillStyle = 'rgba(235,242,248,.16)'; ell(c, p.x - p.rx*0.15, p.y - p.ry*0.55, p.rx*0.55, p.ry*0.12); c.fill();
-    c.lineCap = 'round';
-    for (const r of RAIN.ripples){
-      if (r.p !== p) continue;
-      const k = r.t/r.life, e = 1 - Math.pow(1 - k, 2.2), rad = 0.6 + r.r1*e, a = (1 - k)*0.55*r.w;
-      c.strokeStyle = 'rgba(225,235,244,' + a + ')'; c.lineWidth = 0.75; ell(c, r.x, r.y, rad, rad*0.42); c.stroke();
-      if (r.w > 0.8 && rad > 4){ c.strokeStyle = 'rgba(225,235,244,' + a*0.6 + ')'; ell(c, r.x, r.y, rad*0.62, rad*0.26); c.stroke(); }
-      if (k < 0.15){ c.fillStyle = 'rgba(235,242,250,' + (0.6*(1 - k/0.15)) + ')'; ell(c, r.x, r.y - 0.6, 0.6, 0.6); c.fill(); }
-    }
-    c.restore();
-    // a thin dark rim with a wet shine along the far edge
-    puddleTrace(c, p, 0); c.strokeStyle = 'rgba(18,12,8,.55)'; c.lineWidth = 1.1; c.stroke();
-    c.save(); puddleTrace(c, p, 0); c.clip(); puddleTrace(c, p, 0); c.strokeStyle = 'rgba(220,230,240,.22)'; c.lineWidth = 1.4; c.translate(0, 1.2); c.stroke(); c.restore();
   }
 }
 function drawRain(){
@@ -6351,8 +6539,23 @@ function drawRain(){
     c.stroke();
   }
 }
-function drawMist(){
+// V16.1 (speed): the mist moves very slowly, so it's laid over the vignette in one full-size picture that's redone a
+// couple of times a second (fgCv), and the screen gets one picture instead of the vignette plus a stretched mist layer
+let fgCv = null, fgT = -1, fgVig = null;
+function drawVignetteMist(){
   const c = ctx;
+  if (!RAINY || DBG.includes('nomist')){ c.drawImage(vignetteCv, 0, 0, W, H); return; }
+  if (!fgCv || fgCv.width !== cv.width || fgCv.height !== cv.height){ fgCv = document.createElement('canvas'); fgCv.width = cv.width; fgCv.height = cv.height; fgT = -1; }
+  if (fgVig !== vignetteCv || fgT < 0 || RAIN.t - fgT > 0.4 || RAIN.t < fgT){
+    fgVig = vignetteCv; fgT = RAIN.t;
+    const g = fgCv.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, fgCv.width, fgCv.height);
+    g.setTransform(DPR, 0, 0, DPR, 0, 0); g.drawImage(vignetteCv, 0, 0, W, H);
+    drawMist(g);
+  }
+  c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(fgCv, 0, 0); c.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function drawMist(c){
   if (!mistSpr){ mistSpr = document.createElement('canvas'); mistSpr.width = mistSpr.height = 256; const g = mistSpr.getContext('2d'); const rg = g.createRadialGradient(128, 128, 0, 128, 128, 128); rg.addColorStop(0, 'rgba(225,232,240,1)'); rg.addColorStop(0.6, 'rgba(225,232,240,.35)'); rg.addColorStop(1, 'rgba(225,232,240,0)'); g.fillStyle = rg; g.fillRect(0, 0, 256, 256); }
   // the mist is drawn small (a quarter size) and laid over the screen in one go
   const mw = Math.max(1, Math.ceil(W/4)), mh = Math.max(1, Math.ceil(H/4));
@@ -6364,11 +6567,22 @@ function drawMist(){
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.drawImage(mistCv, 0, 0, W, H);
 }
+const GLOW_SPR = {};
+function glowSprite(col){
+  let cv = GLOW_SPR[col];
+  if (!cv){
+    cv = GLOW_SPR[col] = document.createElement('canvas'); cv.width = cv.height = 128;
+    const g = cv.getContext('2d'), rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    rg.addColorStop(0, 'rgba(' + col + ',1)'); rg.addColorStop(1, 'rgba(' + col + ',0)'); g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+  }
+  return cv;
+}
 function drawGlows(){
   const c = ctx, z = cam.z;
   c.setTransform(DPR*z, 0, 0, DPR*z, DPR*cam.ox, DPR*cam.oy);
   c.globalCompositeOperation = 'lighter';
-  const glow = (x, y, r, a, col) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(' + (col || '255,170,80') + ',' + a + ')'); g.addColorStop(1, 'rgba(' + (col || '255,170,80') + ',0)'); c.fillStyle = g; c.fillRect(x - r, y - r, r*2, r*2); };
+  // (V16.1: each glow is a stamped picture of a soft spot of light instead of a new gradient every frame)
+  const glow = (x, y, r, a, col) => { c.globalAlpha = a; c.drawImage(glowSprite(col || '255,170,80'), x - r, y - r, r*2, r*2); c.globalAlpha = 1; };
   const fl = 0.85 + Math.sin(RAIN.t*3.1)*0.06 + Math.sin(RAIN.t*7.3)*0.04;
   glow(SHED.x - 28, SHED.y - 44, 46, 0.2*fl); glow(SHED.x - 28, SHED.y + 6, 40, 0.08*fl);
   if (S.hive.built) glow(HIVE.x, HIVE.y - 8, 30, 0.14*fl);
@@ -6382,22 +6596,25 @@ function draw(){
   const c = ctx;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.fillStyle = LOT.bg || '#5f6d33'; c.fillRect(0, 0, W, H);
-  const G = groundCam, k = cam.z/G.z;
-  c.drawImage(groundCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k);
+  // V16.1: the ground's own pixels map 1:1 onto the screen's when it was painted at this zoom, so it's laid on whole
+  // pixels then (a plain copy instead of a filtered one)
+  const G = groundCam, k = cam.z/G.z, gw = groundCv.width*k/G.rs, gh = groundCv.height*k/G.rs;
+  let gx = cam.ox - (G.ox + G.mx)*k, gy = cam.oy - (G.oy + G.my)*k;
+  if (Math.abs(k - 1) < 1e-9 && Math.abs(G.rs - DPR) < 1e-9){ gx = Math.round(gx*DPR)/DPR; gy = Math.round(gy*DPR)/DPR; }
+  c.drawImage(groundCv, gx, gy, gw, gh);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
   const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
-  drawAntTrails(V);
   if (RAINY){
     // V14: wet tracks and the puddles' water (with their reflections), then what stands up out of the ground over it
     drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);
-    if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); c.drawImage(groundTopCv, cam.ox - (G.ox + G.mx)*k, cam.oy - (G.oy + G.my)*k, (W + 2*G.mx)*k, (H + 2*G.my)*k); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
+    if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); c.drawImage(groundTopCv, gx, gy, gw, gh); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
     drawSplashes(V);
   }
   drawSpotGlints();
   for (const l of leaves){
     if ((l.st === 'ground' || l.st === 'fade') && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){
       if (l.st === 'ground'){ c.fillStyle = 'rgba(40,30,10,.18)'; ell(c, l.x + 1.5, l.y + 1.5, l.s*0.75, l.s*0.4); c.fill(); }
-      drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, l.flip, 0.72, l.a, 0);
+      stampLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, l.flip, 0.72, l.a);
     }
   }
   drawFlowers(V);
@@ -6439,15 +6656,15 @@ function draw(){
     if (!under && plantShown()){ const px = clamp(t.x, PLANT.x - 100, PLANT.x + 100), py = clamp(t.y, PLANT.y - 150, PLANT.y); under = Math.hypot(px - t.x, py - t.y) < t.r*0.8; }
     if (!under && S.hive.built){ const hx = clamp(t.x, HIVE.x - 22, HIVE.x + 22), hy = clamp(t.y, HIVE.y - hiveTopZ() - 20, HIVE.y - 14); under = Math.hypot(hx - t.x, hy - t.y) < t.r*0.85; }
     treeAlpha[i] = lerp(treeAlpha[i], under ? 0.42 : 0.96, 0.06);
-    c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(cc.c, -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
+    c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(canopyImg(i, DPR*cam.z), -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
   });
   for (const h of HB) if (onTrunk(h)) drawShaker(h);
   if (!LOT.antsOnGround) drawBees(V);
   if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const f of fgLeaves){ const fx = Math.cos(f.ph); drawLeaf(c, f.x, f.y, f.s, f.rot, f.ci, f.sh, Math.abs(fx) < 0.15 ? 0.15 : fx, 1, 0.92, fx < 0 ? 0.2 : 0); }
-  c.drawImage(vignetteCv, 0, 0, W, H);
-  if (RAINY){ if (!DBG.includes('nomist')) drawMist(); if (!DBG.includes('noglow')) drawGlows(); c.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  drawVignetteMist();
+  if (RAINY){ if (!DBG.includes('noglow')) drawGlows(); c.setTransform(DPR, 0, 0, DPR, 0, 0); }
   drawBubbles();
   drawTimers();
   drawMarkers();
@@ -7773,7 +7990,7 @@ cv.addEventListener('pointerdown', e => {
 });
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId);
-  if (!p){ if (e.pointerType === 'mouse'){ const w = s2w(e.clientX, e.clientY); cv.style.cursor = hit(w.x, w.y) ? 'pointer' : 'grab'; } return; }
+  if (!p){ if (e.pointerType === 'mouse'){ const w = s2w(e.clientX, e.clientY), cur = hit(w.x, w.y) ? 'pointer' : 'grab'; if (cv.style.cursor !== cur) cv.style.cursor = cur; } return; }
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   if (pinch && ptrs.size >= 2){
     const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y) || 1, mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
@@ -8060,7 +8277,7 @@ function frame(ts){
   }
   panKeys(dt);
   updCamFollow(dt);
-  if (!camAnim && performance.now() - camMovedT > 140 && !groundCovers()) buildGround({ z: cam.z, ox: cam.ox, oy: cam.oy });
+  updGround();   // V16.1: a new ground is painted a little each frame when the view needs one
   updHud(dt);
   if (SND){ SND.update(dt, wind); if (RAINY && SND.rain) SND.rain(dt, RAIN.k); ambientChatter(dt); }
   if (cardOpen){ renderCard(false); if ((seenT -= dt) <= 0){ seenT = 0.25; markSeen(); } }
@@ -8182,7 +8399,7 @@ function start(data){
     hopperCap, metalPerIngot, metalCap, tubRoom, keepMetal,
     BAGGER, BIN, BAG_SIZE, bagCap, dryTrays, drawLeafBag, hiveGrounded, HV_BEE, HV_LIFT: HV.lift || 0, LAB_WIN, hexPath, drawBeeBrass, drawPrism, prismFace, LAB_DOME, NEEDLE_COL, labBlower });
   for (const [k, f] of Object.entries({ S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
-    parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck })) Object.defineProperty(LH, k, { get: f, enumerable: true });
+    parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck, px: () => DPR*cam.z })) Object.defineProperty(LH, k, { get: f, enumerable: true });
   LH_READY = true;
   load(data);
   if (DRY_BENCH){ S.bag.built = true; S.flags.bagShown = true; }   // V15: the hollow's drying bench is there from the start

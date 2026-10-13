@@ -117,7 +117,7 @@ LOTS.prairie = H => {
   // spikes and flowering shrubs.
   const MICRO = [['#fdfaf1', .2], ['#f7d652', .3], ['#f3a8c4', .2], ['#c9b2ec', .16], ['#9fc4f2', .14]];
   const microCol = r => { for (const [c, w] of MICRO){ r -= w; if (r <= 0) return c; } return MICRO[0][0]; };
-  function paintGround(G){
+  function* paintGround(G){
     const { g, V, O, CS, i0, i1, j0, j1, inOwned } = G;
     const { ell, rr, TAU, cellRnd, drawLeaf, LEAFC, TREES, SPOTS, VERGE, ROAD, LANE, drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers } = H, flowerSpr = H.flowerSpr();
     const gr = g.createLinearGradient(0, V.y0, 0, 0);
@@ -125,7 +125,7 @@ LOTS.prairie = H => {
     g.fillStyle = gr; g.fillRect(V.x0, V.y0, V.x1 - V.x0, -V.y0 + 2);
     const patch = ['#93ad55','#628a3c','#a9ac58','#7a9d46','#b7b266','#5d8240'];
     const glow = (x, y, r, col, a) => { const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0, col + a); rg.addColorStop(1, col + '00'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); };
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 1);
       glow((i + rnd())*CS, (j + rnd())*CS, 60 + rnd()*120, patch[Math.floor(rnd()*patch.length)], '88');
       // drifts of colour where the little flowers grow thickest
@@ -133,7 +133,7 @@ LOTS.prairie = H => {
     }
     for (const t of TREES){ const x = t.x + t.r*0.22, y = t.y + t.r*0.5, r = t.r*1.12; const rg = g.createRadialGradient(x,y,r*0.2,x,y,r); rg.addColorStop(0,'rgba(30,40,25,.28)'); rg.addColorStop(1,'rgba(30,40,25,0)'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); }
     g.lineCap = 'round';
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 2);
       // a few blades of grass between the flowers
       for (let k=0;k<26;k++){
@@ -181,7 +181,7 @@ LOTS.prairie = H => {
     g.beginPath(); g.rect(V.x0, V.y0, V.x1 - V.x0, -VERGE - V.y0); g.rect(O.x0, O.y0, O.x1 - O.x0, O.y1 - O.y0);
     g.fillStyle = 'rgba(40,52,18,.2)'; g.fill('evenodd');
     g.restore();
-    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){
+    for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
       const rnd = cellRnd(i, j, 3);
       // tall prairie grass, gone golden at the tips
       for (let k=0;k<6;k++){
@@ -212,7 +212,7 @@ LOTS.prairie = H => {
     const vy = -VERGE;
     g.fillStyle = '#c7b99b'; g.fillRect(V.x0, vy, V.x1 - V.x0, VERGE);
     const vg = g.createLinearGradient(0, vy - 6, 0, vy + 7); vg.addColorStop(0, 'rgba(118,150,66,1)'); vg.addColorStop(1, 'rgba(118,150,66,0)'); g.fillStyle = vg; g.fillRect(V.x0, vy - 6, V.x1 - V.x0, 13);
-    for (let i=i0;i<i1;i++){
+    for (let i=i0;i<i1;i++){ yield;
       const rnd = cellRnd(i, 0, 4);
       for (let k=0;k<110;k++){ const x = (i + rnd())*CS, y = vy + 4 + rnd()*(VERGE - 5), ci = Math.floor(rnd()*4), rx = 1 + rnd()*1.6, ry = 0.8 + rnd()*1.1; g.fillStyle = ['#ab9d84','#d8ccb0','#a09380','#e2d7c0'][ci]; ell(g, x, y, rx, ry); g.fill(); }
       for (let k=0;k<16;k++){ const x = (i + rnd())*CS, tone = rnd(), dx = (rnd()-.5)*4, h = 2 + rnd()*5; g.strokeStyle = tone < .5 ? '#5d8a34' : '#7aa046'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, vy + 2); g.lineTo(x + dx, vy + 2 + h); g.stroke(); }
@@ -223,7 +223,7 @@ LOTS.prairie = H => {
     g.fillStyle = '#aca089'; g.fillRect(V.x0, 6, V.x1 - V.x0, 2);
     const rg2 = g.createLinearGradient(0, 8, 0, ROAD + 40); rg2.addColorStop(0, '#5f5856'); rg2.addColorStop(1, '#514a49');
     g.fillStyle = rg2; g.fillRect(V.x0, 8, V.x1 - V.x0, V.y1 - 8);
-    for (let i=i0;i<i1;i++){
+    for (let i=i0;i<i1;i++){ yield;
       const rnd = cellRnd(i, 1, 5);
       for (let k=0;k<70;k++){ const x = (i + rnd())*CS, y = 9 + rnd()*(ROAD + 10), light = rnd() < .5; g.fillStyle = light ? 'rgba(255,240,230,.05)' : 'rgba(0,0,0,.08)'; g.fillRect(x, y, 1.6, 1.6); }
       for (let k=0;k<3;k++){ const x = (i + rnd())*CS, y = 14 + rnd()*(ROAD - 18), rot = rnd()*TAU, ci = Math.floor(rnd()*LEAFC.length); g.globalAlpha = .55; drawLeaf(g, x, y, 5.5, rot, ci, 1, 1, .7, 1, .25); g.globalAlpha = 1; }
