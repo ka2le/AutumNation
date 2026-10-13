@@ -1624,7 +1624,7 @@ LOTS.hollow = H => {
     // the first yard's honey labels, which keep their prices), and the D.O.P. seals stay under that too (were $700 / 1,500)
     UP: { honeyPrice: { costs: [80, 130, 190, 270, 480, 900] }, giftPrice: { costs: [400, 800] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
-    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? 'Teach ' + names[1] + ' Warm air on its card' : 'Build a blower and teach it Warm air') + ', and it can dry them at the drying bench.' },
+    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? names[1] + ' already knows Warm air: move Dry leaves into its Do list on its card' : 'Build a blower and turn on Dry leaves on its card') + ', and it will dry them at the drying bench.' },
   };
 };
 LOTS.hollow.title = 'the Rainy hollow';   // what the game calls it before it's loaded ("Off to the Rainy hollow…")

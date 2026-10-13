@@ -571,8 +571,11 @@ function crewWaitFor(cfg){
   }
   return '';
 }
-const taskShort = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : ''; return TASKS[t].short + (w ? ' - waiting for ' + w : ''); };
-const taskName = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : ''; return TASKS[t].name + (w ? ' - waiting for ' + w : ''); };
+// V16.4: at the hive nothing moves without a blower keeping the rain off; a robot researching there says it's waiting for one
+const labWaitBlower = () => hiveLabOn() && FIND().atHive && !labBlower();
+const labWaitFor = (t, cfg) => t === 'research' && labWaitBlower() && R.some(r => S.robots[r.id] === cfg && labOnTask(r)) ? 'a blower to help' : '';
+const taskShort = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : labWaitFor(t, cfg); return (t === 'research' && w ? 'Researching' : TASKS[t].short) + (w ? ' - waiting for ' + w : ''); };
+const taskName = (t, cfg) => { const w = t === 'travel' ? crewWaitFor(cfg) : labWaitFor(t, cfg); return (t === 'research' && w ? 'Researching' : TASKS[t].name) + (w ? ' - waiting for ' + w : ''); };
 function tasksFix(cfg, kind){
   // every task of this kind appears exactly once, in Do or in Don't; rows hold at most two
   const all = KIND_TASKS[kind], seen = new Set();
@@ -593,7 +596,7 @@ function putOff(cfg, t){ taskRemove(cfg, t); cfg.off.push(t); }
 // they go in its Don't pile instead. Robots that still do everything get them, in their usual place.
 const kindOfCfg = cfg => S.blowers.includes(cfg) ? 'blower' : S.shakers.includes(cfg) ? 'shaker' : 'robot';
 // (Research starts in everyone's Off pile, so it doesn't count as a change the player made)
-const hasDont = (cfg, kind, fresh) => cfg.off.some(x => x !== 'research' && x !== 'travel' && !fresh.includes(x) && taskOpen(x, cfg));
+const hasDont = (cfg, kind, fresh) => cfg.off.some(x => x !== 'research' && x !== 'travel' && !(DRY_BENCH && x === 'bag') && !fresh.includes(x) && taskOpen(x, cfg));
 function putBeside(cfg, t, main){
   if (taskOn(cfg, t)) return;
   if (hasDont(cfg, kindOfCfg(cfg), [t])){ putOff(cfg, t); return; }
@@ -616,10 +619,11 @@ function openTasks(ts){
 
 // V6.3: a new robot has every task in Do (tasks that aren't there yet are just skipped), so nothing is left undone if
 // you never touch its list: the work stations first, then mining, then leaves, which always have work.
-const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: [...(DRY_BENCH ? [['bag']] : []), ...(WET_WOOD ? [['dig', 'stoke'], ['brolly'], ['blow']] : [['dig', 'stoke'], ['blow']])], shaker: [['shake', 'snip']] };
+// (V16.4: in the hollow a blower knows Warm air 1 from the start, but Dry leaves starts in its Don't pile: the player turns it on)
+const DEFAULT_PRIO = { robot: [['bag', 'jar'], ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']], blower: [...(WET_WOOD ? [['dig', 'stoke'], ['brolly'], ['blow']] : [['dig', 'stoke'], ['blow']])], shaker: [['shake', 'snip']] };
 const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
 function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
-function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke:0, brolly:0, dry:0 } }, 'blower')
+function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke:0, brolly:0, dry: DRY_BENCH ? 1 : 0 } }, 'blower')
  : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
 const helperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[cfgsOf(kind).length];
 // a helper shows up in the workshop once you've held a quarter of its price (or already own one of that kind)
@@ -1972,7 +1976,7 @@ function labDomePt(u, v){
 function labWetOne(){
   let best = null, bs = -1;
   for (const b of LABB){
-    if (!['down', 'crawl', 'walk', 'pause', 'walkHome'].includes(b.st) || (b.wet || 0) < 0.15) continue;
+    if (!['down', 'crawl', 'walk', 'pause', 'walkHome'].includes(b.st) || (b.wet || 0) < (labK() > 0.05 ? 0.08 : 0.15)) continue;
     const d = Math.hypot(b.x - (HIVE.x + 40), b.y - HIVE.y); if (d > 120) continue;
     const sc = (b.st === 'down' ? 2 : 1) + b.wet - d/200;
     if (sc > bs){ bs = sc; best = b; }
@@ -1983,15 +1987,22 @@ function updLabBlower(h, dt){
   const p = labSpot(); h.face = p.face;
   if (!hiveLabOn()){ h.st = 'idle'; return; }
   // V15: it takes turns: a while keeping the rain off the hive, a moment drying a wet bee or ant with warm air
-  if (h.labMode == null){ h.labMode = 'shield'; h.modeT = rand(5, 8); }
+  // V16.4: once the big umbrella is up (umb), it mostly dries bees and ants, with short turns over the top in between
+  const umb = labK() > 0.05, shieldT = () => umb ? rand(1.2, 2.4) : rand(6, 9);
+  if (umb) for (const b of LABB) if (!b.brolly && ['walk', 'pause', 'walkHome', 'crawl'].includes(b.st)) b.wet = Math.min(1, (b.wet || 0) + dt*0.05);   // the rain wets them again
+  if (h.labMode == null){ h.labMode = 'shield'; h.modeT = umb ? rand(1.5, 2.5) : rand(5, 8); }
   h.modeT -= dt;
-  if (h.labMode === 'dry' && (!h.dryB || !LABB.includes(h.dryB) || h.dryB.st === 'carried' || h.dryB.st === 'gone')){ h.labMode = 'shield'; h.dryB = null; h.modeT = rand(4, 7); }
+  if (h.labMode === 'dry' && (!h.dryB || !LABB.includes(h.dryB) || h.dryB.st === 'carried' || h.dryB.st === 'gone' || (umb && (h.dryB.wet || 0) < 0.03))){
+    // (dried or gone: straight on to the next wet one if its turn isn't over, otherwise back over the top)
+    const nb = umb && h.modeT > 0.8 ? labWetOne() : null;
+    if (nb) h.dryB = nb; else { h.labMode = 'shield'; h.dryB = null; h.modeT = umb ? shieldT() : rand(4, 7); }
+  }
   if (h.modeT <= 0){
-    if (h.labMode === 'dry'){ h.labMode = 'shield'; h.dryB = null; h.modeT = rand(6, 9); }
-    else { const b = labWetOne(); if (b){ h.labMode = 'dry'; h.dryB = b; h.modeT = rand(2.4, 3.4); } else h.modeT = 1.5; }
+    if (h.labMode === 'dry'){ h.labMode = 'shield'; h.dryB = null; h.modeT = shieldT(); }
+    else { const b = labWetOne(); if (b){ h.labMode = 'dry'; h.dryB = b; h.modeT = umb ? rand(3.5, 6) : rand(2.4, 3.4); } else h.modeT = umb ? 0.8 : 1.5; }
   }
   if (h.labMode === 'dry' && h.dryB){
-    const b = h.dryB; b.wet = Math.max(0, (b.wet || 0) - dt*0.45);
+    const b = h.dryB; b.wet = Math.max(0, (b.wet || 0) - dt*(umb ? 0.3 : 0.45));
     if (!simMode && Math.random() < dt*6) parts.push({ k:'dust', x: b.x + rand(-3, 3), y: b.y - 4, vx: rand(-4, 4), vy: rand(-22, -12), g: 0, life: rand(.6, 1), t: 0, r: rand(1.4, 2.4), gray: true });
   }
   h.timer -= dt;
@@ -2447,7 +2458,8 @@ function arrive(a, wasNew){
     if (q.sty != null && q.sty !== i) cfg.sty = q.sty;
     if (!home) cfg.home = q.home;
     taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, kind);
-    if (DRY_BENCH && kind === 'blower' && cfg.lv.dry > 0 && !taskOn(cfg, 'bag')) putTop(cfg, 'bag');   // V15: a blower that knows Warm air goes back to the drying bench
+    // V15: a blower that knows Warm air goes back to the drying bench (V16.4: one that doesn't gets level 1 free, Dry leaves left in Don't)
+    if (DRY_BENCH && kind === 'blower'){ if (!(b.lv && b.lv.dry > 0)){ cfg.lv.dry = Math.max(1, cfg.lv.dry); putOff(cfg, 'bag'); } else if (!taskOn(cfg, 'bag')) putTop(cfg, 'bag'); }
     out.push({ kind, i });
   }
   const earned = a.earned || HOME_EARNED;
@@ -3012,7 +3024,7 @@ function updTruck(dt){
           });
           T.st = 'pay'; T.timer = (sale.length - 1)*SALE_STEP + SALE_HOLD + SALE_FLY + 0.05; T.payAmt = amt;
         }
-      } else { pop(BIN.x, BIN.y - 104, 'nothing to take today', 'note', 16); T.st = 'leave'; T.v = 10; }
+      } else { pop(BIN.x, BIN.y - 104, DRY_BENCH ? 'can’t accept wet leaves, dry them first!' : 'nothing to take today', 'note', 16); T.st = 'leave'; T.v = 10; }
       // the clock for the next pickup starts now, so a long payout doesn't push the next truck back
       S.truckT = truckEvery();
       if (T.st === 'leave') sfx('truckOut', sndAt(PARK + 30, LANE).pan);
@@ -6871,7 +6883,7 @@ function applyKit(name){
     while (cfgsOf(kind).length <= i) free({ id: kind });
     const c = cfgsOf(kind)[i]; levels(c, lv);
     for (const [t, main] of [['snip', 'shake'], ['dig', 'blow'], ['stoke', 'blow'], ['brolly', 'blow']]) if (c.lv[t]) putBeside(c, t, main);
-    if (DRY_BENCH && c.lv.dry && !taskTop(c, 'bag')) putTop(c, 'bag');
+    if (DRY_BENCH && lv.dry && !taskTop(c, 'bag')) putTop(c, 'bag');
   });
   for (const sp of (K.miners || [])) if (S.metalSlot && !S.miners.includes(sp) && SPOTS[sp] && SPOTS[sp].land <= S.land) free({ id: 'miner', arg: sp });
   if (K.plant && !S.plant.built && plantOpen()) free({ id: 'plant' });
@@ -7320,9 +7332,9 @@ function robotDoing(r){
     case 'toBook': return ['research', 'To the book'];
     case 'pickBook': return ['research', 'Picking up the book'];
     case 'toStudy': return ['research', 'Carrying the book'];
-    case 'study': return ['research', 'Studying the book'];
+    case 'study': return labWaitBlower() ? ['research', 'Researching - waiting for a blower to help', 1] : ['research', FIND().atHive ? 'Researching the hive' : 'Studying the book'];
     case 'toAssist': return ['research', 'Going to help'];
-    case 'assist': return ['research', 'Helping with research'];
+    case 'assist': return labWaitBlower() ? ['research', 'Researching - waiting for a blower to help', 1] : ['research', 'Helping with research'];
     case 'toCurb': return ['travel', 'To the curb'];
     case 'curb': { const w = crewWaitFor(cfg); return ['travel', w ? 'Waiting for ' + w : 'Waiting for the truck']; }
     case 'hopIn': case 'hopOut': case 'ride': return ['travel', 'Riding the truck'];
@@ -7553,7 +7565,7 @@ function cardModel(){
         const dr = HB.filter(h => h.kind === 'blower' && (h.st === 'dry' || (h.st === 'go' && h.task === 'bag'))), learnt = S.blowers.some(b => b.lv.dry > 0);
         rows.push({ sig:'dryc' + dr.map(h => h.idx + ':' + helperCfg(h).lv.dry).join(',') + learnt + S.blowers.length, html: row({ icon: ic('blow'), name:'Dryers', cls:'crewrow',
           val: dr.length ? dr.map(h => helperStyle(h).name + ' <span class="gain">' + hv(h, 'dry').toFixed(2) + '×</span>').join(', ')
-            : '<span class="none">' + (learnt ? 'nobody drying · add <span class="chip mini" style="--tc:' + TASKS.bag.col + '">' + ic('bag') + 'Dry</span> to a blower' : S.blowers.length ? 'a blower can learn it: Warm air, on its card' : 'build a blower to work it') + '</span>',
+            : '<span class="none">' + (learnt ? 'nobody drying · add <span class="chip mini" style="--tc:' + TASKS.bag.col + '">' + ic('bag') + 'Dry</span> to a blower' : S.blowers.length ? 'turn on Dry on a blower’s card' : 'build a blower to work it') + '</span>',
           tip:'A blower with Warm air blows over ' + BAG_SIZE + ' wet leaves at a time until they’re dry enough to sell' }) });
       } else rows.push(crewRow('bag', 'Baggers', 'bag', ri => smeltSkillPack(ri)));
 
