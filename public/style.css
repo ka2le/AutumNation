@@ -87,6 +87,23 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .medal canvas{width:58px;height:58px;display:block}
 .hd{flex:1;min-width:0}
 .ct{font-family:var(--font-hand);font-weight:700;font-size:31px;line-height:.9;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* V19.3: arrows either side of a robot's name step through every robot, blower and shaker; the name opens a picker */
+.navn{display:inline-flex;align-items:center;gap:2px;min-width:0}
+.navn .nav{width:24px;height:24px;flex:none;border-radius:50%;border:1.5px solid #cdb58f;background:var(--paper-3);color:var(--ink-soft);cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 1.5px 0 #cdb58f}
+.navn .nav svg{width:11px;height:11px}
+.navn .nav:hover{background:#fbe9c9;color:var(--ink)}
+.navn .nav:active{transform:translateY(1px);box-shadow:0 .5px 0 #cdb58f}
+.navn .nm{font:inherit;color:inherit;background:none;border:0;border-radius:8px;padding:0 4px 0 5px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;min-width:0}
+.navn .nm svg{width:12px;height:12px;flex:none;opacity:.6;transition:transform .15s}
+.navn .nm:hover,.navn .nm.on{background:rgba(205,181,143,.35)}
+.navn .nm.on svg{transform:rotate(180deg)}
+.pick{position:absolute;left:62px;top:calc(100% - 4px);z-index:8;min-width:190px;max-height:min(330px,60vh);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cdb58f transparent;
+  background:var(--paper);border:2px solid var(--kraft);border-radius:12px;padding:5px;box-shadow:0 3px 0 var(--kraft-dk),0 12px 26px rgba(40,18,4,.35);font-family:var(--font-ui)}
+.pick .pk{font:700 10.5px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);padding:7px 7px 4px}
+.pick .po{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;border-radius:8px;padding:3px 8px 3px 4px;font:700 14px/1.1 var(--font-ui);color:var(--ink);cursor:pointer;text-align:left}
+.pick .po img{width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 50% 70%,#8fa04e,#6c7a37 70%,#5d6a2e);box-shadow:0 0 0 1.5px #c9a24a}
+.pick .po:hover{background:#fbe9c9}
+.pick .po.on{background:rgba(205,181,143,.4)}
 .tag{font:700 11.5px/1 var(--font-ui);color:var(--ink-soft);background:var(--paper-3);border-radius:999px;padding:4px 8px 3px;box-shadow:inset 0 0 0 1.2px var(--rule)}
 .x{width:32px;height:32px;flex:none;align-self:flex-start;border-radius:50%;border:1.5px solid #cdb58f;background:var(--paper-3);color:var(--ink-soft);cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 2px 0 #cdb58f;margin:-2px -4px 0 0}
 .x svg{width:14px;height:14px}
@@ -276,13 +293,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .toffall{margin-left:auto;font:700 11px/1 var(--font-ui);color:var(--ink-soft);background:#fbf3e2;border:1.5px solid #cdb58f;border-radius:999px;padding:4px 9px 3px;cursor:pointer;box-shadow:0 1.5px 0 #cdb58f}
 .toffall:hover{color:var(--ink)}
 .thint{font-size:11px;color:var(--ink-faint);text-align:center;margin-top:8px;font-weight:600}
-.chip{display:inline-flex;align-items:center;gap:6px;font:700 13px/1 var(--font-ui);color:var(--ink);background:#fbf3e2;border-radius:9px;padding:6px 10px 5px 7px;box-shadow:0 2px 0 rgba(124,93,71,.3),inset 0 0 0 1.2px rgba(124,93,71,.18);border-left:4px solid var(--tc);cursor:grab;touch-action:none;white-space:nowrap;flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font:700 13px/1.15 var(--font-ui);color:var(--ink);background:#fbf3e2;border-radius:9px;padding:6px 10px 5px 7px;box-shadow:0 2px 0 rgba(124,93,71,.3),inset 0 0 0 1.2px rgba(124,93,71,.18);border-left:4px solid var(--tc);cursor:grab;touch-action:none;white-space:normal;flex:1;min-width:0}
+/* V19: task names are a few words now ("Haul finished charcoal"): they wrap inside the chip; the picture stays put */
+.chip .ic{flex:none}
+.toff .chip{max-width:100%}
 .chip .ic{width:16px;height:16px}
 .toff .chip{flex:none;opacity:.7;border-left-color:#cdb58f}
 .chip:hover{filter:brightness(1.03)}
 .chip.lifted{opacity:.3}
 .chip.ghost{position:fixed;z-index:20;pointer-events:none;box-shadow:0 8px 18px rgba(40,18,4,.35);transform:rotate(-2deg);opacity:.96;cursor:grabbing}
-.chip.mini{flex:none;font-size:11px;padding:2px 6px 1px 4px;gap:3px;border-left-width:3px;cursor:default;box-shadow:inset 0 0 0 1px rgba(124,93,71,.18)}
+.chip.mini{flex:none;white-space:nowrap;font-size:11px;padding:2px 6px 1px 4px;gap:3px;border-left-width:3px;cursor:default;box-shadow:inset 0 0 0 1px rgba(124,93,71,.18)}
 .chip.mini .ic{width:12px;height:12px}
 .tasks.dragging .trow.drop-join{box-shadow:inset 0 0 0 2px var(--accent);background:rgba(255,236,200,.8)}
 .tasks.dragging .trow.drop-top::before,.tasks.dragging .trow.drop-bottom::after{content:"";position:absolute;left:4px;right:4px;height:3px;border-radius:2px;background:var(--accent)}
@@ -366,3 +386,28 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #testPanel .tpj button{flex:1 1 100%;padding:6px 9px;font-size:13px;background:#f3dcc0}
 #testPanel .tpw{margin-top:5px;font-size:12px;line-height:1.3;color:#8a3a1c}
 #testPanel .tpw[hidden]{display:none}
+
+/* V20: the ending. The HUD and cards step aside while it plays; the final letter is golden; "Great work!" at the end */
+body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, body.ending #fsBtn, body.ending #recenter, body.ending #testPanel{display:none !important}
+#endSkip{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:21;font:700 13px/1 var(--font-ui);color:rgba(246,234,212,.75);background:rgba(40,26,14,.35);border:1.5px solid rgba(246,234,212,.35);border-radius:999px;padding:7px 13px 6px;cursor:pointer}
+#endSkip:hover{color:#f6ead4;background:rgba(40,26,14,.55)}
+#endSkip[hidden]{display:none}
+.letter.gold{position:relative;overflow:hidden;background:linear-gradient(135deg,#fbeaa8 0%,#f2cf6a 30%,#fff3c4 46%,#e7b84a 62%,#f6dc86 100%);box-shadow:inset 0 0 0 1.5px #b8862a,inset 0 0 0 4px rgba(255,248,214,.6),0 2px 8px rgba(160,110,20,.4)}
+.letter.gold::after{content:"";position:absolute;inset:-40% -60%;background:linear-gradient(105deg,transparent 42%,rgba(255,255,240,.75) 50%,transparent 58%);animation:goldShine 3.2s ease-in-out infinite;pointer-events:none}
+.letter.gold p{color:#5a3a0e;font-size:25px;line-height:28px;text-shadow:0 1px 0 rgba(255,248,214,.6)}
+.letter.gold .sig{color:#7a5214;font-size:19px}
+@keyframes goldShine{0%{transform:translateX(-60%)}55%,100%{transform:translateX(60%)}}
+@media (prefers-reduced-motion: reduce){ .letter.gold::after{animation:none;opacity:0} }
+#endPop{position:fixed;inset:0;z-index:22;display:flex;align-items:center;justify-content:center;background:rgba(30,18,8,0);transition:background .5s ease;padding:16px}
+#endPop[hidden]{display:none}
+#endPop.on{background:rgba(30,18,8,.45)}
+#endPop .ep{position:relative;max-width:360px;width:100%;text-align:center;background:var(--paper);border:2px solid var(--kraft);border-radius:16px;box-shadow:0 3px 0 var(--kraft-dk),0 14px 34px rgba(40,18,4,.4);padding:22px 22px 18px;color:var(--ink);font-family:var(--font-ui);transform:translateY(14px) scale(.96);opacity:0;transition:transform .5s cubic-bezier(.2,1.3,.4,1),opacity .4s ease}
+#endPop.on .ep{transform:none;opacity:1}
+#endPop .eplv{height:34px;margin:-4px auto 6px;width:120px;background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 34'%3E%3Cg transform='translate(22 18) rotate(-24)'%3E%3Cpath d='M0-12C4-7 9-6 11-1 7 0 6 3 8 7 3 5 1 8 0 12-1 8-3 5-8 7-6 3-7 0-11-1-9-6-4-7 0-12Z' fill='%23d9662a'/%3E%3C/g%3E%3Cg transform='translate(60 15)'%3E%3Cpath d='M0-13C4-8 10-7 12-1 8 0 7 3 9 8 4 6 1 9 0 13-1 9-4 6-9 8-7 3-8 0-12-1-10-7-4-8 0-13Z' fill='%23e8a033'/%3E%3C/g%3E%3Cg transform='translate(98 18) rotate(26)'%3E%3Cpath d='M0-12C4-7 9-6 11-1 7 0 6 3 8 7 3 5 1 8 0 12-1 8-3 5-8 7-6 3-7 0-11-1-9-6-4-7 0-12Z' fill='%23b8452d'/%3E%3C/g%3E%3C/svg%3E")}
+#endPop h2{margin:0 0 6px;font-family:var(--font-hand);font-weight:700;font-size:40px;line-height:1;color:#7a3f1c}
+#endPop p{margin:0 0 16px;font-size:17px;line-height:1.35;font-weight:600;color:#5a4030}
+#endPop button{font:800 16px/1 var(--font-ui);color:#fff8ea;background:linear-gradient(#7d9a45,#5f7a32);border:2px solid #4c6327;border-radius:999px;padding:11px 28px 9px;cursor:pointer;box-shadow:0 3px 0 #3e521f}
+#endPop button:active{transform:translateY(2px);box-shadow:0 1px 0 #3e521f}
+#endPop button:focus-visible{outline:2px solid var(--kraft-dk);outline-offset:3px}
+#endBlock{position:fixed;inset:0;z-index:19;background:transparent;touch-action:none}
+#endBlock[hidden]{display:none}

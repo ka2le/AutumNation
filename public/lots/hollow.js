@@ -972,7 +972,7 @@ LOTS.hollow = H => {
   }
   function drawBees(V){
     const { B, ctx: c } = H;
-    for (const b of B){ if (b.st === 'in' || b.x < V.x0 || b.x > V.x1 || b.y < V.y0 || b.y > V.y1 + 20) continue; drawAnt(c, b); }
+    for (const b of B){ if (b.st === 'in' || b.inside || b.x < V.x0 || b.x > V.x1 || b.y < V.y0 || b.y > V.y1 + 20) continue; drawAnt(c, b); }
   }
 
   const BOW_COL = [['#e8eef4', '#aab4bf'], ['#2f6fb5', '#1f4f86'], ['#f2c443', '#b8862a']];
@@ -1470,20 +1470,17 @@ LOTS.hollow = H => {
     // V15: the bagging table is a drying bench, and what it makes are sacks of dry leaves
     ['[Bb]agging table', m => m[0] === 'B' ? 'Drying bench' : 'drying bench'], ['Better bags', 'Better sacks'], ['Bag leaves', 'Dry leaves'], ['Baggers', 'Dryers'], ['Bagging', 'Drying'],
     ['Room for bags, on a shelf of their own', 'Room for sacks of dry leaves, on a shelf of their own'], ['\\bbags\\b', 'sacks'], ['\\bbag\\b', 'sack'], ['\\bBags\\b', 'Sacks'], ['\\bBag\\b', 'Sack'],
-    ['Grade the metal', 'Sort the wood'], ['Bigger metal tub', 'Bigger log crib'], ['[Mm]etal slot', m => m[0] === 'M' ? 'Log crib' : 'log crib'],
+    ['Grade the metal', 'Sort the logs'], ['Bigger metal tub', 'Bigger log crib'], ['[Mm]etal slot', m => m[0] === 'M' ? 'Log crib' : 'log crib'],
     ['[Mm]etal tub', m => m[0] === 'M' ? 'Log crib' : 'log crib'], ['metal full', 'crib full'], ['\\btub\\b', 'crib'], ['\\bTub\\b', 'Crib'],
-    ['double-metal chance on top of its magnet', 'chance to split a log on top of its wedge'], ['no double metal', 'no splitting'],
-    ['a better chance of double metal', 'a better chance a log splits in two'], ['72% double metal', '72% split logs'], ['Chance of double metal', 'Chance a log splits in two'], ['Chance a chunk of metal comes out as two', 'Chance a log splits into two'], ['double metal', 'split in two'],
     ['Seconds for a chunk of metal', 'Seconds for a log'], ['a chunk of metal', 'a log'], ['[Cc]hunk of metal', m => m[0] === 'C' ? 'Log' : 'log'],
     ['\\bchunks\\b', 'logs'], ['\\bchunk\\b', 'log'],
-    ['Hand drill', 'Hand saw'], ['Diamond drill bit', 'Crosscut saw'], ['Diamond bit', 'Crosscut saw'], ['\\bdrills\\b', 'saws'], ['\\bdrill\\b', 'saw'], ['\\bDrill\\b', 'Saw'],
-    ['Fridge magnet', 'Wooden wedge'], ['Horseshoe magnet', 'Steel wedge'], ['Electromagnet', 'Splitting maul'], ['\\bMagnet\\b', 'Wedge'], ['\\bmagnet\\b', 'wedge'],
+    ['\\bdrills\\b', 'saws'], ['\\bdrill\\b', 'saw'], ['\\bDrill\\b', 'Saw'],
     ['Lucky horseshoe', 'Lucky axe'], ['Cutting oil', 'Chain oil'],
-    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Pile dryer'], ['Excavating', 'Pile drying'], ['excavating upgrades for blowers at a mine shaft', 'pile-drying upgrades for blowers at a wood shelter'],
-    ['excavate a shaft', 'dry the pile'], ['excavate here', 'dry the pile here'], ['\\bExcavate\\b', 'Dry piles'], ['\\bexcavate\\b', 'dry piles'],
+    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Woodpile dryer'], ['Excavating', 'Woodpile drying'], ['excavating upgrades for blowers at a mine shaft', 'woodpile drying upgrades for blowers at a wood shelter'],
+    ['excavate a shaft', 'dry the woodpile'], ['excavate here', 'dry the woodpile here'], ['\\bExcavate\\b', 'Dry woodpile'], ['\\bexcavate\\b', 'dry the woodpile'],
     ['Dirt hose', 'Warm-air hose'], ['Grit cyclone', 'Heat blower'],
     ['A deeper, richer vein: chunks come', 'A roof over the pile keeps the wood drier: logs come'],
-    ['Dig a shaft', 'Build a shelter'], ['\\bDig\\b', 'Dry pile'], ['Mine shaft dug!', 'Wood shelter built!'], ['You’ve dug one before', 'You’ve built one before'],
+    ['Dig a shaft', 'Build a shelter'], ['\\bDig\\b', 'Dry woodpile'], ['Mine shaft dug!', 'Wood shelter built!'], ['You’ve dug one before', 'You’ve built one before'],
     ['[Mm]ine shafts', m => m[0] === 'M' ? 'Wood shelters' : 'wood shelters'], ['[Mm]ine shaft', m => m[0] === 'M' ? 'Wood shelter' : 'wood shelter'],
     ['\\bshafts\\b', 'shelters'], ['\\bshaft\\b', 'shelter'],
     ['Mine metal', 'Saw logs'], ['To the mine', 'To the pile'], ['heads over to mine', 'heads over to saw'], ['at a mine\\b', 'at a saw'],
@@ -1553,12 +1550,13 @@ LOTS.hollow = H => {
 
   // ── rain-themed versions of the prairie's flower upgrades (a "Rain and mushrooms" section in the workshop)
   const GEN = {
-    press:    { name:'Leaf mould deal',  max:3, cost:[250, 1200, 4500], desc:l=>'The compost yard pays <b>'+(15*(l+1))+'%</b> more for dry leaves.' },
-    seeding:  { name:'Spore scattering', max:3, cost:[600, 2000, 6000], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more mushroom patches for the ants on all your land.' },
+    press:    { name:'Leaf mould deal',  max:3, cost:[250, 700, 1500], desc:l=>'The compost yard pays <b>'+(15*(l+1))+'%</b> more for dry leaves.' },
+    // V19.3: one step that sows two tiers of extra patches (+80%; was 3 steps of +40%)
+    seeding:  { name:'Spore scattering', max:1, tiers:2, cost:[1200], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:()=>'Sow <b>80%</b> more mushroom patches for the ants on all your land.' },
     clover:   { name:'Mossy mulch',      max:2, cost:[900, 4000], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:l=>'Mushrooms grow back <b>'+(30*(l+1))+'%</b> sooner after an ant cuts them.' },
   };
   const GEN_ICON = { press:'press', seeding:'seed', clover:'clover' };
-  const GEN_SHORT = { press: l => '+' + 15*(l + 1) + '% for leaves', seeding: l => '+' + 40*(l + 1) + '% mushroom patches', clover: l => 'Mushrooms regrow ' + 30*(l + 1) + '% sooner' };
+  const GEN_SHORT = { press: l => '+' + 15*(l + 1) + '% for leaves', seeding: () => '+80% mushroom patches', clover: l => 'Mushrooms regrow ' + 30*(l + 1) + '% sooner' };
 
   // ── icons for wet wood, dry bundles, mushrooms, ants and umbrellas instead of the metal, honey and bee ones
   const ICON = {
@@ -1633,6 +1631,24 @@ LOTS.hollow = H => {
       drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney, drawBagger, drawLeafBag, drawHiveLab, drawLabBee, drawAnt,
       popCol: { metal: '#e6c89a', ingot: '#f2d8a8' } },
     styles, taskCols,
+    // V19: what every task is called here, on its chip and in its tooltip (said in full, not run through PHRASES' guesses)
+    tasks: {
+      leaves: { name: 'Gather wet leaves into the bin', short: 'Gather leaves' },
+      mine:   { name: 'Saw logs at the wood pile', short: 'Saw logs' },
+      bag:    { name: 'Dry leaves at the drying bench', short: 'Dry leaves' },
+      jar:    { name: 'Can mushrooms at the crate', short: 'Can mushrooms' },
+      wrap:   { name: 'Certify cans as D.O.P.', short: 'Certify D.O.P. cans' },
+      smelt:  { name: 'Burn logs into charcoal at the kiln', short: 'Burn charcoal' },
+      fuel:   { name: 'Fuel the leaf dryer with logs from the crib', short: 'Fuel the leaf dryer' },
+      haul:   { name: 'Haul finished charcoal to the coal stand by the road', short: 'Haul finished charcoal' },
+      blow:   { name: 'Blow leaves toward the bin', short: 'Blow leaves' },
+      dig:    { name: 'Dry the woodpile at a shelter (faster sawing)', short: 'Dry woodpile' },
+      stoke:  { name: 'Work the charcoal kiln bellows (faster burning)', short: 'Charcoal kiln bellows' },
+      shake:  { name: 'Shake trees and bushes for leaves', short: 'Shake trees' },
+      snip:   { name: 'Trim cut mushroom patches so they grow back sooner', short: 'Trim mushrooms' },
+    },
+    trackLabels: { dig: 'Woodpile drying', stoke: 'Kiln bellows' },
+    trackTips: { dig: 'Faster sawing at a shelter while it dries the woodpile there', stoke: 'Faster charcoal burning while it works the kiln bellows' },
     GEN, GEN_ICON, GEN_SHORT, genSection: { title: 'Rain and mushrooms', keys: ['press', 'seeding', 'clover'] },
     ICON, antICON: ANT_ICON, antPhrases: ANT_PHRASES,
     // story: the crew can ride home whenever you like (for now), and the first yard made this meanwhile
@@ -1641,9 +1657,12 @@ LOTS.hollow = H => {
     // the first yard's honey labels, which keep their prices), and the D.O.P. seals stay under that too (were $700 / 1,500)
     // V17: the charcoal kiln has fewer, cheaper upgrades than the smelting plant: a hotter kiln, briquettes (coal worth more),
     // tight stacking (more coal from the same logs) and a bigger log stack
-    UP: { honeyPrice: { costs: [80, 130, 190, 270, 480, 900] }, giftPrice: { costs: [400, 800] },
+    // V19: Sort the logs has 3 bigger steps for much less (was the first yard's 6 steps to $16.50 for $40 … 6,000): a log goes
+    // $4.80 → 6.50 → 9 → 12 for $50 / 250 / 1,000, so $9 costs $300 (was ~$520 for $9.20) and the top is lower
+    UP: { honeyPrice: { costs: [80, 130, 190, 270, 420, 650] }, giftPrice: { costs: [400, 800] },
+      metalPrice: { max: 3, gaps: [], costs: [50, 250, 1000], vals: [4.8, 6.5, 9, 12] },
       smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [250, 700], vals: [1, 1.35, 1.8] },
-      ingotGrade: { name: 'Briquettes', max: 3, costs: [200, 550, 1200], vals: [1, 1.25, 1.5, 1.8] },
+      ingotGrade: { name: 'Briquettes', max: 3, costs: [200, 500, 950], vals: [1, 1.25, 1.5, 1.8] },
       slag: { name: 'Tight stacking', max: 2, costs: [300, 800], vals: [0, 0.2, 0.4] },
       hopper: { name: 'Bigger log stack', max: 2, costs: [50, 150], vals: [16, 30, 50] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench

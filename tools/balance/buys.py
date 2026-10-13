@@ -6,7 +6,7 @@ bought = runs that bought it / runs; min@ = average game minute; inc/min = incom
 save = cost / inc (minutes of income it took); pb@buy = payback in minutes the player worked out when it bought it
 (price upgrades only). Price steps no run ever bought are listed as never. Pass 'all' to list robot/helper/tech buys too."""
 import json, sys, glob, collections
-MAXL = {'leafPrice': 5, 'bagPrice': 10, 'cleanup': 3, 'metalPrice': 6, 'honeyPrice': 6, 'giftPrice': 2, 'smeltSpeed': 3, 'ingotGrade': 5, 'slag': 3, 'market': 3}
+MAXL = {'leafPrice': 7, 'bagPrice': 13, 'cleanup': 3, 'metalPrice': 6, 'honeyPrice': 6, 'giftPrice': 2, 'smeltSpeed': 3, 'ingotGrade': 5, 'slag': 3, 'market': 3}
 BIG = ('land', 'plant', 'bagger', 'hive', 'metalSlot', 'honeyPack', 'shaft', 'robot', 'miner')
 show_all = len(sys.argv) > 2 and sys.argv[2] == 'all'
 runs = [json.load(open(f)) for f in sorted(glob.glob(sys.argv[1]))]

@@ -72,7 +72,11 @@ function makePhrases(list){
 const PHRASE = LOT.phrases ? makePhrases(LOT.phrases) : null;
 // (V15: the Rainy hollow's ant words only once its beehive has become the ant hill: LOT.antPhrases, applied first)
 const PHRASE_ANT = LOT.antPhrases ? makePhrases(LOT.antPhrases) : null;
-const sayT = PHRASE_ANT ? s => { s = wordT(s); if (!hiveGrounded()) s = PHRASE_ANT(s); return PHRASE ? PHRASE(s) : s; } : PHRASE ? s => PHRASE(wordT(s)) : wordT;
+const sayT0 = PHRASE_ANT ? s => { s = wordT(s); if (!hiveGrounded()) s = PHRASE_ANT(s); return PHRASE ? PHRASE(s) : s; } : PHRASE ? s => PHRASE(wordT(s)) : wordT;
+// V19: text after KEEP is the same in every yard (the shared skills' tips name the mine and the saw, the furnace and the
+// kiln): a lot's phrases leave it alone; only the prairie's petal words still apply
+const KEEP = '\u2063';
+const sayT = s => { s = String(s); const i = s.indexOf(KEEP); return i < 0 ? sayT0(s) : sayT0(s.slice(0, i)) + wordT(s.slice(i)); };
 const sayH = WORDS || PHRASE || PHRASE_ANT ? h => String(h).replace(/(<[^>]*>)|([^<]+)/g, (m, tag, txt) => tag ? tag.replace(/(title|aria-label)="([^"]*)"/g, (a, k, v) => k + '="' + sayT(v) + '"') : sayT(txt)) : h => h;
 
 // ───────────────────────── world layout (world units; the curb is y = 0, your land is y < 0)
@@ -88,13 +92,13 @@ const HIVE = ROW.HIVE || { x: 250, y: -20 };   // the robot beehive stands at th
 const CRATE = ROW.CRATE || { x: 190, y: -12 };  // the honey crate (jars waiting for the truck) sits between the ingot pallet and the hive
 // V18: the first yard's smelting plant is an old ruin up in the top-left corner of the Meadow (the bigger yard), there
 // from the moment you buy it; the robots bring it back to life after the Rainy hollow (was 190, -240 in the cottage plot)
-const PLANT = LOT.PLANT || { x: -478, y: -566 };
+const PLANT = LOT.PLANT || { x: -405, y: -488 };   // (V19.3: in from the corner, the Meadow is smaller)
 // V7: land costs more, and the cottage plot runs short sooner (its small trees give shakers fewer leaves, see
 // treeYieldMul), so you feel the need for the meadow before you can buy it. Leaves sell for a little more to keep the
 // overall pace about where it was.
 const AREAS = LOT.AREAS || [
   { w: 580,  h: 380,  name: 'Cottage plot', spawn: 1.0, cap: 60 },
-  { w: 1280, h: 720,  name: 'Meadow',       spawn: 2.8, cap: 220, cost: 300 },
+  { w: 1080, h: 600,  name: 'Meadow',       spawn: 2.8, cap: 220, cost: 300 },   // V19.3: a workshop's width less each side, and shorter (was 1280 × 720)
   { w: 2000, h: 1150, name: 'Old orchard',  spawn: 5.6, cap: 380, cost: 3800 },
 ];
 // Metal veins: one very close to the bin, one fairly close, the rest a long walk away.
@@ -102,8 +106,8 @@ const AREAS = LOT.AREAS || [
 // veins are worth having, and the far orchard veins pay for the long walk.
 // V9: one vein per plot (three in all). Saves from before V9 had five; `OLD_SPOT_MAP` moves their miners over.
 const SPOTS = LOT.SPOTS || [
-  { x: 128,  y: -118, land: 0, rich: 0.85 },
-  { x: 425,  y: -175, land: 1, rich: 1 },
+  { x: 130,  y: -142, land: 0, rich: 0.85 },    // (V19.3: a little further from the road, was 128, -118)
+  { x: -420, y: -345, land: 1, rich: 1 },       // (V19.3: over on the left, below the old works; was 425, -175)
   // (V18: the orchard's vein is gone with the orchard: two veins in the first yard, one in each of the two sizes you can have)
 ];
 // V13: a lot can keep its metal for later land (the prairie's only vein is in the meadow)
@@ -163,7 +167,8 @@ const landForSale = () => LAND_SALE && S.land + 1 < AREAS.length && S.land + 1 <
 const OLD_SPOT_MAP = { 0: 0, 1: 1, 3: 2 };   // old vein index -> new one; old veins 2 and 4 are gone (refunded)
 const veinWord = sp => { const v = SPOTS[sp].rich || 1; return v < 0.9 ? 'a thin vein' : v > 1.15 ? 'a rich vein' : v > 1.02 ? 'a good vein' : 'a fair vein'; };
 const TREES = LOT.TREES || [
-  { x: -232, y: -478, r: 135, seed: 11 }, { x: 352, y: -472, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
+  // (V19.3: the three big Meadow trees moved out toward the fence, were -232, -478 / 352, -472 / 30, -565)
+  { x: -185, y: -672, r: 135, seed: 11 }, { x: 420, y: -560, r: 150, seed: 23 }, { x: 75, y: -690, r: 125, seed: 37 },
   { x: -770, y: -820, r: 190, seed: 41 }, { x: 770, y: -770, r: 185, seed: 53 }, { x: -90, y: -905, r: 170, seed: 61 },
   { x: -1130, y: -330, r: 190, seed: 71 }, { x: 1140, y: -1060, r: 200, seed: 83 }, { x: -560, y: -1310, r: 190, seed: 97 },
   { x: 560, y: -1335, r: 180, seed: 101 }, { x: 1150, y: -330, r: 170, seed: 113 }, { x: -1180, y: -1060, r: 190, seed: 127 },
@@ -171,9 +176,16 @@ const TREES = LOT.TREES || [
   // from beside the workshop, and the big top-left tree moved in so its trunk is on your land: three trees to shake,
   // and their leaves land along the edge where the blowers' laps herd them toward the bin)
   { x: -30, y: -255, r: 62, seed: 131, fam: ['gold','orange'] }, { x: 200, y: -335, r: 52, seed: 137, fam: ['red','rust'] },
+  // V19.3: a small tree on the Meadow's left, and four more beyond the fence so the wild land is as full as the yard
+  { x: -400, y: -205, r: 56, seed: 139, fam: ['red','olive'] },
+  { x: -700, y: -430, r: 150, seed: 211 }, { x: 705, y: -420, r: 150, seed: 223 }, { x: -665, y: -150, r: 92, seed: 227 }, { x: 680, y: -165, r: 95, seed: 229 },
 ];
 // shrubs on your own land (wild ones beyond the fence are baked into the ground); shakers can shake these too
-const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 } ];
+const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 },
+  // V19.3: one more on the cottage plot, and more round the Meadow (along its sides, the top and the bottom corners)
+  { x: 232, y: -200, s: 0.9, seed: 23 },
+  { x: -500, y: -255, s: 0.95, seed: 29 }, { x: -490, y: -105, s: 1.0, seed: 31 }, { x: 500, y: -250, s: 0.95, seed: 37 }, { x: 505, y: -140, s: 1.0, seed: 41 },
+  { x: -110, y: -455, s: 0.9, seed: 43 }, { x: 245, y: -430, s: 0.85, seed: 47 }, { x: 380, y: -80, s: 0.9, seed: 53 }, { x: -460, y: -45, s: 0.85, seed: 59 } ];
 const trunkBase = t => t.y + t.r*1.16;
 const owned = (lvl = S.land) => { const A = AREAS[lvl]; return { x0: -A.w/2, x1: A.w/2, y0: -A.h, y1: -VERGE }; };
 const salePos = () => { const A = AREAS[S.land]; return { x: Math.round(A.w*0.18), y: -A.h + 44 }; };
@@ -183,15 +195,19 @@ const UP = {
   // the bin starts small: the first few sizes are cheap, after that each one is a real purchase
   bin:        { obj:'bin',  name:'Bigger bin',        max:8,  costs:[0.4, 0.8, 1.5, 4, 15, 60, 190, 520], vals:[15, 22, 32, 48, 72, 110, 180, 320, 600], val:l=>UP.bin.vals[l], show:v=>v+' leaves' },
   // V6: sorting is only a few steps now; after that the bagging table (and the robots working it) takes over
-  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:5,  base:0.8, mul:1.7, val:l=>0.13*Math.pow(1.2,l)*pressMul(), show:v=>money(v)+' / leaf' },
+  // V19.1: two more steps after the first five (×1.2 a leaf each, as before, so loose leaves, dry leaves and bags are all
+  // worth 44% more at the top) for $70 and $160: a real jump, priced for the cottage-full stage, not the old ×1.7 curve
+  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:7,  gaps:[{n:5}], costs:[0.8, 1.25, 2.25, 4, 6.75, 70, 160], val:l=>0.13*Math.pow(1.2,l)*pressMul(), show:v=>money(v)+' / leaf' },
   // bags: a tied bag of BAG_SIZE leaves is worth more than the same leaves loose, and better bags are worth more again
   // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top). V9: priced against what
   // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
-  bagPrice:   { obj:'bagger', name:'Better bags', max:10, gaps:[{n:5}], costs:[11, 19, 28, 38, 60, 130, 170, 210, 240, 280], vals:[1.5, 1.8, 2.1, 2.45, 2.8, 3.2, 3.65, 4.15, 4.7, 5.3, 6.0], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
+  // V19.1: three more steps (6 → 8.7×, +13–14% each like the others), and the ladder climbs evenly ($11 → 440, +$40–70 a
+  // step; steps 6–10 were $130 / 170 / 210 / 240 / 280, now $95 / 135 / 175 / 215 / 255)
+  bagPrice:   { obj:'bagger', name:'Better bags', max:13, gaps:[{n:5}, {n:5}], costs:[11, 19, 28, 38, 60, 95, 135, 175, 215, 255, 310, 370, 440], vals:[1.5, 1.8, 2.1, 2.45, 2.8, 3.2, 3.65, 4.15, 4.7, 5.3, 6.0, 6.8, 7.7, 8.7], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
-  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 400, 1800, 3500, 6000], vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
+  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 380, 1400, 2600, 4200], vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
   // V7: a bigger tub also makes the ingot pallet beside it bigger (palletCap), the way the bin's bag shelf grows with the bin
   metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[30, 55, 90, 160, 320, 700, 1600, 3500], vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
@@ -207,7 +223,9 @@ const UP = {
   hiveStore:  { obj:'hive', name:'Bigger honey store', max:6, costs:[40, 110, 280, 600, 1200, 2400], vals:[6, 12, 20, 32, 50, 80, 120], val:l=>UP.hiveStore.vals[l], show:v=>v+' jars' },
   // V8: a little more to start with and four more label steps for the late game. V9: the late steps are much cheaper
   // (honey is capped by flowers and packers, so its income can't keep up with ×3 prices)
-  honeyPrice: { obj:'hive', name:'Fancy honey labels', max:6, costs:[90, 300, 650, 1000, 1800, 2800], vals:[2.9, 3.8, 5, 6.4, 8, 10, 12.5], val:l=>UP.honeyPrice.vals[l], show:v=>money(v)+' / jar' },
+  // V19.1: the top of every price ladder comes down a bit and climbs more evenly (Grade the metal above, labels, alloy, slag,
+  // market stall): incomes here level off (workers per task, longer walks), so ×2–4 jumps at the end were dead purchases
+  honeyPrice: { obj:'hive', name:'Fancy honey labels', max:6, costs:[90, 300, 600, 900, 1400, 2000], vals:[2.9, 3.8, 5, 6.4, 8, 10, 12.5], val:l=>UP.honeyPrice.vals[l], show:v=>money(v)+' / jar' },
   // V6: once a robot packs honey at the crate, gift jars (cloth top, twine and a tag) sell for more than plain ones.
   // V11: wrapping is its own task and takes almost as long as filling the jar, so a gift jar is worth a lot more (2.6×,
   // about what the old top ribbon gave) and the ribbons are cheaper
@@ -215,9 +233,9 @@ const UP = {
   // the smelting plant
   smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[400, 1000, 1500], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[500, 1900, 3200, 6000, 7000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[500, 1600, 2800, 4500, 6000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
-  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[450, 1100, 2800], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
+  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[450, 1100, 2200], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
   hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[80, 260, 700], vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
 };
 // V16: a lot can reprice upgrades (the Rainy hollow's mushroom labels and D.O.P. seals): LOT.UP = { key: { costs } }
@@ -236,6 +254,7 @@ const OLD_PALLET_COSTS = [60, 200, 600];
 // V6 refinement: buildings and constants
 const BAG_SIZE = 10;            // leaves in a bag
 const BAGGER_COST = 18;         // the bagging table: a bit more than the next sorting step would have been
+const BAG_SORT = 5;             // V19.1: the bagging table shows after 5 Sort leaves steps (it was "maxed"; there are 7 now)
 const HONEY_PACK_COST = 550;    // Gift wrapping: opens the Wrap task at the crate (V11: was 800)
 const PLANT_COST = LOT.plantCost || 500;   // the smelting plant (V7: was 300; V17: the hollow's charcoal kiln is cheaper)
 const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
@@ -267,39 +286,45 @@ const TRACKS = {
       { name:'Stubby arm', n:0, cost:[] },
       { tech:'arm', name:'Telescoping arm', n:5, cost:[2.5, 8, 24, 55, 111] } ],
     vals:[20,30,44,64,92,125], show:v=>v+' cm reach' },
-  drill: { label:'Drill', gens:[
-      { name:'Hand drill', n:3, cost:[25, 40, 60], needsMetal:true },
-      { tech:'diamond', name:'Diamond bit', n:4, cost:[110, 160, 230, 330] } ],
+  // V19: one skill in every yard (was Drill here and Saw in the Rainy hollow): how well a robot runs the machines. It sets
+  // how fast it mines metal or saws logs, and (with Load & pack) how fast it smelts ingots or burns charcoal
+  drill: { label:'Operate machinery', gens:[
+      { name:'Hand tools', n:3, cost:[25, 40, 60], needsMetal:true },
+      { tech:'diamond', name:'Power tools', n:4, cost:[110, 160, 230, 330] } ],
     vals:[4,3.4,2.9,2.5, 2.1,1.8,1.55,1.35], show:v=>v.toFixed(1)+'s per chunk' },
-  magnet: { label:'Magnet', gens:[
-      { name:'Fridge magnet', n:3, cost:[35, 55, 80], needsMetal:true },
-      { tech:'horseshoe', name:'Horseshoe magnet', n:4, cost:[120, 170, 240, 330] },
-      { tech:'electro', name:'Electromagnet', n:4, cost:[480, 680, 950, 1300] } ],
-    vals:[0, .06,.11,.16, .22,.28,.34,.40, .48,.56,.64,.72], show:v=>v ? Math.round(v*100)+'% double metal' : 'no double metal' },
+  // V19: Extra yield (was Magnet here and Wedge in the Rainy hollow): the chance a chunk of metal or a log comes out as two.
+  // 3 levels, one unlock, 3 more (was 3 + 4 + 4 with two unlocks): same 0 → 72% and the same $1,300 last step, bigger jumps,
+  // ~$3,150 in all (was ~$5,900)
+  magnet: { label:'Extra yield', gens:[
+      { name:'Keen eye', n:3, cost:[35, 60, 100], needsMetal:true },
+      { tech:'horseshoe', name:'Master’s touch', n:3, cost:[450, 800, 1300] } ],
+    vals:[0, .1, .2, .3, .44, .58, .72], show:v=>v ? Math.round(v*100)+'% extra yield' : 'no extra yield' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
   // V13.7: 8 levels instead of 11 (2 + 3 + 3) over the same range, and a gentler price climb (~75× first to last, was ~190×)
   // V16: helper skills are cheap all the way to the top and climb slowly (~12× first to last; the whole track ~$350, was ~$2,100)
-  blow: { label:'Blower', gens:[
+  // V19: fewer, bigger steps (2 levels a tier, was 2 + 3 + 3): the same 1 → 5.8×, and each tier ends where it did
+  blow: { label:'Leaf blowing', gens:[
       { name:'Desk fan', n:2, cost:[6, 10] },
-      { tech:'turbine', name:'Leaf turbine', n:3, cost:[20, 26, 34] },
-      { tech:'jet', name:'Jet nozzle', n:3, cost:[45, 55, 70] } ],
-    vals:[1, 1.35, 1.75, 2.2, 2.75, 3.4, 4.1, 4.9, 5.8], show:v=>v.toFixed(2)+'× blow power' },
-  shake: { label:'Shake', gens:[
-      { name:'Gentle wiggle', n:2, cost:[5, 9] },
-      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[18, 24, 32] },
-      { tech:'rumble', name:'Rumble claws', n:3, cost:[40, 50, 65] } ],
-    vals:[6, 8, 10, 13, 16, 20, 25, 31, 38], show:v=>v+' leaves from a big tree' },
+      { tech:'turbine', name:'Leaf turbine', n:2, cost:[20, 34] },
+      { tech:'jet', name:'Jet nozzle', n:2, cost:[45, 70] } ],
+    vals:[1, 1.35, 1.75, 2.5, 3.4, 4.5, 5.8], show:v=>v.toFixed(2)+'× blow power' },
+  // V19: 3 levels, one unlock, 3 more (was 2 + 3 + 3 with two unlocks): the same 6 → 38 leaves
+  shake: { label:'Tree shaking', gens:[
+      { name:'Gentle wiggle', n:3, cost:[5, 9, 18] },
+      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[32, 50, 65] } ],
+    vals:[6, 8, 11, 15, 21, 29, 38], show:v=>v+' leaves from a big tree' },
   // shakers with shears can deadhead spent flowers so a fresh bloom pops up for the bees right away
   snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[25] } ],
     vals:[0, 1], show:v=>v ? 'can deadhead flowers' : 'trees only' },
   // V6: packing & refining: how fast a robot bags leaves, fills honey jars and smelts ingots.
   // V7: a robot starts clumsier, every level is bought at full price (no copied-level discount), and the last tier is
   // much stronger, so a robot you train up as a packer is worth the money.
-  pack: { label:'Packing', gens:[
+  // V19: Load & pack (was Packing): loading kilns and furnaces as well as packing bags, jars and cans
+  pack: { label:'Load & pack', gens:[
       { name:'Clumsy hands', n:3, cost:[3, 6, 11], needsPack:true },
       { tech:'jig', name:'Packing jig', n:4, cost:[22, 36, 56, 85] },
       { tech:'precision', name:'Precision tools', n:4, cost:[280, 450, 700, 1100] } ],
-    vals:[0.6, 0.72, 0.84, 0.96, 1.12, 1.3, 1.5, 1.75, 2.3, 2.95, 3.7, 4.6], show:v=>v.toFixed(2)+'× packing speed' },
+    vals:[0.6, 0.72, 0.84, 0.96, 1.12, 1.3, 1.5, 1.75, 2.3, 2.95, 3.7, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
   // V12: how quickly a robot works through the old picture book (the Research task). The robot holding the book does
   // RESEARCH_MAIN units a second, each robot helping RESEARCH_HELP; every level doubles that robot's share.
   study: { label:'Research', gens:[
@@ -309,25 +334,28 @@ const TRACKS = {
       { name:'Photographic memory', n:1, cost:[200] } ],   // V13.1: up to 16 × 4 = 64 research a second for the reader
     vals:[1, 2, 4, 16], show:v=>v+'× research' },
   // V6: blowers at a mine shaft suck up dirt so the robots mining there get on faster. Level 1 teaches it.
-  dig: { label:'Excavate', gens:[
-      { name:'Dirt hose', n:3, cost:[30, 40, 50], needsShaft:true },
-      { tech:'cyclone', name:'Grit cyclone', n:4, cost:[60, 70, 85, 100] } ],
-    vals:[0, .25, .35, .45, .58, .7, .82, .95], show:v=>v ? '+' + Math.round(v*100) + '% mining at a shaft' : 'can’t excavate yet' },
+  // V19: 2 levels and 2 more after the unlock (was 3 + 4), same +25% → +95%
+  dig: { label:'Shaft excavating', gens:[
+      { name:'Dirt hose', n:2, cost:[30, 50], needsShaft:true },
+      { tech:'cyclone', name:'Grit cyclone', n:2, cost:[70, 100] } ],
+    vals:[0, .25, .45, .7, .95], show:v=>v ? '+' + Math.round(v*100) + '% mining at a shaft' : 'can’t excavate yet' },
   // V6.2: blowers can work the bellows at the smelting plant: blowing into the furnace makes every smelter faster
-  stoke: { label:'Bellows', gens:[
-      { name:'Air hose', n:3, cost:[40, 55, 70], needsPlant:true },
-      { tech:'forge', name:'Forge blast', n:4, cost:[85, 100, 120, 140] } ],
-    vals:[0, .15, .22, .3, .4, .5, .6, .7], show:v=>v ? '+' + Math.round(v*100) + '% smelting speed' : 'can’t work the bellows yet' },
+  // V19: 2 levels and 2 more after the unlock (was 3 + 4), same +15% → +70%
+  stoke: { label:'Furnace bellows', gens:[
+      { name:'Air hose', n:2, cost:[40, 70], needsPlant:true },
+      { tech:'forge', name:'Forge blast', n:2, cost:[100, 140] } ],
+    vals:[0, .15, .3, .5, .7], show:v=>v ? '+' + Math.round(v*100) + '% smelting speed' : 'can’t work the bellows yet' },
   // V14 (the Rainy hollow, WET_WOOD): a blower can learn to carry a big wooden umbrella over a robot hauling dry wood
   brolly: { label:'Umbrella', gens:[ { name:'Wood umbrella', n:1, cost:[150], needsPlant:true } ],
     vals:[0, 1], show:v=>v ? 'carries the wood umbrella' : 'no umbrella yet' },
   // V15 (DRY_BENCH): a blower blows warm air over the leaves on the drying bench. Level 1 teaches it; every level dries faster
   // V16: much cheaper with a slow climb, and a third tier (Drying tunnel, 4 more levels up to 6.5×); ~$540 in all, was ~$1,400
-  dry: { label:'Drying', gens:[
-      { name:'Warm air', n:3, cost:[10, 15, 20], needsBench:true },
-      { tech:'kiln', name:'Hot-air stove', n:4, cost:[25, 30, 36, 42] },
-      { tech:'tunnel', name:'Drying tunnel', n:4, cost:[50, 58, 66, 75] } ],
-    vals:[0, 1, 1.3, 1.6, 2, 2.45, 2.95, 3.5, 4.1, 4.8, 5.6, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
+  // V19: 2 levels a tier (was 3 + 4 + 4): the same 1 → 6.5×, each tier ending where it did
+  dry: { label:'Leaf drying', gens:[
+      { name:'Warm air', n:2, cost:[10, 20], needsBench:true },
+      { tech:'kiln', name:'Hot-air stove', n:2, cost:[30, 42] },
+      { tech:'tunnel', name:'Drying tunnel', n:2, cost:[58, 75] } ],
+    vals:[0, 1, 1.6, 2.45, 3.5, 4.8, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
 };
 
 const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet','pack','study'];
@@ -341,37 +369,40 @@ const TECH = {
   arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Five reach upgrades. Pairs well with the claw rake.' },
   hubs:    { name:'Ball-bearing hubs', track:'speed', cost:45,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
   hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Basket upgrades 8 to 11.' },
-  diamond: { name:'Diamond drill bit', track:'drill', cost:350, needsMiner:true, desc:'Four faster drill upgrades.' },
-  horseshoe:{ name:'Horseshoe magnet', track:'magnet', cost:260, needsMiner:true, desc:'Magnet upgrades 4 to 7: a better chance of double metal.' },
-  electro: { name:'Electromagnet',     track:'magnet', cost:1200, needs:'horseshoe', desc:'Magnet upgrades 8 to 11: up to 72% double metal.' },
-  turbine: { name:'Leaf turbine',      track:'blow',  cost:30,  needsKind:'blowers', desc:'Three stronger blower upgrades: a wider, stronger breeze.' },
-  jet:     { name:'Jet nozzle',        track:'blow',  cost:60, needs:'turbine', desc:'Blower upgrades 6 to 8.' },
-  pincers: { name:'Hydraulic pincers', track:'shake', cost:28,  needsKind:'shakers', desc:'Three stronger shake upgrades: more leaves from every tree and bush.' },
-  rumble:  { name:'Rumble claws',      track:'shake', cost:55, needs:'pincers', desc:'Shake upgrades 6 to 8.' },
-  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc:'Four faster packing upgrades: bagging, honey jars, gift wrapping and smelting.' },
-  precision:{ name:'Precision tools',  track:'pack',  cost:700, needs:'jig', desc:'Packing upgrades 8 to 11.' },
-  cyclone: { name:'Grit cyclone',      track:'dig',   cost:90, needsShaft:true, desc:'Four stronger excavating upgrades for blowers at a mine shaft.' },
-  forge:   { name:'Forge blast',       track:'stoke', cost:120, needsPlantBlower:true, desc:'Four stronger bellows upgrades for blowers at the smelting plant.' },
-  kiln:    { name:'Hot-air stove',     track:'dry',   cost:40,  needsDryBlower:true, desc:'Four faster drying upgrades for blowers at the drying bench.' },
-  tunnel:  { name:'Drying tunnel',     track:'dry',   cost:75,  needs:'kiln', desc:'Drying upgrades 8 to 11: a covered tunnel of hot air over the tray.' },
+  diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
+  // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
+  horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Extra yield upgrades: up to a 72% chance of getting two from one.' },
+  turbine: { name:'Leaf turbine',      track:'blow',  cost:30,  needsKind:'blowers', desc:'Two stronger leaf blowing upgrades: a wider, stronger breeze.' },
+  jet:     { name:'Jet nozzle',        track:'blow',  cost:60, needs:'turbine', desc:'The last two leaf blowing upgrades.' },
+  // V19: one shaking unlock (was Hydraulic pincers $28 and Rumble claws $55)
+  pincers: { name:'Hydraulic pincers', track:'shake', cost:40,  needsKind:'shakers', desc:'Three stronger tree shaking upgrades: more leaves from every tree and bush.' },
+  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc: KEEP + 'Four faster Load & pack upgrades: bagging, jars and cans, gift wrapping, and loading furnaces and kilns.' },
+  precision:{ name:'Precision tools',  track:'pack',  cost:700, needs:'jig', desc:'Load & pack upgrades 8 to 11.' },
+  cyclone: { name:'Grit cyclone',      track:'dig',   cost:90, needsShaft:true, desc:'Two stronger excavating upgrades for blowers at a mine shaft.' },
+  forge:   { name:'Forge blast',       track:'stoke', cost:120, needsPlantBlower:true, desc:'Two stronger bellows upgrades for blowers at the smelting plant.' },
+  kiln:    { name:'Hot-air stove',     track:'dry',   cost:40,  needsDryBlower:true, desc:'Two faster leaf drying upgrades for blowers at the drying bench.' },
+  tunnel:  { name:'Drying tunnel',     track:'dry',   cost:75,  needs:'kiln', desc:'The last two leaf drying upgrades: a covered tunnel of hot air over the tray.' },
 };
 // Yard-wide upgrades (workshop, right column). They show up once you have $10. Not every one is a plain boost:
 // some change the rules a little, like how much a copied robot upgrade costs.
+const OIL_BONUS = 0.3, CUT_BONUS = 0.25;   // V19.3: the one step of Grease every axle / Cutting oil
 const GEN = {
-  oil:      { name:'Grease every axle',  max:3, cost:[20, 110, 520],  desc:l=>'All robots drive <b>'+(20*(l+1))+'%</b> faster'+(l ? ' (now '+(20*l)+'%)' : '')+'.' },
+  // V19.3: one step each for Grease every axle and Cutting oil (were 3 and 2); Wider claw fingers is gone
+  oil:      { name:'Grease every axle',  max:1, cost:[30],  desc:()=>'All robots drive <b>'+Math.round(OIL_BONUS*100)+'%</b> faster.' },
   basket:   { name:'Shared basket plans', max:1, cost:[35],  desc:()=>'Basket upgrades another robot already has cost <b>10%</b> instead of 50%.' },
   // Parked for now to keep the list short; good ideas to bring back later. Their effects switch off while commented out.
   // servo:    { name:'Oil the servos',     max:2, cost:[45, 240], desc:l=>'Every grab is <b>'+(15*(l+1))+'%</b> quicker'+(l ? ' (now '+(15*l)+'%)' : '')+'.' },
   // bulk:     { name:'Bulk robot parts',   max:1, cost:[60],  desc:()=>'New robots cost <b>25%</b> less.' },
-  fingers:  { name:'Wider claw fingers', max:2, cost:[55, 260], needs:()=>S.tech.claw, desc:l=>'Claws spread <b>'+(30*(l+1))+'%</b> wider and pick from a bigger patch.' },
   blueprint:{ name:'Copy the blueprints', max:1, cost:[150], desc:()=>'Any upgrade another robot already has costs <b>30%</b> instead of 50%.' },
-  cutting:  { name:'Cutting oil',        max:2, cost:[300, 1400], needs:()=>S.miners.length > 0, desc:l=>'All drills run <b>'+(15*(l+1))+'%</b> faster.' },
-  market:   { name:'Market stall',       max:3, cost:[140, 600, 2400], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
-  charm:    { name:'Lucky horseshoe',    max:1, cost:[950], needs:()=>S.miners.length > 0, desc:()=>'Every robot gets <b>+8%</b> double-metal chance on top of its magnet.' },
+  cutting:  { name:'Cutting oil',        max:1, cost:[400], needs:()=>S.miners.length > 0, desc:()=>'All drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
+  market:   { name:'Market stall',       max:3, cost:[140, 600, 1800], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
+  charm:    { name:'Lucky horseshoe',    max:1, cost:[950], needs:()=>S.miners.length > 0, desc:()=>'Every robot gets <b>+8%</b> extra yield on top of its own.' },
 };
 if (LOT.GEN) Object.assign(GEN, LOT.GEN);   // a lot's own yard-wide upgrades (the prairie's flower upgrades)
 const GEN_UNLOCK = 10;
-const gl = k => (GEN[k] && S.gen && S.gen[k]) || 0;   // parked (commented-out) upgrades count as 0
+const gl = k => (GEN[k] && S.gen && Math.min(S.gen[k] || 0, GEN[k].max)) || 0;   // parked (commented-out) upgrades count as 0 (V19.3: levels above the top count as the top)
+// V19.3: how many tiers of extra flowers are sown (a lot's seeding step can sow more than one tier: GEN.seeding.tiers)
+const sownTier = () => gl('seeding') * ((GEN.seeding && GEN.seeding.tiers) || 1);
 // the prairie's flower upgrades (0 everywhere else): Petal press, and Sweet clover for faster regrowing flowers
 const pressMul = () => 1 + 0.15*gl('press');
 const regrowMul = () => 1 + 0.3*gl('clover');
@@ -457,7 +488,9 @@ const hopperCap = () => val('hopper');
 const tubRoom = () => S.metalSlot ? Math.max(0, metalCap() - S.binMetal) : 0;
 // V7: the ingot pallet by the road grows with the metal tub (like the bags' shelf grows with the bin): ingots don't take
 // the tub's room, but every bigger tub also means a bigger pallet. The plant's own ingot rack stays a fixed size.
-const palletCap = () => COAL ? Math.max(24, Math.round(metalCap()*2)) : Math.max(6, Math.round(metalCap()*0.5));
+// V19: the hollow's coal stand holds twice as much (4× the log crib, at least 48; was 2×, at least 24): the kiln and the dryer
+// both fill it, and it used to be full long before the truck came
+const palletCap = () => COAL ? Math.max(48, Math.round(metalCap()*4)) : Math.max(6, Math.round(metalCap()*0.5));
 // V17 (COAL): the coal stand by the road is there once the robots know what coal is, kiln or no kiln (the dryer makes coal too)
 const palletShown = () => S.plant.built || (COAL && !!S.flags.coalKnown);
 const palletRoom = () => Math.max(0, palletCap() - S.ingots);
@@ -536,31 +569,36 @@ const metalSlotShown = () => metalOpen() && seenPrice(METAL_SLOT_COST);
 // ───────────────────────── tasks (V6)
 // Every robot has a priority list of tasks: rows in "Do" (top row first; two tasks side by side share a priority)
 // and a "Don't" pile. A robot does the first task that has work, and looks again whenever it finishes a bit of work.
+// V19: every task says what it does and where, both on its chip (short) and in its tooltip (name): "Haul finished ingots",
+// not "Haul". A lot can name its own (LOT.tasks, the Rainy hollow: Dry woodpile, Charcoal kiln bellows...).
 const TASKS = {
-  leaves: { name:'Gather leaves', short:'Leaves', col:'#d9652a', kind:'robot' },
-  mine:   { name:'Mine metal',    short:'Mine',   col:'#7d868c', kind:'robot' },
+  leaves: { name:'Gather leaves into the bin', short:'Gather leaves', col:'#d9652a', kind:'robot' },
+  mine:   { name:'Mine metal at the vein',    short:'Mine metal',   col:'#7d868c', kind:'robot' },
   // (V15: at the drying bench (DRY_BENCH) the same task is blowers' work: Dry leaves)
-  bag:    { name: DRY_BENCH ? 'Dry leaves' : 'Bag leaves', short: DRY_BENCH ? 'Dry' : 'Bag', col:'#c9862f', kind: DRY_BENCH ? 'blower' : 'robot' },
-  jar:    { name:'Fill honey jars', short:'Honey', col:'#e0a12e', kind:'robot' },
-  wrap:   { name:'Wrap gift jars', short:'Wrap',  col:'#c23b4e', kind:'robot' },
-  smelt:  { name:'Smelt ingots',  short:'Smelt',  col:'#b8452d', kind:'robot' },
+  bag:    { name: DRY_BENCH ? 'Dry leaves at the drying bench' : 'Bag leaves at the bagging table', short: DRY_BENCH ? 'Dry leaves' : 'Bag leaves', col:'#c9862f', kind: DRY_BENCH ? 'blower' : 'robot' },
+  jar:    { name:'Fill honey jars at the crate', short:'Fill honey jars', col:'#e0a12e', kind:'robot' },
+  wrap:   { name:'Wrap honey jars as gift jars', short:'Wrap gift jars',  col:'#c23b4e', kind:'robot' },
+  smelt:  { name:'Smelt ore into ingots at the furnace', short:'Smelt ingots',  col:'#b8452d', kind:'robot' },
   // V17 (FIRE_STORY): carrying logs from the log crib to the drying bench's stove, once the robots know fire dries leaves
-  fuel:   { name:'Fuel the dryer', short:'Fuel',  col:'#c4502e', kind:'robot' },
-  haul:   { name:'Haul ingots',   short:'Haul',   col:'#5f8c87', kind:'robot' },
+  fuel:   { name:'Fuel the leaf dryer with logs', short:'Fuel the leaf dryer',  col:'#c4502e', kind:'robot' },
+  haul:   { name:'Haul finished ingots to the pallet by the road', short:'Haul finished ingots', col:'#5f8c87', kind:'robot' },
   // V18 (PLANT_COAL): coal from the stand by the road up to the old works' bunker, once it runs low
-  refuel: { name:'Refuel the furnace', short:'Coal', col:'#4a4542', kind:'robot' },
-  blow:   { name:'Blow leaves',   short:'Blow',   col:'#4f7c84', kind:'blower' },
-  dig:    { name:'Excavate shafts', short:'Dig',  col:'#8a6040', kind:'blower' },
-  stoke:  { name:'Work the bellows', short:'Bellows', col:'#b8452d', kind:'blower' },
-  brolly: { name:'Carry wood umbrella', short:'Umbrella', col:'#3f6a8a', kind:'blower' },   // V14 (WET_WOOD)
-  shake:  { name:'Shake trees',   short:'Shake',  col:'#6f7d3c', kind:'shaker' },
-  snip:   { name:'Deadhead flowers', short:'Snip', col:'#7a4d6e', kind:'shaker' },
+  refuel: { name:'Refuel the furnace with coal from the stand', short:'Refuel the furnace', col:'#4a4542', kind:'robot' },
+  blow:   { name:'Blow leaves toward the bin', short:'Blow leaves', col:'#4f7c84', kind:'blower' },
+  dig:    { name:'Excavate a mine shaft (faster mining)', short:'Excavate mine shaft', col:'#8a6040', kind:'blower' },
+  stoke:  { name:'Work the furnace bellows (faster smelting)', short:'Furnace bellows', col:'#b8452d', kind:'blower' },
+  brolly: { name:'Carry the wood umbrella over haulers', short:'Wood umbrella', col:'#3f6a8a', kind:'blower' },   // V14 (WET_WOOD)
+  shake:  { name:'Shake trees and bushes for leaves', short:'Shake trees', col:'#6f7d3c', kind:'shaker' },
+  snip:   { name:'Deadhead spent flowers for the bees', short:'Deadhead flowers', col:'#7a4d6e', kind:'shaker' },
   // V12: studying whatever the robots have found (for now, the old picture book). When there's nothing to research the
   // task stays on the list under another name, so it can sit at the top of a robot's list without getting in the way.
   research: { get name(){ return researchOpen() ? 'Research' : 'Research - unavailable'; }, get short(){ return researchOpen() ? 'Research' : 'Research - unavailable'; }, col:'#4d6a9c', kind:'robot' },
   // V13: riding the truck to another lot. Only there while a letter has opened a trip, and only one robot can take it.
-  travel: { get name(){ return S.trip && S.trip.to === 'home' ? 'Go back to original lot' : 'Go to new lot'; }, get short(){ return S.trip && S.trip.to === 'home' ? 'Go back' : 'New lot'; }, col:'#2f6f8f', kind:'robot' },
+  travel: { get name(){ return S.trip && S.trip.to === 'ending' ? 'Ride along with the driver' : S.trip && S.trip.to === 'home' ? 'Go back to original lot' : 'Go to new lot'; }, get short(){ return S.trip && S.trip.to === 'ending' ? 'Ride along' : S.trip && S.trip.to === 'home' ? 'Go back' : 'New lot'; }, col:'#2f6f8f', kind:'robot' },
 };
+if (LOT.tasks) for (const k in LOT.tasks) if (TASKS[k]) Object.assign(TASKS[k], LOT.tasks[k]);
+// V19: a lot's own names for skills (the Rainy hollow's blowers dry woodpiles and work the kiln's bellows)
+if (LOT.trackLabels) for (const k in LOT.trackLabels) if (TRACKS[k]) TRACKS[k].label = LOT.trackLabels[k];
 const KIND_TASKS = { robot:['leaves','mine', ...(DRY_BENCH ? [] : ['bag']),'jar','wrap', ...(FIRE_STORY ? ['fuel'] : []), ...(PLANT_COAL ? ['refuel'] : []),'smelt','haul','research','travel'],
   blower:[...(DRY_BENCH ? ['bag'] : []), 'blow','dig','stoke', ...(WET_WOOD ? ['brolly'] : []), ...(HIVE_STORY ? ['research'] : []), 'travel'],
   shaker:['shake','snip', ...(FIRE_STORY ? ['research'] : [])] };   // (V17: a shaker can hold a burning branch: the fire research needs one)
@@ -653,19 +691,30 @@ function putBeside(cfg, t, main){
   if (hasDont(cfg, kindOfCfg(cfg), [t])){ putOff(cfg, t); return; }
   taskRemove(cfg, t); const row = cfg.prio.find(r => r.includes(main)); if (row && row.length < 2) row.push(t); else cfg.prio.push([t]);
 }
-// a building just opened tasks `ts` for the regular robots
+// a building just opened tasks `ts` for the regular robots.
+// V19: a task that opens for the first time on this lot goes to the very bottom of the Do list of every robot that does
+// everything (nothing of its own in Off), below Gather leaves, so it never pushes aside what's above it (a robot reading
+// the research used to drop it when a mine was built). Being in Do still lets it jump the queue when it has to (bin full →
+// bag, honey store full → fill jars, coal low → refuel, tub full → smelt); otherwise the player drags it up. Robots with
+// anything in Off get it in Off, as before. (S.flags.tOpen: the tasks that have opened on this lot)
 function openTasks(ts){
+  const seen = S.flags.tOpen || (S.flags.tOpen = {}), fresh = ts.filter(t => !seen[t]);
+  for (const t of ts) seen[t] = 1;
+  if (!fresh.length) return;
   for (const cfg of S.robots){
-    if (hasDont(cfg, 'robot', ts)){ for (const t of ts) putOff(cfg, t); continue; }
-    for (const t of ts){
-      if (taskOn(cfg, t)) continue;
-      taskRemove(cfg, t);
-      // back in its default row: beside a task from the same default row if there's room, otherwise a row of its own there
-      const di = DEFAULT_PRIO.robot.findIndex(r => r.includes(t)), mates = DEFAULT_PRIO.robot[di] || [];
-      const row = cfg.prio.find(r => r.length < 2 && r.some(x => mates.includes(x)));
-      if (row) row.push(t); else cfg.prio.splice(Math.min(di, cfg.prio.length), 0, [t]);
-    }
+    if (hasDont(cfg, 'robot', fresh)){ for (const t of fresh) putOff(cfg, t); continue; }
+    for (const t of fresh) taskRemove(cfg, t);
+    // tasks that share a default row (Smelt and Haul) share their new row at the bottom too
+    for (const row of DEFAULT_PRIO.robot){ const add = row.filter(t => fresh.includes(t)); if (add.length) cfg.prio.push(add); }
+    for (const t of fresh) if (!taskOn(cfg, t)) cfg.prio.push([t]);
   }
+}
+// V19: will this robot ever get round to task t? It's in Do and not below a task that always has work (Gather leaves) or
+// research that's still going
+function taskReached(cfg, t){
+  const i = cfg.prio.findIndex(r => r.includes(t)); if (i < 0) return false;
+  for (let k = 0; k < i; k++){ const r = cfg.prio[k]; if (r.includes('leaves') || (r.includes('research') && researchOpen())) return false; }
+  return true;
 }
 
 // V6.3: a new robot has every task in Do (tasks that aren't there yet are just skipped), so nothing is left undone if
@@ -707,7 +756,7 @@ function freshState(){
       flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
-    flags:{ opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
+    flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
       hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false,
       // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
@@ -990,12 +1039,12 @@ function newRobot(i){
 }
 function syncRobots(){ while (R.length < S.robots.length){ const r = newRobot(R.length); if (S.robots[r.id].away) r.st = 'gone'; R.push(r); } }
 
-const robotSpeed = ri => 58 * rv(ri, 'speed') * (1 + 0.2*gl('oil'));
+const robotSpeed = ri => 58 * rv(ri, 'speed') * (1 + OIL_BONUS*gl('oil'));
 const pickTime = ri => rv(ri, 'pick') * (1 - 0.15*gl('servo'));
-const drillTime = ri => rv(ri, 'drill') * (1 - 0.15*gl('cutting'));
+const drillTime = ri => rv(ri, 'drill') * (1 - CUT_BONUS*gl('cutting'));
 const doubleChance = ri => Math.min(0.9, rv(ri, 'magnet') + (gl('charm') ? 0.08 : 0));
 // how far the claw's fingers spread around the hand: a single pincer only takes the leaf under it
-const clawSpread = ri => { const g = rv(ri, 'grab'); return g <= 1 ? 0 : (12 + 5*g)*(1 + 0.3*gl('fingers')); };
+const clawSpread = ri => { const g = rv(ri, 'grab'); return g <= 1 ? 0 : 12 + 5*g; };
 // V6 refining: one Packing track speeds up bagging, gift jars and smelting
 const packSpeed = ri => rv(ri, 'pack');
 const bagTime = ri => BAG_TIME/packSpeed(ri);
@@ -1745,7 +1794,7 @@ const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this ma
 const CANNED_CASH = 200;     // V17: the hollow's mushroom goal, once the ant hill is going: $ of canned mushrooms sold
 const LOGS_GOAL = 100;       // V17: logs the truck has taken (the third of the goals that bring the lightning)
 const COAL_GOAL = 200;       // V18: coal sold once the charcoal kiln is built: the letter about taking the fire home
-const INGOT_GOAL = 1000;     // V18: iron ingots sold from the old works back home, once it's repaired
+const INGOT_GOAL = 2000;     // V18: iron ingots sold from the old works back home, once it's repaired (V20: was 1,000; reaching it brings the final letter)
 const MILESTONES = [
   // the old picture book turns up under a leaf once you've earned $30 in all (or once you hold $18, if that's sooner;
   // V16.1, was $20 / $12, so it turns up a little later)
@@ -1790,7 +1839,7 @@ const MILESTONES = [
     hud:{ icon:'flame', pct:true, val: () => fireK(), of: 1 } },
   { id:'coal', lot:'hollow', group:'hollowC', name:'The coal', goal:'Research the coal', prog: () => S.flags.coalKnown ? 1 : 0,
     hud:{ icon:'ingot', pct:true, val: () => S.story.item === 'coal' ? clamp(S.story.prog/researchNeed(), 0, 1) : S.flags.coalKnown ? 1 : 0, of: 1 } },
-  // V18: the kiln built, sell 200 coal (counted from the kiln on): the driver writes about taking the fire home
+  // V18: sell 200 coal (V19.2: shown and counted from the moment the coal is researched): the driver writes about taking the fire home
   { id:'coalSold', lot:'hollow', group:'hollowD', name:'Coal for sale', goal:'Sell ' + COAL_GOAL + ' coal', prog: () => (S.totals.kilnSold || 0)/COAL_GOAL, on: () => postLetter('fireHome'),
     hud:{ icon:'ingot', val: () => S.totals.kilnSold || 0, of: COAL_GOAL } },
   // V18: back home with the fire: research the old works, repair it, then sell 1,000 iron ingots (one after the other)
@@ -1798,7 +1847,7 @@ const MILESTONES = [
     hud:{ icon:'research', pct:true, val: () => S.flags.ruinKnown ? 1 : S.story.item === 'ruin' ? clamp(S.story.prog/researchNeed(), 0, 1) : 0, of: 1 } },
   { id:'ruinFix', lot:'home', group:'works', after:'ruinR', name:'Repaired', goal:'Repair the smelting plant', prog: () => S.plant.built ? 1 : 0, hud:{ icon:'flame', bool:true } },
   { id:'ingots', lot:'home', group:'works', after:'ruinFix', name:'Iron ingots', goal:'Sell ' + INGOT_GOAL.toLocaleString('en-US') + ' iron ingots', prog: () => (S.totals.ingotsSold || 0)/INGOT_GOAL,
-    on: () => { if (!simMode) setTimeout(() => showToast('The old works are humming', INGOT_GOAL.toLocaleString('en-US') + ' iron ingots sold. The fire from the rainy hollow keeps the old works going.', 10), 800); },
+    on: () => { postLetter('final'); if (!simMode) setTimeout(() => showToast('The old works are humming', INGOT_GOAL.toLocaleString('en-US') + ' iron ingots sold. The driver seems to have something for you…', 10), 800); },   // V20: the final letter
     hud:{ icon:'ingot', val: () => S.totals.ingotsSold || 0, of: INGOT_GOAL } },
 ];
 // a group of quests shows all at once while its show() is true; done(): what happens when every one is reached together
@@ -1808,9 +1857,10 @@ const GOAL_GROUPS = {
   // V17 (the Rainy hollow): need: the members that have to be reached (the rest are steps on the way)
   hollowA: { show: () => FIRE_STORY && !S.fire.struck, need: ['dry', 'canned', 'logs'], done: () => { if (!S.fire.struck) strike(); } },
   hollowB: { show: () => FIRE_STORY && S.fire.struck && (!S.flags.fireDone || S.t - (S.miles.fire ?? 1e9) < GOAL_DONE_HOLD), done: () => {} },
-  hollowC: { show: () => FIRE_STORY && (S.story.item === 'coal' || (S.flags.coalKnown && S.t - (S.miles.coal ?? 1e9) < GOAL_DONE_HOLD)), done: () => {} },
-  // V18: the kiln's coal goal, and back home the old works (from the moment the fire is set down by it)
-  hollowD: { show: () => FIRE_STORY && S.plant.built && (S.miles.coalSold == null || S.t - S.miles.coalSold < GOAL_DONE_HOLD), done: () => {} },
+  // V19.2: gone the moment the coal is worked out; Sell 200 coal takes its place straight away
+  hollowC: { show: () => FIRE_STORY && S.story.item === 'coal' && !S.flags.coalKnown, done: () => {} },
+  // V18: the coal goal (V19.2: from the moment the coal is known, not the kiln), and back home the old works (from the moment the fire is set down by it)
+  hollowD: { show: () => FIRE_STORY && S.flags.coalKnown && (S.miles.coalSold == null || S.t - S.miles.coalSold < GOAL_DONE_HOLD), done: () => {} },
   works: { show: () => RUIN && S.story.item === 'ruin' && S.story.found && (S.miles.ingots == null || S.t - S.miles.ingots < GOAL_DONE_HOLD), done: () => {} },
 };
 // V17: a group member with after: shows once that one has been reached for GOAL_DONE_HOLD seconds, and takes its place
@@ -2115,7 +2165,7 @@ function startFollow(r, mode){
   const prev = camFollow;
   camFollow = { id: r.id, mode, from: prev ? prev.from : { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
-// V18: the camera rides out with the truck taking the fire home from the hollow
+// V18: the camera rides out with the truck taking the fire home from the hollow (V19.3: on every trip)
 function startTruckCam(){
   if (simMode) return;
   camAnim = null; closeCard();
@@ -3494,6 +3544,10 @@ const LETTERS = {
     text: 'Fire that keeps going in the rain, and coal to feed it! Back home, up in the corner of your bigger yard, there’s that old works nobody has got going in years. With a fire and some coal you might just bring it back to life. Take a flame home with you, and keep it dry on the way.',
     note: () => 'From now on the truck brings a load of coal with every pickup back home, free of charge.',
     open: () => { S.flags.fireTrip = true; if (S.trip && S.trip.to === 'home') S.trip.fire = true; else openTrip({ to: 'home', crew: ['robot', 'blower'], earned: HOLLOW_HOME_EARNED, fire: true }); } },
+  // V20: the final letter (2,000 iron ingots sold back home). Golden and shiny, delivered like any other. Reading it sends
+  // Tinker to the curb; it rides off with the driver and the ending plays (public/ending.js, ENDING.md)
+  final: { at: () => ({ x: SIGN.x - 46, y: SIGN.y - 30 }), title: 'Final letter', sign: 'Trucker', gold: true,
+    text: 'I think you want to see this', open: () => openEndingTrip() },
 };
 const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
 // the truck driver: a robot like yours, with a brown band and a brown cap, and no basket
@@ -3534,8 +3588,10 @@ function updDriver(dt){
     d.timer -= dt;
     if (d.letter && d.timer < 0.45){
       S.letters.push({ id: d.letter, x: d.tx, y: d.ty, read: false });
-      flyTo('letter', d.x + d.face*8, d.y - 26, d.tx, d.ty - 2, 0.35, 8, {});
-      pop(d.tx, d.ty - 40, 'A letter!', 'note', 18, 0.35); robotSays(d, 'chat', true);
+      const gold = !!(LETTERS[d.letter] && LETTERS[d.letter].gold);
+      flyTo('letter', d.x + d.face*8, d.y - 26, d.tx, d.ty - 2, 0.35, 8, { gold });
+      pop(d.tx, d.ty - 40, gold ? 'The final letter!' : 'A letter!', 'note', 18, 0.35); robotSays(d, 'chat', true);
+      if (gold){ setTimeout(() => sparkle(d.tx, d.ty - 6), 380); sfx('chime', 'sale'); }
       d.letter = null; save();
     }
     if (d.timer <= 0) d.st = 'back';
@@ -3570,6 +3626,8 @@ function crewAtCurb(){
 // money comes out of the cash right then
 function updBoarding(){
   const T = truck;
+  // V20: the final ride: once the robot waits at the curb, the driver comes round soon
+  if (S.trip && S.trip.to === 'ending' && T.st === 'away' && !simMode){ const c = tripHolder(), o = c && R[S.robots.indexOf(c)]; if (o && o.st === 'curb') S.truckT = Math.min(S.truckT, 2.5); }
   if (simMode || T.st !== 'load' || T.riders.length || driver || !S.trip) return;
   const crew = crewAtCurb(); if (!crew || !tripCashOK()) return;
   if (S.trip.cash && !S.trip.paid){
@@ -3745,7 +3803,7 @@ function syncHelpers(){
 }
 const helperCfg = h => cfgsOf(h.kind)[h.idx];
 const hv = (h, k) => TRACKS[k].vals[helperCfg(h).lv[k]];
-const helperSpeed = h => (h.kind === 'blower' ? 50 : 62) * hv(h, 'speed') * (1 + 0.2*gl('oil'));
+const helperSpeed = h => (h.kind === 'blower' ? 50 : 62) * hv(h, 'speed') * (1 + OIL_BONUS*gl('oil'));
 const blowPower = h => hv(h, 'blow');
 const blowRange = h => 40 + 16*blowPower(h);
 // V7: big trees let go of more than small ones (a tree of radius 150 gives the full amount), so the little trees on the
@@ -4234,7 +4292,7 @@ function updTruck(dt){
       const honeyGoal = FIRE_STORY ? 'canned' : 'honey', honeyAmt = T.takeH*honeyPrice() + T.takeG*giftJarPrice(), honeyFly = !simMode && honeyAmt > 0 && goalShowing(honeyGoal);
       S.totals.honeyCash = (S.totals.honeyCash || 0) + honeyAmt;
       if (DRY_BENCH) S.totals.drySold = (S.totals.drySold || 0) + T.takeB*BAG_SIZE;   // V15: for the hollow's first goal
-      if (FIRE_STORY){ S.totals.logsSold = (S.totals.logsSold || 0) + T.takeM; S.totals.coalSold = (S.totals.coalSold || 0) + T.takeI; if (S.plant.built) S.totals.kilnSold = (S.totals.kilnSold || 0) + T.takeI; }   // V17 (V18: and since the kiln)
+      if (FIRE_STORY){ S.totals.logsSold = (S.totals.logsSold || 0) + T.takeM; S.totals.coalSold = (S.totals.coalSold || 0) + T.takeI; if (S.flags.coalKnown) S.totals.kilnSold = (S.totals.kilnSold || 0) + T.takeI; }   // V17 (V18: and since the kiln; V19.2: since the coal is known)
       if (PLANT_COAL) S.totals.ingotsSold = (S.totals.ingotsSold || 0) + T.takeI;   // V18: iron ingots from the old works
       // balance tests (tools/balance-player.js): during a sim, window.__src adds up what each kind of thing sold for
       if (simMode && window.__src){ const W = window.__src; W.leaf += T.takeL*leafPrice(); W.bag += T.takeB*bagPrice(); W.metal += T.takeM*metalPrice(); W.ingot += T.takeI*ingotPrice(); W.jar += T.takeH*honeyPrice(); W.gift += T.takeG*giftJarPrice(); W.nL += T.takeL + T.takeB*BAG_SIZE; W.nM += T.takeM; W.nI += T.takeI; W.nJ += T.takeH + T.takeG; }
@@ -4284,11 +4342,12 @@ function updTruck(dt){
     }
   } else if (T.st === 'leave'){
     // V18: taking the fire home, the camera rides along with the truck for a few seconds before the trip
-    const fireRide = !simMode && S.trip && S.trip.fire && T.riders.length && T.riders.every(o => o.st === 'ride');
+    // (V19.3: on every trip to another lot, not just the fire's)
+    const fireRide = !simMode && S.trip && T.riders.length && T.riders.every(o => o.st === 'ride');
     if (fireRide && !T.follow){ T.follow = true; T.followT = 0; startTruckCam(); }
     T.v = Math.min(T.v + (fireRide ? 90 : 240)*dt, fireRide ? 120 : 360); T.x -= T.v*dt; T.rot -= T.v*dt/10; S.truckT -= dt;
     puffExhaust(T, dt, 1.4);
-    if (fireRide && (T.followT += dt) > 4.2){ T.follow = false; T.st = 'away'; T.fill = 0; travel(); }
+    if (fireRide && (T.followT += dt) > 4.2){ T.follow = false; T.st = 'away'; T.fill = 0; if (S.trip.to === 'ending') beginEnding(); else travel(); }   // (V20: the final ride goes into the ending)
     else if (T.x < Math.min(V.x0 - 140, PARK - 300) && !fireRide){
       T.st = 'away'; S.truckT = Math.max(S.truckT, 2); T.fill = 0;
       if (T.riders.length && T.riders.every(o => o.st === 'ride') && !simMode) travel();   // V13: off to the other lot
@@ -4442,6 +4501,8 @@ function flowerSpotOK(x, y, lvl){
 // V13 (from the prairie): a lot can also have flowers that Wildflower seeding sows (tier 1–3, hidden until sown), and
 // lots of flowers just for looks (DECO), painted into the ground so they cost nothing to draw
 let DECO = [];
+// V19.3: the first yard has a few flowers just for looks too: some on the cottage plot, more round the Meadow and beyond the fence
+const DECO_N = LOT.decoN || (LOT_ID === 'home' ? [8, 16, 80] : null);
 function buildFlowers(){
   FLOWERS = []; DECO = [];
   const clash = (list, x, y, dx, dy) => list.some(f => Math.abs(f.x - x) < dx && Math.abs(f.y - y) < dy);
@@ -4463,12 +4524,12 @@ function buildFlowers(){
       }
     }
   };
-  const tiers = GEN.seeding ? GEN.seeding.max : 0, share = LOT.seedShare || 0.4;
+  const tiers = GEN.seeding ? GEN.seeding.max*(GEN.seeding.tiers || 1) : 0, share = LOT.seedShare || 0.4;
   for (let L=0; L<AREAS.length; L++){
     const rnd = mulberry(900 + L*17);
     for (let tier=0; tier<=tiers; tier++)
       place(L, tier ? Math.round(FLOWER_N[L]*share) : FLOWER_N[L], rnd, (x, y, ty, r) => { const s = FP.s[0] + r()*FP.s[1]; return { x, y, ty, s, land: L, tier, ph: r()*TAU, full: true, t: 0, regrow: FLOWER_REGROW*(0.85 + r()*0.3), claim: null, bob: 0 }; });
-    if (LOT.decoN) place(L, LOT.decoN[L], mulberry(1300 + L*29), (x, y, ty, r) => ({ x, y, ty, s: FP.sDeco[0] + r()*FP.sDeco[1], land: L }), true);
+    if (DECO_N) place(L, DECO_N[L], mulberry(1300 + L*29), (x, y, ty, r) => ({ x, y, ty, s: FP.sDeco[0] + r()*FP.sDeco[1], land: L }), true);
   }
   FLOWERS.sort((a, b) => a.y - b.y);
   DECO.sort((a, b) => a.y - b.y);
@@ -4484,7 +4545,7 @@ function drawDecoFlowers(g, V){
   }
 }
 // a flower bees can use: on your land, and (for the extra ones Wildflower seeding sows) already sown
-const flowerOn = f => f.land <= S.land && (f.tier || 0) <= gl('seeding');
+const flowerOn = f => f.land <= S.land && (f.tier || 0) <= sownTier();
 const flowerHead = f => FLOWER_TYPES[f.ty].h*f.s;
 // a flower only opens its head when a bee can sip it again; until then the bud swells (V7: it used to look open too early)
 const bloomOf = ART.bloomOf || (f => f.full ? 1 : clamp((f.t/f.regrow - 0.75)/0.25, 0, 1)*0.3);
@@ -4548,7 +4609,7 @@ function buildFlowerSprites(){
   });
 }
 function drawFlowers(V){
-  const c = ctx, active = S.hive.built, sown = gl('seeding');
+  const c = ctx, active = S.hive.built, sown = sownTier();
   for (const f of FLOWERS){
     if ((f.tier || 0) > sown) continue;   // not sown yet (Wildflower seeding)
     if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 - 20 || f.y > V.y1 + 20) continue;
@@ -4570,7 +4631,7 @@ function drawFlowers(V){
 
 // ── the hive
 const HIVE_COST = 120;
-const MAX_BEES = 60;
+const MAX_BEES = 40;   // V19.1: was 60
 // Six one-off hive upgrades, all at one fixed price, so the order is up to you and buying one never makes the others
 // dearer. V7: $180 each (was $80), so it takes a while before you start on them.
 const HIVE_UP = {
@@ -4588,7 +4649,9 @@ const hiveUpCost = () => HIVE_UP_COST;
 const hiveKnown = () => S.hive.built || !!S.flags.hiveKnown || !!LOT.hiveKnown;   // (V14: the Rainy hollow's ant hill is known from the start)
 const hiveShown = () => S.hive.built || (hiveKnown() && !!S.flags.hiveShown);
 const hiveCost = () => S.flags.hiveDeal ? HIVE_DEAL : HIVE_COST;
-const beeCost = (n = S.hive.bees) => niceCost(4*Math.pow(1.18, n)*(S.hive.up.nursery ? 0.7 : 1));
+// V19.1: the first ten bees climb as before (×1.18 each, $4 → ~$18), then only 5% more for every ten after that
+// (bees 11–20 ~$19, 21–30 ~$20, 31–40 ~$21; the 40th was ~$2,500)
+const beeCost = (n = S.hive.bees) => niceCost(4*Math.pow(1.18, Math.min(n, 9))*Math.pow(1.05, Math.floor(n/10))*(S.hive.up.nursery ? 0.7 : 1));
 const tankCap = () => val('hiveTank');
 const honeyCap = () => val('hiveStore');
 const honeyPrice = () => val('honeyPrice')*sellMul();
@@ -4617,7 +4680,7 @@ function refreshBee(b){
   for (const k of ['wings', 'third', 'tongue']) if (b.up[k] !== H[k]){ b.up[k] = H[k]; ch = true; }
   if (ch && !simMode) parts.push({ k:'star', x: DOOR.x + rand(-4, 4), y: DOOR.y - DOOR.z - 4, vx: rand(-30, 30), vy: rand(-50, -20), g: 60, life: 0.6, t: 0 });
 }
-function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); if (ANTS){ b.path = antRoute(b.x, b.y, tx, ty); b.pi = 0; } }
+function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); if (ANTS){ b.path = antRoute(b.x, b.y, tx, ty); b.pi = 0; b.inside = false; } }
 function beeMove(b, sp, dt){
   if (ANTS) return antMove(b, sp, dt);
   const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
@@ -4632,7 +4695,8 @@ function beeMove(b, sp, dt){
 // follows ant trails on a coarse grid over the yard: round tree trunks, bushes, wood piles, puddles and buildings. The
 // trails are worked out from the ant hill's door to every mushroom patch (antGrid), each one preferring the cells earlier
 // trails already use, so they merge into a few well-trodden trunks that branch out; every ant on a trail walks the same
-// wiggly line, so they go in single file, and one close behind another slows down instead of walking through it.
+// wiggly line, so they go in a loose line (V14.3: nobody slows down behind another any more; V19.1: and ants with nothing
+// to do, or waiting for room in the larder, wait inside the hill instead of crowding round its door).
 const ANTS = !!LOT.antsOnGround, ANT_CELL = 10;
 const antNav = { sig: '', g: null };
 function antBlocks(){
@@ -4649,7 +4713,7 @@ function antBlocks(){
   return { E, X };
 }
 function antGrid(){
-  const sig = [S.land, S.metalSlot, S.bag.built, S.hive.built, S.plant.built, S.miners.join('.'), gl('seeding')].join(',');
+  const sig = [S.land, S.metalSlot, S.bag.built, S.hive.built, S.plant.built, S.miners.join('.'), sownTier()].join(',');
   if (antNav.g && antNav.sig === sig) return antNav.g;
   const O = owned(), x0 = O.x0 - 4, y0 = O.y0 - 4, nx = Math.ceil((O.x1 + 4 - x0)/ANT_CELL), ny = Math.ceil((6 - y0)/ANT_CELL);
   const { E, X } = antBlocks(), m = 3;
@@ -4732,7 +4796,7 @@ function antRoute(x, y, tx, ty){
 // walk along the route. V14.2: no more slowing down behind each other (it made slow queues); instead every ant keeps
 // to its own lane a step to one side of the trail line (b.i decides) and walks at its own pace (90-110%), so a busy trail
 // looks like a loose line of ants going both ways rather than a jam
-const antLane = b => ((b.i*37) % 7 - 3)*0.55;
+const antLane = b => ((b.i*37) % 7 - 3)*1.1;   // (V19.1: wider lanes, ±3.3 a side, was ±1.6: busy trunks look less like a queue)
 const antPace = b => 0.9 + ((b.i*53) % 9)/40;
 function antMove(b, sp, dt){
   let left = sp*dt*antPace(b);
@@ -4815,9 +4879,16 @@ function nextBloom(b){
 function goWait(b, f){ f.claim = b; b.tgt = f; b.st = 'toWait'; beeLeg(b, f.x + rand(-3, 3), f.y + 0.5, flowerHead(f) + 7); }
 function loiter(b){
   b.st = 'loiter'; b.timer = 0.5; b.tgt = null;
+  // V19.1: an ant with nothing to do walks home and waits inside (40 of them milling round the door looked like a jam)
+  if (ANTS){ if (!b.inside) beeLeg(b, DOOR.x, DOOR.y, DOOR.z); return; }
   beeLeg(b, HIVE.x + rand(-30, 46), HIVE.y + rand(2, 18), rand(18, hiveTopZ()*0.85));
 }
-function beeQueue(b){ b.st = 'queue'; b.timer = 0.6; b.tgt = null; beeLeg(b, DOOR.x + rand(-14, 22), DOOR.y + rand(3, 10), DOOR.z + rand(4, 16)); }
+// the nectar tank (larder) is full: bees buzz by the door; ants (V19.1) go in and wait there, out of sight
+function beeQueue(b){
+  b.st = 'queue'; b.timer = 0.6; b.tgt = null;
+  if (ANTS){ b.x = DOOR.x; b.y = DOOR.y; b.z = DOOR.z; b.path = null; b.inside = true; b.walk = false; return; }
+  beeLeg(b, DOOR.x + rand(-14, 22), DOOR.y + rand(3, 10), DOOR.z + rand(4, 16));
+}
 // where a bee goes once it's out and about: a free flower, else one about to bloom, else home
 function beeNext(b){
   if (b.carry > 0 && b.visits >= beeTrip(b)){ beeHome(b); return; }
@@ -4856,7 +4927,9 @@ function updBee(b, dt){
     }
     case 'loiter': {
       // nothing free and nothing about to bloom: buzz about the hive, and look again twice a second
-      if (beeMove(b, sp*0.45, dt)){ b.z += Math.sin(b.anim*5 + b.ph)*0.15; if (Math.random() < dt*0.8) beeLeg(b, HIVE.x + rand(-30, 46), HIVE.y + rand(2, 18), rand(18, hiveTopZ()*0.85)); }
+      // (V19.1: an ant walks to the door and goes in)
+      if (ANTS){ if (!b.inside && beeMove(b, sp, dt)){ b.inside = true; b.walk = false; } }
+      else if (beeMove(b, sp*0.45, dt)){ b.z += Math.sin(b.anim*5 + b.ph)*0.15; if (Math.random() < dt*0.8) beeLeg(b, HIVE.x + rand(-30, 46), HIVE.y + rand(2, 18), rand(18, hiveTopZ()*0.85)); }
       b.timer -= dt;
       if (b.timer <= 0){ b.timer = 0.5; if (!tankFull() && (FLOWERS.some(f => f.full && !f.claim && flowerOn(f)) || nextBloom(b))) beeSetOff(b); }
       break;
@@ -4898,13 +4971,13 @@ function updBee(b, dt){
       break;
     }
     case 'queue': {
-      // the nectar tank is full: buzz by the door until there's room
-      beeMove(b, sp*0.4, dt);
+      // the nectar tank is full: buzz by the door until there's room (V19.1: an ant waits inside)
+      if (!ANTS) beeMove(b, sp*0.4, dt);
       b.timer -= dt;
       if (b.timer <= 0){
         b.timer = 0.6;
         if (b.carry > 0 ? unload(b) : !tankFull()){ b.st = 'in'; b.timer = 0.3; b.x = DOOR.x; b.y = DOOR.y; b.z = DOOR.z; }
-        else beeLeg(b, DOOR.x + rand(-14, 22), DOOR.y + rand(3, 10), DOOR.z + rand(4, 16));
+        else if (!ANTS) beeLeg(b, DOOR.x + rand(-14, 22), DOOR.y + rand(3, 10), DOOR.z + rand(4, 16));
       }
       break;
     }
@@ -5239,7 +5312,7 @@ function step(dt){
     sparkle(HIVE.x, HIVE.y - 30); pop(HIVE.x + 20, HIVE.y - 70, 'New: a robot beehive', 'note', 18, 0.3); sfx('chime', 'sale');
   }
   // V6: the bagging table's spot shows up once sorting is maxed, the smelting plant's once the metal is fully graded
-  if (!S.flags.bagShown && upMaxed('leafPrice')){
+  if (!S.flags.bagShown && S.lv.leafPrice >= BAG_SORT){
     S.flags.bagShown = true; plantRt.bagShownT = S.t;
     sparkle(BAGGER.x, BAGGER.y - 30); pop(BAGGER.x, BAGGER.y - 70, 'New: a bagging table', 'note', 18, 0.3); sfx('chime', 'sale');
   }
@@ -5300,7 +5373,7 @@ function offers(all){
   if (S.robots.length < ROBOT_MAX) o.push({ id:'robot', obj:'shed', cost: robotCost(S.robots.length) });
   if (S.metalSlot) SPOTS.forEach((p, i) => { if (p.land <= S.land && !S.miners.includes(i)) o.push({ id:'miner', arg:i, obj:'spot'+i, cost: MINER_COST }); });
   // V6 refinement
-  if (!S.bag.built){ if (all ? upMaxed('leafPrice') : baggerShown()) o.push({ id:'bagger', obj:'bagger', cost: BAGGER_COST }); }
+  if (!S.bag.built){ if (all ? S.lv.leafPrice >= BAG_SORT : baggerShown()) o.push({ id:'bagger', obj:'bagger', cost: BAGGER_COST }); }
   else o.push(up('bagPrice'));
   if (S.hive.built && S.hive.bees > 0){ if (!S.hive.packing){ if (packShown()) o.push({ id:'honeyPack', obj:'hive', cost: HONEY_PACK_COST }); } else o.push(up('giftPrice')); }
   if (!S.plant.built){ if (plantBuyable() && (all ? S.metalSlot && plantGrade() : plantShown())) o.push({ id:'plant', obj:'plant', cost: PLANT_COST }); }
@@ -5378,7 +5451,7 @@ function buy(o){
   } else if (o.id === 'gen'){
     S.gen[o.key] = gl(o.key) + 1;
     pop(SHED.x, SHED.y - 112, GEN[o.key].name + '!', 'note', 17); sparkle(SHED.x, SHED.y - 60);
-    if (o.key === 'seeding'){ let k = 0; for (const f of FLOWERS) if (f.tier === gl('seeding') && f.land <= S.land && k++ % 3 === 0) sparkle(f.x, f.y - 8); }
+    if (o.key === 'seeding'){ let k = 0; for (const f of FLOWERS) if (f.tier > 0 && f.tier <= sownTier() && f.land <= S.land && k++ % 3 === 0) sparkle(f.x, f.y - 8); }
   } else if (o.id === 'hive'){
     S.hive.built = true; S.flags.hiveShown = true; hiveRt.builtT = S.t; if (!hiveGrounded()) openTasks(['jar']);   // (V15: the hollow's jars wait for the ant hill)
     // V13: the bee that came home with your robot moves in
@@ -5407,7 +5480,8 @@ function buy(o){
     if (PLANT_COAL){
       // V18: the old works mended: the flame from the hollow lights the furnaces, the bunker comes full and so does the stand
       S.plant.coal = COAL_MAX; S.coalStand = COAL_MAX; S.flags.ember = Math.max(S.flags.ember | 0, 2);
-      if (!S.robots.some(c => taskOn(c, 'refuel')) && S.robots[0]){ putTop(S.robots[0], 'refuel'); taskListChanged('robot', 0); }
+      // (anyone with Refuel anywhere in Do refuels when the coal runs low, so the bottom of Tinker's list will do; V19: was the top)
+      if (!S.robots.some(c => taskOn(c, 'refuel')) && S.robots[0]){ taskRemove(S.robots[0], 'refuel'); S.robots[0].prio.push(['refuel']); taskListChanged('robot', 0); }
       if (!simMode){ flyTo('ember', BUNKER.x, BUNKER.y - 22, PLANT.x, PLANT.y - 16, 1.0, 40, {}); setTimeout(() => sparkle(PLANT.x, PLANT.y - 16), 1000); }
     }
     pop(PLANT.x, PLANT.y - 150, RUIN ? 'Smelting plant repaired!' : 'Smelting plant built!', 'note', 20, 0.8); sparkle(PLANT.x, PLANT.y - 60);
@@ -5433,11 +5507,12 @@ function buy(o){
     const near = (a, b) => Math.hypot(a.x-p.x,a.y-p.y) - Math.hypot(b.x-p.x,b.y-p.y);
     // someone who already wants to mine but has no miner goes first; otherwise the first miner pulls a robot over
     const waiting = R.filter(r => taskTop(S.robots[r.id], 'mine') && S.robots[r.id].miner == null).sort(near);
-    // the first miner pulls over the nearest robot that has Mine metal anywhere on its list (never one that has it in Don't)
-    const first = S.miners.length === 1 ? R.filter(r => taskOn(S.robots[r.id], 'mine') && S.robots[r.id].miner == null).sort(near)[0] : null;
+    // the first miner pulls over the nearest robot that gets to Mine metal on its list (V19: its list isn't changed, so
+    // one at research, or with Mine metal below Gather leaves, isn't pulled; the player moves the task up instead)
+    const first = S.miners.length === 1 ? R.filter(r => taskReached(S.robots[r.id], 'mine') && S.robots[r.id].miner == null).sort(near)[0] : null;
     const who = waiting[0] || first;
     if (who){ assign(who.id, o.arg); pop(p.x, p.y - 100, styleOf(who.id).name + ' heads over to mine', 'note', 16, 0.3); }
-    else pop(p.x, p.y - 100, 'Tap a robot and drag Mine metal into its Do list', 'note', 16, 0.3);
+    else pop(p.x, p.y - 100, 'Tap a robot and move ' + TASKS.mine.short + ' up its task list', 'note', 16, 0.3);
     sparkle(p.x, p.y - 20);
     if (!simMode) for (let i=0;i<10;i++) parts.push({ k:'dust', x:p.x+rand(-24,24), y:p.y, vx:rand(-20,20), vy:rand(-25,-5), g:0, life:rand(.8,1.4), t:0, r:rand(5,9) });
   } else if (o.id === 'land'){
@@ -5467,10 +5542,9 @@ function buy(o){
   save();
   return true;
 }
-// send a robot to a miner: Mine metal goes to the top of its list
+// send a robot to a miner (V19: its list stays as it is; it was only picked because it gets to Mine metal anyway)
 function assign(ri, spot){
   const cfg = S.robots[ri], r = R[ri];
-  putTop(cfg, 'mine');
   if (spot != null && minerWorkers(spot).length < slotsAt(spot)){ if (r) claimSlot(r, spot); else cfg.miner = spot; }
   if (r){ release(r); if (r.st !== 'dump' && r.st !== 'wait') r.st = 'idle'; }
   S.flags.sentHint = true;
@@ -5485,8 +5559,9 @@ function unassign(ri){
 // after a new building: say who will work there (the nearest robot with the task on its list), or how to get someone to
 function autoAssign(t, at, says){
   const near = (a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y);
-  const r = R.filter(q => taskOn(S.robots[q.id], t)).sort(near)[0];
-  if (!r){ pop(at.x, at.y - 110, 'Drag ' + TASKS[t].name + ' into a robot’s Do list', 'note', 16, 0.9); return null; }
+  // V19: new tasks land at the bottom of the lists, so usually nobody gets to them yet: say how to put a robot on it
+  const r = R.filter(q => taskReached(S.robots[q.id], t)).sort(near)[0];
+  if (!r){ pop(at.x, at.y - 110, 'New task: ' + TASKS[t].short + '. Move it up a robot’s task list', 'note', 16, 0.9); return null; }
   if (r.st === 'wander' || r.st === 'rest' || r.st === 'seek'){ release(r); r.st = 'idle'; }
   pop(at.x, at.y - 110, styleOf(r.id).name + ' ' + says, 'note', 16, 0.9);
   return r.id;
@@ -5693,6 +5768,7 @@ function* paintGroundHome(G){
       if (!(y > -VERGE - 20 || inOwned(x, y, 30))) drawBush(g, x, y, 0.85 + rnd()*0.5, cellRnd(i, j, 6));
     }
   }
+  drawDecoFlowers(g, V);   // V19.3
   drawFence(g, O);
   // gravel verge
   const vy = -VERGE;
@@ -6843,7 +6919,8 @@ function drawFindOpen(c, x, y, s, flip, r){
   c.restore();
 }
 // ── V13: a letter from the truck driver: a cream envelope with a red wax seal
-function drawEnvelope(c, x, y, s, rot){
+function drawEnvelope(c, x, y, s, rot, gold){
+  if (gold) return drawGoldEnvelope(c, x, y, s, rot);   // V20: the final letter
   c.save(); c.translate(x, y); c.rotate(rot || 0); c.scale(s, s);
   c.fillStyle = 'rgba(60,40,20,.25)'; rr(c, -5.6, -3.4, 12, 8, 1); c.fill();
   c.fillStyle = '#f4e9cf'; rr(c, -6, -4, 12, 8, 1); c.fill();
@@ -6851,8 +6928,42 @@ function drawEnvelope(c, x, y, s, rot){
   c.fillStyle = '#b8452d'; ell(c, 0, 0.5, 1.6, 1.5); c.fill(); c.fillStyle = '#d9663f'; ell(c, -0.4, 0.1, 0.6, 0.5); c.fill();
   c.restore();
 }
+// V20: the final letter's envelope: gold leaf paper, a darker gold edge, a red wax seal, and a shine sweeping across it
+function drawGoldEnvelope(c, x, y, s, rot){
+  c.save(); c.translate(x, y); c.rotate(rot || 0); c.scale(s, s);
+  c.fillStyle = 'rgba(60,40,10,.3)'; rr(c, -5.6, -3.4, 12, 8, 1); c.fill();
+  const g = c.createLinearGradient(-6, -4, 6, 4); g.addColorStop(0, '#f7e08a'); g.addColorStop(0.45, '#e2b94a'); g.addColorStop(1, '#b8862a');
+  c.fillStyle = g; rr(c, -6, -4, 12, 8, 1); c.fill();
+  c.strokeStyle = '#9c6f1c'; c.lineWidth = 0.55; c.beginPath(); c.moveTo(-6, -4); c.lineTo(0, 0.6); c.lineTo(6, -4); c.moveTo(-6, 4); c.lineTo(-1.6, -0.6); c.moveTo(6, 4); c.lineTo(1.6, -0.6); c.stroke();
+  c.strokeStyle = '#fff1b8'; c.lineWidth = 0.4; rr(c, -5.5, -3.5, 11, 7, 0.8); c.stroke();
+  // the shine: a pale band that sweeps across every couple of seconds
+  const k = (performance.now()/1000*0.55) % 1.6 - 0.3;
+  if (k > -0.2 && k < 1.2){ c.save(); rr(c, -6, -4, 12, 8, 1); c.clip(); const sx = -8 + k*16; const sg = c.createLinearGradient(sx - 2.5, 0, sx + 2.5, 0); sg.addColorStop(0, 'rgba(255,255,240,0)'); sg.addColorStop(0.5, 'rgba(255,255,240,.85)'); sg.addColorStop(1, 'rgba(255,255,240,0)'); c.fillStyle = sg; c.beginPath(); c.moveTo(sx - 3, -5); c.lineTo(sx + 2, -5); c.lineTo(sx + 5, 5); c.lineTo(sx, 5); c.closePath(); c.fill(); c.restore(); }
+  c.fillStyle = '#a3261c'; ell(c, 0, 0.5, 1.8, 1.7); c.fill(); c.fillStyle = '#d0473a'; ell(c, -0.4, 0.1, 0.7, 0.6); c.fill();
+  c.restore();
+}
+// little four-point twinkles around something golden (world units, t in seconds)
+function goldTwinkles(c, x, y, rx, ry, t, n){
+  for (let i=0;i<n;i++){
+    const ph = t*1.1 + i*1.7, a = Math.pow(Math.max(0, Math.sin(ph)), 4); if (a < 0.03) continue;
+    const u = Math.floor(ph/Math.PI), rnd = mulberry(i*31 + u*7 + 3), px = x + (rnd() - 0.5)*2*rx, py = y + (rnd() - 0.5)*2*ry, z = 1.2 + a*2.6;
+    c.fillStyle = 'rgba(255,246,200,' + a.toFixed(3) + ')';
+    c.beginPath(); c.moveTo(px, py - z); c.lineTo(px + z*0.25, py - z*0.25); c.lineTo(px + z, py); c.lineTo(px + z*0.25, py + z*0.25); c.lineTo(px, py + z); c.lineTo(px - z*0.25, py + z*0.25); c.lineTo(px - z, py); c.lineTo(px - z*0.25, py - z*0.25); c.closePath(); c.fill();
+  }
+}
 function drawGroundLetter(l){
   const c = ctx;
+  if (LETTERS[l.id] && LETTERS[l.id].gold){
+    // V20: the final letter lies in a soft golden glow and twinkles
+    c.save(); c.translate(l.x, l.y);
+    const gl = c.createRadialGradient(0, -3, 1, 0, -3, 26); gl.addColorStop(0, 'rgba(255,222,120,.45)'); gl.addColorStop(1, 'rgba(255,222,120,0)');
+    c.fillStyle = gl; ell(c, 0, -3, 26, 14); c.fill();
+    c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, 1, 1, 11, 3.2); c.fill();
+    c.save(); c.scale(1, 0.62); c.rotate(-0.12); drawEnvelope(c, 0, -4, 1.55, 0, true); c.restore();
+    goldTwinkles(c, 0, -8, 16, 9, S.t, 5);
+    c.restore();
+    return;
+  }
   c.save(); c.translate(l.x, l.y);
   c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, 1, 1, 11, 3.2); c.fill();
   c.scale(1, 0.62); c.rotate(-0.12);
@@ -7015,6 +7126,7 @@ function drawRobot(r){
   }
   // number plate (the truck driver has a little brown mail badge instead)
   if (st.driver){ c.fillStyle = '#7a5232'; rr(c, bw/2 - 9, -17, 7, 5, 1.2); c.fill(); c.fillStyle = '#f3e7cf'; c.fillRect(bw/2 - 8, -16, 5, 3); c.strokeStyle = '#7a5232'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(bw/2 - 8, -16); c.lineTo(bw/2 - 5.5, -14.4); c.lineTo(bw/2 - 3, -16); c.stroke(); }
+  else if (st.noPlate){ /* V20: robots in the ending aren't yours, so no number */ }
   else {
     c.fillStyle = '#efe6d0'; rr(c, bw/2 - 9, -17, 7, 6, 1.2); c.fill();
     c.font = '800 6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
@@ -7023,7 +7135,7 @@ function drawRobot(r){
   // basket on the back: a tin pail, then a wicker hamper, then a sprung steel hopper, a little bigger with every level
   const cl = cfg.lv.carry, bt = tierOf(cl), bs = 1 + 0.06*(cl - bt*4);
   const BW = [12, 16, 20][bt]*bs, BH = [7, 7, 8][bt]*bs, bx1 = -bw/2 + 13, bx0 = bx1 - BW, by0 = top - 5 - (BH - 7)*0.6;
-  if (!st.driver){
+  if (!st.driver && !st.noBasket){
   drawBasket(c, bt, bx0, by0, BW, BH, false);
   const n = Math.min(r.carryL, 9 + bt*3), m = Math.min(r.carryM + (r.carryF || 0), 6), q = Math.min(r.carryI, 4), cq = Math.min(Math.ceil((r.carryC || 0)/5), 3);
   for (let i=0;i<cq;i++) drawCoalSack(c, bx0 + BW/2 + (i - (cq - 1)/2)*4, by0 + 1 - (i % 2)*1.6, 8, 0);   // V18: coal for the works
@@ -7230,9 +7342,15 @@ function drawRobot(r){
   } else if (r.letter){
     // V13: the truck driver carrying a letter out in front of it
     const bx = bw/2 + 6, by = top + bh*0.5 - 2 + (r.moving ? Math.sin(r.anim*10)*0.5 : 0);
-    drawEnvelope(c, bx, by, 0.85, 0.1);
+    drawEnvelope(c, bx, by, 0.85, 0.1, !!(LETTERS[r.letter] && LETTERS[r.letter].gold));
     c.beginPath(); c.moveTo(sx, sy); c.lineTo(bx, by + 3); c.stroke();
     c.fillStyle = armC; ell(c, bx, by + 3, 1.6, 1.4); c.fill();
+  } else if (r.hold){
+    // V20: holding something out in front (the ending's robots: r.hold(c, hx, hy, r) draws it; r.holdUp lifts it)
+    const hx = bw/2 + 6 + (r.holdDx || 0), hy = top + bh*(r.holdUp ? 0.05 : 0.45) + (r.moving ? Math.sin(r.anim*10)*0.5 : 0) + (r.holdDy || 0);
+    r.hold(c, hx, hy, r);
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+    c.fillStyle = armC; ell(c, hx, hy, 1.7, 1.6); c.fill();
   } else if (r.st === 'mine' && ART.sawArm) ART.sawArm(c, r, sx, sy);
   else if (r.st === 'mine'){ const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
   else { c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 3.5, sy + 7); c.stroke(); }
@@ -7725,7 +7843,7 @@ function drawParts(){
       else if (p.kind === 'ember') smallFlames(c, [[x, y, 4.4, 0], [x - 2, y + 1, 3, 1]], S.t, 3);   // V18: the flame from the fire basket into the furnaces
       else if (p.kind === 'book') drawFindClosed(c, x, y - 4, 0.95, Math.sin(t*Math.PI)*0.5);
       else if (p.kind === 'needle'){ const a2 = p.rot + t*9; c.strokeStyle = p.col || '#8f5a2c'; c.lineWidth = 0.9; c.lineCap = 'round'; c.beginPath(); c.moveTo(x - Math.cos(a2)*2.4, y - Math.sin(a2)*2.4); c.lineTo(x + Math.cos(a2)*2.4, y + Math.sin(a2)*2.4); c.stroke(); }   // V15: a pine needle
-      else if (p.kind === 'letter') drawEnvelope(c, x, y - 2, 0.9, Math.sin(t*Math.PI)*0.4);
+      else if (p.kind === 'letter') drawEnvelope(c, x, y - 2, 0.9, Math.sin(t*Math.PI)*0.4, p.gold);
       else if (p.kind === 'dirt'){ c.fillStyle = p.col || '#6b4a2e'; ell(c, x, y, p.s || 1.6, (p.s || 1.6)*0.8); c.fill(); }
       else if (p.kind === 'coin'){ const k = 1/cam.z, sq = Math.abs(Math.cos(t*12)); c.fillStyle = '#d9a43a'; ell(c, x, y, 6*k, (6*sq + 1)*k); c.fill(); c.fillStyle = '#f2cd66'; ell(c, x, y, 4*k, (4*sq + .6)*k); c.fill(); }
     } else if (p.k === 'spark'){ c.fillStyle = 'rgba(255,214,120,' + a + ')'; c.fillRect(p.x - 1, p.y - 1, 2.2, 2.2); }
@@ -8243,7 +8361,7 @@ function draw(){
   // the ant hill is hidden by it instead of walking over it
   if (LOT.antsOnGround && ART.drawAnt){
     if (HIVE_STORY && hiveGrounded()){ if (ART.drawLabBee){ for (const b of LABB) if (b.st !== 'carried') list.push({ y: b.y, f: () => ART.drawLabBee(ctx, b, b.x, b.y - b.z) }); const fl = labRt.fail; if (fl) list.push({ y: fl.y, f: () => drawFailBee(fl) }); } }
-    else for (const b of B) if (b.st !== 'in' && b.x > V.x0 - 10 && b.x < V.x1 + 10 && b.y > V.y0 && b.y < V.y1 + 20) list.push({ y: b.y, f: () => ART.drawAnt(ctx, b) });
+    else for (const b of B) if (b.st !== 'in' && !b.inside && b.x > V.x0 - 10 && b.x < V.x1 + 10 && b.y > V.y0 && b.y < V.y1 + 20) list.push({ y: b.y, f: () => ART.drawAnt(ctx, b) });
   }
   if (researchOpen() && !FIND().atHive && !FIND().atFire && !FIND().atRuin && !bookRt.held && S.t >= bookRt.landT) list.push({ y: S.story.y, f: drawGroundBook });
   fireGroundItems(list);   // V17: burning branches and logs round the struck tree
@@ -8355,6 +8473,92 @@ function testCash(add){
   pop(tgt.x, tgt.y, '+' + cash2(add) + ' (test)', 'cash', 20);
   save();
 }
+// ───────────────────────── V20: the ending (see ENDING.md; the scenes themselves are in public/ending.js)
+// 2,000 iron ingots sold → the golden final letter → Tinker rides off with the driver → the truck camera → cut to the
+// ending's own scenes (factory, bank, storage) → back in the yard, Tinker hops off → "Great work!" → Continue.
+// S.flags.ending: 1 the letter is read (Tinker heads for the curb), 2 the ending is playing, 3 seen (Continue pressed).
+let EN = null, endRt = null;
+function openEndingTrip(){
+  S.flags.ending = Math.max(S.flags.ending | 0, 1);
+  const who = Math.max(0, S.robots.findIndex(c => !c.away));   // Tinker (the first robot that's home)
+  openTrip({ to: 'ending', who }, true);
+  const c = S.robots[who];
+  if (c){ taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged('robot', who); }
+  if (!simMode) setTimeout(() => showToast('The final letter', styleOf(who).name + ' heads for the curb. The driver wants to show it something.', 9), 400);
+}
+// the truck camera has followed the truck out of the yard: cut to the ending
+function beginEnding(){
+  const T = truck, r = T.riders.find(o => !o.kind) || R[0], i = r ? r.id : 0, c = S.robots[i];
+  T.riders = []; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 6);
+  if (c){ taskRemove(c, 'travel'); c.off.push('travel'); }
+  S.trip = null; S.flags.ending = 2; S.flags.endBot = i; S.letters = S.letters.filter(l => !l.read);
+  endRt = { ri: i, from: camFollow && camFollow.from };
+  if (r){ r.st = 'ride'; r.moving = false; }
+  save();
+  playEnding({ robot: i, onDone: endingHome });
+}
+function playEnding(o){
+  if (!EN) return false;
+  closeCard(); camFollow = null; camAnim = null;
+  document.body.classList.add('ending');
+  // nothing in the yard can be tapped or dragged while it plays (only Skip)
+  let bl = $('endBlock'); if (!bl){ bl = document.createElement('div'); bl.id = 'endBlock'; for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'click']) bl.addEventListener(ev, e => { e.stopPropagation(); e.preventDefault(); }, { passive: false }); document.body.appendChild(bl); }
+  bl.hidden = false;
+  EN.start(o);
+  return true;
+}
+// the ending is over (the screen is black): back in the yard, the truck brings Tinker home and it hops off
+function endingHome(){
+  document.body.classList.remove('ending'); if ($('endBlock')) $('endBlock').hidden = true;
+  S.flags.ending = 3; S.flags.endPop = 1; save();   // (seen; the popup still to come, even after a reload)
+  endRt = endRt || { ri: S.flags.endBot | 0 };
+  if (endRt.from) Object.assign(cam, endRt.from); else Object.assign(cam, camTarget(S.land));
+  buildGround(cam);
+  const r = R[endRt.ri];
+  const T = truck;
+  T.st = 'arrive'; T.x = Math.max(visRect().x1 + 110, PARK + 200); T.fill = 0; T.arriving = true; T.riders = r ? [r] : [];
+  if (r){ r.st = 'ride'; const p = rideSpot(r); r.x = p.x; r.y = p.y; r.face = -1; }
+  sfx('truckIn', sndAt(PARK + 30, LANE).pan, 2.6);
+  endRt.waitHop = true;
+  lotFade(true, '', true); setTimeout(() => lotFade(false), 60);
+}
+// "Great work!": Continue and you're back in the yard (no more milestones; the yard goes on as before)
+function showEndPopup(preview){
+  let el = $('endPop');
+  if (!el){ el = document.createElement('div'); el.id = 'endPop'; document.body.appendChild(el); }
+  el.innerHTML = '<div class="ep" role="dialog" aria-modal="true" aria-labelledby="epT"><div class="eplv"></div><h2 id="epT">Great work!</h2><p>' + sayT('You really did collect a lot of leaves') + '</p><button type="button" id="epGo">Continue</button></div>';
+  el.hidden = false; void el.offsetWidth; el.classList.add('on');
+  sfx('chime', 'sale');
+  $('epGo').onclick = () => {
+    el.classList.remove('on'); setTimeout(() => { el.hidden = true; }, 500);
+    if (!preview){ S.flags.ending = 3; S.flags.endPop = 0; endRt = null; save(); }
+  };
+  setTimeout(() => { const b = $('epGo'); if (b) b.focus(); }, 300);
+}
+// test panel / dev: play one scene (or the whole thing) without touching the game: the yard comes back as it was
+function previewEnding(which){
+  const keep = { z: cam.z, ox: cam.ox, oy: cam.oy };
+  const all = which === 'all';
+  return playEnding({ robot: Math.max(0, S.robots.findIndex(c => !c.away)), only: all ? null : which, preview: true, onDone: () => {
+    document.body.classList.remove('ending'); if ($('endBlock')) $('endBlock').hidden = true; Object.assign(cam, keep); buildGround(cam);
+    lotFade(true, '', true); setTimeout(() => lotFade(false), 60);
+    if (all) setTimeout(() => showEndPopup(true), 900); else setTimeout(() => showToast('Test', 'End of the preview: ' + which, 4), 600);
+  } });
+}
+// the helpers ending.js draws with (the same robots, truck, bags, jars and ingots as the yard)
+function makeEndingHelpers(){
+  const EH = { rr, ell, clamp, lerp, ease, rand, TAU, mulberry, shade, drawRobot, drawEnvelope, drawLeafBag, drawJar, drawGiftJar, drawIngot, nugget, drawCoalSack,
+    stampLeaf, drawLeaf, LEAFC, STYLES, styleOf, ROBOT_LOOKS, DRIVER, LANE, sfx, sayT, drawGoldEnvelope, goldTwinkles,
+    // the yard's truck drawn at x (its riders stand in the back; o: { fill, rot })
+    drawTruckAt(x, riders, o){
+      const keep = { x: truck.x, st: truck.st, riders: truck.riders, fill: truck.fill, rot: truck.rot };
+      truck.x = x; truck.st = 'ending'; truck.riders = riders || []; truck.fill = (o && o.fill) || 0; truck.rot = (o && o.rot) || 0;
+      try { drawTruck(); } finally { Object.assign(truck, keep); }
+    } };
+  for (const [k, f] of Object.entries({ S: () => S, ctx: () => ctx, W: () => W, H: () => H, DPR: () => DPR, simMode: () => simMode, reduceMotion: () => reduceMotion }))
+    Object.defineProperty(EH, k, { get: f, enumerable: true });
+  return EH;
+}
 // the next story beat on this lot, as { label, run }, or null when there's nothing left to push along
 function nextStep(){
   const st = S.story, callTruck = () => { if (truck.st === 'away') S.truckT = Math.min(S.truckT, 0.3); };
@@ -8452,7 +8656,7 @@ const JUMP_KITS = {
   homeHive: { base: 'home27', tech: ['hubs', 'hopper', 'jig'],
             robots: [{ speed:9, carry:9, pick:7, grab:3, reach:3 }, { speed:8, carry:8, pick:6, grab:3, reach:2, pack:3 }, { speed:6, carry:6, pick:5, grab:2, reach:2 }, { speed:4, carry:4, pick:3 }],
             blowers: [{ speed:4, blow:4 }, { speed:2, blow:2 }], shakers: [{ speed:2, shake:3 }],
-            up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:2, fingers:1, market:1 }, hive: { bees:6 }, cash: 250 },
+            up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:1, market:1 }, hive: { bees:6 }, cash: 250 },
   // the quests done: the bigger yard and a mine with a robot on it; holding $1,000 brings the hollow letter
   homeQuests: { base: 'homeHive', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
             robots: [{ drill:3 }, { drill:4, magnet:2 }, {}, {}, { speed:4, carry:4, pick:3 }],
@@ -8468,15 +8672,21 @@ const JUMP_KITS = {
             up: { bin:5, leafPrice:3, metalBin:2, metalPrice:2 }, metalSlot: true, miners: [0], bag: true, antHill: true, hive: { bees:4 }, cash: 200 },
   // V17: the three goals done (500 dry leaves, $200 of canned mushrooms, 100 logs sold): the lightning strikes on arrival.
   // A second blower and Research on Tinker, a helper robot, the first blower and the shaker
-  hollowStrike: { base: 'hollowLogs', robots: [{ study:2 }, { study:1 }], blowers: [{}, { speed:2, dry:3 }], drySold: DRY_GOAL, honeyCash: CANNED_CASH, logsSold: LOGS_GOAL, fireCrew: true, cash: 400 },
+  hollowStrike: { base: 'hollowLogs', robots: [{ study:2 }, { study:1 }], blowers: [{}, { speed:2, dry:2 }], drySold: DRY_GOAL, honeyCash: CANNED_CASH, logsSold: LOGS_GOAL, fireCrew: true, cash: 400 },
   // V17: the fire worked out, the dryer burning logs, the coal worked out: the coal stand and the kiln to build
   hollowCoal: { base: 'hollowStrike', fire: 'done', coal: 'known', benchLogs: 3, cash: 600 },
   // V18: the charcoal kiln built and a robot on it (the coal goal under way)
   hollowKiln: { base: 'hollowCoal', plant: true, robots: [{}, {}, {}, { speed:3, carry:3, pick:3, pack:2 }], cash: 800 },
+  // V19.3: 200 coal sold: the smoky letter lies by the sign, not read yet
+  hollowLetter: { base: 'hollowKiln', coalSold: true, cash: 900 },
   // V18: back home with the fire, set down by the old works: Research at the top of Tinker's list
   homeWorks: { ember: true, cash: 300 },
+  // V19.3: the old works worked out, not repaired yet: the money for the repair in hand
+  homeRuin: { base: 'homeWorks', works: 'known', cash: PLANT_COST + 100 },
   // V18: the old works worked out and repaired, the coal bunker full
   homeSmelt: { base: 'homeWorks', works: 'repaired', up: { metalBin:3 }, cash: 400 },
+  // V20: 2,000 iron ingots sold: the final letter is posted and the driver brings it with the next pickup (soon)
+  homeFinal: { base: 'homeSmelt', ingotsSold: INGOT_GOAL, truckSoon: true, cash: 2500 },
 };
 // the trips a jump makes on its way (a stage: the lot it's on, the kit to buy there, then go: ride on)
 const J_PRAIRIE = { lot: 'home', kit: 'home27', story: 'done', go: { letter: 'newLot' } };
@@ -8504,11 +8714,35 @@ const JUMPS = [
   { id: 'strike',  label: 'Rainy hollow: lightning strikes the tree',   stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowStrike' }] },
   { id: 'coal',    label: 'Rainy hollow: coal and the charcoal kiln',   stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowCoal' }] },
   { id: 'kiln',    label: 'Rainy hollow: kiln built, selling coal',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln' }] },
+  { id: 'fireLet', label: 'Rainy hollow: 200 coal sold, the smoky letter', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowLetter' }] },
   { id: 'fireGo',  label: 'Rainy hollow: taking the fire home',         stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln', letter: 'fireHome' }] },
   { id: 'back',    label: 'First yard: back from the hollow with the fire', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home' }] },
   { id: 'works',   label: 'First yard: researching the old works',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeWorks' }] },
+  { id: 'ruin',    label: 'First yard: old works researched, ready to repair', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeRuin' }] },
   { id: 'smelt',   label: 'First yard: the old works repaired, smelting', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeSmelt' }] },
+  // V20: the ending. The last two jump like the others; the scene previews (preview:) play right away without wiping
+  // anything, and the yard comes back as it was
+  { id: 'final',   label: 'First yard: 2,000 ingots sold, the final letter comes', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal' }] },
+  { id: 'finalGo', label: 'First yard: final letter read, Tinker off to the truck', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal', letter: 'final' }] },
+  { id: 'endAll',     label: 'Ending: the whole ride (preview)',    preview: 'all' },
+  { id: 'endFactory', label: 'Ending: robot factory (preview)',     preview: 'factory' },
+  { id: 'endBank',    label: 'Ending: bank (preview)',              preview: 'bank' },
+  { id: 'endStorage', label: 'Ending: storage (preview)',           preview: 'storage' },
 ];
+// V19: new tasks land at the bottom of every list, so a jump puts somebody on each work station it built (like a player
+// would): the task goes just above Gather leaves for a robot from the end of the list that isn't on one already
+function kitStaff(){
+  const busy = new Set();
+  const want = { mine: S.miners.length, bag: DRY_BENCH ? 0 : +S.bag.built, jar: +(S.hive.built && !hiveGrounded()), smelt: +S.plant.built, haul: +palletShown(), fuel: +(FIRE_STORY && !!S.bench.fire) };
+  for (const t in want){
+    let have = S.robots.filter(c => taskReached(c, t)).length;
+    for (let j = S.robots.length - 1; j >= 0 && have < want[t]; j--){
+      const c = S.robots[j]; if (busy.has(j) || (j === 0 && S.robots.length > 1) || !taskOpen(t, c) || taskReached(c, t)) continue;
+      taskRemove(c, t); const L = c.prio.findIndex(r => r.includes('leaves')); c.prio.splice(L < 0 ? c.prio.length : L, 0, [t]);
+      busy.add(j); have++;
+    }
+  }
+}
 // buy everything in a kit (and the kit it builds on) for free; levels only ever go up
 function applyKit(name){
   const K = JUMP_KITS[name]; if (!K) return;
@@ -8521,7 +8755,7 @@ function applyKit(name){
   while (K.land && S.land < K.land && S.land + 1 < AREAS.length) free({ id: 'land' });
   if (K.bag && !S.bag.built) free({ id: 'bagger' });
   if (K.metalSlot && !S.metalSlot) free({ id: 'metalSlot' });
-  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, lv[k]); };
+  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(lv[k], trackMax(k)) : lv[k]); };
   (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX) free({ id: 'robot' }); if (S.robots[i]) levels(S.robots[i], lv); });
   for (const kind of ['blower', 'shaker']) (K[KIND_LIST[kind]] || []).forEach((lv, i) => {
     while (cfgsOf(kind).length <= i) free({ id: kind });
@@ -8561,12 +8795,23 @@ function applyKit(name){
   if (K.benchLogs && FIRE_STORY) S.bench.logs = Math.max(S.bench.logs, K.benchLogs);
   // V18: the flame set down by the old works (Research on Tinker), and the works worked out and repaired
   if (K.ember && RUIN && !S.plant.built && (S.flags.ember | 0) < 2){ const r = R.find(q => q.torch); placeEmber(r || null, true); if (S.robots[0] && !S.flags.ruinKnown) putTop(S.robots[0], 'research'); }
+  if (K.works === 'known' && RUIN && !S.plant.built && !S.flags.ruinKnown){
+    if (S.story.item !== 'ruin') openRuinResearch(true);
+    Object.assign(S.story, { prog: researchNeed(), done: true, doneT: S.t, opened: true });
+    finishRuin(); if (S.miles.ruinR == null) S.miles.ruinR = Math.round(S.t);
+  }
+  // V19.3: 200 coal sold in the hollow: the letter is on the ground, unread
+  if (K.coalSold && FIRE_STORY && S.miles.coalSold == null){
+    S.totals.kilnSold = Math.max(S.totals.kilnSold || 0, COAL_GOAL); S.miles.coalSold = Math.round(S.t);
+    if (!S.letters.some(l => l.id === 'fireHome')) S.letters.push(Object.assign({ id: 'fireHome', read: false }, LETTERS.fireHome.at()));
+  }
   if (K.works === 'repaired' && RUIN && !S.plant.built){
     if (S.story.item !== 'ruin') openRuinResearch(true);
     Object.assign(S.story, { prog: researchNeed(), done: true, doneT: S.t, opened: true });
     finishRuin(); if (S.miles.ruinR == null) S.miles.ruinR = Math.round(S.t);
     free({ id: 'plant' });
   }
+  kitStaff();
   if (K.hive){
     if (!S.hive.built){ S.flags.hiveKnown = true; free({ id: 'hive' }); }
     if (K.hive.bees > S.hive.bees){ S.hive.bees = Math.min(MAX_BEES, K.hive.bees); syncBees(); }
@@ -8575,6 +8820,8 @@ function applyKit(name){
   if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
   if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
   if (K.honeyCash) S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, K.honeyCash);
+  if (K.ingotsSold) S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, K.ingotsSold);   // V20
+  if (K.truckSoon) S.truckT = Math.min(S.truckT, 5);
   if (K.cash != null){ S.cash = K.cash; S.peak = Math.max(S.peak || 0, S.cash); }
 }
 // this lot's find: 'armed' (it turns up under the next leaf a robot picks), or 'done' (found and worked out)
@@ -8591,6 +8838,7 @@ function jumpStory(how){
 function jumpLetter(id){
   const L = LETTERS[id]; if (!L) return;
   if (id === 'hollow') S.flags.hollowLetter = true;
+  if (id === 'final'){ S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, INGOT_GOAL); if (S.miles.ingots == null) S.miles.ingots = Math.round(S.t); }   // V20
   if (id === 'fireHome'){ S.totals.kilnSold = Math.max(S.totals.kilnSold || 0, COAL_GOAL); if (S.miles.coalSold == null) S.miles.coalSold = Math.round(S.t); }   // V18
   // the milestone that would post it counts as reached, so it doesn't come again
   if (id === 'newLot' && S.miles.letter == null) S.miles.letter = Math.round(S.t);
@@ -8679,7 +8927,9 @@ function toggleTestPanel(force){
       else if (t === 'jump'){
         // V14.1: jumping starts a new game; outside ?fresh that wipes your saves, so it asks once
         const id = el.querySelector('.tpj select').value, w = el.querySelector('.tpw');
-        if (FRESH || jumpArm === id) startJump(id);
+        const PJ = JUMPS.find(q => q.id === id);
+        if (PJ && PJ.preview){ toggleTestPanel(false); previewEnding(PJ.preview); }   // V20: the ending's scenes play on their own; nothing is wiped
+        else if (FRESH || jumpArm === id) startJump(id);
         else { jumpArm = id; w.hidden = false; w.textContent = 'This wipes every yard and starts a new game at that point. Tap again to go.'; b.textContent = 'Yes, jump'; }
       }
     });
@@ -8729,6 +8979,9 @@ const ICON = {
   reach:  '<path d="M-5,4.6 L-1.6,1.2" stroke="#6d777d" stroke-width="2.4" stroke-linecap="round"/><path d="M-1.6,1.2 L1.6,-2" stroke="#a8b1b6" stroke-width="1.6" stroke-linecap="round"/><path d="M1,-4.4 L3.6,-1.8 M2.2,-5.4 L4.8,-2.8" stroke="#d4672a" stroke-width="1.2" stroke-linecap="round"/>',
   drill:  '<rect x="-1.8" y="-5.4" width="3.6" height="3.4" rx=".6" fill="#d4672a"/><path d="M-2,-2 H2 L0,5.4Z" fill="#9aa4aa"/><path d="M-1.6,-.4 L1.4,.4 M-1.1,1.5 L1,2.1 M-.6,3.2 L.5,3.6" stroke="#5b6469" stroke-width=".6"/>',
   magnet: '<path d="M-3.8,4.6 V-.4 A3.8,3.8 0 0 1 3.8,-.4 V4.6 H1.4 V-.4 A1.4,1.4 0 0 0 -1.4,-.4 V4.6Z" fill="#c4452f"/><rect x="-3.8" y="2.8" width="2.4" height="1.8" fill="#dfe5e8"/><rect x="1.4" y="2.8" width="2.4" height="1.8" fill="#dfe5e8"/>',
+  // V19: the shared Operate machinery (a cog with a lever) and Extra yield (one piece becoming two) skills
+  machine: '<circle r="3.4" fill="#8a949a"/><g fill="#8a949a"><rect x="-1" y="-5.2" width="2" height="2.2"/><rect x="-1" y="3" width="2" height="2.2"/><rect x="-5.2" y="-1" width="2.2" height="2"/><rect x="3" y="-1" width="2.2" height="2"/><rect x="-1" y="-5.2" width="2" height="2.2" transform="rotate(45)"/><rect x="-1" y="3" width="2" height="2.2" transform="rotate(45)"/><rect x="-5.2" y="-1" width="2.2" height="2" transform="rotate(45)"/><rect x="3" y="-1" width="2.2" height="2" transform="rotate(45)"/></g><circle r="1.4" fill="#4e5559"/><path d="M0,0 L3.6,-4.6" stroke="#c4452f" stroke-width="1.3" stroke-linecap="round"/><circle cx="3.8" cy="-4.8" r="1.1" fill="#c4452f"/>',
+  yield: '<path d="M-5,1.6 L-3.2,-2 L-.6,-1.2 L-.2,2.6 L-3.6,3.6Z" fill="#9b6a3e"/><path d="M-3.2,-2 L-.6,-1.2 L-1.6,.6Z" fill="#c08a52"/><path d="M.6,2.2 L2.2,-1 L4.8,-.2 L5,3 L1.8,3.8Z" fill="#9b6a3e"/><path d="M2.2,-1 L4.8,-.2 L3.6,1.2Z" fill="#c08a52"/><path d="M1.4,-5.4 V-2.4 M-.1,-3.9 H2.9" stroke="#e2a53a" stroke-width="1.1" stroke-linecap="round"/>',
   pack:   '<rect x="-4.8" y="-3.4" width="9.6" height="8" rx=".8" fill="#c98f4c"/><path d="M-4.8,-.8 H4.8" stroke="#a8703a" stroke-width=".6"/><rect x="-1.1" y="-3.4" width="2.2" height="8" fill="#efdcbc"/><path d="M-3.6,-5.2 L0,-3.4 L3.6,-5.2" stroke="#a8703a" stroke-width=".8" fill="none"/>',
   blow:   '<path d="M-5,-2 Q0,-4.5 3,-2 M-5,1 Q1,-1.5 5,1 M-4,4 Q0,2 3,4" stroke="#4f7c84" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
   shake:  '<circle cx="0" cy="-1.5" r="3.8" fill="#c96a22"/><path d="M0,2.3V5.4" stroke="#6e4a30" stroke-width="1.4"/><path d="M-5.6,-3 l1,1.5 M5.6,-3 l-1,1.5" stroke="#6f7d3c" stroke-width="1" stroke-linecap="round"/>',
@@ -8873,12 +9126,16 @@ function upRow(k, extra){
 const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '') + '>' + h + '</span>';
 
 // ── robot upgrade tracks
-const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'drill', magnet:'magnet', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke', brolly:'brolly', dry:'bag' };
+const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'machine', magnet:'yield', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke', brolly:'brolly', dry:'bag' };
 const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
-  drill:'Seconds for a chunk of metal', magnet:'Chance a chunk of metal comes out as two', pack:'How fast it bags leaves, fills and wraps jars, and smelts', blow:'How hard it blows (range, push and glide)',
+  // V19: the machinery, yield and load & pack skills are the same in every yard, so their tips say where each one helps
+  drill: KEEP + 'Running the machines, in every yard: how fast it mines metal or saws logs (seconds a piece), and together with Load & pack how fast it smelts ingots or burns charcoal',
+  magnet: KEEP + 'Chance that mining metal or sawing a log gives two instead of one, in every yard',
+  pack: KEEP + 'How fast it packs and loads, in every yard: bagging leaves, filling and wrapping jars or cans, and loading the furnace or the charcoal kiln', blow:'How hard it blows leaves toward the bin (range, push and glide)',
   study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows',
   brolly:'Lets it hold the big wood umbrella over a robot hauling dry wood, so none of it gets wet on the way',
   dry:'How fast it dries a tray of ' + BAG_SIZE + ' wet leaves at the drying bench, blowing warm air over them' };
+if (LOT.trackTips) Object.assign(TRACK_TIP, LOT.trackTips);   // V19: a lot's own wording (the Rainy hollow's woodpile drying)
 const TRACK_VAL = {
   speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
   drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small>×2</small>'], pack: v => [v.toFixed(2) + '×', ''],
@@ -8892,7 +9149,7 @@ function robotRow(ri, k, kind){
   let val = fromTo(a[0], b[0], a[1], maxed || locked), btn = '', sig = '';
   if (k === 'carry' && S.metalSlot){ const m0 = 2 + Math.floor(L/2), m1 = maxed || locked ? m0 : 2 + Math.floor((L + 1)/2); val += xt((m1 !== m0 ? m0 + arrow + '<b>' + m1 + '</b>' : '<b>' + m0 + '</b>') + ic('ore'), 'Metal it carries'); }
   // smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
-  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Packing × Drill)'); sig += smeltSkill(ri).toFixed(2); }
+  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Load & pack × Operate machinery)'); sig += smeltSkill(ri).toFixed(2); }
   if (k === 'snip') val = L ? 'Deadheads spent flowers' : 'Deadhead spent flowers: they bloom again sooner, so more nectar for the bees';   // V13.7
   if (k === 'dry' && !L) val = 'Learn to dry wet leaves at the drying bench';   // V15
   if (maxed){ btn = stamp('max'); sig += 'max'; }
@@ -8963,6 +9220,49 @@ function botThumb(ri){
   if (!drawPortrait(pcv, 'robot', ri)) return '';
   const url = pcv.toDataURL(); thumbs[ri] = { url, t: S.t };
   return url;
+}
+// V19.3: the same for blowers and shakers (for the robot picker on the cards)
+function kindThumb(kind, i){
+  if (kind === 'robot') return botThumb(i);
+  const key = kind + i, c = thumbs[key]; if (c && S.t - c.t < 20) return c.url;
+  pcv.width = pcv.height = 64;
+  if (!drawPortrait(pcv, kind, i)) return '';
+  const url = pcv.toDataURL(); thumbs[key] = { url, t: S.t };
+  return url;
+}
+// V19.3: every robot, blower and shaker here, in the order they were built (robots, then blowers, then shakers): the
+// arrows on a card go through this list (round from the last shaker to the first robot), and the name opens it as a picker
+function botNav(){
+  const out = [];
+  S.robots.forEach((c, i) => { const r = R[i]; if (r && !c.away && r.st !== 'gone') out.push({ kind: 'robot', i, name: styleOf(i).name }); });
+  for (const kind of ['blower', 'shaker']) cfgsOf(kind).forEach((c, i) => { const h = HB.find(q => q.kind === kind && q.idx === i); if (h && !c.away && h.st !== 'gone') out.push({ kind, i, name: helperStyleOf(kind, i).name }); });
+  return out;
+}
+let pickOpen = false;
+function navTitle(k, i, name){
+  const L = botNav(); if (L.length < 2) return name;
+  const kindWord = { robot: 'Robot', blower: 'Blower', shaker: 'Shaker' };
+  const arrow = (d, lbl) => '<button class="nav" data-act="nav:' + d + '" aria-label="' + lbl + '" title="' + lbl + '"><svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="' + (d < 0 ? 'M2,-4 L-2,0 L2,4' : 'M-2,-4 L2,0 L-2,4') + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  let h = '<span class="navn">' + arrow(-1, 'Previous robot') + '<button class="nm' + (pickOpen ? ' on' : '') + '" data-act="pick" aria-haspopup="listbox" aria-expanded="' + pickOpen + '" title="Pick a robot">' + name +
+    '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3.5,-1.5 L0,2 L3.5,-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' + arrow(1, 'Next robot') + '</span>';
+  if (pickOpen){
+    h += '<div class="pick" role="listbox">';
+    let last = '';
+    for (const q of L){
+      if (q.kind !== last){ h += '<div class="pk">' + kindWord[q.kind] + 's</div>'; last = q.kind; }
+      const on = q.kind === k && q.i === i;
+      h += '<button role="option" aria-selected="' + on + '" class="po' + (on ? ' on' : '') + '" data-act="go:' + q.kind + ':' + q.i + '"><img src="' + kindThumb(q.kind, q.i) + '" alt="">' + q.name + '</button>';
+    }
+    h += '</div>';
+  }
+  return h;
+}
+function navGo(kind, i){
+  pickOpen = false;
+  const keep = cardTab;
+  openCard(kind, i);
+  if (keep === 'tasks' && tasksPanel(kind, i)) cardTab = 'tasks';
+  renderCard(true);
 }
 const crewBot = (ri, tag) => '<span class="crew" title="' + styleOf(ri).name + '"><img src="' + botThumb(ri) + '" alt="' + styleOf(ri).name + '">' + (tag ? '<b>' + tag + '</b>' : '') + '</span>';
 // "who works here": robots with that task on their list, or a nudge to add it
@@ -9138,9 +9438,9 @@ card.addEventListener('input', e => {
 // ── what each card shows
 const HIVE_SHORT = { wings:'+25% bee speed', third:'3 flowers a trip', tongue:'5 nectar a sip', fan:'+50% honey making', recipe:'20 nectar a jar', nursery:'Bees 30% cheaper' };
 const HIVE_ICON = { wings:'wings', third:'three', tongue:'tongue', fan:'fan', recipe:'recipe', nursery:'nursery' };
-const GEN_ICON = { oil:'oil', basket:'basket', fingers:'claw', blueprint:'blueprint', cutting:'drop', market:'market', charm:'horseshoe' };
-const GEN_SHORT = { oil: l => '+' + 20*(l + 1) + '% speed, every robot', basket: () => 'Copied baskets cost 10%', fingers: l => '+' + 30*(l + 1) + '% claw spread',
-  blueprint: () => 'Copied levels cost 30%', cutting: l => '+' + 15*(l + 1) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% double metal' };
+const GEN_ICON = { oil:'oil', basket:'basket', blueprint:'blueprint', cutting:'drop', market:'market', charm:'horseshoe' };
+const GEN_SHORT = { oil: () => '+' + Math.round(OIL_BONUS*100) + '% speed, every robot', basket: () => 'Copied baskets cost 10%',
+  blueprint: () => 'Copied levels cost 30%', cutting: () => '+' + Math.round(CUT_BONUS*100) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% extra yield' };
 if (LOT.GEN_ICON) Object.assign(GEN_ICON, LOT.GEN_ICON);
 if (LOT.GEN_SHORT) Object.assign(GEN_SHORT, LOT.GEN_SHORT);
 const HEAD_ICON = { letter:'letter', book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
@@ -9149,7 +9449,7 @@ function cardModel(){
   let title = '', tag = '', live = '', top = '', foot = '', tabs = null, head = HEAD_ICON[k] || '';
   if (k === 'robot' || k === 'blower' || k === 'shaker'){
     const i = cardOpen.i, st = k === 'robot' ? styleOf(i) : helperStyleOf(k, i);
-    title = st.name; live = k === 'robot' ? 'robot' : 'helper'; head = 'portrait';
+    title = navTitle(k, i, st.name); live = k === 'robot' ? 'robot' : 'helper'; head = 'portrait';
     const tp = tasksPanel(k, i);
     if (tp) tabs = { peek: tasksPeek(k, i) };
     if (tp && cardTab === 'tasks') top = tp;
@@ -9257,7 +9557,7 @@ function cardModel(){
         const dr = HB.filter(h => h.kind === 'blower' && (h.st === 'dry' || (h.st === 'go' && h.task === 'bag'))), learnt = S.blowers.some(b => b.lv.dry > 0);
         rows.push({ sig:'dryc' + dr.map(h => h.idx + ':' + helperCfg(h).lv.dry).join(',') + learnt + S.blowers.length, html: row({ icon: ic('blow'), name:'Dryers', cls:'crewrow',
           val: dr.length ? dr.map(h => helperStyle(h).name + ' <span class="gain">' + hv(h, 'dry').toFixed(2) + '×</span>').join(', ')
-            : '<span class="none">' + (learnt ? 'nobody drying · add <span class="chip mini" style="--tc:' + TASKS.bag.col + '">' + ic('bag') + 'Dry</span> to a blower' : S.blowers.length ? 'turn on Dry on a blower’s card' : 'build a blower to work it') + '</span>',
+            : '<span class="none">' + (learnt ? 'nobody drying · add <span class="chip mini" style="--tc:' + TASKS.bag.col + '">' + ic('bag') + TASKS.bag.short + '</span> to a blower' : S.blowers.length ? 'turn on ' + TASKS.bag.short + ' on a blower’s card' : 'build a blower to work it') + '</span>',
           tip:'A blower with Warm air blows over ' + BAG_SIZE + ' wet leaves at a time until they’re dry enough to sell' }) });
         if (FIRE_STORY && S.bench.fire){
           // V17: the stove: logs burning in it dry leaves on their own; the robots with Fuel the dryer keep it fed
@@ -9293,7 +9593,7 @@ function cardModel(){
       }
       const sk = stoker(), learnt = S.blowers.some(b => b.lv.stoke > 0);
       rows2.push({ sig:'stk' + (sk ? sk.idx + hv(sk, 'stoke') : '-') + learnt + S.blowers.length, html: row({ icon: ic('stoke'), name:'Bellows', cls:'crewrow',
-        val: sk ? helperStyle(sk).name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + 'Bellows</span> to a blower' : S.blowers.length ? 'a blower can learn it (Bellows, on its card)' : 'build a blower to work it') + '</span>',
+        val: sk ? helperStyle(sk).name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + TASKS.stoke.short + '</span> to a blower' : S.blowers.length ? 'a blower can learn it (' + TRACKS.stoke.label + ', on its card)' : 'build a blower to work it') + '</span>',
         tip:'A blower working the bellows makes every smelter faster' }) });
       if (WET_WOOD){
         // V14: who's carrying the wood umbrella, and how much dry wood the rain has soaked so far
@@ -9354,7 +9654,7 @@ function cardModel(){
     // V13: a letter from the truck driver
     const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
     title = L ? L.title : 'A letter'; head = 'letter';
-    if (L) top = '<div class="letter"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>' + (L.note ? '<div class="lnote">' + ic('info') + '<span>' + L.note() + '</span></div>' : '');
+    if (L) top = '<div class="letter' + (L.gold ? ' gold' : '') + '"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>' + (L.note ? '<div class="lnote">' + ic('info') + '<span>' + L.note() + '</span></div>' : '');
     if (S.trip){
       // V14: one row for each one who goes (a robot, and maybe a blower), and one for the travel money
       const chip = '<span class="chip mini" style="--tc:' + TASKS.travel.col + '">' + ic('travel') + TASKS.travel.short + '</span>';
@@ -9388,7 +9688,7 @@ function cardModel(){
       title = shaft ? 'Mine shaft' : 'Miner'; head = shaft ? 'shaft' : 'vein';
       const ws = minerWorkers(i);
       for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1) + metalCarry(w) + doubleChance(w), html: '<div class="row crewrow"><div class="ri">' + crewBot(w) + '</div><div class="rm"><div class="n">' + styleOf(w).name + '</div><div class="v">' +
-        drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small>×2</small>', 'Chance of double metal') : '') + '</div></div>' +
+        drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small>×2</small>', 'Extra yield: chance of two from one') : '') + '</div></div>' +
         '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + styleOf(w).name + '’s task list">Stop</button></div></div>' });
       if (ws.length < room){
         const any = R.some(r => S.robots[r.id].miner == null);
@@ -9398,7 +9698,7 @@ function cardModel(){
       if (shaft){
         const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i), learnt = S.blowers.some(b => b.lv.dig > 0);
         rows.push({ sig:'ex' + (ex ? ex.idx + hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A blower sucking the dirt out makes mining here faster',
-          val: ex ? helperStyle(ex).name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + 'Dig</span> to a blower' : S.blowers.length ? 'a blower can learn it (Excavate, on its card)' : 'build a blower to dig here') + '</span>' }) });
+          val: ex ? helperStyle(ex).name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + TASKS.dig.short + '</span> to a blower' : S.blowers.length ? 'a blower can learn it (' + TRACKS.dig.label + ', on its card)' : 'build a blower to dig here') + '</span>' }) });
       }
     } else {
       title = 'Metal vein';
@@ -9583,10 +9883,11 @@ function liveHTML(kind){
     const trav = { toCurb: 'To the curb', curb: w ? 'Waiting for ' + w : 'Waiting for the truck', hopIn: 'Riding the truck', hopOut: 'Riding the truck', ride: 'Riding the truck' }[h.st];
     if (trav) s = ['travel', trav];
     else if (h.kind === 'blower'){
-      s = h.st === 'stoke' ? ['stoke', 'Bellows <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', 'Excavating <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
+      // (V19: says which bellows and what it's excavating or drying, like the task chips)
+      s = h.st === 'stoke' ? ['stoke', TASKS.stoke.short + ' <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', TASKS.dig.short + ' <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
         : h.st === 'brolly' ? ['brolly', h.brolly >= 0 && R[h.brolly] ? 'Umbrella over ' + styleOf(h.brolly).name : 'Waiting with the umbrella']
         : h.st === 'go' && h.task === 'stoke' ? ['stoke', 'To the plant'] : h.st === 'go' && h.task === 'dig' ? ['dig', 'To a shaft'] : h.st === 'lap' ? ['blow', h.lap ? 'Blowing · lap ' + (h.lap + 1) : 'Blowing along the fence']
-        : h.st === 'go' ? ['blow', 'To the next lap'] : ['clock', 'Waiting for leaves'];
+        : h.st === 'dry' ? ['bag', 'Drying leaves'] : h.st === 'go' && h.task === 'bag' ? ['bag', 'To the drying bench'] : h.st === 'go' ? ['blow', 'To the next lap'] : ['clock', 'Waiting for leaves'];
     } else {
       s = h.st === 'snip' ? ['snip', 'Deadheading'] : h.st === 'go' && h.target && h.target.type === 'flower' ? ['snip', 'To a flower'] : h.st === 'shake' ? ['shake', h.target.type === 'tree' ? 'Shaking a tree' : 'Shaking a bush']
         : h.st === 'go' ? ['shake', h.target && h.target.type === 'bush' ? 'To a bush' : 'To a tree'] : ['clock', tooManyLeaves() ? 'Plenty down already' : 'Trees refilling'];
@@ -9698,7 +9999,7 @@ function openCard(kind, i){
   cardOpen = { kind, i, obj };
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
   if (kind === 'blower' || kind === 'shaker'){ const h = HB.find(q => q.kind === kind && q.idx === i); cardOpen.ax = h.x; cardOpen.ay = h.y - 46; }
-  resetArm = false; cardNote = ''; cardSig = '';
+  resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false;
   card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
   if (kind !== 'sound') S.flags.opened = true;
   // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
@@ -9710,7 +10011,7 @@ function openCard(kind, i){
   sfx('paper');
   renderCard(true);
 }
-function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; }
+function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; }
 
 card.addEventListener('pointerdown', e => e.stopPropagation());
 card.addEventListener('click', e => {
@@ -9718,6 +10019,13 @@ card.addEventListener('click', e => {
   const act = b.dataset.act;
   if (act === 'close'){ closeCard(); return; }
   if (act.startsWith('tab:')){ cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
+  // V19.3: the arrows and the picker by a robot's name
+  if (act === 'pick'){ pickOpen = !pickOpen; sfx('paper'); renderCard(true); return; }
+  if (act.startsWith('nav:')){
+    const L = botNav(), at = L.findIndex(q => q.kind === cardOpen.kind && q.i === cardOpen.i); if (!L.length) return;
+    const q = L[((at < 0 ? 0 : at) + +act.slice(4) + L.length) % L.length]; navGo(q.kind, q.i); return;
+  }
+  if (act.startsWith('go:')){ const [, kind, n] = act.split(':'); navGo(kind, +n); return; }
   if (act.startsWith('snd:')){ const k = act.slice(4); if (k === 'on1' || k === 'on0') SND.set('on', k === 'on1'); else SND.toggle(k); renderCard(true); return; }
   if (b.dataset.lock === 'bee'){ cardNote = 'Get your first bee before the hive upgrades.'; renderCard(true); }
   if (b.getAttribute('aria-disabled') === 'true'){ sfx('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
@@ -9982,6 +10290,11 @@ function load(data){
       return tasksFix(c, kind);
     });
     S.shafts = (src.shafts || []).filter(sp => S.miners.includes(sp));
+    // V19: Extra yield has 6 levels now (was 11): levels past the top come down to it
+    for (const c of S.robots) for (const k in c.lv) if (TRACKS[k]) c.lv[k] = clamp(c.lv[k] | 0, 0, TRACKS[k].vals.length - 1);
+    // V19: which robot tasks have already opened on this lot (a save from before: whatever is open now), so a building
+    // bought later only moves its own new tasks to the bottom of the lists
+    if (!(src.flags && src.flags.tOpen)){ S.flags.tOpen = {}; const c0 = S.robots[0]; if (c0) for (const t of KIND_TASKS.robot) if (t !== 'research' && t !== 'travel' && taskOpen(t, c0)) S.flags.tOpen[t] = 1; }
     // V18: the first yard has two veins now (the orchard's is gone): miners, shafts and robots on a vein that's gone let go of it
     S.miners = S.miners.filter(sp => SPOTS[sp]); S.shafts = S.shafts.filter(sp => SPOTS[sp]);
     for (const c of S.robots) if (c.miner != null && !SPOTS[c.miner]) c.miner = null;
@@ -10083,6 +10396,9 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 let last = 0;
 function frame(ts){
   const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
+  // V20: while the ending plays, the yard stands still and ending.js draws everything
+  if (EN && EN.on){ EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
+  if (endRt && endRt.waitHop){ const r = R[endRt.ri]; if (!r || (r.st !== 'ride' && r.st !== 'hopOut' && truck.st !== 'arrive')){ endRt.waitHop = false; setTimeout(() => showEndPopup(false), 1100); } }
   const n = Math.ceil(TIME_SCALE);
   if (!travelling) for (let i=0;i<n;i++) step(dt*TIME_SCALE/n);   // (V13: everything stops while the page moves to another lot)
   if (camAnim){
@@ -10131,7 +10447,9 @@ function simTasks(){
     let have = S.robots.filter(c => taskTop(c, t)).length;
     for (let j = n - 1; j >= 0 && have < want[t]; j--){
       const c = S.robots[j];
-      if (!c.prio.length || !c.prio[0].includes('leaves') || c.prio[0].length > 1) continue;
+      // (V19: the first row it can work on: new tasks wait hidden at the bottom of the list until they open)
+      const top = c.prio.find(r => r.some(x => taskOpen(x, c)));
+      if (!top || !top.includes('leaves') || top.length > 1) continue;
       putTop(c, t); have++;
       const r = R[j]; if (r && (r.st === 'wander' || r.st === 'rest' || r.st === 'seek')){ release(r); r.st = 'idle'; }
     }
@@ -10163,7 +10481,7 @@ window.__leafYard = {
         o = o.filter(x => x.cost <= S.cash).sort((a,b) => a.cost - b.cost);
         if (opts.filter) o = o.filter(opts.filter);   // lets a pacing test hold money back (e.g. saving up for land)
         // keep every miner staffed (but leave at least one robot on leaves once there are three)
-        for (const sp of S.miners){ if (minerWorkers(sp).length >= slotsAt(sp)) continue; const leafers = S.robots.map((c, j) => j).filter(j => taskTop(S.robots[j], 'leaves')); if (leafers.length > (S.robots.length > 2 ? 1 : 0)) assign(leafers[leafers.length - 1], sp); }
+        for (const sp of S.miners){ if (minerWorkers(sp).length >= slotsAt(sp)) continue; const leafers = S.robots.map((c, j) => j).filter(j => { const top = S.robots[j].prio.find(r => r.some(x => taskOpen(x, S.robots[j]))); return !!top && top.includes('leaves'); }); if (leafers.length > (S.robots.length > 2 ? 1 : 0)){ const j = leafers[leafers.length - 1]; putTop(S.robots[j], 'mine'); assign(j, sp); } }   // (V19: assign no longer moves Mine metal up itself)
         if (opts.manage) opts.manage(S, R);
         else if (opts.autoTasks !== false) simTasks();
         if (o.length){ const b = o[0]; buy(b); log.push(Math.round(S.t) + 's ' + b.id + (b.key ? ':' + b.key : '') + (b.ri != null ? '#' + b.ri : '') + (b.id === 'land' ? ':' + S.land : '') + ' $' + b.cost); }
@@ -10190,7 +10508,10 @@ window.__leafYard = {
   cam: () => ({ ...cam }),
   setCam: (x, y, z) => { camAnim = null; camFollow = null; userCam = true; cam.z = z; cam.ox = W/2 - x*z; cam.oy = H/2 - y*z; buildGround(cam); },   // V13: for screenshots
   world: () => WORLD,
-  jump: id => startJump(id),
+  jump: id => { const J = JUMPS.find(q => q.id === id); if (J && J.preview) return previewEnding(J.preview); startJump(id); },
+  ending: which => previewEnding(which || 'all'),   // V20: 'factory', 'bank', 'storage' or 'all'
+  endingState: () => EN && EN.state(),
+  endingFF: s => { if (EN) EN.ff(s); return EN && EN.state(); },   // (tests: fast-forward the ending without drawing)
   next: () => { const st = nextStep(); if (!st) return null; st.run(); return st.label; },   // the test panel's Next step (for tests)
   dev: code => eval(code),   // reads/changes the game's own variables (headless tests only)
   fire: cmd => FIRE_STORY ? (cmd === 'out' ? fireOut() : cmd === 'strike' ? strike() : S.fire) : null,   // V17: for tests
@@ -10256,6 +10577,13 @@ function start(data){
   if (A){ arriveScene(A); save(); setTimeout(() => lotFade(false), 700); }
   else if (RUIN && S.flags.ember === 1 && !S.plant.built) placeEmber(null, true);   // V18: (a reload while the flame was being carried up)
   else if (RUIN && S.flags.ember >= 2 && !S.plant.built && !S.flags.ruinKnown && S.story.item !== 'ruin') openRuinResearch(true);
+  // V20: the ending (public/ending.js). A reload while it played starts it again from the ride out; ?ending=factory
+  // (or bank, storage, all) previews a scene
+  EN = window.ENDING ? window.ENDING(makeEndingHelpers()) : null;
+  if (RUIN && S.miles.ingots != null && (S.totals.ingotsSold || 0) < INGOT_GOAL && !S.flags.ending) delete S.miles.ingots;   // (a V18 save that sold 1,000: the goal is 2,000 now)
+  if (EN && LOT_ID === 'home' && S.flags.ending === 2){ const i = S.flags.endBot | 0, r = R[i]; truck.st = 'away'; if (r){ r.st = 'ride'; } endRt = { ri: i }; playEnding({ robot: i, onDone: endingHome }); }
+  else if (EN && PARAMS.get('ending')) setTimeout(() => previewEnding(PARAMS.get('ending')), 300);
+  else if (S.flags.endPop) setTimeout(() => showEndPopup(false), 1200);
   runJump();   // V14.1: a test jump that's on its way through the lots
   addEventListener('resize', resize);
   if (window.claude && window.claude.hot && window.claude.hot.snapshot){ try { window.claude.hot.snapshot(() => ({ S })); } catch(e){} }

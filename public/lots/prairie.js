@@ -33,6 +33,8 @@ LOTS.prairie = H => {
     { x: 560, y: -1335, r: 180, seed: 101 }, { x: 1150, y: -330, r: 170, seed: 113 }, { x: -1180, y: -1060, r: 190, seed: 127 },
     { x: -30, y: -255, r: 62, seed: 131, fam: ['sakura','blush'] }, { x: -256, y: -208, r: 52, seed: 137, fam: ['blush','snow'] },
     { x: 168, y: -272, r: 56, seed: 139, fam: ['magenta','sakura'] },
+    // V19.3: one more pink cherry outside the fence on the right, to fill the space there
+    { x: 590, y: -205, r: 100, seed: 149, fam: ['sakura','blush'] },
   ];
 
   // ── petals: cherry pink, blush, lavender, buttercup, coral, with a few autumn leaves still drifting in (last three)
@@ -305,7 +307,7 @@ LOTS.prairie = H => {
 
   // ── flower upgrades of its own (a "Wildflowers" section in the workshop)
   const GEN = {
-    press:    { name:'Petal press',        max:3, cost:[250, 1200, 4500], desc:l=>'Pressed petals sell for <b>'+(15*(l+1))+'%</b> more, loose or bagged.' },
+    press:    { name:'Petal press',        max:3, cost:[250, 700, 1500], desc:l=>'Pressed petals sell for <b>'+(15*(l+1))+'%</b> more, loose or bagged.' },
     seeding:  { name:'Wildflower seeding', max:3, cost:[600, 2000, 6000], needs:()=>H.S.hive.built, desc:l=>'Sow <b>'+(40*(l+1))+'%</b> more flowers for the bees on all your land.' },
     clover:   { name:'Sweet clover',       max:2, cost:[900, 4000], needs:()=>H.S.hive.built, desc:l=>'Flowers bloom again <b>'+(30*(l+1))+'%</b> sooner after a bee sips them.' },
   };

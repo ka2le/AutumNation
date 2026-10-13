@@ -388,6 +388,17 @@ yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` a
 - **Hive tank and store, bin 8 and tub 6–8** are capacity steps the player buys only when they're full. Their value
   hasn't been measured beyond that.
 
+### What streamlining means here (V19.1)
+The problem isn't the number of steps or clicks, it's steps whose reward is too small for what they cost: a long ladder
+of tiny steps that ends in very expensive ones, each nudging one stat that may not even be the bottleneck. So:
+- **Keep as they are:** Wheels and Basket (the per-robot ladders feel good), Claw + Reach (satisfying to get one, then the
+  other, and watch them scale together), the capacity upgrades, and the per-resource price ladders (their shape).
+- **Make a step clearly worth it:** fewer, bigger steps where one stat creeps up (helper skills, Extra yield, the hollow's
+  Sort the logs), and longer ladders where a source should matter later (Sort leaves 7, Better bags 13).
+- **No exploding tops:** incomes level off (workers per task, longer walks, plot caps), so price ladders should climb
+  roughly evenly at the end, not ×2–4 a step. V19.1 flattened the tops of the metal, alloy, slag, label and market ones.
+- **Bees/ants:** one at a time, at most 40, nearly flat price after the first ten.
+
 ---
 
 ## 6. Pitfalls (learned the hard way)
@@ -451,3 +462,20 @@ yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` a
   balance player: a hollow sim with a decent start earns ~$0.9M by 90 min, most of it coal, because the wood volume is large;
   `KILN_LOGS`/`KILN_COAL`, the kiln's `LOT.UP` and the saws are the knobs.
 
+- **V19:** a streamlining pass. One name per shared skill in every yard (Operate machinery, Extra yield, Load & pack).
+  Extra yield 3 + unlock + 3 (was 3 + 4 + 4 with two unlocks): 0 → 72%, last step still $1,300, ~$3,150 in all (was
+  ~$5,900). Helper skills 2 levels a tier with the in-between steps dropped (blow 6 levels, drying 6, excavate 4, bellows
+  4; shaking 3 + unlock + 3); same ranges, cheaper in total. The hollow's Sort the logs 3 steps ($4.80 → 12 for
+  $50 / 250 / 1,000; was 6 steps to $16.50 for up to $6,000) and a coal stand 4× the crib. Not re-measured with the
+  balance player; built-in sims: the first yard about the same, the hollow ~13% less by 60 min (lower top log price).
+  See "Streamlining candidates" in section 5 for what's next.
+- **V19.1:** Sort leaves 7 steps (+$70, $160), Better bags 13 (to 8.7×, an even $11 → 440), the tops of Grade the metal,
+  alloy, slag, labels, market stall, Gourmet labels, Briquettes and the leaf/petal press deals flattened, 40 bees at most
+  with a nearly flat price after ten. Balance player (first yard, 3 runs): plateau $1.8k (V18) → $2.3k (V19) → $3.1k a
+  minute, bags ~half of it; every leaf/bag step bought at 3–5 min payback; last price step ~48 min (V18 ~62).
+- **V19.3:** yard-wide one-steps: Grease every axle +30% speed for $30 (was 3 steps of +20%, $20 / 110 / 520), Cutting oil
+  (Chain oil) +25% for $400 (was 2 steps of +15%, $300 / 1,400); Wider claw fingers removed (claw spread is the claw
+  level alone). The hollow's Spore scattering is one step, +80% patches for $1,200 (was 3 × 40% for $600 / 2,000 /
+  6,000); the prairie's Wildflower seeding is unchanged. The first yard's Meadow is 1080 × 600 (was 1280 × 720) with the
+  same leaf fall and cap, nine more own bushes (one on the cottage plot) and a fourth small tree, so shakers have more to
+  shake. Not re-measured with the balance player; built-in sims run clean.
