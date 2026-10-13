@@ -217,6 +217,34 @@ function rainStep(dt, k, t){
   if (rainAcc > 4) rainAcc = 0;
 }
 
+// V17: thunder and a crackling fire
+function thunderAt(pan, t){
+  // the crack: a burst of bright noise, very short
+  const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+  const hp = filt('highpass', 900, 0.4), g = gainNode(0);
+  src.connect(hp); hp.connect(g); panInto(g, pan, rainBus);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.36, t + 0.006); g.gain.exponentialRampToValueAtTime(0.015, t + 0.35); g.gain.linearRampToValueAtTime(0, t + 0.5);
+  src.start(t, rnd(0, 2), 0.6);
+  // the rumble: low noise through a lowpass that closes slowly, swelling and rolling for a few seconds
+  const r = ctx.createBufferSource(); r.buffer = noiseBuf; r.loop = true;
+  const lp = filt('lowpass', 420, 0.9), rg = gainNode(0);
+  lp.frequency.setValueAtTime(420, t + 0.1); lp.frequency.exponentialRampToValueAtTime(70, t + 4.5);
+  r.connect(lp); lp.connect(rg); panInto(rg, pan*0.5, rainBus);
+  rg.gain.setValueAtTime(0, t + 0.08); rg.gain.linearRampToValueAtTime(0.7, t + 0.5); rg.gain.setValueAtTime(0.7, t + 0.9); rg.gain.linearRampToValueAtTime(0.4, t + 1.6); rg.gain.linearRampToValueAtTime(0.55, t + 2.2); rg.gain.exponentialRampToValueAtTime(0.002, t + 5.2);
+  r.start(t + 0.08, rnd(0, 2)); r.stop(t + 5.4);
+}
+function crackleAt(pan, vol, t){
+  const n = 2 + Math.floor(Math.random()*4);
+  for (let i = 0; i < n; i++){
+    const s = t + rnd(0, 0.25), src = ctx.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = rnd(0.9, 1.6);
+    const bp = filt('bandpass', rnd(1500, 4200), 2.2), g = gainNode(0);
+    src.connect(bp); bp.connect(g); panInto(g, pan + rnd(-0.1, 0.1), rainBus);
+    const len = rnd(0.006, 0.02);
+    g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(rnd(0.05, 0.14)*vol, s + 0.002); g.gain.exponentialRampToValueAtTime(0.0005, s + len);
+    src.start(s, rnd(0, 2.5), len + 0.03);
+  }
+}
+
 // ───────────────────────── leaves & wind
 function rustle(o, t){
   const src = ctx.createBufferSource(); src.buffer = o.buf || pick(rustleBufs);
@@ -442,6 +470,10 @@ const api = {
 
   update(dt, wind){ if (live()) ambStep(dt, wind, ctx.currentTime); },
   rain(dt, k){ if (live() && rainBus) rainStep(dt, k, ctx.currentTime); },   // V14: only the Rainy hollow calls this
+  // V17 (the Rainy hollow): a lightning strike: a sharp crack, then a long low rumble rolling away; and a fire crackling
+  // (a few dry snaps). Like the rain they go straight to the master, so they play whenever sound is on.
+  thunder(pan){ if (!live() || !rainBus || !gate('thunder', 1)) return; thunderAt(pan || 0, ctx.currentTime + 0.05); },
+  crackle(pan, vol){ if (!live() || !rainBus || !gate('crackle', 0.12)) return; crackleAt(pan || 0, vol == null ? 1 : vol, ctx.currentTime); },
 
   // a robot's arm closes on some leaves
   grab(n, pan, vol){ if (!live() || !prefs.amb || !gate('grab', 0.08)) return; rustle({ buf: rustleBufs[1 + 3 * (Math.random() * 3 | 0)], rate: rnd(1.1, 1.45), vol: (0.07 + 0.015 * Math.min(n, 6)) * vol, pan, bright: rnd(3500, 5500) }, ctx.currentTime); },
@@ -497,7 +529,7 @@ const api = {
   // test hook: render into an OfflineAudioContext
   _test: {
     init(c){ init(c); master.gain.value = level(); },
-    ambStep, beepAt, musicPump, tinkAt, rumble, hornAt, pluck,
+    ambStep, beepAt, musicPump, tinkAt, rumble, hornAt, pluck, thunderAt, crackleAt,
     api: () => api,
     force(){ return { ctx, bus }; },
   },

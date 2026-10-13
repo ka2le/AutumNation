@@ -4,9 +4,11 @@
 // keeping their own upgrades, every robot unlock, the truck schedule and the cleanup program.
 //
 // It rains here (all looks: rain, puddles that reflect what stands beside them, mist, warm lights; game.js draws those,
-// LOT.rain), the wood is wet (game.js: dry bundles carried through the rain get soaked unless a blower holds the wood
-// umbrella over the hauler, LOT.wetWood), robot ants cut mushrooms instead of bees sipping flowers, and the metal side is
-// wood: wet wood piles, saws, a log crib, a drying shed with stoves, dry firewood bundles and a woodshed by the road.
+// LOT.rain), robot ants cut mushrooms instead of bees sipping flowers, and the metal side is wood: wood piles, saws and a
+// log crib. V17 (LOT.fireStory): lightning sets the tree in the middle on fire; once the robots have worked out the fire
+// the drying bench burns logs, the logs leave charcoal, and the coal opens a coal stand by the road (the ingot pallet's
+// place) and a charcoal kiln in the top left corner (the smelting plant's place; it was a drying shed making dry bundles,
+// with a wood umbrella to keep them dry on the way to the road: both gone).
 // This started life as public/location3 (a test copy of the whole game); the art here comes from it, minus the test
 // slider. The yard starts bigger than the first one's cottage plot and never grows (no For Sale sign).
 //
@@ -22,7 +24,7 @@ LOTS.hollow = H => {
   // ── the land: one yard, between the first yard's cottage plot and its meadow in size, that doesn't grow. (The other
   // two sizes stay in AREAS for what lies beyond the fence; landForSale: false keeps the sign from going up.)
   const AREAS = [
-    { w: 700,  h: 440,  name: 'Drizzly hollow', spawn: 1.6, cap: 115 },   // (V15: was 930 × 550)
+    { w: 700,  h: 440,  name: 'Drizzly hollow', spawn: 1.9, cap: 130 },   // (V15: was 930 × 550; V17: a bit more falls, was 1.6 / 115)
     { w: 1280, h: 720,  name: 'Puddle meadow',  spawn: 2.8, cap: 220, cost: 3000 },
     { w: 2000, h: 1150, name: 'Misty woods',    spawn: 5.6, cap: 380, cost: 38000 },
   ];
@@ -32,8 +34,9 @@ LOTS.hollow = H => {
     { x: 50,   y: -258, land: 0, rich: 1 },
     { x: -860, y: -560, land: 2, rich: 1.2 },
   ];
-  // the drying shed (this place's smelting plant) stands up on the left of the yard, a long wet walk from the road
-  const PLANT = { x: -170, y: -290 };
+  // V17: the charcoal kiln (this place's smelting plant, once the robots know coal) stands in the top left corner of the
+  // yard, its work spots just above the puddle there (was the drying shed, at -170, -290)
+  const PLANT = { x: -228, y: -384 };
   // V15: the road row, spread out across the (narrower) yard so the drying bench fits beside the bin
   const ROW = { SHED: { x: -268, y: -22 }, SIGN: { x: -166, y: -8 }, BAGGER: { x: -78, y: -14 }, BIN: { x: 8, y: -12 },
     TUB: { x: 66, y: -12 }, PALLET: { x: 122, y: -12 }, CRATE: { x: 182, y: -12 }, HIVE: { x: 262, y: -20 } };
@@ -48,20 +51,23 @@ LOTS.hollow = H => {
     { x: 228, y: -296, r: 50, seed: 139, fam: ['gold','orange'] },
     // one just outside the fence on the left
     { x: -560, y: -250, r: 105, seed: 149 },
+    // (index 12 above, the one in the middle, is the tree the lightning hits: fireTree)
     // V15: pines, dark and wet, the wind blowing needles off them (game.js: no leaves from these, only needles for looks).
     // Two in the yard, the rest round the edge
     { x: 296, y: -205, r: 58, seed: 151, pine: true }, { x: 112, y: -398, r: 54, seed: 157, pine: true },
     { x: 610, y: -380, r: 96, seed: 163, pine: true }, { x: -640, y: -470, r: 104, seed: 167, pine: true }, { x: 130, y: -690, r: 92, seed: 173, pine: true },
     { x: -330, y: -760, r: 110, seed: 179, pine: true },
+    // V17: two more at the top edge of the yard, their trunks just inside the fence, for the shakers
+    { x: 296, y: -474, r: 62, seed: 191, fam: ['red','orange'] }, { x: -62, y: -500, r: 68, seed: 193, fam: ['gold','rust'] },
   ];
-  const BUSHES = [ { x: -312, y: -330, s: 1.05, seed: 7 }, { x: 40, y: -350, s: 0.95, seed: 19 } ];
+  const BUSHES = [ { x: -312, y: -166, s: 1.0, seed: 7 }, { x: 40, y: -350, s: 0.95, seed: 19 } ];   // (V17: the left one moved down, out of the kiln's way)
   // puddles: their muddy beds are painted into the ground; game.js draws the water live (reflections, rings, wakes)
   const PUDDLES = [
     // the first plot
     { x: -70,  y: -118, rx: 58, ry: 19 }, { x: 64, y: -94, rx: 38, ry: 13 }, { x: -195, y: -152, rx: 46, ry: 15 }, { x: 172, y: -238, rx: 40, ry: 14 },
     { x: 246, y: -108, rx: 34, ry: 12 }, { x: -40, y: -350, rx: 42, ry: 14 },
     // the meadow
-    { x: -275, y: -352, rx: 72, ry: 23 }, { x: 290, y: -400, rx: 66, ry: 21 }, { x: -20, y: -472, rx: 62, ry: 20 }, { x: -385, y: -178, rx: 54, ry: 17 },
+    { x: -278, y: -314, rx: 70, ry: 22 },   // (V17: a little lower, so the kiln's robots stand just above it) { x: 290, y: -400, rx: 66, ry: 21 }, { x: -20, y: -472, rx: 62, ry: 20 }, { x: -385, y: -178, rx: 54, ry: 17 },
     { x: 520,  y: -565, rx: 52, ry: 17 }, { x: -470, y: -418, rx: 70, ry: 21 }, { x: -560, y: -110, rx: 50, ry: 16 }, { x: 455, y: -125, rx: 56, ry: 18 },
     { x: 120,  y: -640, rx: 58, ry: 18 }, { x: 560, y: -690, rx: 46, ry: 15 }, { x: -430, y: -295, rx: 40, ry: 13 }, { x: 590, y: -470, rx: 36, ry: 12 },
     // the misty woods
@@ -1064,52 +1070,57 @@ LOTS.hollow = H => {
   }
 
   function drawIngot(c, x, y, s, rot, grade, wet){
-    const { S, clamp, ell, shade } = H;
-    // RAINY HOLLOW: a bundle of dry firewood (this place's "ingot"): split logs tied together. Better bundles get a
-    // better tie (twine, red twine, a leather strap, a brass band, a green ribbon, a gold band). A wet one is dark.
+    const { S, clamp, ell, rr } = H;
+    // V17 (RAINY HOLLOW): coal (this place's "ingot"): a little burlap sack, its top folded open over black lumps of
+    // charcoal. Briquettes make the lumps neat pressed blocks and the sack gets a tag (red, then blue, then gold).
     grade = grade == null ? S.lv.ingotGrade : grade;
-    const tie = ['#c9b07a', '#b8392a', '#6a4426', '#c9a24a', '#3f8a4a', '#f2c443'][clamp(grade, 0, 5)];
     c.save(); c.translate(x, y); if (rot) c.rotate(rot); c.scale(s/10, s/10);
-    const wood = wet ? ['#4a3626', '#5e4430', '#3a2a1e'] : ['#c99a62', '#e2bb84', '#9c7244'];
-    c.fillStyle = 'rgba(20,12,6,.25)'; ell(c, 0.5, 0.2, 5.6, 1.1); c.fill();
-    // four split pieces, end-on, two on two
-    const pieces = [[-2.6, -1.8], [2.6, -1.8], [0, -4.6], [-0.2, -1.4]];
-    for (const [px, py] of pieces){
-      c.fillStyle = wood[2]; c.beginPath(); c.moveTo(px - 2.6, py + 1.6); c.lineTo(px + 2.6, py + 1.6); c.lineTo(px + 1.4, py - 1.6); c.lineTo(px - 1.6, py - 1.4); c.closePath(); c.fill();
-      c.fillStyle = wood[0]; c.beginPath(); c.moveTo(px - 2.2, py + 1.3); c.lineTo(px + 2.2, py + 1.3); c.lineTo(px + 1.1, py - 1.2); c.lineTo(px - 1.3, py - 1.1); c.closePath(); c.fill();
-      c.strokeStyle = wood[1]; c.lineWidth = 0.35; c.beginPath(); c.arc(px + 0.4, py + 1.8, 1.6, -2.6, -0.5); c.stroke();
+    c.fillStyle = 'rgba(20,12,6,.25)'; ell(c, 0.4, 0.2, 5.2, 1.1); c.fill();
+    // the sack
+    c.fillStyle = '#9c7a4c'; c.beginPath(); c.moveTo(-4.4, -5); c.lineTo(4.4, -5); c.lineTo(4.9, -0.4); c.quadraticCurveTo(0, 0.6, -4.9, -0.4); c.closePath(); c.fill();
+    c.fillStyle = '#b48e5c'; c.beginPath(); c.moveTo(-4.4, -5); c.lineTo(0.4, -5); c.lineTo(0.6, 0.1); c.quadraticCurveTo(-2, 0.3, -4.9, -0.4); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(90,64,34,.45)'; c.lineWidth = 0.3; for (const yy of [-3.8, -2.4, -1]){ c.beginPath(); c.moveTo(-4.6, yy); c.lineTo(4.6, yy); c.stroke(); }
+    // the coal heaped up in the open top
+    if (grade >= 1){
+      c.fillStyle = '#1f1c1b'; for (const [bx, by] of [[-3.2, -6.4], [-0.4, -6.6], [2.4, -6.4], [-1.8, -8.2], [1, -8.3]]){ rr(c, bx - 1.3, by - 1, 2.6, 1.9, 0.4); c.fill(); }
+      c.fillStyle = 'rgba(160,170,175,.4)'; for (const [bx, by] of [[-3.2, -6.4], [-0.4, -6.6], [2.4, -6.4], [-1.8, -8.2], [1, -8.3]]){ c.fillRect(bx - 1.1, by - 0.9, 2, 0.35); }
+    } else {
+      c.fillStyle = '#1a1716'; ell(c, 0, -5.4, 4.4, 1.6); c.fill();
+      for (const [lx, ly, r] of [[-2.6, -6.4, 1.5], [0.2, -7.2, 1.7], [2.6, -6.2, 1.3], [-0.8, -5.6, 1.4], [1.6, -5.4, 1.1]]){ c.fillStyle = '#242020'; ell(c, lx, ly, r, r*0.8); c.fill(); c.fillStyle = 'rgba(170,180,185,.35)'; ell(c, lx - r*0.3, ly - r*0.35, r*0.4, r*0.2); c.fill(); }
     }
-    c.fillStyle = tie; c.fillRect(-0.9, -6.2, 1.8, 8.4);
-    c.fillStyle = 'rgba(255,255,255,.3)'; c.fillRect(-0.9, -6.2, 0.5, 8.4);
-    if (grade >= 3){ c.fillStyle = shade(tie, 0.7); ell(c, 0, -6, 1.3, 0.8); c.fill(); }
-    if (wet){ c.fillStyle = 'rgba(205,222,236,.7)'; ell(c, -2.2, 0.4, 0.5, 0.8); c.fill(); ell(c, 2.4, 0.7, 0.45, 0.7); c.fill(); }
+    // the folded rim of the sack
+    c.fillStyle = '#86663e'; rr(c, -4.7, -5.4, 9.4, 1.3, 0.6); c.fill();
+    if (grade >= 1){ const tag = ['#b8392a', '#2f6fb5', '#2f6fb5', '#e2b13a'][clamp(grade - 1, 0, 3)]; c.fillStyle = tag; rr(c, 1.4, -3.6, 2.8, 2, 0.4); c.fill(); c.strokeStyle = '#6a4a26'; c.lineWidth = 0.3; c.beginPath(); c.moveTo(1.4, -2.6); c.lineTo(0.2, -4.6); c.stroke(); }
+    if (grade >= 3){ c.fillStyle = 'rgba(255,250,220,.6)'; c.fillRect(1.7, -3.3, 1.2, 0.4); }
     c.restore();
   }
 
   function drawPallet(){
-    const { PALLET, S, chalk, clamp, ctx, ease, ell, palletCap, plantRt, rr } = H;
-    // RAINY HOLLOW: the woodshed by the road (this place's ingot pallet): a little roofed rack where haulers stack the
-    // dry bundles, out of the rain, until the truck takes them
-    if (!S.plant.built) return;
+    const { PALLET, S, chalk, clamp, ctx, ell, palletCap, palletShown, rr } = H;
+    // V17 (RAINY HOLLOW): the coal stand by the road (this place's ingot pallet): a little roofed stall with a slate sign,
+    // where haulers stack the sacks of coal until the truck takes them. It's there once the robots know what coal is.
+    if (!palletShown()) return;
     const c = ctx, n = S.ingots, cap = palletCap();
-    const grow = clamp((S.t - plantRt.builtT - 0.4)/0.6, 0, 1); if (grow <= 0) return;
-    c.save(); c.translate(PALLET.x, PALLET.y); c.scale(ease(grow), ease(grow));
+    c.save(); c.translate(PALLET.x, PALLET.y);
     c.fillStyle = 'rgba(20,14,8,.32)'; ell(c, 2, 2, 28, 5.5); c.fill();
-    // back wall and posts
-    c.fillStyle = '#5e4632'; c.fillRect(-23, -42, 46, 40);
-    c.strokeStyle = 'rgba(20,12,8,.4)'; c.lineWidth = 0.8; for (let x=-15; x<23; x+=8){ c.beginPath(); c.moveTo(x, -42); c.lineTo(x, -2); c.stroke(); }
-    c.fillStyle = '#9a7a52'; rr(c, -24, -4, 48, 4, 1); c.fill();
-    // dry bundles: rows of four, three, two, one (a picture, not a count)
+    // back boards, blackened with coal dust
+    c.fillStyle = '#3e332c'; c.fillRect(-23, -40, 46, 38);
+    c.strokeStyle = 'rgba(10,8,6,.45)'; c.lineWidth = 0.8; for (let x=-15; x<23; x+=8){ c.beginPath(); c.moveTo(x, -40); c.lineTo(x, -2); c.stroke(); }
+    c.fillStyle = 'rgba(20,18,16,.35)'; ell(c, 0, -4, 22, 4); c.fill();
+    c.fillStyle = '#6a5440'; rr(c, -24, -4, 48, 4, 1); c.fill();
+    // sacks of coal: rows of four, three, two, one (a picture, not a count)
     const shown = n <= 0 ? 0 : Math.max(1, Math.round(clamp(n/cap, 0, 1)*10)), rows = [[-15, -5, 5, 15], [-10, 0, 10], [-5, 5], [0]];
     let k = 0;
-    rows.forEach((row, ri) => row.forEach(x => { if (k++ < shown) drawIngot(c, x*1.05, -4.5 - ri*8.6, 12); }));
-    c.fillStyle = '#5a3b26'; rr(c, -25, -44, 4.5, 44, 1.2); c.fill(); rr(c, 20.5, -44, 4.5, 44, 1.2); c.fill();
-    // the roof, slanting back, with drips along the front edge
-    c.fillStyle = '#3d332c'; c.beginPath(); c.moveTo(-30, -42); c.lineTo(30, -42); c.lineTo(26, -52); c.lineTo(-26, -52); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(15,10,8,.5)'; c.lineWidth = 0.8; for (let x=-24; x<28; x+=6){ c.beginPath(); c.moveTo(x, -42); c.lineTo(x*0.9, -52); c.stroke(); }
+    rows.forEach((row, ri) => row.forEach(x => { if (k++ < shown) drawIngot(c, x*1.05, -4.5 - ri*7.6, 11.5); }));
+    c.fillStyle = '#4a3426'; rr(c, -25, -44, 4.5, 44, 1.2); c.fill(); rr(c, 20.5, -44, 4.5, 44, 1.2); c.fill();
+    // the roof, and a slate sign hung under it
+    c.fillStyle = '#2f2a28'; c.beginPath(); c.moveTo(-30, -42); c.lineTo(30, -42); c.lineTo(26, -52); c.lineTo(-26, -52); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(10,8,8,.5)'; c.lineWidth = 0.8; for (let x=-24; x<28; x+=6){ c.beginPath(); c.moveTo(x, -42); c.lineTo(x*0.9, -52); c.stroke(); }
     c.fillStyle = 'rgba(200,215,228,.3)'; c.fillRect(-26, -51.5, 52, 0.8);
     c.fillStyle = 'rgba(205,222,236,.75)'; for (const dx of [-27, -13, 2, 16, 28]){ const ph = (S.t*0.8 + dx*0.13) % 1; ell(c, dx, -41 + ph*8, 0.6, 0.9); c.fill(); }
-    // chalk tag on the post
+    c.fillStyle = '#2a3330'; rr(c, -12, -60, 24, 9, 1.5); c.fill(); c.strokeStyle = '#7a5434'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(-8, -60); c.lineTo(-6, -52); c.moveTo(8, -60); c.lineTo(6, -52); c.stroke();
+    c.font = '700 7.5px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#efe8d8'; c.fillText('COAL', 0, -55.4);
+    // chalk count on the post
     c.fillStyle = '#734428'; rr(c, 17, -36, 20, 13, 2); c.fill(); c.fillStyle = '#2f3a34'; rr(c, 18.3, -34.7, 17.4, 10.4, 1.6); c.fill();
     const label = n + '/' + cap; let fs = 9.5; c.font = '700 ' + fs + 'px Caveat, cursive'; const lw = c.measureText(label).width; if (lw > 15) fs = fs*15/lw;
     chalk(c, label, 27, -29.3, fs, n >= cap ? '#ffb38a' : '#efe8d8');
@@ -1117,94 +1128,84 @@ LOTS.hollow = H => {
   }
 
   function drawPlant(){
-    const { HOPPER, PLANT_VENT, R, RACK, RACK_CAP, S, STN, bubbles, chalk, clamp, ctx, drawPlot, ease, ell, hopperCap, metalPerIngot, mulberry, parts, plantRt, plantShown, rand, reduceMotion, rr, simMode, stoker, wind } = H;
-    // RAINY HOLLOW: the drying shed (this place's smelting plant): an open-fronted timber barn with a mossy shingle roof,
-    // three iron stoves with racks of logs steaming above them (a robot works at each), a stone chimney, the wet wood
-    // stack under a tarp on the left and the shelf of dry bundles on the right
+    const { HOPPER, PLANT_VENT, R, RACK, RACK_CAP, S, STN, bubbles, chalk, clamp, ctx, drawPlot, ease, ell, flameAt, hopperCap, metalPerIngot, mulberry, parts, plantRt, plantShown, rand, reduceMotion, rr, simMode, stoker, wind } = H;
+    // V17 (RAINY HOLLOW): the charcoal kiln (this place's smelting plant): three brick beehive kilns in a row on a brick
+    // apron, each with an arched iron door a robot loads and tends, a tall chimney behind, the log stack under a plank roof
+    // on the left and a shelf of coal sacks on the right. Smoke curls off the domes while they burn.
     if (!plantShown()) return;
-    const c = ctx;
+    const c = ctx, t = S.t;
     c.save(); c.translate(PLANT.x, PLANT.y);
-    if (!S.plant.built){ drawPlot(c, 150, 46, 'drying shed', plantRt.shownT); c.restore(); return; }
+    if (!S.plant.built){ drawPlot(c, 150, 46, 'charcoal kiln', plantRt.shownT); c.restore(); return; }
     const grow = clamp((S.t - plantRt.builtT)/1.5, 0, 1); if (grow < 1) c.scale(1, ease(grow));
     const busy = [0, 1, 2].map(i => { const ri = STN.smelt[i]; return ri != null && R[ri] && R[ri].st === 'smelt'; });
-    const any = busy.some(b => b), t = S.t, st2 = stoker();
+    const any = busy.some(b => b), st2 = stoker();
     c.lineCap = 'round';
-    c.fillStyle = 'rgba(20,14,8,.36)'; ell(c, 6, 3, 108, 13); c.fill();
-    // a flagstone floor in front
-    c.fillStyle = '#5e5850'; rr(c, -72, -6, 144, 10, 3); c.fill();
-    c.strokeStyle = 'rgba(25,20,16,.5)'; c.lineWidth = 0.8; for (let x=-64; x<72; x+=13){ c.beginPath(); c.moveTo(x, -6); c.lineTo(x - 2, 4); c.stroke(); }
-    // stone chimney behind the roof
-    { const cx = 34, ctop = -138; c.fillStyle = '#6a645c'; c.fillRect(cx - 8, ctop, 16, 60); const r2 = mulberry(31); for (let y=ctop; y<-80; y+=5) for (let x=cx - 8 + ((y/5) % 2 ? 0 : 4); x<cx + 8; x+=8){ c.fillStyle = r2() < .5 ? '#7d776e' : '#5a554e'; rr(c, x + 0.4, y + 0.4, 7.2, 4.2, 1); c.fill(); } c.fillStyle = '#4a4540'; c.fillRect(cx - 10, ctop - 4, 20, 5); c.fillStyle = '#231a16'; ell(c, cx, ctop - 4, 7, 1.6); c.fill(); }
-    // back wall (dark inside) with warm light around the stoves
-    c.fillStyle = '#2a1e16'; c.fillRect(-64, -74, 128, 70);
-    const ig = c.createRadialGradient(0, -20, 6, 0, -24, 90); ig.addColorStop(0, 'rgba(255,160,70,' + (any ? 0.32 : 0.14) + ')'); ig.addColorStop(1, 'rgba(255,160,70,0)'); c.fillStyle = ig; c.fillRect(-64, -74, 128, 70);
-    c.strokeStyle = 'rgba(70,50,36,.6)'; c.lineWidth = 1; for (let x=-58; x<64; x+=9){ c.beginPath(); c.moveTo(x, -74); c.lineTo(x, -4); c.stroke(); }
-    // three stoves, each with a rack of logs steaming over it
+    c.fillStyle = 'rgba(20,14,8,.36)'; ell(c, 4, 3, 104, 12); c.fill();
+    // the brick apron in front
+    c.fillStyle = '#6a4a3a'; rr(c, -70, -6, 140, 10, 3); c.fill();
+    c.strokeStyle = 'rgba(30,18,12,.5)'; c.lineWidth = 0.7; for (let x=-66; x<70; x+=8){ c.beginPath(); c.moveTo(x, -6); c.lineTo(x - 1.5, 4); c.stroke(); } c.beginPath(); c.moveTo(-70, -1); c.lineTo(70, -1); c.stroke();
+    // the chimney behind, sooty at the top
+    { const cx = 0, ctop = -150; c.fillStyle = '#7a4a36'; c.fillRect(cx - 9, ctop, 18, 100); const r2 = mulberry(41);
+      for (let y=ctop; y<-52; y+=5) for (let x=cx - 9 + ((y/5) % 2 ? 0 : 4.5); x<cx + 9; x+=9){ c.fillStyle = r2() < .5 ? '#8a5640' : '#6e4232'; rr(c, x + 0.4, y + 0.4, 8.2, 4.2, 0.8); c.fill(); }
+      const sg = c.createLinearGradient(0, ctop, 0, ctop + 30); sg.addColorStop(0, 'rgba(20,16,14,.85)'); sg.addColorStop(1, 'rgba(20,16,14,0)'); c.fillStyle = sg; c.fillRect(cx - 9, ctop, 18, 30);
+      c.fillStyle = '#3a2a24'; c.fillRect(cx - 11, ctop - 4, 22, 5); c.fillStyle = '#1a1210'; ell(c, cx, ctop - 4, 8, 1.8); c.fill(); }
+    // three brick domes, side by side
     for (let i=0;i<3;i++){
-      const dx = (i - 1)*40, on = busy[i], fl = on ? (st2 ? 0.92 : 0.75) + (st2 ? 0.08 : 0.22)*Math.sin(t*13 + i*2) : 0.22 + 0.05*Math.sin(t*2 + i);
-      // the rack: two rails and a row of logs
-      c.strokeStyle = '#5a3b26'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(dx - 15, -56); c.lineTo(dx - 15, -36); c.moveTo(dx + 15, -56); c.lineTo(dx + 15, -36); c.stroke();
-      c.strokeStyle = '#7a5236'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(dx - 17, -50); c.lineTo(dx + 17, -50); c.stroke();
-      for (let k=0;k<4;k++){ const lx = dx - 10.5 + k*7; c.fillStyle = on ? '#8a6642' : '#4e3a28'; ell(c, lx, -53, 3.2, 3.2); c.fill(); c.strokeStyle = 'rgba(60,40,24,.8)'; c.lineWidth = 0.5; ell(c, lx, -53, 1.6, 1.6); c.stroke(); }
-      // the stove: a squat iron box on legs with a pipe, its door glowing while someone works
-      c.fillStyle = '#26221f'; rr(c, dx - 13, -32, 26, 24, 3); c.fill();
-      c.fillStyle = '#3a3532'; rr(c, dx - 13, -32, 26, 4, 2); c.fill();
-      c.fillStyle = '#1a1714'; c.fillRect(dx - 11, -8, 3, 5); c.fillRect(dx + 8, -8, 3, 5);
-      c.strokeStyle = '#2f2a26'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(dx + 6, -32); c.lineTo(dx + 6, -38); c.stroke();
-      const fg = c.createRadialGradient(dx, -18, 1, dx, -18, 10); fg.addColorStop(0, 'rgba(255,236,160,' + fl + ')'); fg.addColorStop(0.5, 'rgba(255,140,40,' + fl*0.9 + ')'); fg.addColorStop(1, 'rgba(120,30,10,' + fl*0.6 + ')');
-      c.fillStyle = fg; rr(c, dx - 8, -25, 16, 11, 2.5); c.fill();
-      c.strokeStyle = '#141110'; c.lineWidth = 0.9; for (const gx of [-4, 0, 4]){ c.beginPath(); c.moveTo(dx + gx, -25); c.lineTo(dx + gx, -14); c.stroke(); }
-      c.fillStyle = '#c9a24a'; ell(c, dx + 9.5, -19.5, 0.9, 0.9); c.fill();
+      const dx = (i - 1)*40, on = busy[i], fl = on ? (st2 ? 0.95 : 0.78) + (st2 ? 0.05 : 0.2)*Math.sin(t*12 + i*2) : 0.16 + 0.05*Math.sin(t*2 + i);
+      const dome = () => { c.beginPath(); c.moveTo(dx - 22, -4); c.bezierCurveTo(dx - 24, -38, dx - 12, -54, dx, -54); c.bezierCurveTo(dx + 12, -54, dx + 24, -38, dx + 22, -4); c.closePath(); };
+      dome(); const dg = c.createLinearGradient(dx - 22, 0, dx + 22, 0); dg.addColorStop(0, '#a8644a'); dg.addColorStop(0.5, '#8e5240'); dg.addColorStop(1, '#5e3428'); c.fillStyle = dg; c.fill();
+      c.save(); dome(); c.clip(); const r3 = mulberry(70 + i);
+      c.strokeStyle = 'rgba(40,20,14,.45)'; c.lineWidth = 0.6;
+      for (let row=0, y=-50; y<-2; y+=4.2, row++){ c.beginPath(); c.moveTo(dx - 26, y); c.lineTo(dx + 26, y); c.stroke(); const off = row % 2 ? 0 : 3.5; for (let x=dx - 24 + off; x<dx + 24; x+=7){ c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + 4.2); c.stroke(); } }
+      for (let k=0;k<10;k++){ c.fillStyle = r3() < 0.5 ? 'rgba(30,20,16,.25)' : 'rgba(255,200,160,.08)'; ell(c, dx + (r3() - 0.5)*36, -8 - r3()*40, 2 + r3()*3, 1.4 + r3()*1.6); c.fill(); }
+      // soot above the door, and a warm glow through the bricks while it burns
+      const so = c.createRadialGradient(dx, -24, 2, dx, -30, 20); so.addColorStop(0, 'rgba(20,14,12,' + (0.35 + 0.25*fl) + ')'); so.addColorStop(1, 'rgba(20,14,12,0)'); c.fillStyle = so; c.fillRect(dx - 24, -56, 48, 52);
+      if (on){ const gw = c.createRadialGradient(dx, -16, 2, dx, -16, 26); gw.addColorStop(0, 'rgba(255,140,50,' + 0.22*fl + ')'); gw.addColorStop(1, 'rgba(255,140,50,0)'); c.fillStyle = gw; c.fillRect(dx - 24, -50, 48, 46); }
+      c.restore();
+      // the vent at the top, and the arched iron door
+      c.fillStyle = '#4a2c22'; rr(c, dx - 4, -57, 8, 4, 1); c.fill();
+      c.fillStyle = '#26201d'; c.beginPath(); c.moveTo(dx - 9, -4); c.lineTo(dx - 9, -18); c.quadraticCurveTo(dx, -28, dx + 9, -18); c.lineTo(dx + 9, -4); c.closePath(); c.fill();
+      const fg = c.createRadialGradient(dx, -10, 1, dx, -10, 10); fg.addColorStop(0, 'rgba(255,236,160,' + fl + ')'); fg.addColorStop(0.5, 'rgba(255,130,40,' + fl*0.9 + ')'); fg.addColorStop(1, 'rgba(110,26,10,' + fl*0.6 + ')');
+      c.fillStyle = fg; c.beginPath(); c.moveTo(dx - 6.5, -5.5); c.lineTo(dx - 6.5, -16.5); c.quadraticCurveTo(dx, -24, dx + 6.5, -16.5); c.lineTo(dx + 6.5, -5.5); c.closePath(); c.fill();
+      c.strokeStyle = '#141110'; c.lineWidth = 0.9; for (const gx of [-3, 0, 3]){ c.beginPath(); c.moveTo(dx + gx, -6); c.lineTo(dx + gx, gx ? -18 : -20); c.stroke(); }
+      c.strokeStyle = '#3a3532'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(dx - 9, -4); c.lineTo(dx - 9, -18); c.quadraticCurveTo(dx, -28, dx + 9, -18); c.lineTo(dx + 9, -4); c.stroke();
+      c.fillStyle = '#c9a24a'; ell(c, dx + 7, -11, 0.9, 0.9); c.fill();
       if (on){ c.fillStyle = 'rgba(255,170,70,.16)'; ell(c, dx, 0, 16, 4); c.fill(); }
     }
-    // posts between the bays and the front beam
-    c.fillStyle = '#5a3b26'; for (const px of [-66, -20.5, 19.5, 62]){ rr(c, px, -78, 5, 76, 1.2); c.fill(); }
-    c.fillStyle = '#6e4a30'; rr(c, -70, -80, 140, 6, 1.5); c.fill();
-    c.fillStyle = 'rgba(210,222,232,.18)'; c.fillRect(-68, -79.5, 136, 1);
-    // the shingle roof: rows of mossy wooden shingles with a ridge, overhanging the front
-    for (let row=0; row<6; row++){
-      const y = -80 - row*6.2, half = 78 - row*10.5;
-      c.fillStyle = row % 2 ? '#4a3d33' : '#54463a'; c.beginPath(); c.moveTo(-half, y + 2); c.lineTo(half, y + 2); c.lineTo(half - 9, y - 6); c.lineTo(-half + 9, y - 6); c.closePath(); c.fill();
-      c.strokeStyle = 'rgba(15,10,8,.45)'; c.lineWidth = 0.7; for (let x=-half + 4 + (row % 2)*3; x<half - 2; x+=7){ c.beginPath(); c.moveTo(x, y + 2); c.lineTo(x, y - 4); c.stroke(); }
-    }
-    c.fillStyle = '#3a2f27'; rr(c, -18, -118, 36, 4, 1.5); c.fill();
-    { const r3 = mulberry(57); c.fillStyle = '#56702a'; for (let k=0;k<16;k++){ ell(c, (r3() - 0.5)*130*(1 - r3()*0.3), -84 - r3()*30, 2 + r3()*4, 1 + r3()*1.2); c.fill(); } }
-    c.fillStyle = 'rgba(200,215,228,.25)'; c.fillRect(-60, -113, 120, 0.8);
-    // drips off the front of the roof
-    c.fillStyle = 'rgba(205,222,236,.8)'; for (let k=0;k<11;k++){ const dx = -76 + k*15.2, ph = (t*0.85 + k*0.29) % 1; ell(c, dx, -78 + ph*16, 0.8, 1.1); c.fill(); }
-    // the bellows intake: a small iron grate in the floor, glowing when a blower works it
+    // drips off the domes
+    c.fillStyle = 'rgba(205,222,236,.7)'; for (let k=0;k<6;k++){ const dx = -58 + k*23, ph = (t*0.85 + k*0.29) % 1; ell(c, dx, -30 + ph*24, 0.7, 1); c.fill(); }
+    // the bellows intake: a small iron grate in the apron, glowing when a blower works it
     { const vx = PLANT_VENT.x - PLANT.x, vy = PLANT_VENT.y - PLANT.y, gl = st2 ? 0.55 + 0.25*Math.sin(t*14) : 0.12;
       c.fillStyle = '#3a3532'; ell(c, vx, vy, 7, 2.8); c.fill(); c.fillStyle = 'rgba(255,150,50,' + gl + ')'; ell(c, vx, vy, 5.6, 2.1); c.fill();
       c.strokeStyle = '#1a1714'; c.lineWidth = 0.9; for (const gx of [-3, 0, 3]){ c.beginPath(); c.moveTo(vx + gx, vy - 1.8); c.lineTo(vx + gx, vy + 1.8); c.stroke(); } }
-    // the wet wood stack on the left, under a green tarp
+    // the log stack on the left, under a little plank roof
     c.save(); c.translate(HOPPER.x - PLANT.x, HOPPER.y - PLANT.y);
     c.fillStyle = '#4a3426'; c.fillRect(-15, -40, 3, 40); c.fillRect(12, -40, 3, 40);
     c.fillStyle = '#2a1e16'; c.fillRect(-14, -36, 28, 36);
-    { const f = clamp(S.plant.ore/hopperCap(), 0, 1), n = Math.ceil(f*12), rnd = mulberry(23); for (let i=0;i<n;i++){ const row = Math.floor(i/3), k = i % 3; nugget(c, -8 + k*8 + (row % 2)*2, -4 - row*6.2, 4.6, (rnd() - 0.5)*0.2); } }
-    c.fillStyle = '#3f6a4a'; c.beginPath(); c.moveTo(-20, -38); c.quadraticCurveTo(0, -46, 20, -38); c.lineTo(17, -34); c.quadraticCurveTo(0, -40, -17, -34); c.closePath(); c.fill();
-    c.fillStyle = 'rgba(210,228,236,.3)'; c.fillRect(-14, -42.5, 28, 0.8);
+    { const f = clamp(S.plant.ore/hopperCap(), 0, 1), n = Math.ceil(f*12); for (let i=0;i<n;i++){ const row = Math.floor(i/3), k = i % 3; logEnd(c, -8 + k*8 + (row % 2)*2, -4 - row*6.2, 3.2, false); } }
+    c.fillStyle = '#3d332c'; c.beginPath(); c.moveTo(-20, -38); c.lineTo(20, -38); c.lineTo(17, -46); c.lineTo(-17, -46); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(210,228,236,.3)'; c.fillRect(-14, -45.5, 28, 0.8);
     c.fillStyle = '#2f3a34'; rr(c, -11, -34, 22, 10, 2); c.fill();
     chalk(c, Math.floor(S.plant.ore) + '/' + hopperCap(), 0, -28.8, 9, S.plant.ore >= hopperCap() ? '#ffb38a' : '#efe8d8');
     c.restore();
-    // the shelf of fresh dry bundles on the right, under the roof's end
+    // the shelf of coal sacks on the right
     c.save(); c.translate(RACK.x - PLANT.x, RACK.y - PLANT.y);
     c.fillStyle = '#4a3426'; c.fillRect(-15, -40, 3, 40); c.fillRect(12, -40, 3, 40);
-    c.fillStyle = '#8a6040'; rr(c, -16, -19, 32, 3, 1); c.fill(); rr(c, -16, -37, 32, 3, 1); c.fill();
-    const nr = Math.min(S.plant.rack, RACK_CAP);
+    c.fillStyle = '#6a4a30'; rr(c, -16, -19, 32, 3, 1); c.fill(); rr(c, -16, -37, 32, 3, 1); c.fill();
+    const nr = Math.min(8, Math.ceil(S.plant.rack/RACK_CAP*8));
     for (let i=0;i<nr;i++){ const shelf = i < 4 ? 0 : 1, k = i % 4; drawIngot(c, -9 + k*6, shelf ? -37 : -19, 7, 0); }
-    c.fillStyle = '#3d332c'; c.beginPath(); c.moveTo(-20, -40); c.lineTo(20, -40); c.lineTo(17, -46); c.lineTo(-17, -46); c.closePath(); c.fill();
+    c.fillStyle = '#2f2a28'; c.beginPath(); c.moveTo(-20, -40); c.lineTo(20, -40); c.lineTo(17, -46); c.lineTo(-17, -46); c.closePath(); c.fill();
     if (plantRt.bump > 0){ c.fillStyle = 'rgba(255,200,120,' + plantRt.bump + ')'; ell(c, 0, -26, 18, 10); c.fill(); }
     c.restore();
     c.restore();
-    // smoke from the chimney and steam off the drying racks while the shed works
+    // smoke off the busy domes' vents and the chimney
     if (!simMode && grow >= 1){
-      const k = any ? 1 : 0.2;
-      if (Math.random() < 0.06*k*(reduceMotion ? 0.3 : 1)) parts.push({ k:'smoke', x: PLANT.x + 34 + rand(-2, 2), y: PLANT.y - 144, vx: rand(-4, 4) + wind*0.25, vy: rand(-22, -14), g: 0, life: rand(2.2, 3.4), t: 0, r: rand(4, 6) });
-      for (let i=0;i<3;i++) if (busy[i] && Math.random() < 0.08) parts.push({ k:'dust', x: PLANT.x + (i - 1)*40 + rand(-10, 10), y: PLANT.y - 58, vx: rand(-4, 4), vy: rand(-18, -10), g: 0, life: rand(0.8, 1.3), t: 0, r: rand(2, 3.5), gray: true });
+      if (Math.random() < 0.05*(any ? 1 : 0.25)*(reduceMotion ? 0.3 : 1)) parts.push({ k:'smoke', x: PLANT.x + rand(-2, 2), y: PLANT.y - 156, vx: rand(-4, 4) + wind*0.25, vy: rand(-22, -14), g: 0, life: rand(2.2, 3.4), t: 0, r: rand(4, 6) });
+      for (let i=0;i<3;i++) if (busy[i] && Math.random() < 0.07) parts.push({ k:'smoke', x: PLANT.x + (i - 1)*40 + rand(-2, 2), y: PLANT.y - 58, vx: rand(-3, 3) + wind*0.2, vy: rand(-18, -10), g: 0, life: rand(1.4, 2.2), t: 0, r: rand(2.5, 4) });
     }
     if (grow >= 1){
       if (S.plant.rack >= RACK_CAP) bubbles.push({ x: RACK.x, y: RACK.y - 56, t: 'shelf full' });
-      else if (S.plant.ore < metalPerIngot() - 1e-9 && STN.smelt.some(v => v != null) && !S.binMetal && !R.some(r => r.st === 'toBin' && r.at === 'metal')) bubbles.push({ x: HOPPER.x, y: HOPPER.y - 60, t: 'needs wet wood' });
+      else if (S.plant.ore < metalPerIngot() - 1e-9 && STN.smelt.some(v => v != null) && !S.binMetal && !R.some(r => r.st === 'toBin' && r.at === 'metal')) bubbles.push({ x: HOPPER.x, y: HOPPER.y - 60, t: 'needs logs' });
     }
   }
 
@@ -1373,25 +1374,32 @@ LOTS.hollow = H => {
     const A = f(p), B = f(q); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v)*k)).join(',') + ')'; };
   const DRY_COL = ['#e2a24a', '#d9822e', '#e8b85c', '#c97a34', '#d6a050', '#b8742e', '#edc77a'];
   function drawBagger(){
-    const { BAGGER, S, TAU, clamp, ctx: c, dryTrays, ell, leafBlob, mulberry, parts, rand, rr, simMode, wind } = H;
-    const t = S.t, trays = dryTrays(), on = trays.some(p => p >= 0);
+    const { BAGGER, S, TAU, benchLit, clamp, ctx: c, dryTrays, ell, flameAt, leafBlob, mulberry, parts, rand, rr, simMode, wind } = H;
+    const t = S.t, trays = dryTrays(), lit = benchLit(), on = trays.some(p => p >= 0) || lit;   // (V17: lit: logs burning in the stove)
     c.save(); c.translate(BAGGER.x, BAGGER.y);
     c.fillStyle = 'rgba(20,14,8,.34)'; ell(c, 2, 2, 36, 6.5); c.fill();
     // the stove pipe up the back left, smoking while anyone is drying
     c.fillStyle = '#2b2522'; rr(c, -27, -66, 5, 44, 1.5); c.fill(); c.fillStyle = '#4a423b'; c.fillRect(-26, -66, 1.2, 44);
     c.fillStyle = '#1f1a17'; rr(c, -28.5, -69, 8, 4, 1); c.fill();
-    if (on && !simMode && Math.random() < 0.08) parts.push({ k:'smoke', x: BAGGER.x - 24.5 + rand(-1, 1), y: BAGGER.y - 70, vx: rand(-3, 3) + wind*0.25, vy: rand(-16, -9), g: 0, life: rand(1.4, 2.2), t: 0, r: rand(2.5, 4) });
+    if (on && !simMode && Math.random() < (lit ? 0.14 : 0.08)) parts.push({ k:'smoke', x: BAGGER.x - 24.5 + rand(-1, 1), y: BAGGER.y - 70, vx: rand(-3, 3) + wind*0.25, vy: rand(-16, -9), g: 0, life: rand(1.4, 2.2), t: 0, r: rand(2.5, 4) });
     // legs and a lower shelf with folded paper sacks
     c.fillStyle = '#4e3524'; for (const lx of [-29, 25]){ rr(c, lx, -24, 4, 24, 1); c.fill(); }
     c.fillStyle = '#6a4a30'; rr(c, -28, -8, 56, 3, 1); c.fill();
     for (let i=0;i<3;i++){ c.fillStyle = i % 2 ? '#b98a56' : '#caa06a'; rr(c, 7 + i*1.1, -11 - i*1.5, 15, 1.8, 0.5); c.fill(); }
+    // V17: logs waiting by the stove, and coal in the ash pan under it
+    if (S.bench && S.bench.fire){
+      for (let i=0;i<Math.min(S.bench.logs, 3);i++){ const lx = -20 + (i % 2)*5, ly = -2 - Math.floor(i/2)*4.2; c.fillStyle = '#56402c'; rr(c, lx - 5, ly - 3.6, 9, 3.8, 1.8); c.fill(); logEnd(c, lx + 4, ly - 1.7, 2, false); }
+      c.fillStyle = '#2a2420'; rr(c, -12, -6.5, 20, 3, 1); c.fill();
+      for (let i=0;i<Math.min(S.bench.coal, 6);i++){ c.fillStyle = i % 2 ? '#1a1716' : '#2a2624'; ell(c, -9 + i*3, -6.8 - (i % 2)*0.6, 1.7, 1.2); c.fill(); }
+    }
     // the little iron stove under the middle: a warm glow through its grate
-    const fl = on ? 0.65 + 0.35*Math.sin(t*9) * Math.sin(t*3.3) : 0.25;
+    const fl = lit ? 0.85 + 0.15*Math.sin(t*11) : on ? 0.65 + 0.35*Math.sin(t*9) * Math.sin(t*3.3) : 0.25;
     c.fillStyle = '#2f2a26'; rr(c, -11, -21, 18, 15, 2); c.fill();
     c.fillStyle = '#4a423b'; c.fillRect(-11, -21, 18, 2.2);
     c.fillStyle = 'rgba(255,' + Math.round(140 + 50*fl) + ',60,' + (0.35 + 0.55*fl) + ')'; rr(c, -7.5, -16, 11, 6, 1.2); c.fill();
     c.strokeStyle = '#1f1a17'; c.lineWidth = 0.8; for (let k=0;k<4;k++){ c.beginPath(); c.moveTo(-6 + k*2.8, -16); c.lineTo(-6 + k*2.8, -10); c.stroke(); }
     if (on){ c.fillStyle = 'rgba(255,160,70,' + (0.12*fl) + ')'; ell(c, -2, -13, 14, 8); c.fill(); }
+    if (lit){ c.fillStyle = 'rgba(255,170,70,.22)'; ell(c, -2, -10, 22, 9); c.fill(); for (const [dx, k] of [[-5, 0.8], [-1, 1], [3, 0.7]]) flameAt(c, dx, -16, 2.2*k, t, 40 + dx); }
     // the bench top: a wooden frame round a wire-mesh tray, seen a little from above
     c.fillStyle = '#7a5434'; rr(c, -32, -27, 64, 5, 1.5); c.fill();
     c.fillStyle = 'rgba(255,230,190,.16)'; c.fillRect(-30, -26.6, 60, 1);
@@ -1453,7 +1461,9 @@ LOTS.hollow = H => {
   // ── what you call things here (game.js runs card text, pops, toasts, tips and bubbles through these; code names still
   // say metal, ingot, hive, bee). Earlier entries win over later ones at the same spot, so the specific ones come first.
   const PHRASES = [
-    // the metal side: wet wood, sawn at wood piles, dried into bundles in the drying shed
+    // the metal side: logs, sawn at wood piles; V17: burnt to coal in the charcoal kiln (the smelting plant's place) and
+    // sold at the coal stand by the road (the ingot pallet's). (Was the drying shed and dry bundles; and V17: the logs
+    // aren't called wet logs any more, just logs.)
     // V15: the bagging table is a drying bench, and what it makes are sacks of dry leaves
     ['[Bb]agging table', m => m[0] === 'B' ? 'Drying bench' : 'drying bench'], ['Better bags', 'Better sacks'], ['Bag leaves', 'Dry leaves'], ['Baggers', 'Dryers'], ['Bagging', 'Drying'],
     ['Room for bags, on a shelf of their own', 'Room for sacks of dry leaves, on a shelf of their own'], ['\\bbags\\b', 'sacks'], ['\\bbag\\b', 'sack'], ['\\bBags\\b', 'Sacks'], ['\\bBag\\b', 'Sack'],
@@ -1461,37 +1471,38 @@ LOTS.hollow = H => {
     ['[Mm]etal tub', m => m[0] === 'M' ? 'Log crib' : 'log crib'], ['metal full', 'crib full'], ['\\btub\\b', 'crib'], ['\\bTub\\b', 'Crib'],
     ['double-metal chance on top of its magnet', 'chance to split a log on top of its wedge'], ['no double metal', 'no splitting'],
     ['a better chance of double metal', 'a better chance a log splits in two'], ['72% double metal', '72% split logs'], ['Chance of double metal', 'Chance a log splits in two'], ['Chance a chunk of metal comes out as two', 'Chance a log splits into two'], ['double metal', 'split in two'],
-    ['Seconds for a chunk of metal', 'Seconds for a log of wet wood'], ['a chunk of metal', 'a wet log'], ['[Cc]hunk of metal', m => m[0] === 'C' ? 'Wet log' : 'wet log'],
+    ['Seconds for a chunk of metal', 'Seconds for a log'], ['a chunk of metal', 'a log'], ['[Cc]hunk of metal', m => m[0] === 'C' ? 'Log' : 'log'],
     ['\\bchunks\\b', 'logs'], ['\\bchunk\\b', 'log'],
     ['Hand drill', 'Hand saw'], ['Diamond drill bit', 'Crosscut saw'], ['Diamond bit', 'Crosscut saw'], ['\\bdrills\\b', 'saws'], ['\\bdrill\\b', 'saw'], ['\\bDrill\\b', 'Saw'],
     ['Fridge magnet', 'Wooden wedge'], ['Horseshoe magnet', 'Steel wedge'], ['Electromagnet', 'Splitting maul'], ['\\bMagnet\\b', 'Wedge'], ['\\bmagnet\\b', 'wedge'],
     ['Lucky horseshoe', 'Lucky axe'], ['Cutting oil', 'Chain oil'],
-    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will dry wood and haul it'], ['Extra ingots from the same metal', 'Extra bundles from the offcuts'], ['haul the ingots to the road', 'haul the dry wood to the road, through the rain'], [' metal into an ingot', ' wet logs into a dry bundle'], ['\\(ingots are worth', '(a dry bundle is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Pile dryer'], ['Excavating', 'Pile drying'], ['excavating upgrades for blowers at a mine shaft', 'pile-drying upgrades for blowers at a wood shelter'],
+    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Pile dryer'], ['Excavating', 'Pile drying'], ['excavating upgrades for blowers at a mine shaft', 'pile-drying upgrades for blowers at a wood shelter'],
     ['excavate a shaft', 'dry the pile'], ['excavate here', 'dry the pile here'], ['\\bExcavate\\b', 'Dry piles'], ['\\bexcavate\\b', 'dry piles'],
     ['Dirt hose', 'Warm-air hose'], ['Grit cyclone', 'Heat blower'],
     ['A deeper, richer vein: chunks come', 'A roof over the pile keeps the wood drier: logs come'],
     ['Dig a shaft', 'Build a shelter'], ['\\bDig\\b', 'Dry pile'], ['Mine shaft dug!', 'Wood shelter built!'], ['You’ve dug one before', 'You’ve built one before'],
     ['[Mm]ine shafts', m => m[0] === 'M' ? 'Wood shelters' : 'wood shelters'], ['[Mm]ine shaft', m => m[0] === 'M' ? 'Wood shelter' : 'wood shelter'],
     ['\\bshafts\\b', 'shelters'], ['\\bshaft\\b', 'shelter'],
-    ['Mine metal', 'Saw wet wood'], ['To the mine', 'To the pile'], ['heads over to mine', 'heads over to saw'], ['at a mine\\b', 'at a saw'],
+    ['Mine metal', 'Saw logs'], ['To the mine', 'To the pile'], ['heads over to mine', 'heads over to saw'], ['at a mine\\b', 'at a saw'],
     ['Build a miner', 'Set up a saw'], ['build a miner on the rocks', 'set up a saw at the wood pile'], ['build miners on the rocks', 'set up saws at the wood piles'],
     ['on the rocks', 'at the wood pile'], ['\\bMiners\\b', 'Saw stations'], ['\\bMiner\\b', 'Saw station'], ['\\bminers\\b', 'saws'], ['\\bminer\\b', 'saw'],
     ['\\bMining\\b', 'Sawing'], ['\\bmining\\b', 'sawing'], ['\\bMine\\b', 'Saw'], ['\\bmine\\b', 'saw'],
     ['Richer veins give chunks faster', 'Bigger piles give logs faster'], ['thin vein', 'small pile'], ['rich vein', 'huge pile'], ['good vein', 'big pile'], ['fair vein', 'fair pile'],
-    ['[Mm]etal veins?', m => (m[0] === 'M' ? 'Wood pile' : 'wet wood pile') + (m.endsWith('s') ? 's' : '')], ['\\bveins\\b', 'piles'], ['\\bvein\\b', 'pile'],
-    ['Smelting plant', 'Drying shed'], ['smelting plant', 'drying shed'], ['Smelt ingots', 'Dry wood'], ['\\bSmelters\\b', 'Dryers'], ['\\bsmelters\\b', 'dryers'], ['\\bsmelter\\b', 'dryer'],
-    ['\\bSmelting\\b', 'Drying'], ['\\bsmelting\\b', 'drying'], ['\\bsmelted\\b', 'dried'], ['\\bsmelts\\b', 'dries'], ['\\bSmelt\\b', 'Dry'], ['\\bsmelt\\b', 'dry'],
-    ['Robots melt ', 'Robots dry '], ['To the plant', 'To the shed'], ['at the plant', 'at the shed'], ['the plant\\b', 'the shed'],
-    ['Hotter furnace', 'Hotter stoves'], ['\\bFurnaces\\b', 'Stoves'], ['\\bfurnaces\\b', 'stoves'], ['\\bfurnace\\b', 'stove'],
-    ['Better alloy', 'Seasoned bundles'], ['the alloy', 'its seasoning'], ['Slag recovery', 'Kindling from offcuts'], ['from slag', 'from offcuts'],
-    ['Bigger ore hopper', 'Bigger wet stack'], ['[Oo]re hopper', m => m[0] === 'O' ? 'Wet stack' : 'wet stack'], ['[Hh]opper full', m => m[0] === 'H' ? 'Stack full' : 'stack full'],
-    ['(?<!Spring )\\bhopper\\b', 'wet stack'], ['To the hopper', 'To the wet stack'],
-    ['Ore in the hopper', 'Wet wood in the stack'], ['needs ore', 'needs wet wood'], ['\\bore\\b', 'wet wood'], ['\\bOre\\b', 'Wet wood'],
-    ['Room on the ingot pallet', 'Room in the woodshed by the road'], ['ingot pallet', 'woodshed by the road'], ['[Pp]allet full', m => m[0] === 'P' ? 'Woodshed full' : 'woodshed full'], ['on the pallet', 'in the woodshed'], ['\\bpallet\\b', 'woodshed'],
-    ['Ingots on the rack', 'Dry bundles on the shelf'], ['rack full', 'shelf full'], ['\\brack\\b', 'shelf'],
-    ['Haul ingots', 'Haul dry wood'], ['Fetching ingots', 'Fetching dry wood'], ['\\bAn ingot\\b', 'A dry bundle'], ['\\ban ingot\\b', 'a dry bundle'],
-    ['\\bIngots\\b', 'Dry bundles'], ['\\bingots\\b', 'dry bundles'], ['\\bingot\\b', 'dry bundle'], ['\\bIngot\\b', 'Dry bundle'],
-    ['\\bmetal\\b', 'wet wood'], ['\\bMetal\\b', 'Wet wood'],
+    ['[Mm]etal veins?', m => (m[0] === 'M' ? 'Wood pile' : 'wood pile') + (m.endsWith('s') ? 's' : '')], ['\\bveins\\b', 'piles'], ['\\bvein\\b', 'pile'],
+    // V17: the charcoal kiln and the coal stand
+    ['Smelting plant', 'Charcoal kiln'], ['smelting plant', 'charcoal kiln'], ['Smelt ingots', 'Burn charcoal'], ['\\bSmelters\\b', 'Burners'], ['\\bsmelters\\b', 'burners'], ['\\bsmelter\\b', 'burner'],
+    ['\\bSmelting\\b', 'Burning'], ['\\bsmelting\\b', 'burning'], ['\\bsmelted\\b', 'burnt'], ['\\bsmelts\\b', 'burns'], ['\\bSmelt\\b', 'Burn'], ['\\bsmelt\\b', 'burn'],
+    ['Robots melt ', 'Robots burn '], ['To the plant', 'To the kiln'], ['at the plant', 'at the kiln'], ['the plant\\b', 'the kiln'], ['To a furnace', 'To the kiln'],
+    ['Hotter furnace', 'Hotter kiln'], ['\\bFurnaces\\b', 'Kiln doors'], ['\\bfurnaces\\b', 'kiln doors'], ['\\bfurnace\\b', 'kiln'],
+    ['Better alloy', 'Briquettes'], ['the alloy', 'the briquettes'], ['Slag recovery', 'Tight stacking'], ['from slag', 'from tight stacking'],
+    ['Bigger ore hopper', 'Bigger log stack'], ['[Oo]re hopper', m => m[0] === 'O' ? 'Log stack' : 'log stack'], ['[Hh]opper full', m => m[0] === 'H' ? 'Stack full' : 'stack full'],
+    ['(?<!Spring )\\bhopper\\b', 'log stack'], ['To the hopper', 'To the log stack'],
+    ['Ore in the hopper', 'Logs in the stack'], ['needs ore', 'needs logs'], ['Fetching ore', 'Fetching logs'], ['\\bore\\b', 'logs'], ['\\bOre\\b', 'Logs'],
+    ['Room on the ingot pallet', 'Room at the coal stand by the road'], ['ingot pallet', 'coal stand by the road'], ['[Pp]allet full', m => m[0] === 'P' ? 'Coal stand full' : 'coal stand full'], ['on the pallet', 'at the coal stand'], ['\\bpallet\\b', 'coal stand'],
+    ['Ingots on the rack', 'Coal on the shelf'], ['rack full', 'shelf full'], ['\\brack\\b', 'shelf'],
+    ['Haul ingots', 'Haul coal'], ['Fetching ingots', 'Fetching coal'], ['An ingot sells for', 'Coal sells for'], ['\\bAn ingot\\b', 'A lump of coal'], ['\\ban ingot\\b', 'a lump of coal'],
+    ['\\bIngots\\b', 'Coal'], ['\\bingots\\b', 'coal'], ['\\bingot\\b', 'coal'], ['\\bIngot\\b', 'Coal'],
+    [' / metal', ' / log'], ['\\b1 metal\\b', '1 log'], ['\\bmetal\\b', 'logs'], ['\\bMetal\\b', 'Logs'],
   ];
   // V15: the honey side only once the beehive has become the ant hill (robot ants cut mushrooms, the ant hill sorts them,
   // robots can them; gift wrapping is D.O.P. certifying); game.js applies these first
@@ -1556,8 +1567,8 @@ LOTS.hollow = H => {
     press: '<path d="M-5,4.6 Q-5,.4 0,.4 Q5,.4 5,4.6Z" fill="#4a3424"/><g fill="#c24a22"><ellipse cx="-2" cy="-.8" rx="1.6" ry=".8" transform="rotate(-20 -2 -.8)"/><ellipse cx="1.8" cy="-1.6" rx="1.5" ry=".7" transform="rotate(25 1.8 -1.6)"/></g><ellipse cx="0" cy="-3.4" rx="1.4" ry=".7" fill="#d6922e"/><path d="M-4,3 H4" stroke="#6a4a30" stroke-width=".6"/>',
     twin: '<g transform="translate(-2.4,.6) scale(.62)"><path d="M-6,4 Q-5,-5 0,-5 Q5,-5 6,4Z" fill="#5a4128"/><path d="M-1.8,4 A1.8,2 0 0 1 1.8,4Z" fill="#ffb347"/></g><g transform="translate(2.6,-.4) scale(.62)"><path d="M-6,4 Q-5,-5 0,-5 Q5,-5 6,4Z" fill="#6e5236"/><path d="M-1.8,4 A1.8,2 0 0 1 1.8,4Z" fill="#ffb347"/></g>',
     ore: '<rect x="-5" y="-2.6" width="8.6" height="5.4" rx="2.6" fill="#4c3828"/><ellipse cx="3.6" cy=".1" rx="1.8" ry="2.7" fill="#9a7448"/><ellipse cx="3.6" cy=".1" rx=".8" ry="1.3" fill="none" stroke="#5a3b24" stroke-width=".5"/><ellipse cx="-2" cy="-2.2" rx="1.8" ry=".6" fill="#5d7a2e"/><path d="M-4,-1.4 H1" stroke="#cfe0ec" stroke-width=".5" opacity=".6"/>',
-    ingot: '<g fill="#c99a62"><path d="M-5,4 H-.4 L-1.2,.6 H-4.2Z"/><path d="M.4,4 H5 L4.2,.6 H1.2Z"/><path d="M-2.4,.4 H2.4 L1.6,-3 H-1.6Z"/></g><g fill="#e2bb84"><path d="M-4.4,3.4 H-1 L-1.6,1.2 H-3.8Z"/><path d="M1,3.4 H4.4 L3.8,1.2 H1.6Z"/><path d="M-1.8,-.2 H1.8 L1.2,-2.4 H-1.2Z"/></g><rect x="-.6" y="-3.6" width="1.2" height="7.8" fill="#c9b07a"/>',
-    gold: '<g fill="#c99a62"><path d="M-5,4 H-.4 L-1.2,.6 H-4.2Z"/><path d="M.4,4 H5 L4.2,.6 H1.2Z"/><path d="M-2.4,.4 H2.4 L1.6,-3 H-1.6Z"/></g><g fill="#e2bb84"><path d="M-4.4,3.4 H-1 L-1.6,1.2 H-3.8Z"/><path d="M1,3.4 H4.4 L3.8,1.2 H1.6Z"/><path d="M-1.8,-.2 H1.8 L1.2,-2.4 H-1.2Z"/></g><rect x="-.8" y="-3.6" width="1.6" height="7.8" fill="#f2c443"/><circle cy="-3.4" r=".9" fill="#c9922c"/>',
+    ingot: '<path d="M-4.4,-1.6 H4.4 L4.9,4.4 Q0,5.4 -4.9,4.4Z" fill="#9c7a4c"/><path d="M-4.4,-1.6 H.4 L.6,4.9 Q-2,5.2 -4.9,4.4Z" fill="#b48e5c"/><ellipse cy="-2" rx="4.4" ry="1.6" fill="#1a1716"/><g fill="#2a2624"><circle cx="-2.4" cy="-3" r="1.5"/><circle cx=".4" cy="-3.8" r="1.7"/><circle cx="2.6" cy="-2.8" r="1.3"/></g><circle cx="-.2" cy="-4.4" r=".5" fill="#b9c2c6" opacity=".6"/><rect x="-4.7" y="-2.4" width="9.4" height="1.2" rx=".5" fill="#86663e"/>',
+    gold: '<path d="M-4.4,-1.6 H4.4 L4.9,4.4 Q0,5.4 -4.9,4.4Z" fill="#9c7a4c"/><path d="M-4.4,-1.6 H.4 L.6,4.9 Q-2,5.2 -4.9,4.4Z" fill="#b48e5c"/><g fill="#1f1c1b"><rect x="-4" y="-4.4" width="2.6" height="2" rx=".4"/><rect x="-1.2" y="-4.6" width="2.6" height="2" rx=".4"/><rect x="1.6" y="-4.4" width="2.6" height="2" rx=".4"/></g><rect x="-4.7" y="-2.4" width="9.4" height="1.2" rx=".5" fill="#86663e"/><rect x="1.2" y=".2" width="2.8" height="2" rx=".4" fill="#e2b13a"/>',
     drill: '<path d="M-5,2 Q0,-6 5,2" stroke="#7a5236" stroke-width="1.2" fill="none"/><rect x="-5" y="1.4" width="10" height="1.4" fill="#b9c2c6"/><path d="M-4.4,2.8 L-3.8,4 L-3.2,2.8 M-2.2,2.8 L-1.6,4 L-1,2.8 M0,2.8 L.6,4 L1.2,2.8 M2.2,2.8 L2.8,4 L3.4,2.8" stroke="#6c7378" stroke-width=".6" fill="none"/>',
     magnet: '<path d="M-1.6,-5 H1.6 L.6,4.6 H-.6Z" fill="#8f979b"/><path d="M-1.6,-5 H1.6 V-3.4 H-1.6Z" fill="#c3cbd0"/><path d="M-5,4.6 H-1 M1,4.6 H5" stroke="#9a7448" stroke-width="2"/><path d="M-1,-1 L-3.6,-3 M1,-1 L3.6,-3" stroke="#e6c48a" stroke-width=".7"/>',
     dig: '<path d="M-5.2,3.6 Q0,1.4 5.2,3.6" stroke="#4c3828" stroke-width="2.4" fill="none"/><path d="M-3,0 Q-1.6,-2.4 0,-1 Q1.4,.4 2.8,-1.8 M-2,-2.6 Q-.6,-5 1,-3.6 Q2.4,-2.2 3.8,-4.4" stroke="#cfdbe4" stroke-width=".8" fill="none" stroke-linecap="round"/>',
@@ -1565,13 +1576,13 @@ LOTS.hollow = H => {
     flame: '<rect x="-4.2" y="-2.4" width="8.4" height="6.6" rx="1" fill="#2f2a26"/><rect x="-2.6" y="-.8" width="5.2" height="3.6" rx=".8" fill="#ff9b3d"/><path d="M2,-2.4 V-5" stroke="#2f2a26" stroke-width="1.4"/><circle cx="2.6" cy="-5.4" r="1" fill="#9aa4aa" opacity=".6"/>',
     haul: '<circle cx="-2.8" cy="4" r="1.2" fill="#4a423b"/><circle cx="2.8" cy="4" r="1.2" fill="#4a423b"/><path d="M-5,3 H5 L4,0 H-4Z" fill="#6e4a30"/><g fill="#e2bb84"><rect x="-3.6" y="-2.4" width="2.8" height="2.4" rx=".4"/><rect x="-.2" y="-2.4" width="2.8" height="2.4" rx=".4"/><rect x="-1.9" y="-4.6" width="2.8" height="2.4" rx=".4"/></g>',
     tub: '<path d="M-5.6,-3 H5.6 L4.6,-5 H-4.6Z" fill="#4a3a30"/><rect x="-4.6" y="-3" width="9.2" height="8" fill="#2a1f17"/><g fill="#8a6642"><circle cx="-2.4" cy="3" r="1.4"/><circle cx=".4" cy="3" r="1.4"/><circle cx="3" cy="3" r="1.3"/><circle cx="-1" cy=".4" r="1.4"/><circle cx="1.8" cy=".4" r="1.3"/></g><path d="M-4.8,4.6 H4.8 M-4.8,-2.8 H4.8" stroke="#7a5434" stroke-width="1"/>',
-    hopper: '<path d="M-5.4,-3 Q0,-6 5.4,-3 L4.6,-2 Q0,-4.6 -4.6,-2Z" fill="#3f6a4a"/><g fill="#5e4430"><circle cx="-2.6" cy="2.6" r="1.6"/><circle cx=".6" cy="2.6" r="1.6"/><circle cx="3.6" cy="2.8" r="1.4"/><circle cx="-1" cy="-.2" r="1.6"/><circle cx="2.2" cy="-.2" r="1.5"/></g><g fill="#2e2016"><circle cx="-2.6" cy="2.6" r=".5"/><circle cx=".6" cy="2.6" r=".5"/><circle cx="-1" cy="-.2" r=".5"/></g>',
-    pallet: '<path d="M-6,-2.4 H6 L5,-5 H-5Z" fill="#3d332c"/><rect x="-5" y="-2.4" width="10" height="7" fill="#5e4632"/><g fill="#e2bb84"><rect x="-4" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="-1.2" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="1.6" y="1.6" width="2.6" height="2.4" rx=".3"/><rect x="-2.6" y="-1" width="2.6" height="2.4" rx=".3"/></g>',
+    hopper: '<path d="M-5.4,-3 L5.4,-3 L4.6,-4.6 L-4.6,-4.6Z" fill="#3d332c"/><g fill="#5e4430"><circle cx="-2.6" cy="2.6" r="1.6"/><circle cx=".6" cy="2.6" r="1.6"/><circle cx="3.6" cy="2.8" r="1.4"/><circle cx="-1" cy="-.2" r="1.6"/><circle cx="2.2" cy="-.2" r="1.5"/></g><g fill="#c99a62"><circle cx="-2.6" cy="2.6" r=".9"/><circle cx=".6" cy="2.6" r=".9"/><circle cx="-1" cy="-.2" r=".9"/><circle cx="2.2" cy="-.2" r=".8"/></g>',
+    pallet: '<path d="M-6,-2.4 H6 L5,-5 H-5Z" fill="#2f2a28"/><rect x="-5" y="-2.4" width="10" height="7" fill="#3e332c"/><g fill="#9c7a4c"><rect x="-4.2" y="1.4" width="2.6" height="3" rx=".6"/><rect x="-1.3" y="1.4" width="2.6" height="3" rx=".6"/><rect x="1.6" y="1.4" width="2.6" height="3" rx=".6"/></g><g fill="#1a1716"><circle cx="-2.9" cy="1.4" r=".9"/><circle cx="0" cy="1.4" r=".9"/><circle cx="2.9" cy="1.4" r=".9"/></g><rect x="-2.6" y="-1.8" width="5.2" height="2" rx=".4" fill="#2a3330"/>',
     drop: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6a8a3a"/><path d="M-1.6,1 A1.6,1.6 0 0 0 0,3" stroke="#d6e8b0" stroke-width=".8" fill="none"/>',
     horseshoe: '<path d="M-4,4.6 L2.4,-3.4" stroke="#7a5236" stroke-width="1.4" stroke-linecap="round"/><path d="M.6,-5.4 Q5,-5.6 5.4,-1.2 L2.6,-1.6 Q2.4,-3.4 .4,-3.2Z" fill="#9aa4aa"/><path d="M2.6,-1.6 L5.4,-1.2" stroke="#e6ecef" stroke-width=".5"/><circle cx="-3.6" cy="-2.6" r="1.2" fill="#5d7a2e"/><path d="M-3.6,-3.8 V-1.4 M-4.8,-2.6 H-2.4" stroke="#8ab04a" stroke-width=".5"/>',
     vein: '<g><rect x="-5.4" y="1" width="8" height="3.6" rx="1.8" fill="#3a2a1e"/><ellipse cx="2.6" cy="2.8" rx="1.2" ry="1.8" fill="#8e6a44"/><rect x="-3.6" y="-2.2" width="7.6" height="3.4" rx="1.7" fill="#4c3828"/><ellipse cx="4" cy="-.5" rx="1.1" ry="1.7" fill="#8e6a44"/><rect x="-4.2" y="-5" width="6" height="3" rx="1.5" fill="#3a2a1e"/><ellipse cx="1.8" cy="-3.5" rx="1" ry="1.5" fill="#8e6a44"/><ellipse cx="-2" cy="-1.8" rx="1.6" ry=".5" fill="#5d7a2e"/></g>',
     shaft: '<path d="M-6,-2 L5.6,-4.4 L6,-2.8 L-5.6,-.4Z" fill="#3d332c"/><path d="M-4.6,-1 V5 M4.4,-3 V5" stroke="#5a3b26" stroke-width="1.2"/><g fill="#4c3828"><rect x="-3.4" y="2.4" width="6" height="2.4" rx="1.2"/><rect x="-2.6" y=".2" width="5" height="2.2" rx="1.1"/></g><ellipse cx="2.6" cy="3.6" rx=".7" ry="1.1" fill="#8e6a44"/>',
-    slag: '<g stroke="#c99a62" stroke-width="1.1" stroke-linecap="round"><path d="M-4.6,4 L-1.4,-2.6"/><path d="M-2,4.4 L.6,-3.4"/><path d="M1,4.4 L2.2,-2.6"/><path d="M3.6,4 L4.4,-1.6"/></g><path d="M-.6,4.2 Q-1,1 0,-1 Q1,1.4 .6,4.2Z" fill="#ff9b3d"/>',
+    slag: '<g fill="#1f1c1b"><rect x="-5" y="1.6" width="3.2" height="2.6" rx=".4"/><rect x="-1.6" y="1.6" width="3.2" height="2.6" rx=".4"/><rect x="1.8" y="1.6" width="3.2" height="2.6" rx=".4"/><rect x="-3.3" y="-1.2" width="3.2" height="2.6" rx=".4"/><rect x=".1" y="-1.2" width="3.2" height="2.6" rx=".4"/><rect x="-1.6" y="-4" width="3.2" height="2.6" rx=".4"/></g><path d="M3.6,-5 V-2.2 M2.2,-3.6 H5" stroke="#5f8c3a" stroke-width="1"/>',
     brolly: '<path d="M0,-1 V3.6 Q0,5 -1.4,5 Q-2.4,5 -2.4,4" stroke="#6e4a30" stroke-width="1" fill="none" stroke-linecap="round"/><path d="M-5.6,-.4 Q-5.4,-5.6 0,-5.6 Q5.4,-5.6 5.6,-.4 Q4.6,-1.4 3.8,-.4 Q2.8,-1.6 1.8,-.4 Q.9,-1.6 0,-.4 Q-.9,-1.6 -1.8,-.4 Q-2.8,-1.6 -3.8,-.4 Q-4.6,-1.4 -5.6,-.4Z" fill="#3f6a8a"/><path d="M0,-5.6 Q-1.6,-3 -1.8,-.4 M0,-5.6 Q1.6,-3 1.8,-.4" stroke="#7a5236" stroke-width=".45" fill="none"/>',
     wet: '<path d="M0,-5 C2.6,-1.6 3.8,.6 3.8,2 A3.8,3.8 0 0 1 -3.8,2 C-3.8,.6 -2.6,-1.6 0,-5Z" fill="#6aa4d0"/><path d="M-1.6,1 A1.6,1.6 0 0 0 0,3" stroke="#e6f2fa" stroke-width=".8" fill="none"/>',
   };
@@ -1597,9 +1608,12 @@ LOTS.hollow = H => {
     AREAS, SPOTS, TREES, BUSHES, PLANT, PUDDLES, ROW,
     MINE_LAND: 0, PLANT_LAND: 0,
     landForSale: false,   // the yard never grows
-    plantOpen: true,      // the drying shed can be built here (the smelting plant can't be bought in the first yard any more)
+    // V17: no drying shed any more: the charcoal kiln takes its place once the robots know coal (the fire story, game.js
+    // FIRE_STORY), so dry bundles (and the wood umbrella that kept them dry) are gone too
+    plantOpen: false,
     rain: true,           // rain, puddles, mist and warm lights (game.js)
-    wetWood: true,        // dry bundles get soaked in the rain on the way to the road; blowers can learn the wood umbrella (game.js)
+    wetWood: false,
+    fireStory: true, fireTree: 12, plantCost: 400,
     dryBench: true,       // V15: the leaves are too wet to sell: the bagging table is a drying bench (from the start), worked by blowers
     LEAFC, FOLIAGE, TREE_FAMS, leafSheen: true, leafFall: { vy: [34, 54], sw: [9, 20] },
     FLOWER_TYPES, FLOWER_N: [22, 30, 95], decoN: [110, 150, 320], decoTypes: MUSH_DECO.length,
@@ -1622,7 +1636,13 @@ LOTS.hollow = H => {
     tripHome: { earned: 2000 },
     // V16: making mushrooms worth more shouldn't explode in price: Gourmet labels climb slowly to ~$900 (were $90 … 2,800,
     // the first yard's honey labels, which keep their prices), and the D.O.P. seals stay under that too (were $700 / 1,500)
-    UP: { honeyPrice: { costs: [80, 130, 190, 270, 480, 900] }, giftPrice: { costs: [400, 800] } },
+    // V17: the charcoal kiln has fewer, cheaper upgrades than the smelting plant: a hotter kiln, briquettes (coal worth more),
+    // tight stacking (more coal from the same logs) and a bigger log stack
+    UP: { honeyPrice: { costs: [80, 130, 190, 270, 480, 900] }, giftPrice: { costs: [400, 800] },
+      smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [250, 700], vals: [1, 1.35, 1.8] },
+      ingotGrade: { name: 'Briquettes', max: 3, costs: [200, 550, 1200], vals: [1, 1.25, 1.5, 1.8] },
+      slag: { name: 'Tight stacking', max: 2, costs: [300, 800], vals: [0, 0.2, 0.4] },
+      hopper: { name: 'Bigger log stack', max: 2, costs: [50, 150], vals: [16, 30, 50] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
     arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? names[1] + ' already knows Warm air: move Dry leaves into its Do list on its card' : 'Build a blower and turn on Dry leaves on its card') + ', and it will dry them at the drying bench.' },
   };

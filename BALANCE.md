@@ -444,3 +444,10 @@ yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` a
   shakeable trees, drops along the blowers' edge). First blower $7 / shaker $9 (were 9 / 12), robot 2 $8 / robot 3 $15
   (were 6 / 12), same total. The book needs $30 earned or $18 held (was $20 / $12). The built-in sim finds it at ~9 min.
   Not re-measured with the test player.
+- **V17:** the Rainy hollow's charcoal kiln replaces its drying shed: 2 logs → 3 coal, coal sells at a log's price × Briquettes
+  (1 → 1.8×), Tight stacking up to +40% coal, Hotter kiln to 1.8×; nine steps, ~$4,000 in all (the drying shed had the plant's
+  ~20 steps to ~$7,000 each). Best case per log: 1.5 × 1.4 × 1.8 ≈ 3.8× the log's price (the smelting plant: ~5.1× a metal
+  chunk). The fire research is 6,000 units like the hive (blower 1/s + shaker 1/s + robots at half). Not tuned with the
+  balance player: a hollow sim with a decent start earns ~$0.9M by 90 min, most of it coal, because the wood volume is large;
+  `KILN_LOGS`/`KILN_COAL`, the kiln's `LOT.UP` and the saws are the knobs.
+
