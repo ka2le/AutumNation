@@ -112,6 +112,12 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .mt.full .bar i{background:linear-gradient(#d65a3e,#b8452d)}
 .mt.full .mv,.mt.full .mv b{color:#a8361d}
 .mt.green .bar i{background:linear-gradient(#89a24c,#6f8a3a)}
+/* V18: coal (full is good, low is the warning) */
+.mt.coal.full{background:none;box-shadow:none}
+.mt.coal .bar i,.mt.coal.full .bar i{background:linear-gradient(#5a5452,#2f2b29)}
+.mt.coal.full .mv,.mt.coal.full .mv b{color:var(--ink)}
+.mt.coal.low{background:#f6d7c4;box-shadow:inset 0 0 0 1.2px rgba(184,69,45,.35)}
+.mt.coal.low .mv,.mt.coal.low .mv b{color:#a8361d}
 .slots i{width:9px;height:9px;border-radius:50%;background:#d8c4a0;box-shadow:inset 0 1px 1px rgba(60,30,10,.25)}
 .slots i.on{background:radial-gradient(circle at 40% 35%,#ffe08a,#e8892c);box-shadow:0 0 5px rgba(240,150,40,.8)}
 .warnc{color:#a8361d}
