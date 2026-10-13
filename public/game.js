@@ -678,7 +678,8 @@ function freshState(){
     // V17 (FIRE_STORY): the struck tree's fire (L: how much is burning, 0 = out; next: when lightning strikes again, -1 = not
     // waiting; n: strikes so far; camp: logs the robots have set burning beside it; bench: the stove's been tried), and the
     // drying bench's stove (fire: they know how; logs in it, burn: how far through the log in the fire it is; coal in its ash pan)
-    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false },
+    // (V17.1: down: branches the shaker has shaken down so far, lit: which of them are burning, a bit each)
+    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false, down:0, lit:0 },
     bench:{ fire:false, logs:0, burn:0, coal:0 },
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
@@ -1479,6 +1480,15 @@ function updRobot(r, dt){
           : { k:'spark', x: m.x + rand(-6,6), y: m.y - rand(0,6), vx: rand(-40,40), vy: rand(-70,-20), g: 160, life: rand(.25,.45), t:0 });
         if (Math.random() < dt*2.2) parts.push({ k:'dust', x: m.x + rand(-10,10), y: m.y, vx: rand(-8,8), vy: rand(-14,-6), g:0, life: rand(.8,1.4), t:0, r: rand(4,8) });
       }
+      if (r.mineP >= 1 && r.giveTo != null){
+        // V17.1: a robot from the fire research is waiting beside the saw: this log goes to it, not in the basket
+        const w = R[r.giveTo]; r.giveTo = null;
+        if (w && w.st === 'fireDo' && w.fx && w.fx.kind === 'log' && w.fx.st === 'waitSaw' && !w.fx.held){
+          r.mineP -= 1; w.fx.held = true;
+          if (!simMode){ flyTo('metal', m.x, m.y - 4, w.x - 8, w.y - 30, 0.4, 20, {}); pop(m.x, m.y - 76, 'here you go!', 'note', 15); robotSays(r, 'chat'); const a = sndAt(m.x, m.y); sfx('tink', a.pan, a.vol*0.7); }
+          break;
+        }
+      }
       if (r.mineP >= 1){
         // the magnet sometimes catches a second chunk (it may ride along one over the basket limit)
         const lucky = Math.random() < doubleChance(r.id), n = lucky ? 2 : 1;
@@ -1765,8 +1775,9 @@ const FINDS = {
   // V17 (FIRE_STORY): the struck tree, researched where it burns (atFire): a robot, a blower (blower: units a second) and a
   // shaker (shaker: units a second) all have to be there, and only while it burns. Robots count half, as at the hive.
   // spots: where the two helpers stand, from the lead's spot (STUDY): behind it, and over on the right
-  fire: { need: 6000, crew: 3, atFire: true, blower: 1, shaker: 1, robotMul: 0.5, title: 'The struck tree', holding: 'the fire',
-    story: 'Lightning set the old tree burning, rain or no rain. This could be useful. It takes a robot, a blower and a shaker together, and only while it burns.',
+  // (V17.1: robots: it takes two robots; one of them fetches logs from the saw later on)
+  fire: { need: 6000, crew: 3, robots: 2, atFire: true, blower: 1, shaker: 1, robotMul: 0.5, title: 'The struck tree', holding: 'the fire',
+    story: 'Lightning set the old tree burning, rain or no rain. This could be useful. It takes two robots, a blower and a shaker together, and only while it burns.',
     spots: [[-26, -16, 1], [170, 12, -1]] },
   // V17: the first lump of charcoal from the dryer's stove: a quick look for one robot
   coal: { need: 1000, crew: 1, title: 'A lump of charcoal', holding: 'the coal',
@@ -1802,7 +1813,7 @@ function researchRate(){
     if (!fireOn() || !fireHelper('blower') || !fireHelper('shaker')) return 0;
     let v = 0, n = 0;
     for (const q of R){ if (!labOnTask(q)) continue; n++; v += (bookRt.by === q.id ? RESEARCH_MAIN : RESEARCH_HELP)*studyMul(q.id); }
-    return n ? F.blower + F.shaker + v*F.robotMul : 0;
+    return n >= (F.robots || 1) ? F.blower + F.shaker + v*F.robotMul : 0;   // (V17.1: two robots)
   }
   if (F.atHive){
     // V15: nothing moves without the blower keeping the rain off; it adds its own share, the robots count for half
@@ -2437,6 +2448,41 @@ const fireCampPos = i => ({ x: FIRE_BASE.x + FIRE_CAMP[i][0], y: FIRE_BASE.y + F
 const fireRt = { flash: 0, bolt: null, flare: 0, taken: new Set(), ex: null, grabT: 0, leafT: 0, logT: 0, campUnlit: -1, benchCall: false, hands: null, says: 0, crackT: 0 };
 // how strongly a branch, flame site or camp log burns right now (0..1)
 const fireAt = th => clamp((S.fire.L - th)/Math.max(0.15, 1 - th), 0, 1);
+// V17.1: the burning branches aren't there from the start: the shaker shakes them down out of the burning crown
+const branchDown = i => i < (S.fire.down | 0);
+const branchLit = i => branchDown(i) && !!((S.fire.lit | 0) & (1 << i));
+const branchBurn = i => branchLit(i) ? fireAt(FIRE_BRANCH[i][3]*0.5) : 0;
+const litBranches = () => FIRE_BRANCH.filter((b, i) => branchLit(i) && !fireRt.taken.has(i)).length;
+// where the next one lands: an empty spot, else on a burnt-out one (it's swept aside); -1 when all are burning
+function nextBranchSlot(){
+  if ((S.fire.down | 0) < FIRE_BRANCH.length) return S.fire.down | 0;
+  for (let i=0;i<FIRE_BRANCH.length;i++) if (!branchLit(i) && !fireRt.taken.has(i) && !(fireRt.falls || []).some(f => f.i === i)) return i;
+  return -1;
+}
+// a burning branch comes down: it falls out of the crown, tumbling, and lands at its spot still burning
+function shakeDownBranch(){
+  const i = nextBranchSlot(); if (i < 0) return -1;
+  S.fire.down = Math.max(S.fire.down | 0, i + 1);
+  if (simMode){ S.fire.lit = (S.fire.lit | 0) | (1 << i); return i; }
+  S.fire.lit = (S.fire.lit | 0) & ~(1 << i);   // (lit once it lands)
+  const P = fireBranchPos(i), sx = FIRE_T.x + FIRE_BRANCH[i][0]*0.7 + rand(-8, 8), sy = FIRE_T.y + rand(-FIRE_T.r*0.3, FIRE_T.r*0.2);
+  (fireRt.falls || (fireRt.falls = [])).push({ i, t: 0, dur: 0.75 + rand(0, 0.2), sx, sy, spin: rand(-5, 5) });
+  for (let k=0;k<8;k++) parts.push({ k:'spark', x: sx + rand(-8, 8), y: sy + rand(-6, 6), vx: rand(-40, 40), vy: rand(-50, 10), g: 120, life: rand(.4, .9), t: 0 });
+  return i;
+}
+function updBranchFalls(dt){
+  const F = fireRt.falls; if (!F || !F.length) return;
+  for (let k=F.length - 1; k>=0; k--){
+    const f = F[k]; f.t += dt;
+    if (f.t >= f.dur){
+      F.splice(k, 1); S.fire.lit = (S.fire.lit | 0) | (1 << f.i);
+      const P = fireBranchPos(f.i);
+      for (let q=0;q<10;q++) parts.push({ k:'spark', x: P.x + rand(-12, 12), y: P.y - 2, vx: rand(-50, 50), vy: rand(-70, -20), g: 160, life: rand(.3, .7), t: 0 });
+      parts.push({ k:'dust', x: P.x, y: P.y, vx: 0, vy: -6, g: 0, life: 1, t: 0, r: 7, gray: true });
+      const a = sndAt(P.x, P.y); sfx('dump', 1, a.pan, a.vol*0.5);
+    }
+  }
+}
 // a helper with the research task: one blower and one shaker at the fire, and only while it burns
 function fireHelperWork(h){
   if (!fireLabOn() || !fireOn()) return null;
@@ -2446,10 +2492,11 @@ function fireHelperWork(h){
 function fireWaitFor(){
   if (!fireLabOn()) return '';
   if (!fireOn()) return 'lightning';
-  const miss = [];
+  const miss = [], nr = R.filter(labOnTask).length, need = FIND().robots || 1;
+  if (nr < need) miss.push(nr === 0 ? 'two robots' : S.robots.length < 2 ? 'a second robot (build one)' : 'a second robot');
   if (!fireHelper('blower')) miss.push(S.blowers.length ? 'a blower' : 'a blower (build one)');
   if (!fireHelper('shaker')) miss.push(S.shakers.length ? 'a shaker' : 'a shaker (build one)');
-  return miss.join(' and ');
+  return miss.length > 2 ? miss.slice(0, -1).join(', ') + ' and ' + miss[miss.length - 1] : miss.join(' and ');
 }
 // the tree's crown goes dark once it's been struck: a charred copy of its picture (made the first time it's needed), drawn
 // instead of the crown while S.fire.struck (treeBurnt: it drops no more leaves)
@@ -2479,6 +2526,8 @@ function boltPts(){
 function strike(){
   const F = S.fire, first = !F.struck;
   F.struck = true; F.L = 1; F.n = (F.n | 0) + 1; F.next = -1;
+  fireRt.ignT = S.t;   // (V17.1: the flames spread from the strike, see fireFront)
+  F.lit = 0; fireRt.falls = [];   // (V17.1: branches left from last time are burnt out; the shaker shakes new ones down)
   if (S.story.item !== 'fire' && !S.flags.fireDone){
     Object.assign(S.story, { item: 'fire', armed: true, found: true, foundT: S.t, opened: false, cam: true, prog: 0, eta: null, done: false, doneT: -1, x: FIRE_BASE.x, y: FIRE_BASE.y + 6, flights: 0, wins: 0, walkK: -1 });
     bookRt.by = null; bookRt.held = false;
@@ -2494,13 +2543,13 @@ function strike(){
   pop(FIRE_BASE.x, FIRE_BASE.y - 160, first ? 'Let’s get everyone on this!' : 'Lightning struck twice! Everyone on it!', 'note', 21, 1.3, 5);
   if (!S.flags.fireDone) pop(FIRE_BASE.x, FIRE_BASE.y - 136, 'New task: Research the fire', 'note', 17, 2.2, 4);
   setTimeout(() => showToast(first ? 'Lightning!' : 'Lightning struck again!',
-    first ? 'It hit the old tree in the middle of the yard, and it’s burning, rain or no rain. This could be useful. Let’s get everyone on this! Research the fire: it needs a robot, a blower and a shaker together, before the rain puts it out.'
+    first ? 'It hit the old tree in the middle of the yard, and it’s burning, rain or no rain. This could be useful. Let’s get everyone on this! Research the fire: it needs two robots, a blower and a shaker together, before the rain puts it out.'
       : 'The old tree is burning again. Let’s get everyone on this before the rain puts it out!', 13), 1500);
   save();
 }
 // the rain has put it out: the next strike comes in about two minutes (only while it's still being researched)
 function fireOut(){
-  S.fire.L = 0; fireRt.flare = 0; fireRt.campUnlit = -1; fireRt.benchCall = false;
+  S.fire.L = 0; fireRt.flare = 0; fireRt.campUnlit = -1; fireRt.benchCall = false; fireRt.ignT = null;
   if (S.flags.fireDone){ S.fire.next = -1; return; }
   S.fire.next = S.t + rand(FIRE_GAP[0], FIRE_GAP[1]);
   if (simMode) return;
@@ -2521,11 +2570,12 @@ function updFire(dt){
     if (F.L <= 0) fireOut();
   } else if (F.struck && !S.flags.fireDone && F.next >= 0 && S.t >= F.next) strike();
   fireRt.flare = Math.max(0, fireRt.flare - dt*0.12);
+  updBranchFalls(dt);
   if (simMode || !F.L) return;
   // smoke and sparks off the burning tree, more steam than smoke as it dies down
   const k = F.L;
-  if (Math.random() < dt*(1.5 + 4*k)) parts.push({ k:'smoke', x: FIRE_T.x + rand(-FIRE_T.r*0.4, FIRE_T.r*0.4), y: FIRE_T.y - FIRE_T.r*rand(0.3, 0.7), vx: rand(-6, 6) + wind*0.3, vy: rand(-24, -12), g: 0, life: rand(2, 3.4), t: 0, r: rand(4, 7)*(0.6 + k) });
-  if (Math.random() < dt*(1 + 7*k*(1 + fireRt.flare))){ const s = FIRE_SITE[Math.floor(Math.random()*FIRE_SITE.length)]; if (fireAt(s[2]) > 0) parts.push({ k:'spark', x: FIRE_T.x + s[0]*FIRE_T.r, y: FIRE_T.y + s[1]*FIRE_T.r*0.9 - 8, vx: rand(-20, 20) + wind*0.3, vy: rand(-70, -30), g: -10, life: rand(.5, 1.2), t: 0 }); }
+  if (Math.random() < dt*(1.5 + 4*k)){ const p = fireSpot2() || { x: FIRE_T.x, y: FIRE_T.y - FIRE_T.r*0.5 }; parts.push({ k:'smoke', x: p.x + rand(-6, 6), y: p.y - rand(4, 14), vx: rand(-6, 6) + wind*0.3, vy: rand(-24, -12), g: 0, life: rand(2, 3.4), t: 0, r: rand(4, 7)*(0.6 + k) }); }
+  if (Math.random() < dt*(1 + 7*k*(1 + fireRt.flare))){ const p = fireSpot2(); if (p) parts.push({ k:'spark', x: p.x + rand(-3, 3), y: p.y, vx: rand(-20, 20) + wind*0.3, vy: rand(-70, -30), g: -10, life: rand(.5, 1.2), t: 0 }); }
   if ((fireRt.crackT -= dt) <= 0){ fireRt.crackT = rand(0.25, 0.9)/(0.3 + k); const a = sndAt(FIRE_T.x, FIRE_T.y); sfx('crackle', a.pan, a.vol*(0.4 + 0.6*k)); }
 }
 // ── the robots at the fire: every so often one goes off to try something (an excursion, r.st 'fireDo', r.fx says what)
@@ -2534,13 +2584,14 @@ function fireExcursion(r){
   const k = fireK(), lead = bookRt.by === r.id;
   if (k < 0.3 && S.t > fireRt.grabT && (lead || !R.some(q => q !== r && q.st === 'study' && bookRt.by === q.id))){ const i = freeBranch(r); if (i >= 0) return { kind: 'grab', i }; }
   if (k >= 0.3 && S.t > fireRt.leafT){ const l = dryLeafNear(r); if (l) return { kind: 'leaf', l }; }
-  if (k >= 0.42 && S.t > fireRt.logT && fireRt.campUnlit < 0 && S.fire.camp < FIRE_CAMP.length){ const src = logSource(); if (src) return { kind: 'log', src, slot: S.fire.camp }; }
+  // (V17.1: the logs are the second robot's job: it saws one at the saw, or waits for the one being sawn there)
+  if (k >= 0.42 && S.t > fireRt.logT && fireRt.campUnlit < 0 && S.fire.camp < FIRE_CAMP.length && (!lead || !R.some(q => q !== r && labOnTask(q)))){ const src = logSource(); if (src) return { kind: 'log', src, slot: S.fire.camp }; }
   if (k >= 0.68 && !S.fire.bench && S.fire.camp > 0 && !fireRt.benchCall) return { kind: 'lead' };
   return null;
 }
 function freeBranch(r){
   let best = -1, bd = 1e9;
-  FIRE_BRANCH.forEach((b, i) => { if (fireRt.taken.has(i) || fireAt(b[3]) <= 0.05) return; const p = fireBranchPos(i), d = Math.hypot(p.x - r.x, p.y - r.y); if (d < bd){ bd = d; best = i; } });
+  FIRE_BRANCH.forEach((b, i) => { if (fireRt.taken.has(i) || branchBurn(i) <= 0.05) return; const p = fireBranchPos(i), d = Math.hypot(p.x - r.x, p.y - r.y); if (d < bd){ bd = d; best = i; } });
   return best;
 }
 function dryLeafNear(r){
@@ -2551,7 +2602,7 @@ function dryLeafNear(r){
 // where a robot gets a log for the fire: the nearest saw station's cart, or the log crib
 function logSource(){
   let best = null, bd = 1e9;
-  for (const sp of S.miners){ const p = SPOTS[sp]; if (p.land > S.land) continue; const d = Math.hypot(p.x - FIRE_BASE.x, p.y - FIRE_BASE.y); if (d < bd){ bd = d; best = { x: p.x + 4, y: p.y + 20, sp }; } }
+  for (const sp of S.miners){ const p = SPOTS[sp]; if (p.land > S.land) continue; const d = Math.hypot(p.x - FIRE_BASE.x, p.y - FIRE_BASE.y); if (d < bd){ bd = d; best = { x: p.x + 30, y: p.y + 12, sp, saw: { x: p.x - 30, y: p.y + 7 } }; } }
   if (!best && S.metalSlot) best = { x: TUB.x + 2, y: TUB.y - 25, tub: true };
   return best;
 }
@@ -2564,6 +2615,7 @@ function startFireDo(r, ex){
 function endFireDo(r){
   const f = r.fx; r.fx = null; r.lean = 0;
   if (f){ if (f.kind === 'grab') fireRt.taken.delete(f.i); if (f.kind === 'leaf' && f.l && f.l.claim === r) f.l.claim = null; if (f.kind === 'lead' && !S.fire.bench) fireRt.benchCall = false; }
+  for (const q of R) if (q.giveTo === r.id) q.giveTo = null;
   if (fireRt.ex === r.id) fireRt.ex = null;
 }
 function backToFire(r){ endFireDo(r); if (bookRt.by === r.id) r.st = 'toStudy'; else { claimAssist(r); r.st = 'toAssist'; } }
@@ -2600,9 +2652,44 @@ function updFireDo(r, dt, sp){
     return;
   }
   if (f.kind === 'log'){
-    // off to a saw for a log, back to the fire with it, and down it goes for the shaker to light
-    const slot = Math.min(S.fire.camp, FIRE_CAMP.length - 1), P = fireCampPos(slot);   // (it goes down beside the ones already burning)
-    if (f.st === 'go'){ const s = f.src, side = r.x < s.x ? -1 : 1; if (moveTo(r, s.x + side*10, s.y + 6, sp, dt)){ r.face = -side; f.st = 'take'; f.t = 0; } }
+    // V17.1: off to the saw. If a robot is sawing there, it waits beside it and the log that robot cuts next comes to it
+    // instead of going in the sawyer's basket; with nobody there it saws one itself. Then back to the fire with it, and
+    // down it goes beside the others for the shaker to light. (No saw: one from the log crib.)
+    const slot = Math.min(S.fire.camp, FIRE_CAMP.length - 1), P = fireCampPos(slot), s0 = f.src;
+    const sawyer = () => s0.sp != null ? R.find(q => q !== r && q.st === 'mine' && minerFor(q) && minerFor(q).sp === s0.sp) : null;
+    if (f.st === 'go'){
+      const side = r.x < s0.x ? -1 : 1;
+      if (s0.sp == null){ if (moveTo(r, s0.x + side*10, s0.y + 6, sp, dt)){ r.face = -side; f.st = 'take'; f.t = 0; } }
+      else {
+        // (somebody sawing: wait on the other side of the saw; nobody: straight to the saw)
+        const q = sawyer(), T = q ? s0 : s0.saw;
+        if (moveTo(r, T.x, T.y, sp, dt)){
+          if (q){ r.face = -1; q.giveTo = r.id; f.st = 'waitSaw'; f.t = 0; f.q = q.id; if (!simMode) pop(r.x, r.y - 80, 'I’ll take the next one!', 'note', 15); }
+          else { r.face = 1; f.st = 'saw'; f.t = 0; f.p = 0; }
+        }
+      }
+    }
+    else if (f.st === 'waitSaw'){
+      r.face = -1;
+      const q = R[f.q];
+      if (f.held){ f.st = 'carry'; f.t = 0; }
+      else if (!q || q.st !== 'mine' || q.giveTo !== r.id){ if (q && q.giveTo === r.id) q.giveTo = null; f.st = 'toSaw'; f.t = 0; }
+      else if (f.t > 45){ q.giveTo = null; fireRt.logT = S.t + rand(6, 10); backToFire(r); }
+    }
+    else if (f.st === 'toSaw'){ f.st = 'go'; f.t = 0; }
+    else if (f.st === 'saw'){
+      r.face = 1; r.hammer += dt;
+      f.p += dt/drillTimeAt(r.id, s0.sp);
+      const m = SPOTS[s0.sp];
+      if (!simMode){
+        if (Math.random() < dt*9) parts.push({ k:'speck', saw: true, x: r.x + 16 + rand(-3, 3), y: r.y - 14 - rand(0, 4), vx: rand(-40, 40), vy: rand(-60, -15), g: 160, life: rand(.35, .6), t: 0 });
+        if (Math.random() < dt*2.2) parts.push({ k:'dust', x: m.x + rand(-10, 10), y: m.y, vx: rand(-8, 8), vy: rand(-14, -6), g: 0, life: rand(.8, 1.4), t: 0, r: rand(4, 8) });
+      }
+      if (f.p >= 1){
+        f.held = true; f.st = 'carry'; f.t = 0;
+        if (!simMode){ flyTo('metal', m.x, m.y - 4, r.x + 8, r.y - 30, 0.35, 18, {}); pop(m.x, m.y - 76, 'for the fire!', 'note', 15); const a = sndAt(m.x, m.y); sfx('tink', a.pan, a.vol*0.7); }
+      }
+    }
     else if (f.st === 'take'){ r.lean = 0.12*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.3 && !f.held){ f.held = true; if (f.src.tub && S.binMetal > 0) S.binMetal--; } if (f.t > 0.6){ f.st = 'carry'; f.t = 0; r.lean = 0; } }
     else if (f.st === 'carry'){ const side = r.x < P.x ? -1 : 1; if (moveTo(r, P.x + side*15, P.y + 3, sp*0.85, dt)){ r.face = -side; f.st = 'put'; f.t = 0; } }
     else if (f.st === 'put'){ r.lean = 0.16*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.4 && f.held){ f.held = false; if (S.fire.camp < FIRE_CAMP.length) fireRt.campUnlit = slot; const a = sndAt(P.x, P.y); sfx('dump', 1, a.pan, a.vol*0.6); } if (f.t > 0.7){ fireRt.logT = S.t + rand(8, 14); backToFire(r); } }
@@ -2679,16 +2766,38 @@ function updFireHelper(h, dt){
   // the shaker: watches at first; later it carries burning branches about (the leaves near them dry out), lights the
   // logs the robots bring, and carries a burning log over to the drying bench when a robot shows it where
   const k = fireK();
-  if (!h.fm) h.fm = 'watch';
+  if (!h.fm){ h.fm = 'watch'; h.modeT = rand(0.8, 1.6); }
   h.modeT = (h.modeT || 0) - dt;
   if (h.fm === 'watch'){
     if (moveTo(h, home.x + (h.peek || 0), home.y - (h.peek ? 8 : 0), sp*0.6, dt)) h.face = home.face;
     if (h.modeT <= 0){
-      h.modeT = rand(3, 6); h.peek = !h.peek && Math.random() < 0.5 ? rand(8, 16) : 0;
+      h.modeT = rand(2.5, 4.5); h.peek = !h.peek && Math.random() < 0.5 ? rand(8, 16) : 0;
+      // V17.1: from the start it has a go at the tree the way it knows: it shakes it, and burning branches come down
+      // (more while there are few on the ground); later it carries them about, lights the logs, takes one to the dryer
+      const lit = litBranches(), canShake = nextBranchSlot() >= 0 && S.t > (fireRt.shakeT || 0) && fireOn();
       if (fireRt.benchCall && !S.fire.bench && S.fire.camp > 0 && R.some(q => q.st === 'fireDo' && q.fx && q.fx.kind === 'lead' && q.fx.st === 'point')){ h.fm = 'bench'; h.fs = 'get'; h.peek = 0; }
-      else if (fireRt.campUnlit >= 0){ const i = freeBranch(h); if (i >= 0){ fireRt.taken.add(i); h.holdB = i; h.fm = 'light'; h.fs = 'get'; h.peek = 0; } }
-      else if (k >= 0.2 && Math.random() < 0.75){ const i = freeBranch(h); if (i >= 0){ fireRt.taken.add(i); h.holdB = i; h.fm = 'carry'; h.fs = 'get'; h.loop = fireLoop(); h.li = 0; h.peek = 0; } }
+      else if (fireRt.campUnlit >= 0 && lit > 0){ const i = freeBranch(h); if (i >= 0){ fireRt.taken.add(i); h.holdB = i; h.fm = 'light'; h.fs = 'get'; h.peek = 0; } }
+      else if (canShake && (lit < 2 || (k < 0.2 && Math.random() < 0.6) || Math.random() < 0.25)){ h.fm = 'shakeT'; h.fs = 'go'; h.peek = 0; }
+      else if (k >= 0.2 && lit > 0 && Math.random() < 0.75){ const i = freeBranch(h); if (i >= 0){ fireRt.taken.add(i); h.holdB = i; h.fm = 'carry'; h.fs = 'get'; h.loop = fireLoop(); h.li = 0; h.peek = 0; } }
     }
+  } else if (h.fm === 'shakeT'){
+    // over to the trunk, grab it in both claws and shake: the burning crown flares, sparks fly, a branch comes down
+    const T = { x: FIRE_BASE.x, y: FIRE_BASE.y + 7 };
+    if (h.fs === 'go'){ if (!fireOn()){ h.fm = 'back'; } else if (moveTo(h, T.x, T.y, sp*0.8, dt)){ h.fs = 'shake'; h.modeT = 1.9; h.dropped = false; h.fireShake = true; h.face = 1; } }
+    else if (h.fs === 'shake'){
+      treeShake[FIRE_TI] = Math.max(treeShake[FIRE_TI], 0.6); fireRt.flare = Math.min(1, fireRt.flare + dt*0.3);
+      if (!simMode && Math.random() < dt*10){ const p = fireSpot2(); if (p) parts.push({ k:'spark', x: p.x + rand(-6, 6), y: p.y, vx: rand(-50, 50), vy: rand(-40, 20), g: 90, life: rand(.4, .9), t: 0 }); }
+      if (!h.dropped && h.modeT <= 1.3){
+        h.dropped = true; treeShake[FIRE_TI] = Math.max(treeShake[FIRE_TI], 1.2);
+        const n = litBranches() === 0 && Math.random() < 0.6 ? 2 : 1;
+        let got = 0; for (let q=0;q<n;q++) if (shakeDownBranch() >= 0) got++;
+        if (!simMode && got){ const first = !fireRt.shookSaid; fireRt.shookSaid = true; pop(FIRE_BASE.x, FIRE_BASE.y - 112, first ? 'shake it loose!' : ['there!', 'another one!', 'look out below!'][(fireRt.says++) % 3], 'note', 16); helperSays(h, 'happy'); }
+      }
+      if (h.modeT <= 0){ h.fireShake = false; fireRt.shakeT = S.t + (litBranches() < 2 ? rand(3, 6) : rand(9, 16)); h.fm = 'back'; }
+    }
+  } else if (h.fm === 'back'){
+    h.fireShake = false;
+    if (moveTo(h, home.x, home.y, sp, dt)){ h.face = home.face; h.fm = 'watch'; h.modeT = rand(2, 4); }
   } else if (h.fm === 'carry' || h.fm === 'light'){
     const bp = fireBranchPos(h.holdB);
     if (h.fs === 'get'){ if (moveTo(h, bp.x - 14, bp.y + 8, sp*0.8, dt)){ h.fs = 'lift'; h.modeT = 0.6; h.face = 1; } }
@@ -2721,7 +2830,7 @@ function updFireHelper(h, dt){
 }
 function endHelperFire(h){
   if (h.holdB != null && h.holdB >= 0) fireRt.taken.delete(h.holdB);
-  h.holdB = -1; h.holding = null; h.fm = null; h.aim = null;
+  h.holdB = -1; h.holding = null; h.fm = null; h.aim = null; h.fireShake = false;
 }
 // a little walk round the fire with a burning branch (the leaves it passes dry out)
 function fireLoop(){
@@ -2859,13 +2968,52 @@ function flameAt(c, x, y, s, t, seed){
   }
   c.fillStyle = 'rgba(255,246,214,.9)'; c.beginPath(); const hc = Hh*0.26, wc = Wd*0.18; c.moveTo(x - wc, y - s*0.1); c.quadraticCurveTo(x, y - hc*1.2, x + wc, y - s*0.1); c.quadraticCurveTo(x, y + s*0.1, x - wc, y - s*0.1); c.fill();
 }
-function drawBurningBranch(c, x, y, rot, burn, t, seed, lift){
-  c.save(); c.translate(x, y - (lift || 0)); c.rotate(rot);
-  c.strokeStyle = '#2a1a12'; c.lineCap = 'round'; c.lineWidth = 3.2; c.beginPath(); c.moveTo(-14, 0); c.lineTo(14, 0); c.stroke();
-  c.lineWidth = 1.5; c.beginPath(); c.moveTo(-4, 0); c.lineTo(-9, -6); c.moveTo(6, 0); c.lineTo(11, -5); c.stroke();
-  c.fillStyle = 'rgba(255,120,40,' + (0.25 + 0.45*burn) + ')'; for (const ex of [-10, -5, 1, 7, 11]){ ell(c, ex, 0.4, 1.1, 0.7); c.fill(); }   // embers along it
+// V17.1: little Emberlight flames standing up from points on something burning (a branch, a log): layered tongues,
+// dark red outside to a pale yellow heart, leaning with the wind. pts: [x, y, size] in c's current space
+function smallFlames(c, pts, t, seed){
+  const cols = ['rgba(190,58,26,.85)', 'rgba(240,108,38,.92)', 'rgba(255,178,76,.95)', 'rgba(255,236,170,.95)'], sc = [1, 0.68, 0.4, 0.2], sh = [1, 0.8, 0.52, 0.3];
+  for (let L=0; L<4; L++){
+    c.fillStyle = cols[L]; c.beginPath();
+    for (const [x, y, s, k] of pts){ if (s < 0.4) continue; const f = 0.8 + 0.2*Math.sin(t*7 + (k || 0)*2.3 + seed); fireTongue(c, x, y, s*0.62*sc[L], s*2.3*sh[L]*f, t, seed + (k || 0)*1.7 + (L === 3 ? 1.8 : 0)); }
+    c.fill();
+  }
+}
+// a branch broken off the burning tree: a tapered, charred stick with a splintered end, a forked twig with a couple of
+// shrivelled leaves, glowing cracks that pulse, an ember-bright broken end, and flames standing up along it
+function drawBurningBranch(c, x, y, rot, burn, t, seed, lift, falling){
+  c.save(); c.translate(x, y - (lift || 0));
+  if (!lift && !falling){ c.fillStyle = 'rgba(18,10,6,.32)'; ell(c, 1, 1.5, 16, 3.2); c.fill(); }
+  // scorched ground round it while it burns
+  if (!lift && !falling && burn > 0.05){ c.fillStyle = 'rgba(30,14,6,' + 0.25*burn + ')'; ell(c, 0, 1, 18, 4.5); c.fill(); }
+  c.rotate(rot);
+  const glow = 0.5 + 0.5*Math.sin(t*5 + seed), hot = burn*(0.55 + 0.45*glow);
+  // the stick
+  const g = c.createLinearGradient(0, -2.6, 0, 2.6); g.addColorStop(0, '#4a3020'); g.addColorStop(0.5, '#2a1a10'); g.addColorStop(1, '#140c07');
+  c.fillStyle = g; c.beginPath();
+  c.moveTo(-15, -2.4); c.quadraticCurveTo(-4, -2.6, 6, -1.6); c.quadraticCurveTo(12, -1.1, 16, -0.5); c.lineTo(16.4, 0.4);
+  c.quadraticCurveTo(12, 1.2, 6, 1.7); c.quadraticCurveTo(-4, 2.6, -15, 2.4); c.closePath(); c.fill();
+  // splintered broken end (pale wood, glowing while it burns)
+  c.fillStyle = burn > 0.05 ? 'rgba(255,' + (110 + 60*glow | 0) + ',40,' + (0.5 + 0.5*burn) + ')' : '#7a5a3a';
+  c.beginPath(); c.moveTo(-15, -2.4); c.lineTo(-17.5, -1.4); c.lineTo(-16, -0.4); c.lineTo(-18, 0.6); c.lineTo(-15.8, 1.2); c.lineTo(-17, 2.2); c.lineTo(-15, 2.4); c.closePath(); c.fill();
+  // a forked twig and a short stub
+  c.strokeStyle = '#24160e'; c.lineCap = 'round';
+  c.lineWidth = 1.5; c.beginPath(); c.moveTo(-3, -1.8); c.quadraticCurveTo(-6, -5, -9.5, -7.5); c.moveTo(-6.4, -5.2); c.lineTo(-5, -9); c.moveTo(8, -1.2); c.lineTo(12, -5.2); c.stroke();
+  c.lineWidth = 1; c.beginPath(); c.moveTo(12, -5.2); c.lineTo(13.6, -7.2); c.stroke();
+  // a couple of shrivelled, scorched leaves still on it
+  leafBlob(c, -10.2, -8.4, 2.2, 0.9 + seed, burn > 0.3 ? '#3a2416' : '#6a3a1e'); leafBlob(c, 14, -7.8, 1.8, -0.6 + seed, '#4a2a18');
+  // glowing cracks along the bark
+  if (burn > 0.02){
+    c.strokeStyle = 'rgba(255,' + (120 + 70*glow | 0) + ',46,' + (0.35 + 0.55*hot) + ')'; c.lineWidth = 0.7;
+    c.beginPath(); c.moveTo(-12, 0.3); c.lineTo(-9, -0.6); c.lineTo(-7, 0.4); c.moveTo(-2, -0.8); c.lineTo(1, 0.2); c.lineTo(3.5, -0.4); c.moveTo(7, 0.5); c.lineTo(10, -0.2); c.stroke();
+    c.fillStyle = 'rgba(255,190,90,' + 0.6*hot + ')'; for (const ex of [-11, -1, 9]){ ell(c, ex, 0.2, 0.9, 0.5); c.fill(); }
+  } else { c.strokeStyle = 'rgba(150,150,150,.25)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(-12, 0.3); c.lineTo(-7, -0.4); c.moveTo(0, 0.2); c.lineTo(5, -0.3); c.stroke(); }   // (grey ash once it's out)
+  // the flames, standing upright whatever way the branch lies
+  if (burn > 0.04){
+    const cs = Math.cos(rot), sn = Math.sin(rot), pts = [];
+    for (const [dx, k] of [[-12, 0.95], [-6, 0.75], [0, 1.1], [6, 0.8], [12, 0.6]]) pts.push([dx*cs, dx*sn - 1.2, (falling ? 4.6 : 4.1)*burn*k, dx]);
+    c.rotate(-rot); smallFlames(c, pts, t, seed);
+  }
   c.restore();
-  if (burn > 0.02){ c.save(); c.translate(x, y - (lift || 0)); for (const [dx, k] of [[-8, 0.8], [2, 1], [10, 0.7]]) flameAt(c, dx*Math.cos(rot), dx*Math.sin(rot) - 1, 3.4*burn*k, t, seed + dx); c.restore(); }
 }
 function drawCampLog(c, i, lit){
   const P = fireCampPos(i), t = S.t;
@@ -2876,34 +3024,234 @@ function drawCampLog(c, i, lit){
   c.fillStyle = lit ? '#5a2a14' : '#9a7448'; ell(c, 11, -3.5, 2.2, 3.4); c.fill();
   if (lit){ c.strokeStyle = 'rgba(255,120,40,.7)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(-9, -3); c.lineTo(-2, -5); c.lineTo(5, -2.5); c.stroke(); }
   c.restore();
-  if (lit) for (const [dx, k] of [[-5, 0.9], [3, 1.1], [9, 0.7]]) flameAt(c, P.x + dx, P.y - 6, 3.6*k*(0.6 + 0.4*S.fire.L), t, i*7 + dx);
+  if (lit) smallFlames(c, [[-5, 0.9], [2, 1.15], [8, 0.75]].map(([dx, k]) => [P.x + dx, P.y - 5, 4*k*(0.6 + 0.4*S.fire.L), dx]), t, i*7);
 }
 // the y-sorted bits: branches and camp logs on the ground
 function fireGroundItems(list){
   if (!FIRE_STORY || !S.fire.struck) return;
   const t = S.t;
   FIRE_BRANCH.forEach((b, i) => {
-    if (fireRt.taken.has(i)) return;
-    const p = fireBranchPos(i), burn = fireAt(b[3]);
+    if (fireRt.taken.has(i) || !branchDown(i) || (fireRt.falls || []).some(f => f.i === i)) return;   // (not down yet, carried, or still falling)
+    const p = fireBranchPos(i), burn = branchBurn(i);
     list.push({ y: p.y, f: () => drawBurningBranch(ctx, p.x, p.y, b[2], burn, t, i*5) });
   });
+  // falling out of the crown (drawn in front: it comes down in front of the trunk)
+  for (const f of (fireRt.falls || [])){
+    const P = fireBranchPos(f.i), u = clamp(f.t/f.dur, 0, 1), x = lerp(f.sx, P.x, u), y = lerp(f.sy, P.y, u*u), rot = lerp(f.spin, FIRE_BRANCH[f.i][2], u);
+    list.push({ y: P.y + 1, f: () => drawBurningBranch(ctx, x, y, rot, Math.max(0.5, S.fire.L), t, f.i*5, 0, true) });
+  }
   for (let i=0; i<FIRE_CAMP.length; i++){
     const lit = i < S.fire.camp && fireOn(), un = i === fireRt.campUnlit || (i < S.fire.camp && !fireOn());
     if (lit || un){ const P = fireCampPos(i); list.push({ y: P.y, f: () => drawCampLog(ctx, i, lit) }); }
   }
 }
+// ── V17.1: the tree fire, "Emberlight" (after the lightning drafts): the fire starts as a few licks where the bolt hit
+// (the top of the leader), runs out along the limbs the tree is actually painted with (the twigs the hollow's canopy
+// painter keeps, cc.twigs, each knowing the twig it grows from) and down the trunk; as more of the crown catches, the
+// licks grow broader and their bases melt into one irregular body of flame, with a narrower one down the trunk. As the
+// rain wins (S.fire.L drops) it draws back toward where it started. Everything is painted into one picture a frame
+// (fireRt.img: three layers of flame, each drawn opaque so overlapping flames merge into one shape, the tips fading),
+// laid on with a soft bloom, and mirrored into the puddles in front of the tree (drawFireInWater).
+const FIRE_SPREAD = 20;   // how fast the fire runs along the branches, units a second
+let fireRoute = null;
+function getFireRoute(){
+  if (fireRoute) return fireRoute;
+  const cc = canopyCvs[FIRE_TI]; if (!cc || !cc.twigs) return null;
+  const tw = cc.twigs, rnd = mulberry(4242), em = [];
+  const qp = (b, s) => { const a = 1 - s; return { x: a*a*b.x0 + 2*a*s*b.cx + s*s*b.x1, y: a*a*b.y0 + 2*a*s*b.cy + s*s*b.y1 }; };
+  for (const b of tw){
+    let L = 0, p = qp(b, 0); for (let k=1;k<=8;k++){ const q = qp(b, k/8); L += Math.hypot(q.x - p.x, q.y - p.y); p = q; } b.L = L;
+    // the fire comes in at the top of the leader (where the bolt hits), and into a limb where it leaves its parent
+    if (b.p < 0){ b.e = 1; b.De = 0; } else { const P = tw[b.p]; b.e = 0; b.De = P.De + Math.abs(b.u - P.e)*P.L; }
+    if (b.d > 2) continue;
+    const n = b.d === 2 ? 1 : Math.max(1, Math.round(L/9));
+    for (let k=0;k<n;k++){
+      const s = b.d === 2 ? 0.7 : (k + 0.6)/n, q = qp(b, s), g = rnd();
+      em.push({ x: q.x, y: q.y + 1, D: b.De + Math.abs(s - b.e)*L, w: (2 + b.wd*0.55)*(0.85 + 0.4*(1 - g))*(b.d === 2 ? 0.8 : 1), h: (8 + b.wd*1.7)*(0.75 + 0.6*g), seed: rnd()*20, tr: false });
+    }
+  }
+  const Dc = Math.max(...em.map(e => e.D));
+  // down the trunk: one narrower run of fire
+  const T0 = cc.trunk || { tw: 6, base: FIRE_T.r*1.16, top: FIRE_T.r*0.44 }, L0 = tw[0].L;
+  for (let y = T0.top + 4; y < T0.base - 4; y += 5.5) em.push({ x: (rnd() - 0.5)*1.5, y, D: L0 + (y - T0.top)*1.2, w: T0.tw*0.42, h: 11 + rnd()*5, seed: rnd()*20, tr: true });
+  em.sort((a, b) => a.D - b.D);
+  const Dmax = Math.max(...em.map(e => e.D));
+  return (fireRoute = { em, Dc, Dmax, base: cc.base, tw: T0.tw });
+}
+// one Emberlight tongue of flame, its foot at (x, y)
+function fireTongue(c, x, y, w, h, t, seed){
+  const lean = Math.sin(t*2.5 + seed)*w*0.43 + clamp(wind*0.012, -0.35, 0.35)*w*2, sh = Math.sin(t*3.4 + seed*2)*w*0.22;
+  c.moveTo(x - w, y);
+  c.bezierCurveTo(x - w*1.12, y - h*0.19, x - w*0.55 + sh, y - h*0.43, x - w*0.36 + sh, y - h*0.67);
+  c.quadraticCurveTo(x - w*0.12 + lean, y - h*0.5, x + lean, y - h);
+  c.bezierCurveTo(x + lean + w*0.2, y - h*0.73, x + w*0.52 + lean, y - h*0.46, x + w*0.88 + lean*0.4, y - h*0.31);
+  c.quadraticCurveTo(x + w*0.63, y - h*0.14, x + w, y);
+  c.quadraticCurveTo(x, y + w*0.5, x - w, y); c.closePath();
+}
+// how far the fire has got along its route (in units from the strike), and the flames' strength
+function fireFront(){
+  const F = getFireRoute(); if (!F || !(S.fire.L > 0)) return null;
+  const L = S.fire.L, age = fireRt.ignT == null ? 999 : S.t - fireRt.ignT;
+  const front = Math.min(age*FIRE_SPREAD, (F.Dmax + 12)*clamp((L - 0.02)/0.8, 0, 1));
+  return { F, front, join: clamp((front - F.Dc*0.3)/(F.Dc*0.55), 0, 1), k: 0.55 + 0.45*clamp(L/0.6, 0, 1) };
+}
+// a burning spot of the crown, for sparks and smoke (world coordinates), or null
+function fireSpot2(){
+  const f = fireFront(); if (!f) return null;
+  const on = f.F.em.filter(e => e.D < f.front); if (!on.length) return null;
+  const e = on[Math.floor(Math.random()*on.length)];
+  return { x: FIRE_T.x + e.x, y: FIRE_T.y + e.y - e.h*0.5 };
+}
+let fireCv = null, fireCx = null, fireBl = null;
+function paintFire(){
+  const f = fireFront(); if (!f){ fireRt.img = null; return null; }
+  // (repainted about 30 times a second; in between the last picture is laid on again)
+  const now = performance.now(), want = clamp(DPR*cam.z*0.6, 0.8, 2);
+  if (fireRt.img && fireRt.img.sc === want && now - (fireRt.paintT || 0) < 30) return fireRt.img;
+  fireRt.paintT = now;
+  const { F, front, join, k } = f, T = FIRE_T, t = S.t, fl = 1 + 0.45*fireRt.flare;
+  const x0 = T.x - T.r*1.45, x1 = T.x + T.r*1.45, y0 = T.y - T.r*1.85, yb = T.y + F.base, y1 = yb + 8;
+  const sc = clamp(DPR*cam.z*0.6, 0.8, 2), cw = Math.ceil((x1 - x0)*sc), ch = Math.ceil((y1 - y0)*sc);
+  if (!fireCv || fireCv.width !== cw || fireCv.height !== ch){ fireCv = document.createElement('canvas'); fireCv.width = cw; fireCv.height = ch; fireCx = fireCv.getContext('2d'); }
+  const g = fireCx;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, cw, ch);
+  // (the same sway as the tree's crown)
+  const sh = treeShake[FIRE_TI], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + FIRE_TI*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
+  g.setTransform(sc, 0, 0, sc, -x0*sc, -y0*sc); g.translate(T.x, yb); g.rotate(sway); g.translate(0, -F.base);
+  const on = [];
+  let xa = 1e9, xb = -1e9, ya = 0, nc = 0, trunkTo = -1e9;
+  for (const e of F.em){
+    if (e.D >= front) break;
+    const born = clamp((front - e.D)/12, 0, 1), pulse = 0.78 + 0.22*Math.sin(t*4.7 + e.seed);
+    // once the fire joins up, the separate licks are swallowed by the one big flame and shrink back to texture on it
+    const sw = e.tr ? 1 : 1 - 0.5*join, shh = e.tr ? 1 : 1 - 0.35*join;
+    on.push({ e, w: e.w*(0.35 + 0.65*born)*sw, h: e.h*born*pulse*k*fl*shh*(e.tr ? 1 : 1.12), lift: Math.sin(t*2.1 + e.seed)*1.1 });
+    if (e.tr){ if (born > 0.3) trunkTo = Math.max(trunkTo, e.y); }
+    else if (born > 0.4){ xa = Math.min(xa, e.x); xb = Math.max(xb, e.x); ya += e.y; nc++; }
+  }
+  if (!on.length){ fireRt.img = null; return null; }
+  // the joined-up fire: one lobed sheet of flame over the burning part of the crown (Emberlight's emberSheet, but shaped
+  // by where the fire actually is: its underside follows the lowest burning branches, its lobes rise from the highest),
+  // narrowing into a single run of fire down the trunk
+  const r = T.r, sheet = join > 0.02 && nc > 2;
+  let cols = null, sBase = 0;
+  if (sheet){
+    const n = 9, x0c = xa - 6, wc = (xb - xa + 12)/n, top = new Array(n).fill(null), bot = new Array(n).fill(null);
+    for (const o of on){ const e = o.e; if (e.tr) continue; const i = clamp(Math.floor((e.x - x0c)/wc), 0, n - 1); top[i] = top[i] == null ? e.y : Math.min(top[i], e.y); bot[i] = bot[i] == null ? e.y : Math.max(bot[i], e.y); }
+    // fill gaps from the neighbours, then smooth
+    for (let pass=0; pass<2; pass++) for (let i=0;i<n;i++) if (top[i] == null){ const a1 = top[i - 1], b1 = top[i + 1]; if (a1 != null || b1 != null){ top[i] = a1 != null && b1 != null ? (a1 + b1)/2 : a1 != null ? a1 : b1; bot[i] = bot[i - 1] != null && bot[i + 1] != null ? (bot[i - 1] + bot[i + 1])/2 : bot[i - 1] != null ? bot[i - 1] : bot[i + 1]; } }
+    const sm = A => A.map((v, i) => v == null ? 0 : (v*2 + (A[i - 1] != null ? A[i - 1] : v) + (A[i + 1] != null ? A[i + 1] : v))/4);
+    cols = { n, x0c, wc, top: sm(top), bot: sm(bot) };
+    sBase = Math.max(...cols.bot);
+  }
+  const LW = F.lobes || (F.lobes = (() => { const q = mulberry(77); return Array.from({ length: 12 }, () => [0.6 + q()*0.8, q(), q()*TAU]); })());
+  const sheetPath = (sc2, li) => {
+    const { n, x0c, wc } = cols, mid0 = x0c + n*wc/2, shrink = (1 - sc2)*0.5;
+    // edges pulled in toward the middle and up for the inner layers
+    const X = i => mid0 + (x0c + i*wc - mid0)*(0.5 + 0.5*sc2 + 0.06*join), tp = i => cols.top[clamp(i, 0, n - 1)], bt = i => cols.bot[clamp(i, 0, n - 1)];
+    const lift = i => (bt(i) - tp(i))*shrink + r*0.04*(1 - sc2);
+    // the top: lobes, irregular in width and height, the middle tallest, rising from the highest burning branches
+    const lobes = clamp(n - 2 - li, 3, 8);
+    let tot = 0; for (let i=0;i<lobes;i++) tot += LW[i + li][0];
+    const xL = X(0), xR = X(n), span = xR - xL, at = x => { const f = clamp((x - x0c)/wc - 0.5, 0, n - 1), i = Math.floor(f), u = f - i; return [lerp(tp(i), tp(i + 1), u), lerp(bt(i), bt(i + 1), u)]; };
+    const yAt = x => { const [a1, b1] = at(mid0 + (x - mid0)/(0.5 + 0.5*sc2 + 0.06*join)); return a1 + (b1 - a1)*shrink + r*0.04*(1 - sc2) + r*0.1; };
+    g.moveTo(xL, yAt(xL) + 3);
+    let px = xL;
+    for (let i=0;i<lobes;i++){
+      const L = LW[i + li], step = span*L[0]/tot, nx = px + step, mx = (px + nx)/2, flick = 0.82 + 0.18*Math.sin(t*3.7 + L[2])*Math.sin(t*1.9 + i + li);
+      const edge = 1 - Math.pow(Math.abs(mx - mid0)/(span/2 + 1), 2)*0.65, y = yAt(mx);
+      const h = r*(0.36 + 0.62*L[1])*(0.55 + 0.45*sc2)*flick*edge*(0.35 + 0.65*join)*k*fl, lean = Math.sin(t*1.8 + L[2])*step*0.22 + clamp(wind*0.012, -0.35, 0.35)*h*0.3;
+      const dp = yAt(px) - h*(0.12 + 0.1*Math.sin(t*2.3 + i*3.1)), dn = yAt(nx) - h*(0.12 + 0.1*Math.sin(t*2.7 + i*2.3));
+      g.bezierCurveTo(px + step*0.12, dp, mx - step*0.32 + lean*0.6, y - h*0.8, mx + lean, y - h);
+      g.bezierCurveTo(mx + step*0.32 + lean*0.6, y - h*0.76, nx - step*0.1, dn, nx, i === lobes - 1 ? yAt(nx) + 3 : dn);
+      px = nx;
+    }
+    // the underside, right to left, along the lowest burning branches (a little ragged)
+    const U = i => ({ x: X(i), y: bt(i) - lift(i) + r*0.12*sc2 + Math.sin(t*2.9 + i*1.7)*1.6 });
+    let q = U(n); g.lineTo(q.x, q.y);
+    for (let i=n - 1; i>=0; i--){ const p2 = U(i); g.quadraticCurveTo(q.x, q.y, (q.x + p2.x)/2, (q.y + p2.y)/2); q = p2; }
+    g.lineTo(q.x, q.y);
+    g.closePath();
+  };
+  // the run of fire down the trunk: orange more than yellow, ragged, thinning toward the bottom
+  const tcol = (sc2, li) => {
+    if (!sheet || trunkTo < sBase - 2 || li > 2) return;
+    const hw = F.tw*(0.5 + 0.4*join)*(li === 0 ? 1 : li === 1 ? 0.55 : 0.28), top = sBase - 6, bot = trunkTo + 4 - li*6;
+    if (bot <= top) return;
+    const w1 = Math.sin(t*3.2)*hw*0.3, w2 = Math.sin(t*4.1 + 1)*hw*0.3, m = (top + bot)/2;
+    g.moveTo(-hw, top); g.quadraticCurveTo(-hw*1.15 + w1, m, -hw*0.6, bot - (bot - top)*0.12); g.quadraticCurveTo(-hw*0.2, bot + 2, 0, bot);
+    g.quadraticCurveTo(hw*0.2, bot + 2, hw*0.6, bot - (bot - top)*0.12); g.quadraticCurveTo(hw*1.15 - w2, m, hw, top); g.closePath();
+  };
+  // layers, outside in; each is one merged shape (drawn opaque, so overlapping flames melt into one)
+  const layers = [['#b9381c', 1, 1, 1], ['#ee6a24', 0.64, 0.78, 0.66], ['#ffae49', 0.36, 0.5, 0.36], ['#ffe7a1', 0.16, 0.28, 0.14]];
+  layers.forEach(([col, sw, shh, ss], li) => {
+    g.fillStyle = col; g.beginPath();
+    for (const o of on){ const e = o.e; if (e.tr && sheet) continue; fireTongue(g, e.x, e.y + o.lift, o.w*sw, o.h*shh, t, e.seed + (sw < 0.3 ? 1.8 : 0)); }
+    if (sheet){ if (li < 3 || join > 0.5) sheetPath(ss, li); tcol(ss, li); for (const o of on) if (o.e.tr && li < 2){ const e = o.e; if (e.y > trunkTo) continue; fireTongue(g, e.x + Math.sin(e.seed)*F.tw*0.5, e.y + o.lift, o.w*sw*0.8, o.h*shh*0.8, t, e.seed); } }
+    // (before the sheet, the trunk's licks burn on their own)
+    if (!sheet) for (const o of on) if (o.e.tr){ const e = o.e; fireTongue(g, e.x, e.y + o.lift, o.w*sw, o.h*shh, t, e.seed); }
+    g.fill();
+  });
+  // the tips fade into the smoke above the crown
+  g.setTransform(sc, 0, 0, sc, -x0*sc, -y0*sc);
+  g.globalCompositeOperation = 'destination-out';
+  const fade = g.createLinearGradient(0, y0, 0, T.y - T.r*0.15);
+  fade.addColorStop(0, 'rgba(0,0,0,.85)'); fade.addColorStop(0.55, 'rgba(0,0,0,.3)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = fade; g.fillRect(x0, y0, x1 - x0, T.y - T.r*0.15 - y0);
+  g.globalCompositeOperation = 'source-over';
+  // a small, blurry copy for the bloom
+  const bw = Math.max(8, Math.ceil(cw/7)), bh = Math.max(8, Math.ceil(ch/7));
+  if (!fireBl || fireBl.width !== bw || fireBl.height !== bh){ fireBl = document.createElement('canvas'); fireBl.width = bw; fireBl.height = bh; }
+  const bc = fireBl.getContext('2d'); bc.clearRect(0, 0, bw, bh); bc.drawImage(fireCv, 0, 0, bw, bh);
+  fireRt.vis = clamp(on.length/F.em.length, 0, 1);
+  return (fireRt.img = { cv: fireCv, bl: fireBl, x0, y0, w: x1 - x0, h: y1 - y0, yb, sc, k, n: on.length });
+}
 // the flames up in the tree (after the crowns), and the lightning
 function drawTreeFire(){
   if (!FIRE_STORY || !S.fire.struck) return;
-  const c = ctx, t = S.t, T = FIRE_T;
+  const c = ctx, T = FIRE_T;
   if (S.fire.L > 0){
-    const fl = 1 + 0.5*fireRt.flare;
-    FIRE_SITE.forEach((s, i) => { const k = fireAt(s[2]); if (k <= 0.01) return; flameAt(c, T.x + s[0]*T.r, T.y + s[1]*T.r*0.9, (i ? 5.5 : 4)*(0.4 + 0.6*k)*fl*(1 + (i % 3)*0.15), t, i*3.7); });
+    const I = paintFire();
+    if (I){
+      c.save();
+      c.globalAlpha = 0.8; c.drawImage(I.cv, I.x0, I.y0, I.w, I.h);
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = 0.24*I.k; c.drawImage(I.bl, I.x0 - I.w*0.08, I.y0 - I.h*0.06, I.w*1.16, I.h*1.1);
+      c.restore();
+    }
   } else {
+    fireRt.img = null;
     // out: a wisp of smoke from the trunk now and then
     if (!simMode && Math.random() < 0.02) parts.push({ k:'smoke', x: T.x + rand(-4, 4), y: FIRE_BASE.y - 30, vx: wind*0.2, vy: rand(-12, -6), g: 0, life: rand(1.6, 2.4), t: 0, r: rand(2, 4) });
   }
   if (fireLabOn()) timers.push({ x: T.x, y: T.y - T.r - 12, t: fireOn() ? etaText() : '⚡?', k: fireK(), on: researchRate() > 0 });
+}
+// the fire in the puddles in front of the tree: the picture of the flames upside down, laid in thin wobbling strips
+// with 'lighter' over the water's tint (so it glows instead of being dimmed like the rest of the reflection), and a
+// long warm streak of light under it
+function drawFireInWater(V){
+  const I = fireRt.img; if (!FIRE_STORY || !I || !(S.fire.L > 0)) return;
+  const c = ctx, z = cam.z, yb = I.yb, depth = (yb - I.y0)*REFL_SQ, T = FIRE_T, t = RAIN.t;
+  for (const p of PUDDLES){
+    if (p.road || p.x + p.rx < V.x0 || p.x - p.rx > V.x1 || p.y + p.ry < V.y0 || p.y - p.ry > V.y1) continue;
+    if (yb > p.y + p.ry + 4 || yb + depth < p.y - p.ry || Math.abs(T.x - p.x) > T.r + p.rx + 10) continue;
+    c.save(); c.clip(puddlePath(p));
+    c.globalCompositeOperation = 'lighter';
+    // the warm streak
+    const ff = 0.85 + Math.sin(S.t*9)*0.08 + Math.sin(S.t*23)*0.05;
+    c.globalAlpha = 0.2*I.k*ff*(0.4 + 0.6*(fireRt.vis || 0)); c.drawImage(glowSprite('255,130,45'), T.x - T.r*0.9, yb - 6, T.r*1.8, depth*0.95);
+    // the flames, in strips
+    const hs = 2.2/z, sh = hs/REFL_SQ, amp = 0.7 + 0.5*RAIN.k + 2.4*(p.agit || 0);
+    const a0 = Math.max(yb, p.y - p.ry - 2), a1 = Math.min(yb + depth, p.y + p.ry + 2);
+    c.globalAlpha = 0.42*I.k;
+    for (let wy = a0; wy < a1; wy += hs){
+      const src = yb - (wy + hs - yb)/REFL_SQ, sy = (src - I.y0)*I.sc;
+      if (sy + sh*I.sc < 0 || sy > I.cv.height) continue;
+      const off = Math.sin(wy*0.9 + t*3.1 + p.seed)*amp + Math.sin(wy*2.3 - t*5.7)*amp*0.45;
+      c.drawImage(I.cv, 0, sy, I.cv.width, sh*I.sc, I.x0 + off, wy, I.w, hs*1.04);
+    }
+    c.restore();
+  }
 }
 function drawLightning(){
   const B = fireRt.bolt; if (!B) return;
@@ -4997,15 +5345,34 @@ function groundCover(G){
   const w = Math.max(0, Math.min(V.x1, x1) - Math.max(V.x0, x0)), h = Math.max(0, Math.min(V.y1, y1) - Math.max(V.y0, y0));
   return w*h/Math.max(1e-6, (V.x1 - V.x0)*(V.y1 - V.y0));
 }
+let groundGapT = 0, groundLastT = 0;
+const sameGroundCam = (a, b) => !!a && !!b && Math.abs(a.z/b.z - 1) < 0.002 && Math.abs(a.ox - b.ox) < 1 && Math.abs(a.oy - b.oy) < 1;
 function updGround(){
-  const stable = !camAnim && performance.now() - camMovedT > 140;
+  const now = performance.now(), fdt = Math.min(0.1, (now - (groundLastT || now))/1000); groundLastT = now;
+  const stable = !camAnim && now - camMovedT > 140;
+  // V17.1: while the camera glides somewhere (the story camera going back, a new plot), paint the ground for where it's
+  // going, so it's ready when it gets there (it used to wait until the camera stopped, and a ground painted for a
+  // zoomed-in view could leave half the screen bare for a while)
+  if (camAnim && camAnim.to && camAnim.to.z){
+    const T = camAnim.to;
+    if (!sameGroundCam(groundJob ? groundJob.cam : groundCam, T)) startGround(T);
+    stepGround(groundCover(groundCam) < 0.8 ? 24 : 10);
+    return;
+  }
+  // a safety net: never leave part of the view without ground for long; past ~1 s, finish the painting in one go
+  const gap = 1 - groundCover(groundCam);
+  groundGapT = gap > 0.03 ? groundGapT + fdt : 0;
+  if (groundGapT > 1){
+    groundGapT = 0;
+    if (!groundJob || !groundFits(groundJob.cam, 0) || groundJob.cam.sig !== groundSig()) startGround(cam);
+    stepGround(Infinity); return;
+  }
   if (groundJob){
     // the one being painted no longer fits the view (zoomed or panned on): start over once the camera settles
     if (groundJob.cam.sig !== groundSig() || (!groundFits(groundJob.cam, 0) && stable)) startGround(cam);
     // a bit at a time while the old ground still fills the screen; quicker while part of the view has none (after a
     // big zoom out or a fast pan)
-    const gap = 1 - groundCover(groundCam);
-    stepGround(gap > 0.2 ? 24 : gap > 0.01 ? 10 : GROUND_BUDGET);
+    stepGround(gap > 0.2 ? 32 : gap > 0.01 ? 12 : GROUND_BUDGET);
     return;
   }
   // (the spare pair is big; let it go once nothing has been painted for a few seconds)
@@ -5234,7 +5601,7 @@ function buildCanopies(){
     const c = document.createElement('canvas'); c.width = Math.ceil(w*RES); c.height = Math.ceil(h*RES);
     const g = c.getContext('2d'); g.scale(RES, RES); g.translate(ox, oy);
     const rnd = mulberry(t.seed);
-    if (LOT.paintCanopy){ const base = LOT.paintCanopy(g, t, ti, { R0, ox, oy, w, rnd }); return { c, ox, oy, w, h, base }; }   // V14: the hollow's half-bare trees
+    if (LOT.paintCanopy){ const P = { R0, ox, oy, w, rnd }, base = LOT.paintCanopy(g, t, ti, P); return { c, ox, oy, w, h, base, twigs: P.twigs, trunk: P.trunk }; }   // V14: the hollow's half-bare trees
     const [fa, fb] = t.fam || TREE_FAMS[ti % TREE_FAMS.length], A = FOLIAGE[fa], B = FOLIAGE[fb];
     const bloom = !!BLOSSOM[fa];
     // trunk and roots, mostly hidden by the crown (cherry bark: dark red-brown with pale bands)
@@ -6359,7 +6726,11 @@ function drawRobot(r){
   } else if (r.st === 'fireDo' || (r.ouch > 0 && FIND().atFire && (r.st === 'study' || r.st === 'assist'))){
     // V17: trying things at the fire
     const f = r.fx || { kind: 'ouch', st: 'ouch', t: 0 }, t2 = f.t || 0;
-    if (f.st === 'ouch' || (!r.fx && r.ouch > 0)){
+    if (f.kind === 'log' && f.st === 'saw'){
+      // V17.1: sawing a log at the saw itself
+      if (ART.sawArm) ART.sawArm(c, r, sx, sy);
+      else { const a = Math.sin(r.hammer*16)*0.5; c.save(); c.translate(sx, sy); c.rotate(-0.6 + a); c.beginPath(); c.moveTo(0, 0); c.lineTo(12, 0); c.stroke(); c.fillStyle = '#6b7276'; c.fillRect(10, -4, 4, 8); c.restore(); }
+    } else if (f.st === 'ouch' || (!r.fx && r.ouch > 0)){
       // shaking the burnt hand, fast, a wisp of smoke off it
       const a = -1.1 + Math.sin(r.anim*24)*0.5, L = 11;
       c.save(); c.translate(sx, sy); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.lineTo(L, 0); c.stroke(); c.fillStyle = armC; ell(c, L, 0, 1.8, 1.8); c.fill(); c.restore();
@@ -6369,7 +6740,7 @@ function drawRobot(r){
       const k = f.kind === 'grab' ? (f.st === 'reach' ? ease(clamp(t2/0.7, 0, 1)) : 1 - ease(clamp(t2/0.6, 0, 1))*0.55) : Math.sin(clamp(t2/0.6, 0, 1)*Math.PI);
       const hx = lerp(sx + 3, bw/2 + 12, k), hy = lerp(sy + 7, -2 - bob, k);
       c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke(); c.fillStyle = armC; ell(c, hx, hy, 1.7, 1.6); c.fill();
-      if (f.kind === 'grab' && f.st === 'lift') drawBurningBranch(c, hx + 2, hy + 1, 0.3, 0.8, S.t, r.id, 0);
+      if (f.kind === 'grab' && f.st === 'lift') drawBurningBranch(c, hx + 2, hy + 1, 0.3, 0.8, S.t, r.id, 0, true);
       if (f.kind === 'log' && f.held){ c.fillStyle = '#56402c'; rr(c, hx - 6, hy - 3, 12, 5, 2.4); c.fill(); c.fillStyle = '#9a7448'; ell(c, hx + 6, hy - 0.5, 1.6, 2.4); c.fill(); }
     } else if (f.kind === 'leaf' && f.st === 'look'){
       // holding the dry leaf up to its eye
@@ -6554,8 +6925,9 @@ function drawRobot(r){
   c.restore();   // the head's tilt
   c.restore();
   if (r.st === 'study' && bookRt.by === r.id && !FIND().atHive && !FIND().atFire) timers.push({ x: r.x, y: r.y - 98, t: etaText(), k: S.story.prog/researchNeed(), on: researchRate() > 0 });
-  if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt'){
-    const pr = r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : r.st === 'wrap' ? '#e0475a' : '#ffb866';
+  const sawF = r.st === 'fireDo' && r.fx && r.fx.kind === 'log' && r.fx.st === 'saw';   // (V17.1)
+  if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt' || sawF){
+    const pr = sawF ? r.fx.p : r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' || sawF ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : r.st === 'wrap' ? '#e0475a' : '#ffb866';
     c.save(); c.translate(r.x, r.y + top - hh - 22); c.lineWidth = 3; c.lineCap = 'round';
     c.strokeStyle = 'rgba(40,25,10,.35)'; c.beginPath(); c.arc(0, 0, 6, 0, TAU); c.stroke();
     c.strokeStyle = col; c.beginPath(); c.arc(0, 0, 6, -Math.PI/2, -Math.PI/2 + TAU*clamp(pr, 0, 1)); c.stroke();
@@ -6698,7 +7070,7 @@ function crabClaw(c, x, y, side, cs, open, ang, st){
 }
 function drawShaker(h){
   const c = ctx, st = helperStyle(h), bw = st.bw, bh = st.bh;
-  const snipping = h.st === 'snip' && h.target, shaking = h.st === 'shake' && h.target, bush = shaking && h.target.type === 'bush';
+  const snipping = h.st === 'snip' && h.target, shaking = (h.st === 'shake' && h.target) || (h.st === 'fire' && h.fireShake), bush = shaking && !!h.target && h.target.type === 'bush';   // (V17.1: or shaking the burning tree)
   c.save(); c.translate(h.x, h.y);
   c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, bw*0.85, 4.5); c.fill();
   const jig = shaking ? Math.sin(h.anim*38)*1.3 : 0, bob = h.moving ? -Math.abs(Math.sin(h.anim*14))*1 : Math.sin(h.anim*2 + h.idx)*0.3;
@@ -6754,7 +7126,7 @@ function drawShaker(h){
   // V17: what it holds up in its claw at the fire: a burning branch, or a burning log for the dryer's stove
   if (h.holding){
     const a = arms[1], hx = a.cx + 6, hy = a.cy - 8;
-    if (h.holding === 'branch') drawBurningBranch(c, hx, hy, -1.15, Math.max(0.6, S.fire.L), S.t, h.idx*3 + 1, 0);
+    if (h.holding === 'branch') drawBurningBranch(c, hx, hy, -1.15, Math.max(0.6, S.fire.L), S.t, h.idx*3 + 1, 0, true);
     else { c.save(); c.translate(hx, hy + 2); c.rotate(-0.4); c.fillStyle = '#2e1d14'; rr(c, -9, -3.5, 18, 7, 3.4); c.fill(); c.fillStyle = 'rgba(255,120,40,.6)'; for (const ex of [-5, 0, 5]){ ell(c, ex, -1, 1.3, 0.8); c.fill(); } c.restore(); flameAt(c, hx - 2, hy - 2, 3.6, S.t, 99); flameAt(c, hx + 4, hy - 4, 2.6, S.t, 77); }
   }
   c.restore();
@@ -7345,7 +7717,7 @@ function drawGlows(){
   // V17: the burning tree lights up the yard around it, the dryer's stove glows when it burns logs, the kiln too
   if (FIRE_STORY){
     const L = S.fire.L, ff = 0.85 + Math.sin(S.t*9)*0.08 + Math.sin(S.t*23)*0.05;
-    if (L > 0){ glow(FIRE_T.x, FIRE_T.y, FIRE_T.r*1.6, (0.16 + 0.22*L)*ff*(1 + 0.4*fireRt.flare), '255,140,50'); glow(FIRE_BASE.x, FIRE_BASE.y, 90, (0.12 + 0.2*L)*ff, '255,120,40'); }
+    if (L > 0){ const v = 0.35 + 0.65*(fireRt.img ? fireRt.vis || 0 : 1); glow(FIRE_T.x, FIRE_T.y, FIRE_T.r*1.6, (0.16 + 0.22*L)*ff*(1 + 0.4*fireRt.flare)*v, '255,140,50'); glow(FIRE_BASE.x, FIRE_BASE.y, 90, (0.12 + 0.2*L)*ff*v, '255,120,40'); }
     for (let i=0; i<S.fire.camp && L > 0; i++){ const P = fireCampPos(i); glow(P.x, P.y - 6, 30, 0.2*ff, '255,140,50'); }
     if (benchLit()) glow(BAGGER.x - 2, BAGGER.y - 14, 34, 0.24*ff, '255,140,50');
     if (fireRt.flash > 0) glow(FIRE_T.x, FIRE_T.y - 40, 400, 0.5*fireRt.flash, '210,220,255');
@@ -7370,6 +7742,7 @@ function draw(){
     // V14: wet tracks and the puddles' water (with their reflections), then what stands up out of the ground over it
     drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);
     if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); c.drawImage(groundTopCv, gx, gy, gw, gh); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
+    if (FIRE_STORY && !DBG.includes('nopud')) drawFireInWater(V);   // V17.1
     drawSplashes(V);
   }
   drawSpotGlints();
@@ -7399,7 +7772,7 @@ function draw(){
   if (driver && driver.y < LANE - 26) list.push({ y: driver.y, f: () => drawRobot(driver) });
   BUSHES.forEach((b, i) => list.push({ y: b.y, f: () => drawBushObj(i) }));
   // a shaker hugging a trunk is drawn after the tree crowns, so it stays in front of the trunk
-  const onTrunk = h => h.kind === 'shaker' && h.st === 'shake' && h.target && h.target.type === 'tree';
+  const onTrunk = h => h.kind === 'shaker' && ((h.st === 'shake' && h.target && h.target.type === 'tree') || (h.st === 'fire' && h.fireShake));
   for (const h of HB) if (!onTrunk(h) && h.st !== 'ride' && h.st !== 'gone') list.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
@@ -7421,8 +7794,8 @@ function draw(){
     treeAlpha[i] = lerp(treeAlpha[i], under ? 0.42 : 0.96, 0.06);
     c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(canopyImg(i, DPR*cam.z, i === FIRE_TI && S.fire.struck ? charCanopy() : null), -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
   });
-  for (const h of HB) if (onTrunk(h)) drawShaker(h);
-  if (FIRE_STORY) drawTreeFire();   // V17
+  for (const h of HB) if (onTrunk(h) && !h.fireShake) drawShaker(h);
+  if (FIRE_STORY){ drawTreeFire(); for (const h of HB) if (onTrunk(h) && h.fireShake) drawShaker(h); }   // V17 (V17.1: a shaker shaking the burning tree in front of the flames)
   if (!LOT.antsOnGround) drawBees(V);
   if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -8136,7 +8509,7 @@ function robotDoing(r){
     case 'toBook': return ['research', 'To the book'];
     case 'pickBook': return ['research', 'Picking up the book'];
     case 'toStudy': return ['research', 'Carrying the book'];
-    case 'study': case 'assist': case 'fireDo': if (FIND().atFire){ const w = fireWaitFor(); return w ? ['research', 'Researching - waiting for ' + w, 1] : ['research', r.st === 'fireDo' && r.fx ? { grab: 'Trying to lift a burning branch', leaf: 'Looking at a dry leaf', log: 'Fetching a log for the fire', lead: 'Showing the shaker the dryer' }[r.fx.kind] : 'Researching the fire']; }
+    case 'study': case 'assist': case 'fireDo': if (FIND().atFire){ const w = fireWaitFor(); return w ? ['research', 'Researching - waiting for ' + w, 1] : ['research', r.st === 'fireDo' && r.fx ? { grab: 'Trying to lift a burning branch', leaf: 'Looking at a dry leaf', log: r.fx.st === 'saw' ? 'Sawing a log for the fire' : r.fx.st === 'waitSaw' ? 'Waiting at the saw for a log' : 'Fetching a log for the fire', lead: 'Showing the shaker the dryer' }[r.fx.kind] : 'Researching the fire']; }
       if (r.st === 'assist') return labWaitBlower() ? ['research', 'Researching - waiting for a blower to help', 1] : ['research', 'Helping with research'];
       return labWaitBlower() ? ['research', 'Researching - waiting for a blower to help', 1] : ['research', FIND().atHive ? 'Researching the hive' : S.story.item === 'coal' ? 'Studying the coal' : 'Studying the book'];
     case 'toAssist': return ['research', 'Going to help'];
@@ -8422,11 +8795,11 @@ function cardModel(){
     title = F.title; live = 'book'; if (bee) head = 'deadbee'; if (hive) head = 'bee'; if (fire) head = 'firetree'; if (coal) head = 'ingot';
     const who = researchers(), going = who.length > 0 || S.story.prog > 0;
     // (V17: the fire's card says what it needs, and while it's out, that the lightning has to strike again)
-    const story = fire ? (fireOn() ? F.story : 'The rain put the fire out. This could be useful: it takes a robot, a blower and a shaker together. Now we just have to wait, and hope lightning strikes twice.') : F.story;
+    const story = fire ? (fireOn() ? F.story : 'The rain put the fire out. This could be useful: it takes two robots, a blower and a shaker together. Now we just have to wait, and hope lightning strikes twice.') : F.story;
     top = '<div class="bookart' + (bee || hive || fire || coal ? ' beeart' : '') + '">' + (fire ? FIRE_SVG : coal ? COAL_SVG : hive ? HIVE_SVG : bee ? BEE_SVG : BOOK_SVG) + '</div><p class="story">' + story + '</p>';
     const chip = '<span class="chip mini" style="--tc:' + TASKS.research.col + '">' + ic('research') + 'Research</span>';
     const names = who.map(q => styleOf(q.id).name);
-    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the fire burns and a blower and a shaker are there too. Progress is kept if they stop.' : hive ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the blower keeps the rain off. Progress is kept if they stop.'
+    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the fire burns and a second robot, a blower and a shaker are there too. Progress is kept if they stop.' : hive ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the blower keeps the rain off. Progress is kept if they stop.'
         : 'The robot holding ' + F.holding + ' does ' + RESEARCH_MAIN + ' research a second, each robot helping ' + RESEARCH_HELP + ' (more with Research upgrades). Progress is kept if they stop.',
       val: names.length ? names.join(', ') + (names.length > 1 ? ' are on it' : ' is on it') : '<span class="none">nobody yet · add ' + chip + ' to a robot’s Do list</span>' }) });
     if (fire){
@@ -8450,7 +8823,7 @@ function cardModel(){
           : '<span class="none">' + (asked ? 'on its way…' : S.blowers.length ? 'needed · add ' + chip + ' to a blower’s Do list' : 'needed · build a blower in the workshop') + '</span>',
         tip:'Nothing gets done in the rain: a blower has to keep it off while the robots work. It adds ' + F.blower + ' research a second on its own.' }) });
     }
-    if (going) rows.push({ sig:'two', html:'<div class="lockline tip2">' + ic('robot') + (F.crew ? 'Up to ' + F.crew + ' robots can research this together.' : '2 robots can research this for faster progress.') + '</div>' });
+    if (going || F.robots > 1) rows.push({ sig:'two', html:'<div class="lockline tip2">' + ic('robot') + (F.robots > 1 ? 'It takes ' + F.robots + ' robots' + (F.crew > F.robots ? ' (up to ' + F.crew + ')' : '') + '.' : F.crew ? 'Up to ' + F.crew + ' robots can research this together.' : '2 robots can research this for faster progress.') + '</div>' });
   } else if (k === 'letter'){
     // V13: a letter from the truck driver
     const l = S.letters[cardOpen.i], L = l && LETTERS[l.id];
@@ -9183,6 +9556,10 @@ function simTasks(){
   const c0 = S.robots[0];
   if (researchOpen() && !S.robots.some(c => taskTop(c, 'research'))){ putTop(c0, 'research'); const r = R[0]; if (r && (r.st === 'wander' || r.st === 'rest' || r.st === 'seek')){ release(r); r.st = 'idle'; } }
   else if (!researchOpen() && taskTop(c0, 'research')) putOff(c0, 'research');
+  // V17.1: the fire takes two robots: the second one joins while it lasts
+  const c1 = S.robots[1], two = researchOpen() && (FIND().robots || 1) > 1;
+  if (c1 && two && !taskTop(c1, 'research')){ putTop(c1, 'research'); const r = R[1]; if (r && (r.st === 'wander' || r.st === 'rest' || r.st === 'seek')){ release(r); r.st = 'idle'; } }
+  else if (c1 && !researchOpen() && taskTop(c1, 'research')) putOff(c1, 'research');
   // V15: research that needs a blower (the hollow's hive): the first blower keeps the rain off while it lasts
   const b0 = S.blowers[0], lab = researchOpen() && !!FIND().blower;
   if (b0 && lab && !S.blowers.some(c => taskTop(c, 'research'))) putTop(b0, 'research');
@@ -9259,6 +9636,8 @@ window.__leafYard = {
   setCam: (x, y, z) => { camAnim = null; camFollow = null; userCam = true; cam.z = z; cam.ox = W/2 - x*z; cam.oy = H/2 - y*z; buildGround(cam); },   // V13: for screenshots
   world: () => WORLD,
   jump: id => startJump(id),
+  next: () => { const st = nextStep(); if (!st) return null; st.run(); return st.label; },   // the test panel's Next step (for tests)
+  dev: code => eval(code),   // reads/changes the game's own variables (headless tests only)
   fire: cmd => FIRE_STORY ? (cmd === 'out' ? fireOut() : cmd === 'strike' ? strike() : S.fire) : null,   // V17: for tests
   ants: () => (ANTS ? antGrid() : null),   // V14.1: the ants' grid and trails (for tests)   // V14.1: the test panel's Jump to
   robots: () => R,

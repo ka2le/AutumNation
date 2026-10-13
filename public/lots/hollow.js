@@ -414,16 +414,18 @@ LOTS.hollow = H => {
     // haze that fills a rounded crown; leaves cling along the outer twigs
     const tips = [], twigs = [];
     const inCrown = (x, y) => (x/(R0*0.98))**2 + ((y + R0*0.08)/(R0*0.9*fy))**2 < 1;
-    const branch = (x0, y0, a, L, wd, d) => {
+    // (V17.1: each twig remembers the one it grows from, p, and where along it, u, so the fire can spread along them)
+    const branch = (x0, y0, a, L, wd, d, p, pu) => {
       let x1 = x0 + Math.cos(a)*L, y1 = y0 + Math.sin(a)*L*fy;
       for (let q=0; q<4 && !inCrown(x1, y1); q++){ L *= 0.8; x1 = x0 + Math.cos(a)*L; y1 = y0 + Math.sin(a)*L*fy; }
       const bend = (rnd() - 0.5)*0.6, cx = (x0 + x1)/2 + Math.cos(a + Math.PI/2)*L*bend*0.25, cy = (y0 + y1)/2 + Math.sin(a + Math.PI/2)*L*bend*0.25 - L*0.06;
-      twigs.push({ x0, y0, cx, cy, x1, y1, wd, d });
+      const me = twigs.length;
+      twigs.push({ x0, y0, cx, cy, x1, y1, wd, d, p: p == null ? 0 : p, u: pu == null ? 1 : pu });
       if (d < 4){
         const n = d === 0 ? 2 + (rnd() < 0.5 ? 1 : 0) : 2;
         for (let k=0;k<n;k++){
           const u = d === 0 ? 0.55 + rnd()*0.4 : 0.6 + rnd()*0.4, spread = d < 2 ? 0.5 : 0.62;
-          branch(lerp(x0, x1, u), lerp(y0, y1, u), a + (k - (n - 1)/2)*spread*2/n*1.4 + (rnd() - 0.5)*0.3 - (a + Math.PI/2)*0.08, L*(0.58 + rnd()*0.16), wd*0.6, d + 1);
+          branch(lerp(x0, x1, u), lerp(y0, y1, u), a + (k - (n - 1)/2)*spread*2/n*1.4 + (rnd() - 0.5)*0.3 - (a + Math.PI/2)*0.08, L*(0.58 + rnd()*0.16), wd*0.6, d + 1, me, u);
         }
       }
       if (d >= 2) tips.push({ x: x1, y: y1, d });
@@ -431,14 +433,15 @@ LOTS.hollow = H => {
     // the trunk carries on up the middle as a leader, and limbs leave it at different heights, alternating sides:
     // the low ones reach out wide, the high ones more upward
     const ty0 = R0*0.34, lead = -R0*0.42, lw = (rnd() - 0.5)*R0*0.08;
-    twigs.push({ x0: 0, y0: ty0 + R0*0.1, cx: lw, cy: (ty0 + lead)/2, x1: lw*0.6, y1: lead, wd: tw*0.75, d: 0 });
-    branch(lw*0.6, lead, -Math.PI/2 + (rnd() - 0.5)*0.2, R0*0.32, tw*0.45, 1);
+    twigs.push({ x0: 0, y0: ty0 + R0*0.1, cx: lw, cy: (ty0 + lead)/2, x1: lw*0.6, y1: lead, wd: tw*0.75, d: 0, p: -1, u: 0 });
+    branch(lw*0.6, lead, -Math.PI/2 + (rnd() - 0.5)*0.2, R0*0.32, tw*0.45, 1, 0, 1);
     const limbs = 5 + Math.floor(rnd()*3), side0 = rnd() < 0.5 ? -1 : 1;
     for (let k=0;k<limbs;k++){
       const u = k/(limbs - 1), side = (k % 2 ? -side0 : side0), y0 = lerp(ty0, lead*0.75, u) + (rnd() - 0.5)*R0*0.05;
       const up = 0.12 + 0.5*u + (rnd() - 0.5)*0.12, a = side < 0 ? -Math.PI + up*Math.PI*0.62 : -up*Math.PI*0.62;
-      branch(lw*(1 - (ty0 - y0)/(ty0 - lead)) * 0.6, y0, a, R0*(0.62 - 0.26*u + rnd()*0.08), tw*(0.62 - 0.22*u), 1);
+      branch(lw*(1 - (ty0 - y0)/(ty0 - lead)) * 0.6, y0, a, R0*(0.62 - 0.26*u + rnd()*0.08), tw*(0.62 - 0.22*u), 1, 0, clamp((y0 - (ty0 + R0*0.1))/(lead - ty0 - R0*0.1), 0, 1));
     }
+    P.twigs = twigs; P.trunk = { tw, base, top: ty0 + R0*0.1 };
     const drawTwig = (b, col) => { g.strokeStyle = col; g.lineWidth = Math.max(0.55, b.wd); g.beginPath(); g.moveTo(b.x0, b.y0); g.quadraticCurveTo(b.cx, b.cy, b.x1, b.y1); g.stroke(); };
     // fine twigs first (a grey haze), then the bigger limbs over them
     for (const b of twigs) if (b.d >= 3) drawTwig(b, 'rgba(46,36,30,.75)');
