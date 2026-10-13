@@ -639,7 +639,7 @@ function freshState(){
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
-    story:{ item: LOT.find || 'book', armed:false, found:false, x:0, y:0, prog:0, done:false, opened:false, foundT:-1, doneT:-1, cam:false,
+    story:{ item: LOT.find || 'book', armed:false, found:false, x:0, y:0, prog:0, eta:null, done:false, opened:false, foundT:-1, doneT:-1, cam:false,
       flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
@@ -1667,7 +1667,8 @@ function researchRate(){
     // V15: nothing moves without the blower keeping the rain off; it adds its own share, the robots count for half
     if (!labBlower()) return 0;
     let v = 0;
-    for (const q of R){ if (q.st === 'study' && bookRt.by === q.id) v += RESEARCH_MAIN*studyMul(q.id); else if (q.st === 'assist') v += RESEARCH_HELP*studyMul(q.id); }
+    // (fetching a crashed bee, fitting a porthole and walking back are part of the work, so they keep counting)
+    for (const q of R){ if (!labOnTask(q)) continue; v += (bookRt.by === q.id ? RESEARCH_MAIN : RESEARCH_HELP)*studyMul(q.id); }
     return F.blower + v*F.robotMul;
   }
   const h = bookHolder(); if (!h || h.st !== 'study') return 0;
@@ -1675,9 +1676,13 @@ function researchRate(){
   for (const q of R) if (q !== h && q.st === 'assist') v += RESEARCH_HELP*studyMul(q.id);
   return v;
 }
+// at the hive: is robot q working on it right now? (at its spot, or off fetching a bee / fitting a porthole and on its way back)
+const labOnTask = q => q.st === 'study' || q.st === 'assist' || q.st === 'labFetch' || q.st === 'labWin' || (q.labRet && (q.st === 'toStudy' || q.st === 'toAssist'));
 const researchLeft = () => Math.max(0, researchNeed() - S.story.prog);
-// time left at the current pace; while nobody is studying it shows what one robot on its own would take
-const researchETA = () => { const v = researchRate(); return researchLeft()/(v > 0 ? v : FIND().atHive ? FIND().blower : RESEARCH_MAIN); };
+// time left at the current pace. When the work stops the clock freezes where it was (S.story.eta, set in updResearch);
+// before anyone has started it's unknown (null, shown as '?')
+const researchETA = () => { const v = researchRate(); return v > 0 ? researchLeft()/v : S.story.eta != null ? S.story.eta : null; };
+const etaText = () => { const e = researchETA(); return e == null ? '?' : mmss(e); };
 const researchers = () => R.filter(q => RESEARCH_STATES.includes(q.st));
 // where the book is in the world while a robot holds it (matches drawRobot's hands)
 function bookHand(r){
@@ -1701,7 +1706,7 @@ function claimAssist(r){
 // The very first leaf picked up after the milestone has the book (or the bee) under it
 function findBook(r, l){
   const O = owned();
-  S.story.found = true; S.story.foundT = S.t;
+  S.story.found = true; S.story.foundT = S.t; S.story.eta = null;
   S.story.x = clamp(l.x, O.x0 + 14, O.x1 - 14); S.story.y = clamp(l.y, O.y0 + 10, -4);
   bookRt.by = null; bookRt.held = false; bookRt.landT = S.t + 0.55;
   for (const c of S.robots) if (!taskOn(c, 'research')) putOff(c, 'research');   // the new task starts in everyone's Off pile
@@ -1727,7 +1732,7 @@ function leaveResearch(r){
   if (r.win != null){ r.win = null; r.lean = 0; }   // V15: a porthole it was carrying waits for someone else
   if (r.lab){ const b = r.lab; b.claim = null; if (b.st === 'carried'){ b.st = 'down'; b.t = 0; b.x = r.x + r.face*8; b.y = r.y + 2; b.z = 0; } r.lab = null; }   // V15: puts a carried bee down
   if (bookRt.by === r.id){ if (bookRt.held) dropBook(r); bookRt.by = null; bookRt.held = false; }
-  r.aspot = -1;
+  r.aspot = -1; r.labRet = false;
 }
 function startResearch(r){
   const h = bookHolder();
@@ -1764,12 +1769,12 @@ function updResearchBot(r, dt, sp){
       break;
     case 'toStudy':
       if (bookRt.by !== r.id){ r.st = 'idle'; break; }
-      if (moveTo(r, STUDY.x, STUDY.y, sp*0.75, dt)){ r.st = 'study'; r.face = 1; r.look = 1.5; r.flipT = rand(1.2, 2.5); r.flipP = 1; r.unitT = 0; }
+      if (moveTo(r, STUDY.x, STUDY.y, sp*0.75, dt)){ r.labRet = false; r.st = 'study'; r.face = 1; r.look = 1.5; r.flipT = rand(1.2, 2.5); r.flipP = 1; r.unitT = 0; }
       break;
     case 'toAssist': {
       if (!bookHolder()){ r.st = 'idle'; break; }
       const p = assistPos(r);
-      if (moveTo(r, p.x, p.y, sp, dt)){ r.st = 'assist'; r.face = p.face; r.look = 1.5; }
+      if (moveTo(r, p.x, p.y, sp, dt)){ r.labRet = false; r.st = 'assist'; r.face = p.face; r.look = 1.5; }
       break;
     }
     case 'study': case 'assist': {
@@ -1778,7 +1783,7 @@ function updResearchBot(r, dt, sp){
         // V15: the lead works on the hive: a while with the hammer, a while with the spanner, a moment to think. A porthole
         // that's due goes in (helpers first), and with no helpers it fetches crashed bees itself
         { const w = labWinDue(r); if (w != null){ startLabWin(r, w); break; } }
-        { const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.st = 'labFetch'; r.timer = 0; break; } }
+        { const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.labRet = true; r.st = 'labFetch'; r.timer = 0; break; } }
         r.actT = (r.actT || 0) - dt;
         if (r.actT <= 0){ r.act = r.act === 'hammer' ? (Math.random() < 0.5 ? 'wrench' : 'think') : r.act === 'think' ? (Math.random() < 0.6 ? 'hammer' : 'wrench') : 'hammer'; r.actT = r.act === 'think' ? rand(1.4, 2.4) : rand(2.6, 4.6); if (r.act === 'think' && Math.random() < 0.6) robotSays(r, 'hmm'); }
         r.unitT = (r.unitT || 0) + dt; if (r.unitT >= 15){ r.unitT = 0; unitDone(r, 'research'); }
@@ -1797,7 +1802,7 @@ function updResearchBot(r, dt, sp){
         r.face = h.x >= r.x ? 1 : -1;
         // the best reader holds the book: a helper that reads better than the holder takes it over
         if (h.st === 'study' && studyMul(r.id) > studyMul(h.id) + 1e-9){
-          if (FIND().atHive){ bookRt.by = r.id; h.aspot = r.aspot; h.st = 'toAssist'; r.aspot = -1; r.st = 'toStudy'; pop(r.x, r.y - 80, 'let me try!', 'note', 15); break; }
+          if (FIND().atHive){ bookRt.by = r.id; h.labRet = r.labRet = true; h.aspot = r.aspot; h.st = 'toAssist'; r.aspot = -1; r.st = 'toStudy'; pop(r.x, r.y - 80, 'let me try!', 'note', 15); break; }
           const from = bookHand(h);
           bookRt.by = r.id; bookRt.held = true;
           h.aspot = r.aspot; h.st = 'toAssist'; r.aspot = -1; r.st = 'toStudy';
@@ -1808,7 +1813,7 @@ function updResearchBot(r, dt, sp){
         // V15: helpers at the hive put the portholes in, fetch the bees that crash, and in between point things out
         if (FIND().atHive){
           const w = labWinDue(r); if (w != null){ startLabWin(r, w); break; }
-          const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.st = 'labFetch'; r.timer = 0; break; }
+          const b = labCrashed(r); if (b){ b.claim = r; r.lab = b; r.labRet = true; r.st = 'labFetch'; r.timer = 0; break; }
           r.ptT = (r.ptT || 0) - dt; if (r.ptT <= 0 || !r.pt){ r.ptT = rand(2.2, 3.6); r.pt = labDomePt(Math.random(), 0.2 + Math.random()*0.7); }
           r.face = HIVE.x >= r.x ? 1 : -1;
         }
@@ -1896,7 +1901,7 @@ function finishBee(from){
 function updResearch(dt){
   if (!researchOpen()) return;
   const v = researchRate();
-  if (v > 0){ S.story.prog = Math.min(researchNeed(), S.story.prog + v*dt); if (S.story.prog >= researchNeed() - 1e-9) finishResearch(); }
+  if (v > 0){ S.story.prog = Math.min(researchNeed(), S.story.prog + v*dt); S.story.eta = researchLeft()/v; if (S.story.prog >= researchNeed() - 1e-9) finishResearch(); }
   // while someone holds the book, the save keeps it where they are (a reload finds it on the ground there)
   const h = bookRt.held ? bookHolder() : null;
   if (h){ S.story.x = h.x + h.face*15; S.story.y = Math.min(h.y + 3, 2); }
@@ -1936,7 +1941,7 @@ function labWinDue(r){
   if (r.st === 'study' && R.some(q => q.st === 'assist')) return null;
   return S.story.wins | 0;
 }
-function startLabWin(r, i){ r.st = 'labWin'; r.win = i; r.wst = 'go'; r.timer = 0; r.lean = 0; r.placed = false; }
+function startLabWin(r, i){ r.labRet = true; r.st = 'labWin'; r.win = i; r.wst = 'go'; r.timer = 0; r.lean = 0; r.placed = false; }
 // walk up to where it goes, lean in, hold the porthole up to the hive and fit it, then back to what it was doing
 function updLabWin(r, dt, sp){
   if (!hiveLabOn() || r.win == null){ leaveResearch(r); r.st = 'idle'; return; }
@@ -2178,7 +2183,7 @@ function updBeeFail(dt){
 // the bee is back inside: the hive becomes a research project
 function startHiveResearch(){
   if (S.story.item === 'hive') return;
-  Object.assign(S.story, { item: 'hive', armed: true, found: true, foundT: S.t, opened: true, cam: true, prog: 0, done: false, x: HIVE.x, y: HIVE.y, flights: 0, wins: 0, walkK: -1 });
+  Object.assign(S.story, { item: 'hive', armed: true, found: true, foundT: S.t, opened: true, cam: true, prog: 0, eta: null, done: false, x: HIVE.x, y: HIVE.y, flights: 0, wins: 0, walkK: -1 });
 
   bookRt.by = null; bookRt.held = false;
   for (const c of [...S.robots, ...S.blowers]) if (!taskOn(c, 'research')) putOff(c, 'research');
@@ -2212,7 +2217,7 @@ function drawHiveLab(){
   const k = labK();
   const lb = labBlower();
   if (ART.drawHiveLab) ART.drawHiveLab(k, { blower: !!lb && lb.labMode !== 'dry', busy: hiveLabOn() && researchRate() > 0, wins: S.story.wins | 0 });
-  if (hiveLabOn()) timers.push({ x: HIVE.x, y: HIVE.y - 104, t: mmss(researchETA()), k, on: researchRate() > 0 });
+  if (hiveLabOn()) timers.push({ x: HIVE.x, y: HIVE.y - 104, t: etaText(), k, on: researchRate() > 0 });
 }
 // the show's bees and ants, and the bee that failed to fly (drawn by the lot, ART.drawLabBee)
 function drawHiveStoryBees(V){
@@ -5315,7 +5320,7 @@ function drawGroundBook(){
     c.fillStyle = 'rgba(35,28,12,.28)'; ell(c, x + 1, y + 1, 7, 2.2); c.fill();
     drawDeadBee(c, x, y - 2.5, 1.35, 0.15);
     drawLeaf(c, x - 8, y + 0.5, 4, 2.2, 0, 1, 1, 0.8, 1, 0);
-    if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
+    if (S.story.prog > 0) timers.push({ x, y: y - 30, t: etaText(), k: S.story.prog/researchNeed(), on: false });
     return;
   }
   c.save(); c.translate(x, y);
@@ -5330,7 +5335,7 @@ function drawGroundBook(){
   c.fillStyle = 'rgba(40,60,60,.22)'; ell(c, -3, -4.6, 3, 1.4); c.fill();
   c.restore();
   drawLeaf(c, x + 6, y - 9, 5.5, 0.6, 1, 1, 1, 0.8, 1, 0);
-  if (S.story.prog > 0) timers.push({ x, y: y - 30, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: false });
+  if (S.story.prog > 0) timers.push({ x, y: y - 30, t: etaText(), k: S.story.prog/researchNeed(), on: false });
 }
 // ── V13: the dead bee from the prairie: a real one, small and fuzzy. V14.1: lying on its back, legs in the air, so it reads as dead
 function drawDeadBee(c, x, y, s, rot){
@@ -5806,7 +5811,7 @@ function drawRobot(r){
   if (st.brolly && ART.robotBrolly) ART.robotBrolly(c, r, st, hx0, hy0, hw, bob);   // V14: an umbrella on its head (the hollow)
   c.restore();   // the head's tilt
   c.restore();
-  if (r.st === 'study' && bookRt.by === r.id && !FIND().atHive) timers.push({ x: r.x, y: r.y - 98, t: mmss(researchETA()), k: S.story.prog/researchNeed(), on: researchRate() > 0 });
+  if (r.st === 'study' && bookRt.by === r.id && !FIND().atHive) timers.push({ x: r.x, y: r.y - 98, t: etaText(), k: S.story.prog/researchNeed(), on: researchRate() > 0 });
   if (r.st === 'mine' || r.st === 'bag' || r.st === 'jar' || r.st === 'wrap' || r.st === 'smelt'){
     const pr = r.st === 'mine' ? r.mineP : r.workP, col = r.st === 'mine' ? '#f2d27a' : r.st === 'smelt' ? '#ff9b3d' : r.st === 'jar' ? '#ffd23f' : r.st === 'wrap' ? '#e0475a' : '#ffb866';
     c.save(); c.translate(r.x, r.y + top - hh - 22); c.lineWidth = 3; c.lineCap = 'round';
@@ -7793,7 +7798,7 @@ function liveHTML(kind){
   }
   if (kind === 'book'){
     const v = researchRate();
-    return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : 'Time left for one robot on its own') + '">' + ic('clock') + mmss(researchETA()) + '</span>' +
+    return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : researchETA() == null ? 'Not started yet' : 'Paused: time left when they stopped') + '">' + ic('clock') + etaText() + '</span>' +
       meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + v + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');

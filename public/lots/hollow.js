@@ -823,7 +823,8 @@ LOTS.hollow = H => {
     const { ell, drawBeeBrass, clamp } = H;
     const ground = b.walker || b.st === 'crawl' || b.st === 'walk' || b.st === 'pause' || b.st === 'walkHome';
     if (b.st !== 'held'){ c.fillStyle = 'rgba(20,12,6,' + (b.z > 1 ? 0.16 : 0.28) + ')'; ell(c, b.x, b.y + 0.6, b.z > 1 ? 3 : 4.2, 1.1); c.fill(); }
-    const cols = LAB_BROLLY[Math.floor((b.anim*0 + (b.x*7 | 0)) % LAB_BROLLY.length + LAB_BROLLY.length) % LAB_BROLLY.length];
+    if (b.ci == null) b.ci = Math.floor(Math.random()*LAB_BROLLY.length);   // each bee keeps one umbrella (it used to follow b.x, so walkers flickered between colours)
+    const cols = LAB_BROLLY[b.ci];
     if (ground){
       const moving = b.st !== 'pause', bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0, m = b.m || 0;
       const sc = 1.35*(b.big || 1);
