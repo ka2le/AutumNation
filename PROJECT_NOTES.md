@@ -429,3 +429,9 @@ Only prices, caps and one new tier; no other effects changed.
   - The usual copied-level discount still applies, so the second and third helper's levels cost half.
 - **Lots can reprice upgrades** (`LOT.UP = { key: { costs } }`, applied right after `UP`). The Rainy hollow uses it for the mushroom price ladder: **Gourmet labels** $80 / 130 / 190 / 270 / 480 / 900 (were the honey labels' $90 / 300 / 650 / 1,000 / 1,800 / 2,800), slow at first with the last two steps the bigger ones, and **D.O.P. seals** $400 / 800 (were 700 / 1,500). Honey labels and gift ribbons in the first yard and on the prairie keep their prices.
 - **Checks** (headless): 1-hour sims on all three lots with no errors; the first yard's sim buys three of each helper and maxes the blow and shake tracks by ~45 min; a hollow sim maxes Drying (all 11 levels) on two blowers by ~13 min. An old save with four blowers (one away in the hollow) and four shakers loads with three of each, keeping the away blower, and Drying levels above 11 clamp to 11. The blower card shows the Drying track's third tier (faint nuts and the Unlock tag).
+
+### V16.1 (Oct 13): yard trees moved, cheaper first helpers, a later book
+- **Cottage trees moved:** the small red tree beside the workshop is now up in the top-right corner (200, -335), and the big top-left corner tree moved in and up (-232, -478) so its trunk stands on your land. The cottage now has three shakeable trees (the big one yields ~0.9× a full shake, the small ones ~0.35–0.4×), and their tree drops land along the edge where the blowers' laps herd leaves toward the bin.
+- **Prices:** first blower $7 (was 9), first shaker $9 (was 12); robot 2 $8 (was 6), robot 3 $15 (was 12). Three robots + a blower + a shaker still cost the same in total.
+- **The old picture book turns up later:** $30 earned or $18 held (was $20 / $12).
+

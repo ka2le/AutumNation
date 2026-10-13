@@ -440,3 +440,7 @@ yet; `FINDS.hive` (`need`, `blower`, `robotMul`) and `DRY_TIME` / `TRACKS.dry` a
   hollow) has a third tier, Drying tunnel, to 6.5× (11 levels, ~$540, was 7 levels to 3.5×, ~$1,400). The hollow's
   Gourmet labels are $80 → 900 (were $90 → 2,800) and D.O.P. seals $400 / 800, through the new `LOT.UP` price override.
   Not re-measured with the test player; helpers are now a small, quick buy rather than a long ladder.
+- **V16.1:** cottage trees moved (red tree to the top-right corner, the big top-left tree's trunk now on your land: three
+  shakeable trees, drops along the blowers' edge). First blower $7 / shaker $9 (were 9 / 12), robot 2 $8 / robot 3 $15
+  (were 6 / 12), same total. The book needs $30 earned or $18 held (was $20 / $12). The built-in sim finds it at ~9 min.
+  Not re-measured with the test player.

@@ -133,13 +133,14 @@ const landForSale = () => LAND_SALE && S.land + 1 < AREAS.length;
 const OLD_SPOT_MAP = { 0: 0, 1: 1, 3: 2 };   // old vein index -> new one; old veins 2 and 4 are gone (refunded)
 const veinWord = sp => { const v = SPOTS[sp].rich || 1; return v < 0.9 ? 'a thin vein' : v > 1.15 ? 'a rich vein' : v > 1.02 ? 'a good vein' : 'a fair vein'; };
 const TREES = LOT.TREES || [
-  { x: -300, y: -440, r: 135, seed: 11 }, { x: 352, y: -472, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
+  { x: -232, y: -478, r: 135, seed: 11 }, { x: 352, y: -472, r: 150, seed: 23 }, { x: 30, y: -565, r: 125, seed: 37 },
   { x: -770, y: -820, r: 190, seed: 41 }, { x: 770, y: -770, r: 185, seed: 53 }, { x: -90, y: -905, r: 170, seed: 61 },
   { x: -1130, y: -330, r: 190, seed: 71 }, { x: 1140, y: -1060, r: 200, seed: 83 }, { x: -560, y: -1310, r: 190, seed: 97 },
   { x: 560, y: -1335, r: 180, seed: 101 }, { x: 1150, y: -330, r: 170, seed: 113 }, { x: -1180, y: -1060, r: 190, seed: 127 },
-  // two smaller trees inside the cottage plot: one in the middle, one beside the workshop (V6: moved from the right
-  // corner to make room for the hive and the smelting plant)
-  { x: -30, y: -255, r: 62, seed: 131, fam: ['gold','orange'] }, { x: -256, y: -208, r: 52, seed: 137, fam: ['red','rust'] },
+  // two smaller trees inside the cottage plot: one in the middle, one up in the top-right corner (V16.1: moved there
+  // from beside the workshop, and the big top-left tree moved in so its trunk is on your land: three trees to shake,
+  // and their leaves land along the edge where the blowers' laps herd them toward the bin)
+  { x: -30, y: -255, r: 62, seed: 131, fam: ['gold','orange'] }, { x: 200, y: -335, r: 52, seed: 137, fam: ['red','rust'] },
 ];
 // shrubs on your own land (wild ones beyond the fence are baked into the ground); shakers can shake these too
 const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 } ];
@@ -339,15 +340,15 @@ const genCost = k => GEN[k].cost[gl(k)];
 const genAvail = k => gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) && seenPrice(genCost(k));
 const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
 // V6: twelve robots (since V6.1), and each one costs only a little more than the last (there's a lot more for them to do now)
-const ROBOT_COST = [0, 6, 12, 30, 70, 140, 240, 380, 560, 800, 1100, 1500];
+const ROBOT_COST = [0, 8, 15, 30, 70, 140, 240, 380, 560, 800, 1100, 1500];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 const MINER_COST = 100;   // every miner costs the same; far veins are already worth less
 const METAL_SLOT_COST = 160;
 // helper robots: up to three of each (V16; four in V7, five in V6.1), on every lot. The second costs about twice the
 // first, the third more. Their skills are cheap all the way up (V16), so a full set of three is affordable to max out.
 const HELPER_MAX = 3;
-const BLOWER_COST = [9, 25, 50];
-const SHAKER_COST = [12, 30, 60];
+const BLOWER_COST = [7, 25, 50];
+const SHAKER_COST = [9, 30, 60];
 const OLD_HELPER5 = { blower: 4500, shaker: 5000 };   // what a fifth helper cost before V7 (refunded on load)
 const DISCOUNT = 0.5;
 const NO_DISCOUNT = ['pack'];   // V7: packing levels are always bought at full price
@@ -1531,8 +1532,9 @@ const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's 
 const HOLLOW_CASH = 1000;    // V14: the third beat: hold this much (with a bigger yard and a mine) and the driver writes about the Rainy hollow
 const DRY_GOAL = 100;        // V15: the Rainy hollow's first goal: sell this many dry leaves
 const MILESTONES = [
-  // the old picture book turns up under a leaf once you've earned $20 in all (or once you hold $12, if that's sooner)
-  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $20', prog: () => Math.max((S.totals.cash || 0)/20, S.cash/12), on: () => { S.story.armed = true; } },
+  // the old picture book turns up under a leaf once you've earned $30 in all (or once you hold $18, if that's sooner;
+  // V16.1, was $20 / $12, so it turns up a little later)
+  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $30', prog: () => Math.max((S.totals.cash || 0)/30, S.cash/18), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
   // V14: the travel money is a live goal: it's reached while you hold $100 and not any more if you spend it, and it only
   // comes out of the cash when the robot climbs into the truck (S.trip.cash, see board()). Until then the robot only
