@@ -76,6 +76,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   box-shadow:0 3px 0 var(--kraft-dk),0 18px 40px rgba(40,18,4,.42);animation:pop .18s ease-out}
 #card::before{content:"";position:absolute;inset:7px;border:1.5px dashed var(--stitch);border-radius:12px;pointer-events:none}
 #card.wide{width:min(660px,calc(100vw - 24px))}
+#card.bots{width:min(400px,calc(100vw - 24px))}
+#card.wide.bots{width:min(780px,calc(100vw - 24px))}
 @keyframes pop{from{transform:scale(.94) translateY(6px);opacity:0}to{transform:none;opacity:1}}
 .cbody{overflow-y:auto;overscroll-behavior:contain;min-height:0;margin:0 -9px;padding:2px 9px 0;scrollbar-width:thin;scrollbar-color:#cdb58f transparent}
 
@@ -239,6 +241,21 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .row .v .lockx{display:block;flex-basis:100%;font-size:11.5px;font-weight:600;line-height:1.25;color:var(--ink-soft);margin-top:2px;white-space:normal}
 .buy.locked{cursor:default;filter:grayscale(.55);opacity:.72}
 .buy.locked .lk{width:12px;height:12px;margin-right:1px}
+/* V21: robot upgrade rows: this robot's buttons, then a tinted lane for what applies to all of them */
+.row.bot{grid-template-columns:32px minmax(0,1fr) 86px 100px;column-gap:8px}
+.row.bot .btn.all .buy.all{font-size:11px;padding:4px 6px 3px 5px;gap:3px}
+.row.bot .btn.all .buy.all .allt{font-size:9px}
+.row.bot .btn.me{align-items:flex-end;gap:5px}
+.row.bot .btn.all{align-self:stretch;justify-content:center;align-items:center;gap:6px;margin:-9px 0;padding:8px 0;background:rgba(95,144,154,.09);border-left:1.5px dashed rgba(79,124,132,.3)}
+.row.bot .btn.all:empty::after{content:"";display:block}
+.row.bot .unlock{padding:4px 8px 3px 6px}
+.row.bot .v .lockx{max-width:none}
+.buy.max{font-size:11.5px;min-width:0;padding:4px 7px 3px 6px;border-radius:9px}
+.buy.max .cn{width:13px;height:13px}
+.row.bothead{padding:0;border-top:0;font:800 9.5px/1.1 var(--font-ui);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);align-items:end}
+.row.bothead .hm{text-align:right;padding:0 2px 5px}
+.row.bothead .ha{text-align:center;color:#3f6f78;background:rgba(95,144,154,.12);border-left:1.5px dashed rgba(79,124,132,.3);border-radius:8px 8px 0 0;padding:6px 2px 5px}
+.row.bothead + .row.bot{border-top:1.5px dashed var(--rule)}
 .row .n small.cap{font-size:11px;font-weight:600;color:var(--ink-faint);margin-left:4px}
 .huddle{display:inline-flex;padding-left:6px}
 .huddle img{width:28px;height:28px;border-radius:50%;margin-left:-8px;background:radial-gradient(circle at 50% 70%,#8fa04e,#6c7a37 75%);box-shadow:0 0 0 2px var(--paper);display:block}
@@ -357,6 +374,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .row.vol{grid-template-columns:28px auto 1fr}
 }
 @media (max-width:640px){
+  .row.bot{grid-template-columns:28px minmax(0,1fr) 80px 96px;column-gap:6px}
   .cols{grid-template-columns:1fr}
   .col + .col::before{display:none}
   .col + .col > .row:first-child{border-top:1.5px dashed var(--rule)}

@@ -487,3 +487,6 @@ of tiny steps that ends in very expensive ones, each nudging one stat that may n
   held (was $30 / $18). Smelting plant and charcoal kiln: two robot spots (was three). Balance player (3 runs, first yard,
   70 min): Meadow ~42 → 39 min, metal ~35 → 31, robot 10 ~51 → 48, income at 70 min ~$2.9k → $3.1k a minute. The greedy
   built-in sim reacts much more to the shaker change (~+70% earned by 45 min).
+- **V21.1:** the first unlock on each basic skill costs twice what it did: Rubber treads $6, Wicker hamper $7, Quick servos $8
+  (were $3 / 3.50 / 4); levels and later tiers unchanged, helpers unchanged. Balance player (3 runs): those unlocks are
+  bought at ~7 / 13 / 15 min (were ~5 / 6 / 8), the bagging table earlier (~7 min), Meadow ~42, metal ~36, robot 10 ~51.

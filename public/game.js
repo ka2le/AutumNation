@@ -371,9 +371,11 @@ const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet','pac
 // which tracks each kind of robot has. Wheels are shared by every kind, so copied-level discounts work across all of them.
 const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', ...(DRY_BENCH ? ['dry'] : []), 'blow', 'dig', 'stoke', ...(WET_WOOD ? ['brolly'] : [])], shaker: ['speed', 'shake', 'snip'] };
 const TECH = {
-  treads:  { name:'Rubber treads',     track:'speed', cost:3,   desc:'Four new wheel upgrades for every robot.' },
-  hamper:  { name:'Wicker hamper',     track:'carry', cost:3.5, desc:'Four new basket upgrades.' },
-  servos:  { name:'Quick servos',      track:'pick',  cost:4,   desc:'Four faster pickup upgrades.' },
+  // V21: the first unlock on each of the three basic skills costs twice what it did (3 / 3.50 / 4): a little hill to
+  // climb before the next levels, which cost what they did
+  treads:  { name:'Rubber treads',     track:'speed', cost:6,   desc:'Four new wheel upgrades for every robot.' },
+  hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Four new basket upgrades.' },
+  servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Four faster pickup upgrades.' },
   claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Five claw upgrades, up to 12 leaves.' },
   arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Five reach upgrades. Pairs well with the claw rake.' },
   hubs:    { name:'Ball-bearing hubs', track:'speed', cost:45,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
@@ -567,6 +569,15 @@ function allPlan(k){
   }
   const behind = lv.filter(l => l < target).length;
   return { cost: Math.round(cost*100)/100, full, target, catchUp: target === top, behind };
+}
+// V21: this one robot (or helper) up to the highest level unlocked so far on a track, in one go (each level at its own
+// price, copied levels discounted as usual). Only offered when that's at least two levels.
+function maxPlan(kind, i, k){
+  const me = cfgsOf(kind)[i], L = me.lv[k], cap = Math.min(trackCap(k), trackMax(k));
+  if (cap - L < 2) return null;
+  let cost = 0;
+  for (let l = L; l < cap; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx], disc = !NO_DISCOUNT.includes(k) && peersFor(k).some(c => c !== me && c.lv[k] > l); cost += disc ? niceCost(f*discFor(k)) : f; }
+  return { cost: Math.round(cost*100)/100, target: cap, n: cap - L };
 }
 // the first locked tier of a track, if it can be unlocked yet (prerequisites met and its price in sight)
 function nextUnlock(k){ for (const g of TRACKS[k].gens){ if (!g.tech) continue; if (!S.tech[g.tech]) return techAvailable(g.tech) ? g.tech : null; } return null; }
@@ -1309,12 +1320,12 @@ function urgentTask(r, cfg){
 const robotTask = r => { const cfg = S.robots[r.id]; return urgentTask(r, cfg) || chooseTask(r, cfg, t => taskWork(r, t)); };
 // Plans a grab: a spot for the hand plus up to `grab` leaves the fingers can reach from it.
 // With a claw the robot looks for a patch of leaves, not just the nearest one.
-function freeLeaf(l, r){ return l.st === 'ground' && l.collect && (!l.claim || l.claim === r); }
+function freeLeaf(l, r){ return l.st === 'ground' && l.collect && (!l.claim || l.claim === r) && (l.mine == null || l.mine === r.id); }
 function pickTarget(r){
   const grab = rv(r.id, 'grab'), spread = clawSpread(r.id);
   const cand = [];
   for (const l of leaves){
-    if (l.st !== 'ground' || !l.collect || l.claim) continue;
+    if (l.st !== 'ground' || !l.collect || l.claim || (l.mine != null && l.mine !== r.id)) continue;   // (V21: l.mine: the homecoming's leaves are Tinker's)
     cand.push([Math.hypot(l.x - r.x, l.y - r.y) + 0.25*Math.hypot(l.x - BIN.x, l.y - BIN.y), l]);
   }
   if (!cand.length) return null;
@@ -4272,7 +4283,12 @@ function updTruck(dt){
     const dx = T.x - PARK, v = Math.max(34, dx*2.1);
     const mv = Math.min(dx, v*dt); T.x -= mv; T.rot -= mv/10;
     puffExhaust(T, dt, 1);
-    if (dx <= 0.6){
+    if (dx <= 0.6 && T.dropOnly){
+      // V21: home from the ending: the truck only lets Tinker off and drives away again (no pickup)
+      T.x = PARK; T.st = 'drop'; T.timer = 0.6;
+      for (const o of T.riders.slice()) if (o.st === 'ride') startHop(o, 'out');
+      T.arriving = false;
+    } else if (dx <= 0.6){
       T.x = PARK; T.st = 'load'; T.timer = 2.3;
       // the truck leaves behind what's under the keep lines (loose leaves for bagging, metal for smelting)
       // (V15: at the drying bench the truck won't take wet leaves, only the dried ones on the bin's shelf)
@@ -4296,6 +4312,9 @@ function updTruck(dt){
       T.arriving = false;
       if (S.post.length) startDriver();
     }
+  } else if (T.st === 'drop'){
+    T.timer -= dt; puffExhaust(T, dt, 0.25);
+    if (T.timer <= 0 && !truckBusy()){ T.st = 'leave'; T.v = 10; T.dropOnly = false; sfx('truckOut', sndAt(PARK + 30, LANE).pan); }
   } else if (T.st === 'load'){
     T.timer -= dt;
     if (T.timer <= 0 && truckBusy()) T.timer = 0.001;   // V13: the truck waits for the driver and anyone hopping on or off
@@ -5442,6 +5461,12 @@ function buy(o){
     for (const r of R) if (o.key === 'speed' || BOT_TRACKS.robot.includes(o.key)) sparkle(r.x, r.y - 30);
     for (const h of HB) if (BOT_TRACKS[h.kind].includes(o.key)) sparkle(h.x, h.y - 20);
     const p = objPos(o.obj); if (p) pop(p.x, p.y - 4, 'Every robot: ' + TRACKS[o.key].label + ' ' + o.target, 'note', 16);
+  } else if (o.id === 'rmax'){
+    // V21: one robot or helper straight up to the highest unlocked level on a track
+    const c = cfgsOf(o.kind)[o.ri], was = c.lv[o.key]; c.lv[o.key] = Math.max(was, o.target);
+    if (o.kind !== 'robot' && !was){ if (o.key === 'snip') putBeside(c, 'snip', 'shake'); if (o.key === 'dig') putBeside(c, 'dig', 'blow'); if (o.key === 'stoke') putBeside(c, 'stoke', 'blow'); if (o.key === 'brolly') putBeside(c, 'brolly', 'blow'); if (o.key === 'dry') learnDry(c, o.ri); }
+    const r = o.kind === 'robot' ? R[o.ri] : HB.find(q => q.kind === o.kind && q.idx === o.ri);
+    if (r){ pop(r.x, r.y - (o.kind === 'robot' ? 76 : 60), TRACKS[o.key].label + ' ' + o.target + ' (max)', 'note', 16); sparkle(r.x, r.y - 30); }
   } else if (o.id === 'rup'){
     S.robots[o.ri].lv[o.key]++;
     const r = R[o.ri]; if (r){ pop(r.x, r.y - 76, TRACKS[o.key].label + ' upgraded', 'note', 16); sparkle(r.x, r.y - 30); }
@@ -8550,7 +8575,7 @@ function endingHome(){
   buildGround(cam);
   const r = R[endRt.ri];
   const T = truck;
-  T.st = 'arrive'; T.x = Math.max(visRect().x1 + 110, PARK + 200); T.fill = 0; T.arriving = true; T.riders = r ? [r] : [];
+  T.st = 'arrive'; T.x = Math.max(visRect().x1 + 110, PARK + 200); T.fill = 0; T.arriving = true; T.dropOnly = true; T.riders = r ? [r] : [];
   if (r){ r.st = 'ride'; const p = rideSpot(r); r.x = p.x; r.y = p.y; r.face = -1; }
   sfx('truckIn', sndAt(PARK + 30, LANE).pan, 2.6);
   endRt.waitHop = true;
@@ -8560,14 +8585,14 @@ function endingHome(){
 // goes for a leaf and picks it up, speeds up and picks up a few more as the camera widens back out, and only then
 // "Great work!" shows. For this it gathers leaves whatever its task list says (kept in S.flags.endKeep, put back on
 // Continue, also after a reload).
-const END_PAUSE = 2.2, END_SLOW = 0.22, END_MORE = 5;
+const END_PAUSE = 2, END_SLOW = 0.22, END_MORE = 5;   // (V21: END_PAUSE counts from when the truck has gone)
 function startEndReturn(r){
   const c = S.robots[r.id];
   if (c && !S.flags.endKeep) S.flags.endKeep = { prio: JSON.parse(JSON.stringify(c.prio)), off: c.off.slice() };
   if (c){ const all = c.prio.flat().concat(c.off).filter(t => t !== 'leaves'); c.prio = [['leaves']]; c.off = all; }
   release(r); r.st = 'idle'; r.plan = null; r.target = null;
   // a few leaves to come home to: the first one a short walk up from the curb, more further up the yard
-  const ls = [], put = (dx, dy) => { for (let k = 0; k < 14; k++){ const x = r.x + dx + rand(-12, 12)*(k ? 1 : 0.3), y = r.y + dy + rand(-10, 10)*(k ? 1 : 0.3); if (landingOK(x, y)){ const l = newLeaf(x, y, y, true); l.st = 'ground'; leaves.push(l); ls.push(l); return; } dx += rand(-20, 20); dy -= 6; } };
+  const ls = [], put = (dx, dy) => { for (let k = 0; k < 14; k++){ const x = r.x + dx + rand(-12, 12)*(k ? 1 : 0.3), y = r.y + dy + rand(-10, 10)*(k ? 1 : 0.3); if (landingOK(x, y)){ const l = newLeaf(x, y, y, true); l.st = 'ground'; l.mine = r.id; leaves.push(l); ls.push(l); return; } dx += rand(-20, 20); dy -= 6; } };
   { const d = rv(r.id, 'reach')*0.7 + 46; put(d*0.42, -d*0.9); }   // (far enough that it has to drive to it, whatever its reach)
   for (let k = 0; k < END_MORE + 2; k++) put(rand(-120, 160), -rand(120, 230));
   const head = { x: r.x, y: r.y - 46 };
@@ -8581,7 +8606,8 @@ function updEndReturn(dt){
   const r = R[endRt.ri]; if (!r){ endRt.ret = null; showEndPopup(false); return; }
   E2.t += dt;
   const picked = l => l.st !== 'ground' && l.st !== 'fade';
-  if (E2.ph === 'pause'){ if (E2.t > END_PAUSE){ E2.ph = 'slow'; E2.t = 0; E2.spd = END_SLOW; } }
+  // (V21: it waits for the truck to drive off, then END_PAUSE more)
+  if (E2.ph === 'pause'){ if (truck.st === 'away' || E2.t > 25){ if (E2.gone == null) E2.gone = E2.t; } if (E2.gone != null && E2.t - E2.gone > END_PAUSE){ E2.ph = 'slow'; E2.t = 0; E2.spd = END_SLOW; } }
   else if (E2.ph === 'slow'){ if (!E2.first || picked(E2.first) || E2.t > 14){ E2.ph = 'fast'; E2.t = 0; } }
   else if (E2.ph === 'fast'){
     E2.spd = lerp(END_SLOW, 1.15, clamp(E2.t/1.6, 0, 1));
@@ -8601,6 +8627,7 @@ function endRestoreTasks(){
   const k = S.flags.endKeep, i = S.flags.endBot | 0, c = S.robots[i];
   if (k && c){ c.prio = k.prio; c.off = k.off; tasksFix(c, 'robot'); taskListChanged('robot', i); }
   delete S.flags.endKeep;
+  for (const l of leaves) if (l.mine != null) l.mine = null;   // (the homecoming's leaves are anybody's again)
 }
 // "Great work!": Continue and you're back in the yard (no more milestones; the yard goes on as before)
 function showEndPopup(preview){
@@ -9265,6 +9292,7 @@ function robotRow(ri, k, kind){
   if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Load & pack × Operate machinery)'); sig += smeltSkill(ri).toFixed(2); }
   if (k === 'snip') val = L ? 'Deadheads spent flowers' : 'Deadhead spent flowers: they bloom again sooner, so more nectar for the bees';   // V13.7
   if (k === 'dry' && !L) val = 'Learn to dry wet leaves at the drying bench';   // V15
+  let allb = '';   // (V21: what applies to every robot goes in its own lane: the unlock and the all / match button)
   if (maxed){ btn = stamp('max'); sig += 'max'; }
   else if (locked && peek){
     const c = botCost(kind, ri, k), t = TECH[tid0];
@@ -9277,13 +9305,15 @@ function robotRow(ri, k, kind){
     const c = botCost(kind, ri, k);
     btn = coinBtn('rup:' + k, c.cost, { label: T.label, sticker: c.disc ? '−' + Math.round((1 - discFor(k))*100) + '%' : '', tip: c.disc ? 'Another robot already has this level, so it’s cheaper (full price ' + cash$(c.full) + ')' : '' });
     sig += L + '' + aff$(c.cost) + c.disc;
+    const mp = maxPlan(kind, ri, k);
+    if (mp){ const tip = 'This ' + (kind === 'robot' ? 'robot' : kind) + ' straight to level ' + mp.target + ' (' + mp.n + ' levels, the highest unlocked so far)'; btn += coinBtn('rmax:' + k, mp.cost, { cls: 'max', tip, label: tip, pre: '<b class="allt">max</b>' }); sig += '|m' + mp.target + aff$(mp.cost) + mp.cost; }
   }
   const ap = allPlan(k);
   if (ap){
     const n = peersFor(k).length, nd = NO_DISCOUNT.includes(k);
     const tip = ap.catchUp ? 'Bring ' + (ap.behind === 1 ? 'the robot that is behind' : 'the ' + ap.behind + ' robots that are behind') + ' up to level ' + ap.target + (nd ? ' (full price)' : ' (copied levels, so discounted)')
                            : 'Give all ' + n + ' robots level ' + ap.target + (nd ? ', each at full price' : ': one at full price, the rest at ' + Math.round(discFor(k)*100) + '%');
-    btn += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match' : 'all') + '</b>' });
+    allb += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match' : 'all') + '</b>' });
     sig += '|a' + ap.target + aff$(ap.cost) + ap.cost;
   }
   // the next tier unlock sits by the level nuts (away from the buy buttons) and unlocks it for every robot that has this track
@@ -9291,10 +9321,17 @@ function robotRow(ri, k, kind){
   const tid = nextUnlock(k);
   if (tid && L >= cap){
     const t = TECH[tid], g = T.gens.find(q => q.tech === tid), a2 = aff$(t.cost);
-    unl = '<button class="unlock" data-act="tech:' + tid + '" data-cost="' + t.cost + '" aria-disabled="' + !a2 + '" style="--p:' + pfill(t.cost) + '" title="' + t.name + ': ' + g.n + ' more levels, for every robot">' + ic('lock') + '<span>Unlock</span>' + ic('coin', 'cn') + pr(t.cost) + '</button>';
+    unl = '<button class="unlock" data-act="tech:' + tid + '" data-cost="' + t.cost + '" aria-disabled="' + !a2 + '" style="--p:' + pfill(t.cost) + '" title="Unlock ' + t.name + ': ' + g.n + ' more levels, for every robot" aria-label="Unlock ' + t.name + ' for every robot, ' + cash$(t.cost) + '">' + ic('lock') + ic('coin', 'cn') + pr(t.cost) + '</button>';
     sig += '|u' + tid + a2;
   }
-  return { sig: k + sig + val, html: row({ icon: ic(TRACK_ICON[k]), name: T.label, tip: genNameAt(k, L) + ' · ' + TRACK_TIP[k], pips: nuts(L, trackGroups(k)), val: val + unl + lockx, btn }) };
+  const tip = genNameAt(k, L) + ' · ' + TRACK_TIP[k];
+  return { sig: k + sig + val, html: '<div class="row bot"><div class="ri">' + ic(TRACK_ICON[k]) + '</div><div class="rm"><div class="n" title="' + tip + '">' + T.label + nuts(L, trackGroups(k)) + '</div><div class="v">' + val + lockx + '</div></div>' +
+    '<div class="btn me">' + btn + '</div><div class="btn all">' + unl + allb + '</div></div>' };
+}
+// V21: over the upgrade rows on a robot's (or helper's) card: which buttons are for this one and which for all of them
+function botHead(kind){
+  const w = { robot: 'robots', blower: 'blowers', shaker: 'shakers' }[kind] || 'robots';
+  return { sig: 'bh' + kind, html: '<div class="row bot bothead"><span></span><span></span><span class="hm" title="Upgrades for this ' + (kind || 'robot') + ' only">This ' + (kind || 'robot') + '</span><span class="ha" title="Unlocks and the green button apply to every one of them">All ' + w + '</span></div>' };
 }
 // a one-off purchase (a building, a robot, a deal)
 function buyRow(name, val, act, cost, done, icon, tip){
@@ -9618,6 +9655,7 @@ function cardModel(){
       for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick'].includes(t) ? rows : rows2).push(robotRow(i, t));
       if (!rows2.length && rows.length > 2) rows2.push(rows.pop());
     } else for (const t of BOT_TRACKS[k]) if (trackVisible(t)) rows.push(robotRow(i, t, k));
+    if (!(tp && cardTab === 'tasks')){ if (rows.length) rows.unshift(botHead(k)); if (rows2.length) rows2.unshift(botHead(k)); }   // V21
     // keep the card the same width on both tabs
     tabs && (tabs.wide = k === 'robot' && TRACK_ORDER.filter(rowShown).length > 3);
   } else if (k === 'bin'){
@@ -10085,6 +10123,7 @@ function renderCard(force){
     const two = m.rows2.length > 0, body = m.rows.map(r => r.html).join('');
     cardOpen.tabsOn = !!m.tabs;
     card.classList.toggle('wide', m.tabs ? !!m.tabs.wide : two);
+    card.classList.toggle('bots', ['robot', 'blower', 'shaker'].includes(cardOpen.kind));   // (V21: a little wider, for the this robot / all robots lanes)
     const medal = m.head === 'portrait' ? '<canvas id="cardPortrait" width="128" height="128"></canvas>' : m.head ? ic(m.head) : '';
     card.innerHTML = sayH('<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
       '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div><button class="x" data-act="close" aria-label="Close">' +
@@ -10196,6 +10235,7 @@ card.addEventListener('click', e => {
   const i = cardOpen.i;
   if (act.startsWith('up:')){ const k = act.slice(3); buy({ id:'up', key:k, obj:UP[k].obj, cost:upCost(k), maxed:S.lv[k] >= UP[k].max }); }
   else if (act.startsWith('rall:')){ const k = act.slice(5), ap = allPlan(k); if (ap) buy({ id:'rall', key:k, target:ap.target, obj:cardOpen.obj, cost:ap.cost }); }
+  else if (act.startsWith('rmax:')){ const k = act.slice(5), kind = cardOpen.kind, mp = maxPlan(kind, i, k); if (mp) buy({ id:'rmax', kind, ri:i, key:k, target:mp.target, obj: kind === 'robot' ? 'robot' + i : kind + i, cost:mp.cost }); }   // V21
   else if (act.startsWith('rup:')){
     const k = act.slice(4), kind = cardOpen.kind, c = botCost(kind, i, k);
     if (c && cfgsOf(kind)[i].lv[k] < trackCap(k)) buy(kind === 'robot' ? { id:'rup', ri:i, key:k, obj:'robot'+i, cost:c.cost } : { id:'hup', kind, ri:i, key:k, obj:kind+i, cost:c.cost });

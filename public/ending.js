@@ -389,6 +389,11 @@ const holding = f => (c, hx, hy, r) => f(c, hx, hy, r);
 // ═════════════════════════ the visit: arrive, get out, walk in, see the inside, walk out, drive on
 // (the factory and the bank use it; sc: the scene, see makeFactory for what it has)
 const zClose = () => clamp(H.W/(170*2.5), 1.1, 2.6);
+// V21: how close the camera goes when it follows the work from one step to the next (the factory's and the bank's tour)
+const zTour = () => clamp(Math.min(H.W/300, H.H/190), 1.3, 3.1);
+// V21: while the tour is on an earlier step, the steps after it run slower (not stopped: robots keep carrying and
+// sweeping), so the next step is still going on when the camera gets there. sc.focus: the step the camera is on.
+const tempo = (sc, step) => sc.focus == null || sc.focus >= step ? 1 : 0.6;
 function* visit(sc){
   const B = sc.B, T = E.truck, tk = E.tinker, dr = E.driver;
   T.x = sc.stopX + 1100; T.v = 0; T.riders = []; board(T, tk);
@@ -498,12 +503,14 @@ function makeFactory(){
     // two ingot carriers to each machine, side by side (one lane a little behind the other)
     for (const [k, m, pal] of [[0, 'press', P.palA], [1, 'lathe', P.palB]]) for (const lane of [0, 1]){
       const w = at(crew(lane ? 2 : 0), -300 + lane*30, pal.y + 6 - lane*14), ln = lane ? -14 : 8, mm = M[m], mp = P[m];
+      if (k === 0 && lane === 0) sc.pc = w;   // (V21: the one the tour follows)
       job(carrier(w, [pal.x + 42, pal.y + ln], [mp.x - 52, mp.y + ln], ingot, () => true, () => mm.in < 4 && ++mm.in, lane*1.3 + k*0.4));
     }
     // runners: shells and treads to both assembly bays
     P.bays.forEach((b, i) => {
       const bay = M.bays[i];
       const w1 = at(crew(1), -110, b.y - 10), w2 = at(crew(4, { round: true }), -80, b.y + 20);
+      if (!i) sc.runner = w1;
       job(carrier(w1, [P.press.x + 58, P.press.y + 8 + i*12], [b.x - 54, b.y - 8], shell, () => M.press.out > 0 && M.press.out--, () => bay.shell < 2 && ++bay.shell, i*1.1));
       job(carrier(w2, [P.lathe.x + 58, P.lathe.y + 8 - i*12], [b.x - 54, b.y + 20], tread, () => M.lathe.out > 0 && M.lathe.out--, () => bay.tread < 2 && ++bay.tread, 0.6 + i*0.9));
       // a welder at each bay (torch up while it welds)
@@ -558,9 +565,9 @@ function makeFactory(){
     // the press and the lathe: one ingot → one shell / one set of treads
     for (const [k, p] of [['press', P.press], ['lathe', P.lathe]]){
       const m = M[k];
-      if (m.busy <= 0 && m.in > 0 && m.out < 4){ m.in--; m.busy = m.cyc; m.hit = false; }
+      if (m.busy <= 0 && m.in > 0 && m.out < 6){ m.in--; m.busy = m.cyc; m.hit = false; }
       if (m.busy > 0){
-        m.busy -= dt;
+        m.busy -= dt*tempo(sc, 0);
         if (k === 'press' && !m.hit && m.busy < m.cyc*0.5){ m.hit = true; sparks(p.x, p.y - 22, 8, '#ffd27a'); sfx('tink', panOf(p.x), 0.25); }
         if (k === 'lathe' && Math.random() < dt*10) sparks(p.x - 8, p.y - 46, 1, '#ffe2a0');
         if (m.busy <= 0) m.out++;
@@ -571,11 +578,12 @@ function makeFactory(){
       const a = M.bays[i];
       if (a.k < 0 && a.shell > 0 && a.tread > 0 && M.booth.q.length < 3){ a.shell--; a.tread--; a.k = 0; }
       if (a.k < 0) return;
-      a.k += dt;
+      a.k += dt*tempo(sc, 2);
       if (a.k > 0.6 && a.k < 4.6 && Math.random() < dt*14){ sparks(b.x + 8, b.y - 22 + rand(-6, 6), 2, '#bfe6ff'); if (Math.random() < 0.15) sfx('tink', panOf(b.x), 0.15); }
       if (a.k >= 5.2){
         a.k = -1;
         const r = bot(Object.assign(look(Math.floor(Math.random()*5)), RAW), b.x, b.y + 14, { sp: 44, face: 1, cfg: { lv: { speed: Math.floor(Math.random()*11), carry: 0, study: 0 }, prio: [] } });
+        r.bay = i; sc.fresh = r; sc.made = (sc.made || 0) + 1;
         job(newRobot(r, b));
       }
     });
@@ -844,17 +852,55 @@ function makeFactory(){
     list.push({ y: -10, f: c => pallet(c, -40, -10) }, { y: -12, f: c => pallet(c, 30, -12) }, { y: -14, f: c => trashCan(c, 230, -14) });
     list.push({ y: B.yf, f: c => drawShell(c, B) });
   }
-  // what the camera does while we watch: the whole floor, then along the line to where the new robots go, then wide
+  // what the camera does while we watch (V21: closer, and step by step in the order things are made): the whole floor;
+  // an ingot carried from the pallet to the press; the press stamping it into a body shell; a runner taking a shell to
+  // an assembly bay; the robot welded together there; the new robot queuing for the paint booth and coming out
+  // coloured; out along the belt; then wide again. Steps after the one we're on run slower meanwhile (tempo).
   function* watch(){
-    const dr = E.driver;
+    const dr = E.driver, zc = zTour();
     const wide = frameView({ x0: B.x0 - 30, x1: P.belt.x1 + 10, y0: B.yb - B.h - 20, y1: B.yf + 30 });
     if (wide.fits) camTo(wide.x, wide.y, wide.z, 2.2);
     else camTo(B.x0 + H.W/2/wide.z - 20, wide.y, wide.z, 2.2);
-    yield 2.4;
-    if (!wide.fits){ camTo(P.bays[0].x, wide.y, wide.z, 5); yield 5.2; } else yield 4.5;
-    beep(dr, 'chat');
-    camFrame({ x0: P.bays[0].x - 60, x1: P.belt.x1 + 40, y0: P.bays[0].y - 120, y1: P.belt.y + 70 }, 3.2, { zmax: 2.2 });
-    yield 6.4;
+    yield 2.6;
+    // 1. an ingot, from the pallet to the press
+    sc.focus = 0;
+    const w = sc.pc;
+    camFrame({ x0: P.palA.x - 40, x1: P.press.x + 20, y0: P.palA.y - 70, y1: P.palA.y + 50 }, 1.6, { zmax: zc });
+    if (w.hold !== ingot){ yield within(5, () => w.hold == null && !w.goal && w.x < P.palA.x + 60); yield within(2, () => w.hold === ingot); }   // picked up at the pallet
+    followCam(w, 24, -30, zc);
+    yield within(8, () => w.hold == null);   // put down by the press
+    yield 0.4;
+    // 2. the press stamps it into a body shell
+    camFrame({ x0: P.press.x - 80, x1: P.press.x + 90, y0: P.press.y - 96, y1: P.press.y + 46 }, 1.2, { zmax: zc });
+    { const o0 = M.press.out; yield within(4, () => M.press.out > o0); }
+    yield 1.2;
+    // 3. a runner takes a shell over to an assembly bay
+    sc.focus = 1;
+    const rn = sc.runner;
+    followCam(rn, 0, -30, zc*0.95);
+    yield within(6, () => rn.hold === shell);
+    yield within(9, () => rn.hold == null);
+    yield 0.6;
+    // 4. the bay welds a robot together: treads, body, head, then its eye lights up
+    sc.focus = 2; beep(dr, 'chat');
+    const bi = M.bays[0].k >= 0 || M.bays[1].k < 0 ? 0 : 1, b = P.bays[bi], n0 = sc.made || 0;
+    camFrame({ x0: b.x - 90, x1: b.x + 90, y0: b.y - 100, y1: b.y + 50 }, 1.2, { zmax: zc });
+    yield within(10, () => (sc.made || 0) > n0);
+    yield 1.2;
+    // 5. off to the paint booth: in it goes, out it comes in its own colours
+    sc.focus = 3;
+    const nb = M.booth.cur || M.booth.q[0] || sc.fresh;   // (the next one in for paint)
+    if (nb){
+      followCam(nb, 20, -30, zc*0.95);
+      yield within(10, () => M.booth.cur === nb && nb.hidden);
+      camFrame({ x0: P.booth.x - 80, x1: P.booth.x + 110, y0: P.booth.y - 100, y1: P.booth.y + 46 }, 1, { zmax: zc });
+      yield within(9, () => nb.belt);
+      // 6. and out along the belt
+      sc.focus = 4;
+      followCam(nb, -20, -34, zc*0.85);
+      yield 3.6;
+    }
+    sc.focus = null;
     camTo(wide.x, wide.y, wide.z, 2.4); yield 2.2;
   }
   return Object.assign(sc, { build, update, under, items, watch });
@@ -900,8 +946,9 @@ function makeBank(){
     { x: -86, y: -282, st: 'ready', L: 1, mix: 1, green: 1, added: true, dyed: true },
     { x: -86, y: -168, st: 'fill', L: 0, mix: 0, green: 0, added: false, dyed: false },
   ];
-  const M = { shred: { bags: 1, busy: 0, to: 1, pile: 14 }, spill: [], mill: { ink: 1.5, run: 0, roll: 0 }, sheet: 0, cut: { t: 0, tray: 6, down: 0 }, table: 2, box: 5 };
+  const M = { shred: { bags: 1, busy: 0, to: 1, pile: 14 }, spill: [], piles: [11, 8], mill: { ink: 1.5, run: 0, roll: 0 }, sheet: 0, cut: { t: 0, tray: 6, down: 0 }, table: 2, box: 5 };
   const SLUDGE = ['#8a5a2c', '#6f6a4a', '#4f9a3c'];
+  const HEAPS = [[-360, -8, 120, 78, 3], [-130, -12, 120, 92, 7], [20, -10, 170, 112, 11], [158, -12, 110, 80, 5], [236, -4, 56, 38, 9]];   // the leaf heaps on the curb: x, y, w, h, seed
   const potCol = p => mix(mix(SLUDGE[0], SLUDGE[1], p.mix), SLUDGE[2], p.green);
   const sc = { id: 'bank', B, P, POTS, M, stopX: -150, door: { x: -262 }, inside: [[-296, -80], [-246, -86]], insideFace: [1, 1], open: false,
     frame: { x0: B.x0 - 40, x1: B.x1 + 50, y0: B.yb - B.h - 30, y1: LANE + 46 } };
@@ -929,16 +976,20 @@ function makeBank(){
     if (miss){
       const tx = P.shred.x + rand(-62, 44), ty = P.shred.y + rand(4, 30);
       fly('leaf', x, y, tx, ty, rand(0.6, 0.85), rand(10, 22), { ci, s: sz, spin: rand(4, 9), onEnd: () => { M.spill.push({ x: tx, y: ty, ci, s: sz, rot: rand(0, TAU) }); } });
-    } else fly('leaf', x + rand(-2, 2), y, P.shred.x - 2 + rand(-16, 16), P.shred.y - 60 + rand(-2, 3), rand(0.3, 0.42), rand(-2, 6), { ci, s: sz, spin: rand(3, 8), onEnd: () => { M.shred.pile = Math.min(40, M.shred.pile + 1); } });
+    } else fly('leaf', x + rand(-2, 2), y, P.shred.x - 2 + rand(-16, 16), P.shred.y - 60 + rand(-2, 3), rand(0.3, 0.42), rand(-2, 6), { ci, s: sz, spin: rand(3, 8), onEnd: () => { M.shred.pile = Math.min(60, M.shred.pile + 1); } });
   }
   const cash = holding((c, x, y) => itemCash(c, x + 3, y + 3, 0.8));
   const fillPot = () => POTS.filter(p => p.st === 'fill').sort((a, b) => b.L - a.L)[0];
   function build(){
     // three bag carriers to the shredder, from two piles of bags
-    [[0, P.bags], [1, P.bags], [2, P.bags2]].forEach(([i, pile]) => {
+    // (V21: they take the bags the baggers outside have brought in: M.piles counts what's on each pile)
+    [[0, P.bags, 0], [1, P.bags, 0], [2, P.bags2, 1]].forEach(([i, pile, pi]) => {
       const w = at(banker(i % 3), -300 + i*20, pile.y + 10);
+      if (!i) sc.carrier = w;
       job((function*(){ yield i*1.4; for (;;){
-        yield* walk(w, [[pile.x + 46, pile.y + 6 + (i === 1 ? 14 : 0)]]); w.face = -1; yield 0.35; w.hold = bag; yield 0.3;
+        yield* walk(w, [[pile.x + 46, pile.y + 6 + (i === 1 ? 14 : 0)]]); w.face = -1;
+        yield () => M.piles[pi] > 0 || M.piles[1 - pi] > 2; if (M.piles[pi] > 0) M.piles[pi]--; else M.piles[1 - pi]--;
+        yield 0.35; w.hold = bag; yield 0.3;
         // V21: they queue for the step beside the shredder, climb up, lift the bag high over the hopper and tip it: the
         // leaves pour out in a stream; now and then one misses and lands on the floor (the sweeper picks those up)
         yield* walk(w, [[P.shred.x - 78, P.shred.y + 12 + (i - 1)*16]]); w.face = 1;
@@ -948,7 +999,7 @@ function makeBank(){
         for (let k = 1; k <= 4; k++){ w.hz = 13*k/4; yield 0.03; }
         w.hold = null; w.holdUp = true; M.pour = { w, t: 0, tip: 0 };
         for (let k = 1; k <= 6; k++){ M.pour.tip = k/6; yield 0.035; }
-        for (let k = 0; k < 22; k++){ const o = pourMouth(); pourLeaf(o.x, o.y, Math.random() < 0.09); yield 0.035; }
+        for (let k = 0; k < 30; k++){ for (let j = 0; j < 2; j++){ const o = pourMouth(); pourLeaf(o.x + rand(-2, 2), o.y, Math.random() < 0.08); } yield 0.035; }   // (V21: a thick stream, ~60 leaves a bag)
         M.shred.bags++; yield 0.1;
         for (let k = 5; k >= 0; k--){ M.pour.tip = k/6; yield 0.03; }
         M.pour = null; w.holdUp = false;
@@ -974,6 +1025,7 @@ function makeBank(){
     // four bucket robots: green sludge from whichever pot is ready, to the roller mill
     for (let i = 0; i < 4; i++){
       const w = at(banker(i % 2 ? 3 : 0, { patches: false }), 0 + i*16, -230 + i*10);
+      (sc.buckets || (sc.buckets = [])).push(w);
       job((function*(){ yield i*1.2; for (;;){
         w.hold = holding((c, x, y) => itemBucket(c, x + 2, y + 8, 1, false)); w.holdUp = false;
         const ready = () => POTS.filter(p => p.st === 'ready' && p.L > 0.04).sort((a, b) => b.L - a.L)[0];
@@ -981,12 +1033,12 @@ function makeBank(){
         yield* walk(w, [[p.x - 18 + (i % 3)*20, p.y + 40 + (i % 2)*6]]); w.face = i % 3 === 2 ? -1 : 1;
         if (!(p.st === 'ready' && p.L > 0.04)) continue;
         yield 0.5; p.L = Math.max(0, p.L - 0.035); const col = potCol(p);
-        w.hold = holding((c, x, y) => itemBucket(c, x + 2, y + 8, 1, true, col));
+        w.hold = holding((c, x, y) => itemBucket(c, x + 2, y + 8, 1, true, col)); w.full = true;
         if (p.L < 0.04){ Object.assign(p, { st: 'fill', mix: 0, green: 0, added: false, dyed: false }); }
         yield 0.3;
         yield* walk(w, [[P.mill.x - 56, P.mill.y + 8 + (i % 2)*16]]); w.face = 1; w.holdUp = true; yield 0.5;
         for (let k = 0; k < 6; k++) E.parts.push({ k: 'drop', x: w.x + 16, y: w.y - 44, vx: rand(10, 24), vy: rand(-20, -8), g: 140, life: 0.5, t: 0, col });
-        M.mill.ink = Math.min(4, M.mill.ink + 0.35); yield 0.4;
+        M.mill.ink = Math.min(4, M.mill.ink + 0.35); w.full = false; yield 0.4;
       } })());
     }
     // the stacker takes notes off the cutter's tray and stacks them into bundles on its table
@@ -998,6 +1050,7 @@ function makeBank(){
     } })());
     // the runner takes bundles out of the side door to the container (not before we've seen inside)
     const rn = at(banker(1, { slim: true }), P.stack.x + 10, P.stack.y + 40);
+    sc.runner = rn;
     job((function*(){ for (;;){
       yield* walk(rn, [[P.stack.x + 8, P.stack.y + 30]]); rn.face = -1;
       yield () => M.table > 0; M.table--; yield 0.3; rn.hold = cash;
@@ -1036,13 +1089,42 @@ function makeBank(){
       yield 0.3; sw.holdUp = false;
       yield* walk(sw, [[P.shred.x + 62, P.shred.y + 56]]); sw.face = -1;
     } })());
+    // V21: baggers out on the curb fill bags from the heaps of leaves and carry them in through the front door to the
+    // piles by the shredder: the link from all those leaves outside to what happens inside
+    const BAGGERS = [{ heap: HEAPS[0], spot: [-290, 4], face: -1, pile: 0 }, { heap: HEAPS[1], spot: [-198, 6], face: 1, pile: 1 }, { heap: HEAPS[2], spot: [-74, 8], face: 1, pile: 0 }];
+    BAGGERS.forEach((G, i) => {
+      const g = at(banker(i % 2 ? 0 : 3, { slim: i === 2 }), G.spot[0], G.spot[1], G.face);
+      if (!i) sc.bagger = g;
+      g.fill = 0;
+      const bagHold = holding((c, x, y) => H.drawLeafBag(c, x + 3, y + 8, 7 + g.fill*4.5, 3));
+      job((function*(){ yield i*2.2; for (;;){
+        yield* walk(g, [G.spot]); g.face = G.face; g.fill = 0; g.hold = bagHold; g.holdUp = false; g.st2 = 'fill'; g.fillN = (g.fillN || 0) + 1; yield 0.3;
+        // scoop: leaves fly off the heap into the bag
+        const [hx, hy, hw, hh] = G.heap;
+        for (let k = 0; k < 34; k++){
+          // (from the near side of the heap, in armfuls: the robot dips and lifts as it scoops)
+          const sx = hx - g.face*rand(hw*0.05, hw*0.38), sy = hy - rand(hh*0.15, hh*0.7), ci = Math.floor(rand(0, LEAFN));
+          for (let j = 0; j < 2; j++) fly('leaf', sx + rand(-6, 6), sy + rand(-5, 5), g.x + g.face*15 + rand(-3, 3), g.y - 32, rand(0.4, 0.6), rand(14, 28), { ci: (ci + j) % LEAFN, s: rand(5, 6.6), spin: rand(4, 9), out: true });
+          g.holdUp = k % 6 < 3; g.fill = Math.min(1, (k + 1)/34); yield 0.075;
+        }
+        g.holdUp = false;
+        yield 0.3; g.st2 = 'carry';
+        // in through the front door to a pile
+        const pile = G.pile ? P.bags2 : P.bags, ps = [pile.x + 50, pile.y + 22 + (i === 2 ? -12 : 0)];
+        yield* walk(g, [[sc.door.x + (i - 1)*8, 10], [sc.door.x + (i - 1)*8, B.yf - 20], [-300, -120], ps]); g.face = -1;
+        g.st2 = 'drop'; yield 0.25; g.hold = null;
+        fly('bag', g.x - 12, g.y - 34, pile.x + rand(-14, 14), pile.y - 22, 0.45, 14, { onEnd: () => { M.piles[G.pile] = Math.min(15, M.piles[G.pile] + 1); } });
+        yield 0.6; g.st2 = 'back';
+        yield* walk(g, [[-300, -120], [sc.door.x + (i - 1)*8, B.yf - 20], [sc.door.x + (i - 1)*8, 10]]);
+      } })());
+    });
   }
   function update(dt){
     // the shredder chews a bag at a time while a pot is filling, and the shreds fly over into it
     const s = M.shred, fp = fillPot();
     if (s.busy <= 0 && s.bags > 0 && fp){ s.bags--; s.busy = 2; }
     if (s.busy > 0){
-      s.busy -= dt; s.pile = Math.max(0, s.pile - dt*9);
+      s.busy -= dt; s.pile = Math.max(0, s.pile - dt*24);
       if (Math.random() < dt*6) E.parts.push({ k: 'puff', x: P.shred.x + rand(-14, 10), y: P.shred.y - 58, vx: rand(-8, 8), vy: rand(-26, -14), life: rand(0.4, 0.7), t: 0, r: rand(1.4, 2.4), col: H.LEAFC[Math.floor(rand(0, LEAFN))].c });   // bits flying up out of the blades
       const p = fp || POTS[1];
       if (fp) p.L = Math.min(1, p.L + dt*0.07);   // (V21: a bit more a bag, since the bags now go in one at a time from the step)
@@ -1051,16 +1133,17 @@ function makeBank(){
     }
     for (const p of POTS){
       if (p.st === 'fill' && p.L >= 0.99) p.st = 'mix';
-      if (p.st === 'mix' && p.added){ p.mix = Math.min(1, p.mix + dt/3.5); if (p.mix >= 1) p.st = 'dye'; }
-      if (p.st === 'dye' && p.dyed){ p.green = Math.min(1, p.green + dt/2.2); if (p.green >= 1) p.st = 'ready'; }
+      if (p.st === 'mix' && p.added){ p.mix = Math.min(1, p.mix + dt*tempo(sc, 2)/3.5); if (p.mix >= 1) p.st = 'dye'; }
+      if (p.st === 'dye' && p.dyed){ p.green = Math.min(1, p.green + dt*tempo(sc, 2)/2.2); if (p.green >= 1) p.st = 'ready'; }
       if (p.L > 0.1 && Math.random() < dt*1.5) puff(p.x + rand(-24, 24), p.y - 70, 'rgba(240,240,230,.35)', rand(4, 7));
     }
     // the roller mill rolls the green out into one long sheet while it has sludge; the cutter chops the sheet into notes
     const m = M.mill, cu = M.cut, run = m.ink > 0.02 && cu.tray < 16;
     m.run = run ? Math.min(1, m.run + dt*2) : Math.max(0, m.run - dt*2);
-    if (run){ m.ink = Math.max(0, m.ink - dt*0.09); m.roll += dt*m.run; M.sheet += dt*18*m.run; }
+    const tm = tempo(sc, 4);
+    if (run){ m.ink = Math.max(0, m.ink - dt*0.09*tm); m.roll += dt*m.run*tm; M.sheet += dt*18*m.run*tm; }
     cu.down = Math.max(0, cu.down - dt*4);
-    if (run){ cu.t += dt; if (cu.t > 0.9){ cu.t = 0; cu.down = 1; cu.tray++; sfx('tink', panOf(P.cut.x), 0.12); } }
+    if (run){ cu.t += dt*tm; if (cu.t > 0.9){ cu.t = 0; cu.down = 1; cu.tray++; sfx('tink', panOf(P.cut.x), 0.12); } }
   }
   function under(c){
     // a checkered marble floor with a long red carpet from the door
@@ -1086,10 +1169,11 @@ function makeBank(){
     // V21: leaves that missed the hopper, lying on the marble till the sweeper gets them
     for (const l of M.spill){ c.fillStyle = 'rgba(40,30,10,.18)'; ell(c, l.x + 1, l.y + 1, l.s*0.7, l.s*0.35); c.fill(); H.stampLeaf(c, l.x, l.y, l.s, l.rot, l.ci, 1, 1, .72, 1); }
   }
+  // V21: a pile of bags, as many as are on it (rows of five, four, three...)
   function bagPile(c, p, n){
-    const rnd = mulberry(23 + n);
+    const rnd = mulberry(23 + Math.round(p.y));
     c.fillStyle = 'rgba(30,24,12,.3)'; ell(c, p.x + 4, p.y + 4, 46, 10); c.fill();
-    for (let row = 0; row < n; row++) for (let k = 0; k < 5 - row; k++) H.drawLeafBag(c, p.x - 28 + row*7 + k*14 + rnd()*3, p.y + 4 - row*10, 13, Math.floor(rnd()*6));
+    let k = 0; for (let row = 0; row < 5 && k < n; row++) for (let j = 0; j < 5 - row && k < n; j++, k++) H.drawLeafBag(c, p.x - 28 + row*7 + j*14 + rnd()*3, p.y + 4 - row*10, 13, Math.floor(rnd()*6));
   }
   // V21: lower than it was, with a wide hopper you can see the leaves going into, and a wooden step beside it
   function shredder(c){
@@ -1118,7 +1202,7 @@ function makeBank(){
     c.fillStyle = 'rgba(0,0,0,.15)'; c.beginPath(); c.moveTo(14, -58); c.lineTo(40, -58); c.lineTo(28, -40); c.lineTo(10, -40); c.closePath(); c.fill();
     c.fillStyle = '#2a2624'; ell(c, 0, -58, 39, 5); c.fill();
     // a heap of leaves in the hopper that grows as bags are poured in and sinks, churning, as the blades chew
-    { const n = Math.min(40, Math.round(M.shred.pile)), hgt = Math.min(15, n*0.4);
+    { const n = Math.min(60, Math.round(M.shred.pile)), hgt = Math.min(20, n*0.36);
       for (let k = 0; k < n; k++){ const rnd = mulberry(k*7 + 3), u = rnd()*2 - 1, top = hgt*(1 - u*u)*rnd(), jx = on ? Math.sin(E.t*30 + k)*0.7 : 0; H.stampLeaf(c, u*30 + jx, -58 - top + (1 - Math.abs(u))*1.5, 4.8, rnd()*TAU + (on ? E.t*(k % 3 - 1) : 0), Math.floor(rnd()*H.LEAFC.length), 1, 1, .85, 1); } }
     c.strokeStyle = '#9aa3a8'; c.lineWidth = 2; ell(c, 0, -58, 40, 5.4); c.stroke();
     c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1; c.beginPath(); c.ellipse(0, -58, 40, 5.4, 0, Math.PI*1.05, Math.PI*1.5); c.stroke();
@@ -1408,30 +1492,57 @@ function makeBank(){
   function goldGlint(c, x, y){ const a = Math.pow(Math.max(0, Math.sin(E.t*1.3)), 8); if (a < 0.03) return; const z = 2 + a*5; c.fillStyle = 'rgba(255,250,220,' + a + ')'; c.beginPath(); c.moveTo(x, y - z); c.lineTo(x + z*0.25, y - z*0.25); c.lineTo(x + z, y); c.lineTo(x + z*0.25, y + z*0.25); c.lineTo(x, y + z); c.lineTo(x - z*0.25, y + z*0.25); c.lineTo(x - z, y); c.lineTo(x - z*0.25, y - z*0.25); c.closePath(); c.fill(); }
   B.facade = facade; B.roof = roof;
   function items(list){
-    list.push({ y: P.bags.y, f: c => bagPile(c, P.bags, 4) }, { y: P.bags2.y, f: c => bagPile(c, P.bags2, 3) }, { y: P.shred.y, f: shredder });
+    list.push({ y: P.bags.y, f: c => bagPile(c, P.bags, M.piles[0]) }, { y: P.bags2.y, f: c => bagPile(c, P.bags2, M.piles[1]) }, { y: P.shred.y, f: shredder });
     if (M.pour) list.push({ y: M.pour.w.y + 0.5, f: drawPour });   // (V21: the bag being poured, in front of the one pouring it)
     for (const p of POTS) list.push({ y: p.y, f: c => pot(c, p) });
     list.push({ y: P.mill.y, f: mill }, { y: P.mill.y - 1, f: sheetTable }, { y: P.cut.y, f: cutter }, { y: P.stack.y, f: stackTable });
     props(list);
     // massive heaps of leaves out on the curb, and the cash container
-    for (const [x, y, w, h, sd] of [[-360, -8, 120, 78, 3], [-130, -12, 120, 92, 7], [20, -10, 170, 112, 11], [158, -12, 110, 80, 5], [236, -4, 56, 38, 9]]) list.push({ y, f: c => drawHeap(c, x, y, sd, w, h) });
+    for (const [x, y, w, h, sd] of HEAPS) list.push({ y, f: c => drawHeap(c, x, y, sd, w, h) });
     list.push({ y: P.box.y, f: cashBox });
     list.push({ y: B.yf, f: c => drawShell(c, B) });
   }
+  // V21: the camera follows the money being made, step by step and closer: a bagger filling a bag from the heaps outside
+  // and carrying it in to the piles; a bag poured into the shredder; the shreds into a pot, mixed and dyed green; a
+  // bucket of green to the roller mill; along the green sheet to the cutter and the stacks of notes; the runner out to
+  // the container. Steps after the one we're on run slower meanwhile (tempo).
   function* watch(){
-    const dr = E.driver;
+    const dr = E.driver, zc = zTour();
     const wide = frameView({ x0: B.x0 - 30, x1: B.x1 + 70, y0: B.yb - B.h - 20, y1: B.yf + 40 });
     if (wide.fits) camTo(wide.x, wide.y, wide.z, 2.2); else camTo(B.x0 + H.W/2/wide.z - 20, wide.y, wide.z, 2.2);
-    yield 3;
-    // the pots (one green, being carried off by the bucket; the other on its way there)
-    camFrame({ x0: P.shred.x - 60, x1: P.mill.x + 60, y0: POTS[0].y - 120, y1: POTS[1].y + 60 }, 3, { zmax: 2.3 });
-    yield 3; yield within(5, () => POTS[1].green > 0.6); beep(dr, 'chat');
-    // the mill, the long green sheet, the cutter, the stacks of notes
-    camFrame({ x0: P.mill.x - 80, x1: P.stack.x + 50, y0: P.mill.y - 120, y1: P.mill.y + 70 }, 3, { zmax: 2.3 });
-    yield 5;
-    // out of the side door to the container
-    camFrame({ x0: P.cut.x - 60, x1: B.x1 + 70, y0: P.stack.y - 90, y1: 30 }, 2.6, { zmax: 2.2 });
+    yield 2.6;
+    // 1. leaves from the heaps outside, bagged and carried in
+    sc.focus = 0;
+    const g = sc.bagger;
+    if (!(g.st2 === 'fill' && g.fill < 0.3)){ const n0 = g.fillN || 0; followCam(g, 0, -34, zc*0.9); yield within(16, () => (g.fillN || 0) > n0); }
+    camFrame({ x0: HEAPS[0][0] - 20, x1: g.x + 60, y0: HEAPS[0][1] - 100, y1: g.y + 34 }, 1, { zmax: zc });
+    yield within(5, () => g.st2 === 'carry');
+    followCam(g, 0, -34, zc*0.9);
+    yield within(14, () => g.st2 === 'drop'); yield 0.8;
+    // 2. a bag poured into the shredder
+    sc.focus = 1;
+    camFrame({ x0: P.bags.x - 40, x1: P.shred.x + 70, y0: P.shred.y - 120, y1: P.bags2.y + 30 }, 1.4, { zmax: zc });
+    yield within(10, () => M.pour); yield within(5, () => !M.pour); yield 0.8;
+    // 3. the shreds into the pot: mixed, then dyed green
+    sc.focus = 2; beep(dr, 'chat');
+    camFrame({ x0: P.shred.x + 20, x1: POTS[0].x + 100, y0: POTS[0].y - 110, y1: POTS[1].y + 50 }, 1.4, { zmax: zc*0.9 });
+    yield 2; yield within(8, () => POTS[1].green > 0.6); yield 0.6;
+    // 4. a bucket of green to the roller mill
+    sc.focus = 3;
+    const bw = (sc.buckets || []).find(w => w.full) || (sc.buckets || [])[0];
+    if (bw){ followCam(bw, 10, -34, zc*0.9); yield within(6, () => bw.full); yield within(9, () => !bw.full); yield 0.5; }
+    // 5. rolled out into one long green sheet, chopped into notes, stacked into bundles
+    sc.focus = 4;
+    camFrame({ x0: P.mill.x - 80, x1: P.mill.x + 90, y0: P.mill.y - 110, y1: P.mill.y + 50 }, 1.2, { zmax: zc });
+    yield 2;
+    camFrame({ x0: P.cut.x - 90, x1: P.stack.x + 50, y0: P.cut.y - 120, y1: P.stack.y + 50 }, 3, { zmax: zc });
     yield 4;
+    // 6. out of the side door to the container
+    sc.focus = 5;
+    const rn = sc.runner;
+    followCam(rn, 0, -30, zc*0.85);
+    { const b0 = M.box; yield within(12, () => M.box > b0); } yield 0.6;
+    sc.focus = null;
     camTo(wide.x, wide.y, wide.z, 2.2); yield 2;
   }
   // leaving: the cash in the container flies into the truck
@@ -1623,6 +1734,7 @@ function drawPart(c, p){
   if (p.k === 'fly'){
     const t = clamp(p.t/p.dur, 0, 1), e = t*t*(3 - 2*t), x = lerp(p.x0, p.x1, e), y = lerp(p.y0, p.y1, e) - Math.sin(t*Math.PI)*p.arc;
     if (p.kind === 'cash') itemCash(c, x, y + 3, 0.9, Math.sin(t*7)*0.5);
+    else if (p.kind === 'bag') H.drawLeafBag(c, x, y + 8, 12, 3);
     else if (p.kind === 'leaf') H.drawLeaf(c, x, y, p.s || 5, p.rot + t*(p.spin || 6), p.ci || 0, 0, 1, 1, 1, 0);
     else if (p.kind === 'shred'){ c.fillStyle = p.col || '#c0432a'; c.save(); c.translate(x, y); c.rotate(p.rot + t*9); c.fillRect(-1.6, -0.8, 3.2, 1.6); c.restore(); }
   } else if (p.k === 'spark'){ c.fillStyle = p.col || '#ffd27a'; c.globalAlpha = a; c.fillRect(p.x - 1, p.y - 1, 2.2, 2.2); c.globalAlpha = 1; }
@@ -1693,7 +1805,7 @@ return {
   },
   frame(dt){ if (E.on) frame(dt); },
   // for tests: where it's got to, and fast-forwarding without drawing
-  state(){ const sc = E.scene; return { on: E.on, scene: sc && sc.id, t: +E.t.toFixed(2), fade: +E.fade.toFixed(2), cam: { x: Math.round(E.cam.x), y: Math.round(E.cam.y), z: +E.cam.z.toFixed(2) }, actors: E.actors.length, reveal: sc && sc.B ? +sc.B.reveal.toFixed(2) : null, pot: sc && sc.POT ? sc.POT.st : null, truck: E.truck ? Math.round(E.truck.x) : null, tinker: E.tinker ? { x: Math.round(E.tinker.x), y: Math.round(E.tinker.y), st: E.tinker.st } : null }; },
+  state(){ const sc = E.scene; return { on: E.on, scene: sc && sc.id, t: +E.t.toFixed(2), fade: +E.fade.toFixed(2), cam: { x: Math.round(E.cam.x), y: Math.round(E.cam.y), z: +E.cam.z.toFixed(2) }, actors: E.actors.length, focus: sc ? sc.focus : null, reveal: sc && sc.B ? +sc.B.reveal.toFixed(2) : null, pot: sc && sc.POT ? sc.POT.st : null, truck: E.truck ? Math.round(E.truck.x) : null, tinker: E.tinker ? { x: Math.round(E.tinker.x), y: Math.round(E.tinker.y), st: E.tinker.st } : null }; },
   // V21 (tests and screenshots): put the camera somewhere for a moment, and keep it there (hold) until the next call
   peek(x, y, z, hold){ E.camTw = null; E.follow = null; Object.assign(E.cam, { x, y, z }); E.hold = !!hold; },
   ff(seconds){ E.quiet = true; for (let t = 0; t < seconds && E.on; t += 1/30){ if (E.main) stepCo(E.main, 1/30); stepWorld(1/30); updCam(1/30); if (E.main && E.main.done){ finish(); break; } } E.quiet = false; },

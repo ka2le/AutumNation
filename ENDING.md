@@ -62,7 +62,8 @@ Scene names are never shown in the game; they're only for us.
 
 `endingHome()`: the camera goes back to where it was, the truck pulls in with Tinker in the back and Tinker hops off at
 the curb, like coming home from a trip. V21 (`startEndReturn`, `updEndReturn`): Tinker stands still at the curb while the
-camera closes in on its head (~2 s), then slowly (at 22% speed) goes to a leaf a little way up the yard and picks it up,
+camera closes in on its head; the truck (V21.1: drop-off only, no pickup) drives away, and 2 s after it has gone Tinker
+slowly (at 22% speed) goes to a leaf a little way up the yard and picks it up,
 then speeds up and picks up several more as the camera widens back to the yard. For this its list is just Gather leaves
 (its own list waits in `S.flags.endKeep` and comes back on Continue, also after a reload). Then: the **"Great work!"** popup (`showEndPopup`, `#endPop`):
 "You really did collect a lot of leaves" and a **Continue** button. Continue closes it and the yard just carries on;
@@ -123,8 +124,10 @@ there are no more milestones.
 - **New models** (`MODELS`): mint with twin antennas, navy with a glass dome, lavender round with a periscope eye,
   orange-headed kettle, a sprout one, a rose-gold "Sterling", a sky-blue lantern bot, a patched one, an ember one, and a
   plain cream one that could be from your yard. None wear hard hats.
-- **Camera** (`watch()`): the whole floor → along the line to the paint booth and the belt →
-  back out wide.
+- **Camera** (`watch()`, V21.1): the whole floor, then close (`zTour`) and step by step: an ingot from the pallet to the
+  press → the press stamping a shell → a runner taking it to a bay → the robot welded together → the paint booth → out on
+  the belt → wide. While the camera is on a step, the machines of later steps run at 60% (`tempo(sc, step)`, `sc.focus`);
+  the robots never slow down.
 - **Layout:** building x −420…420, back wall y −350, front y −38, walls 104 high; truck stops at x −214, door at −300.
   Machines in `P`, their stock and timers in `M`.
 - **Later:** more machines (a head press, an eye-lens station, a test track), robots stamping out blowers and shakers
@@ -165,8 +168,11 @@ there are no more milestones.
   cooler, filing cabinets, a coat stand with a bowler hat and an umbrella, rope barriers along the carpet, a trash can.
 - **Leaving** (`leave()`): the horn, and all the cash in the container flies into the back of the truck, the way the
   leaves fly in at the yard; the cash rides along in a pile on the bed.
-- **Camera:** wide → the pots (it waits for the front pot to turn green, at most 5 s more) → the mill, the sheet, the
-  cutter and the stacks → the side door and the container → wide.
+- **V21.1 baggers:** three robots on the curb scoop leaves from the heaps into bags and carry them in through the front
+  door to the bag piles (`M.piles`, drawn by count); the carriers take them from there. Each bag pours ~60 leaves.
+- **Camera** (V21.1): wide, then close and step by step: a bagger filling a bag outside and carrying it in → a bag poured
+  into the shredder → the pots, mixed and dyed green → a bucket to the mill → the sheet, cutter and stacks → the runner
+  out to the container → wide. Later steps' machines run at 60% meanwhile (`tempo`).
 - **Layout:** building x −400…400, back wall −340, front −38, walls 104 high; truck stops at x −150; main door −262,
   side door 312; container at (356, −10). Positions in `P` and `POTS`, the machines' state in `M`.
 - **Later:** a counter with a teller, coins as well as notes, the vault door opening, a robot counting money.
