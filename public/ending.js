@@ -107,7 +107,9 @@ function within(secs, cond){ const t0 = E.t; return () => cond() || E.t - t0 > s
 function* walk(o, pts, sp, face){ go(o, pts, sp, face); yield () => !o.goal; }
 function hop(o, x1, y1, end){ o.hop = { t: 0, dur: 0.9, x0: o.x, y0: o.y, x1, y1, end: end || 'idle' }; o.st = 'hop'; }
 // a little speech note over a robot ("!", "ooh")
-function say(o, text, dur, mood){ E.fx.push({ k: 'say', o, text, t: 0, life: dur || 1.8 }); if (mood !== false) beep(o, mood || 'happy'); }
+// NO DIALOG TEXT from any robot in the ending, ever (the player doesn't want words, "Welcome!" came back more than once).
+// say() is kept only so a call can't crash; it makes the robot's beep and shows nothing.
+function say(o, text, dur, mood){ if (mood !== false) beep(o, mood || 'happy'); }
 function beep(o, mood){ sfx('beep', o.sty && o.sty.driver ? 3 : (o.voice != null ? o.voice : 2 + (o.id % 6)), mood || 'chat', panOf(o.x), 0.7, true); }
 
 // the truck: the yard's own, drawn at x; its riders stand in the back
@@ -643,6 +645,17 @@ function makeFactory(){
     c.fillStyle = '#9b7348'; c.fillRect(x - 30, y - 6, 60, 6); c.fillStyle = '#7d5a36'; for (const k of [-28, -2, 24]) c.fillRect(x + k, y - 6, 4, 6);
     for (let row = 0; row < 4; row++) for (let k = 0; k < 5 - row; k++) H.drawIngot(c, x - 22 + row*5.5 + k*11, y - 6 - row*4.2, 11, 0, 1);
   }
+  // a pyramid of loose ingots (n at the bottom)
+  function ingotPyramid(c, x, y, n){
+    c.fillStyle = 'rgba(30,24,12,.28)'; ell(c, x + 1, y + 1, n*6.4, 5); c.fill();
+    for (let row = 0; row < n; row++) for (let k = 0; k < n - row; k++) H.drawIngot(c, x - (n - 1)*5.5 + row*5.5 + k*11, y - row*4.4, 11, 0, 1);
+  }
+  // bars lying about on the verge, a few at a time
+  let scat = null;
+  function scatterIngots(c){
+    if (!scat){ const rnd = H.mulberry(31); scat = []; for (let i = 0; i < 34; i++) scat.push({ x: -400 + rnd()*800, y: -30 + rnd()*28, r: (rnd() - .5)*0.9, g: rnd() < .3 ? 2 : 1 }); }
+    for (const q of scat) H.drawIngot(c, q.x, q.y, 10, q.r, 1);
+  }
   function press(c){
     const p = P.press, m = M.press, k = m.busy > 0 ? 1 - m.busy/m.cyc : 0, ram = Math.sin(k*Math.PI)*16;
     c.save(); c.translate(p.x, p.y);
@@ -852,6 +865,10 @@ function makeFactory(){
     props(list);
     // outside on the verge: a delivery of ingots waiting to go in, and a trash can
     list.push({ y: -10, f: c => pallet(c, -40, -10) }, { y: -12, f: c => pallet(c, 30, -12) }, { y: -14, f: c => trashCan(c, 230, -14) });
+    // (V21.3: a lot more ingots out here: more pallets, pyramids of loose ingots and bars scattered about)
+    for (const [x, y] of [[-190, -8], [-130, -14], [96, -8], [160, -15], [355, -12], [-40, -24], [30, -27], [128, -28]]) list.push({ y, f: c => pallet(c, x, y) });
+    for (const [x, y, n] of [[-82, -3, 6], [292, -5, 7], [-236, -20, 4], [210, -22, 5], [390, -26, 4]]) list.push({ y, f: c => ingotPyramid(c, x, y, n) });
+    list.push({ y: -33, f: scatterIngots });
     list.push({ y: B.yf, f: c => drawShell(c, B) });
   }
   // what the camera does while we watch (V21: closer, and step by step in the order things are made): the whole floor;
@@ -950,7 +967,8 @@ function makeBank(){
   ];
   const M = { shred: { bags: 1, busy: 0, to: 1, pile: 14 }, spill: [], piles: [11, 8], mill: { ink: 1.5, run: 0, roll: 0 }, sheet: 0, cut: { t: 0, tray: 6, down: 0 }, table: 2, box: 5 };
   const SLUDGE = ['#8a5a2c', '#6f6a4a', '#4f9a3c'];
-  const HEAPS = [[-360, -8, 120, 78, 3], [20, -10, 170, 112, 11], [158, -12, 110, 80, 5], [236, -4, 56, 38, 9]];   // the leaf heaps on the curb: x, y, w, h, seed (V21.2: none just behind where the truck stops, so the greeter and the load stand out)
+  const HEAPS = [[-360, -8, 120, 78, 3], [20, -10, 170, 112, 11], [158, -12, 110, 80, 5], [236, -4, 56, 38, 9],
+    [-385, -27, 96, 76, 13], [66, -28, 170, 138, 17], [190, -29, 150, 110, 19], [250, -24, 90, 80, 23], [-12, -4, 70, 46, 29], [118, -3, 64, 42, 31]];   // (V21.3: more of them, a second row behind and small ones in front)   // the leaf heaps on the curb: x, y, w, h, seed (V21.2: none just behind where the truck stops, so the greeter and the load stand out)
   const potCol = p => mix(mix(SLUDGE[0], SLUDGE[1], p.mix), SLUDGE[2], p.green);
   const sc = { id: 'bank', B, P, POTS, M, stopX: -150, door: { x: -262 }, inside: [[-296, -80], [-246, -86]], insideFace: [1, 1], open: false,
     frame: { x0: B.x0 - 40, x1: B.x1 + 50, y0: B.yb - B.h - 30, y1: LANE + 46 } };
@@ -1112,7 +1130,7 @@ function makeBank(){
     const g = sc.greeter, T = E.truck, tk = E.tinker;
     camFrame({ x0: sc.door.x - 40, x1: T.x + 110, y0: B.yf - 90, y1: LANE + 24 }, 1.2);
     yield within(4, () => g.st2 === 'out'); g.face = 1; yield 0.7;
-    say(g, 'Welcome!', 1.5, 'hello');
+    beep(g, 'hello');   // (no words: robots in the ending never show dialog text)
     tk.face = -1; yield 0.6;
     // the load jumps off the bed into the sack, a handful at a time, and the sack swells
     g.hold = holding((c, x, y) => H.drawLeafBag(c, x + 3, y + 8, 7 + g.fill*6, 3)); g.st2 = 'fill';
@@ -1542,6 +1560,11 @@ function makeBank(){
   }
   function goldGlint(c, x, y){ const a = Math.pow(Math.max(0, Math.sin(E.t*1.3)), 8); if (a < 0.03) return; const z = 2 + a*5; c.fillStyle = 'rgba(255,250,220,' + a + ')'; c.beginPath(); c.moveTo(x, y - z); c.lineTo(x + z*0.25, y - z*0.25); c.lineTo(x + z, y); c.lineTo(x + z*0.25, y + z*0.25); c.lineTo(x, y + z); c.lineTo(x - z*0.25, y + z*0.25); c.lineTo(x - z, y); c.lineTo(x - z*0.25, y - z*0.25); c.closePath(); c.fill(); }
   B.facade = facade; B.roof = roof;
+  let lscat = null;
+  function scatterLeaves(c){
+    if (!lscat){ const rnd = H.mulberry(47); lscat = []; for (let i = 0; i < 160; i++){ const x = -420 + rnd()*840; if (x > -240 && x < -90 && rnd() < .7) continue; lscat.push({ x, y: -32 + rnd()*34, s: 3.4 + rnd()*1.6, r: rnd()*Math.PI*2, ci: Math.floor(rnd()*H.LEAFC.length), sh: rnd() < .5 ? 1 : 0 }); } }
+    for (const q of lscat) H.drawLeaf(c, q.x, q.y, q.s, q.r, q.ci, q.sh, 1, .8, 1, 0);
+  }
   function items(list){
     list.push({ y: P.bags.y, f: c => bagPile(c, P.bags, M.piles[0]) }, { y: P.bags2.y, f: c => bagPile(c, P.bags2, M.piles[1]) }, { y: P.shred.y, f: shredder });
     if (M.pour) list.push({ y: M.pour.w.y + 0.5, f: drawPour });   // (V21: the bag being poured, in front of the one pouring it)
@@ -1550,6 +1573,7 @@ function makeBank(){
     props(list);
     // massive heaps of leaves out on the curb, and the cash container
     for (const [x, y, w, h, sd] of HEAPS) list.push({ y, f: c => drawHeap(c, x, y, sd, w, h) });
+    list.push({ y: -33, f: scatterLeaves });   // (V21.3: and loose leaves all along the curb)
     list.push({ y: P.box.y, f: cashBox });
     list.push({ y: B.yf, f: c => drawShell(c, B) });
   }

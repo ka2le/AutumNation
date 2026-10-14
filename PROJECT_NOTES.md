@@ -612,7 +612,23 @@ The whole plan, scene by scene, is in **`ENDING.md`** (read that before working 
 - **Claw and Reach on the left** of the robot card (with Wheels, Basket, Pickup); Operate machinery, Extra yield, Load & pack and Research on the right. With only one column's worth of rows they're split in half.
 - **Stepping through robots keeps the card where it is** (`navGo` pins it: `cardOpen.pin`, used by `placeCard`, clamped to the screen; no pop-in animation): the arrows and the name picker no longer move the card to where the next robot stands.
 - **Focus and follow** (`watchBtn`, `startWatch`, `watching`, `watchTarget`; `camFollow.watch`): an eye button by the close button on robot, blower and shaker cards. The camera glides onto it, zooms in a little (to at least 1.6 × the framed view) and follows it, keeping it beside an open card (above it on phones). Any drag, pinch, zoom, key pan, recenter, resize, land purchase or story camera ends it (they all clear or replace `camFollow`; the story camera goes back to the followed view). The button is teal while following; tapping it again stops. The robot leaving for another lot stops it too.
-- **Bank scene, shorter and in order** (`makeBank`; see ENDING.md): the truck brings a load of leaves (`T.leaves`, drawn as the yard truck's own load); a greeter comes out of the front door as it pulls up, says “Welcome!”, takes the load into a sack (`greet`), leads the way in (`lead`, a new `visit()` hook with `greet`) and puts the sack on the bag pile. The baggers on the curb and the heap behind the truck's stop are gone. Inside, the tour: the sack onto the pile → a bag poured into the shredder while it waits (`M.hold`) and the sweeper cleaning up what missed → the shredder starts and a swivelling copper spout on top blows the shreds in a stream into the front pot (`spoutTip`, `M.spout`), which fills, is mixed and dyed green (all faster while the camera is on it) → the mill, sheet, cutter and stacks → the runner to the container. Pots show how full they are. The bank now takes ~52 s (was ~67); the whole ending ~110 s.
+- **Bank scene, shorter and in order** (`makeBank`; see ENDING.md): the truck brings a load of leaves (`T.leaves`, drawn as the yard truck's own load); a greeter comes out of the front door as it pulls up, waves it over (V21.3: no words in the ending, ever), takes the load into a sack (`greet`), leads the way in (`lead`, a new `visit()` hook with `greet`) and puts the sack on the bag pile. The baggers on the curb and the heap behind the truck's stop are gone. Inside, the tour: the sack onto the pile → a bag poured into the shredder while it waits (`M.hold`) and the sweeper cleaning up what missed → the shredder starts and a swivelling copper spout on top blows the shreds in a stream into the front pot (`spoutTip`, `M.spout`), which fills, is mixed and dyed green (all faster while the camera is on it) → the mill, sheet, cutter and stacks → the runner to the container. Pots show how full they are. The bank now takes ~52 s (was ~67); the whole ending ~110 s.
 - **Storage bricks:** the odd-coloured bricks are chosen per brick by its place in the wall (hash of column and row), so they no longer slide around as the camera moves.
 - Dev: `EN.dbg()` (via `__leafYard.dev('EN.dbg()')`) shows the bank's pots, shredder and sweeper state.
 
+
+### V21.3 (Oct 14): ending polish, green bills, a steady ride, a look around before the first leaf
+
+- **No dialog text from robots in the ending (a recurring issue).** The bank greeter's "Welcome!" came back again, so
+  `say()` in `ending.js` now only beeps and never shows words, and the greeter just beeps. Rule recorded at the top of
+  `ENDING.md`: nothing in the ending may draw words over a robot.
+- **More ingots outside the robot factory** (8 pallets, 5 pyramids, scattered bars) and **more leaves outside the bank**
+  (a second row of tall heaps, small ones in front, ~160 loose leaves along the curb). Details in `ENDING.md`.
+- **Tinker no longer shakes on the ride out of the yard.** A rider's position was set in the robot's own update from the
+  truck's position, one frame behind the truck, and the lag changed with the frame time, so Tinker jittered back and
+  forth in the truck bed. `drawTruck` now pins every rider to the truck at draw time (`RIDE`), so it can't drift.
+- **Cash icons are the green bills from the ending** (`ICON.coin`, the HUD cash tag in `index.html`, the coin buttons,
+  the "price" corner of item icons, the goal pills, and the flying cash `fly 'coin'`, which now tumbles as a bill).
+  Same colours as `itemCash` in `ending.js` (`#6fae55` with a cream band).
+- **Homecoming pause:** after the truck drives off, Tinker stands a moment (`END_PAUSE` 3 s), looks the other way, then
+  toward its first leaf, blinks once, and only then goes slowly for the leaf (`updEndReturn`).

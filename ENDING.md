@@ -8,6 +8,13 @@ scene on its own, so one scene can be worked on later without reading the rest.
 - **Status:** the flow is done end to end. The scenes are a first pass: everything listed below happens, but the art and
   the number of robots and machines are meant to grow (see "Later" under each scene).
 
+## RULE: no dialog text from any robot in the ending — ever
+
+No speech bubbles, no words, no "!" over any robot in any ending scene (factory, bank, storage, the ride, the return).
+A a greeting beep from the bank's greeter has crept back in more than once, so: `say()` in `ending.js` now only makes the
+robot's beep and never shows text, and nothing may draw words over a robot there. If a scene needs to show something
+happening, do it with movement and props. (Beeps are fine; they are not dialog.)
+
 ## Quick reference
 
 | # | Beat | Where | Rough length |
@@ -171,7 +178,7 @@ there are no more milestones.
 - **V21.1 baggers:** three robots on the curb scoop leaves from the heaps into bags and carry them in through the front
   door to the bag piles (`M.piles`, drawn by count); the carriers take them from there. Each bag pours ~60 leaves.
 - **V21.2: arrival and order.** The truck carries a load of leaves for the bank (`T.leaves`). A greeter (`sc.greeter`)
-  waits just inside the front door and comes out as the truck pulls up; after Tinker hops off it says "Welcome!", the
+  waits just inside the front door and comes out as the truck pulls up; after Tinker hops off it says a greeting beep, the
   load jumps off the bed into its sack (`greet`, called by `visit()` after the hop), and it leads the way in (`lead`)
   to drop the sack on the bag pile; then it stands by the door. The curb baggers are gone, as is the heap just behind
   the truck's stop. When we step in (`sc.open`), the floor is set for the tour: back pot full and green, front pot
@@ -205,3 +212,13 @@ black while the truck is still driving.
 - A short drive between the scenes (only the zoom-in and cut for now).
 - Music for the ending.
 - Credits text, if wanted (the scenes don't name anything on purpose).
+
+## V21.3 (Oct 14)
+
+- **Factory:** a lot more iron ingots on the verge outside: eight pallets in two rows (`pallet`), five pyramids of loose
+  ingots (`ingotPyramid`) and ~34 bars lying about (`scatterIngots`, behind everything). The area by the door and where
+  the truck stops is kept clear.
+- **Bank:** many more leaves on the curb: a second row of tall heaps behind the first and small ones in front
+  (`HEAPS`), plus ~160 loose leaves along the whole curb (`scatterLeaves`). The area behind the truck's stop, the front
+  door and the side door/container are kept clear.
+- **Cash looks like the ending's green bills** everywhere in the yard (see PROJECT_NOTES V21.3).

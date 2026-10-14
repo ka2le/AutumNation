@@ -7883,7 +7883,8 @@ function drawTruck(){
   }
   // V13: a robot riding along stands in the back, in front of the load, cut off by the stake sides
   // (V14: a robot and a blower, the robot at the front)
-  for (const rd of T.riders) if (rd.st === 'ride'){ c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); if (rd.kind) drawBlower(rd); else drawRobot(rd); c.restore(); }
+  for (const rd of T.riders) if (rd.st === 'ride'){ { const n = T.riders.length, k = Math.max(0, T.riders.indexOf(rd)); rd.x = T.x + (n > 1 ? [20, 50][k] || 50 : RIDE.dx); rd.y = RIDE.y + (rd.kind ? 2 : 0); rd.hz = 0; }   /* (V21.3: pinned to the truck at draw time. It used to be set in the robot's own update, a frame behind the truck, so a rider shook back and forth while the truck pulled away) */
+    c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); if (rd.kind) drawBlower(rd); else drawRobot(rd); c.restore(); }
   c.fillStyle = '#5d412b'; c.fillRect(-18, BT - 2, 88, 3.5);
   drawTruckBoard(c, BT);
   c.fillStyle = '#4f7774'; rr(c, -84, -32, 16, 20, 4); c.fill();
@@ -7926,7 +7927,7 @@ function drawParts(){
       else if (p.kind === 'needle'){ const a2 = p.rot + t*9; c.strokeStyle = p.col || '#8f5a2c'; c.lineWidth = 0.9; c.lineCap = 'round'; c.beginPath(); c.moveTo(x - Math.cos(a2)*2.4, y - Math.sin(a2)*2.4); c.lineTo(x + Math.cos(a2)*2.4, y + Math.sin(a2)*2.4); c.stroke(); }   // V15: a pine needle
       else if (p.kind === 'letter') drawEnvelope(c, x, y - 2, 0.9, Math.sin(t*Math.PI)*0.4, p.gold);
       else if (p.kind === 'dirt'){ c.fillStyle = p.col || '#6b4a2e'; ell(c, x, y, p.s || 1.6, (p.s || 1.6)*0.8); c.fill(); }
-      else if (p.kind === 'coin'){ const k = 1/cam.z, sq = Math.abs(Math.cos(t*12)); c.fillStyle = '#d9a43a'; ell(c, x, y, 6*k, (6*sq + 1)*k); c.fill(); c.fillStyle = '#f2cd66'; ell(c, x, y, 4*k, (4*sq + .6)*k); c.fill(); }
+      else if (p.kind === 'coin'){ const k = 1/cam.z, sq = 0.35 + 0.65*Math.abs(Math.cos(t*9)), bw = 7.5*k, bh = 4.6*k*sq; c.fillStyle = '#2f6a2b'; rr(c, x - bw, y - bh + 1.2*k, bw*2, bh*2, 1.2*k); c.fill(); c.fillStyle = '#6fae55'; rr(c, x - bw, y - bh, bw*2, bh*2, 1.2*k); c.fill(); c.fillStyle = '#f2e7cf'; c.fillRect(x - 1.4*k, y - bh, 2.8*k, bh*2); }   // (V21.3: a green bill, like the ending's cash)
     } else if (p.k === 'spark'){ c.fillStyle = 'rgba(255,214,120,' + a + ')'; c.fillRect(p.x - 1, p.y - 1, 2.2, 2.2); }
     else if (p.k === 'bigdrop'){ const y = lerp(p.y0, p.y1, clamp(p.t/p.life, 0, 1)); c.fillStyle = 'rgba(200,222,238,.9)'; c.beginPath(); c.moveTo(p.x, y - 4.4); c.quadraticCurveTo(p.x + 2.2, y, p.x, y + 1.6); c.quadraticCurveTo(p.x - 2.2, y, p.x, y - 4.4); c.fill(); c.fillStyle = 'rgba(255,255,255,.8)'; ell(c, p.x - 0.6, y - 0.4, 0.5, 0.8); c.fill(); }   // V15: a fat raindrop
     else if (p.k === 'needle'){ c.save(); c.translate(p.x, p.y); c.rotate(p.rot + Math.min(p.t, p.land)*p.vr); c.globalAlpha = Math.min(1, a*2.5); c.strokeStyle = p.col; c.lineWidth = 0.95; c.lineCap = 'round'; c.beginPath(); c.moveTo(-p.len/2, 0); c.lineTo(p.len/2, 0); c.stroke(); if (p.pair){ c.beginPath(); c.moveTo(-p.len/2, 0); c.lineTo(p.len/2 - 0.6, 1.4); c.stroke(); } c.restore(); }   // V15: pine needles in the wind
@@ -8623,7 +8624,7 @@ function endingHome(){
 // goes for a leaf and picks it up, speeds up and picks up a few more as the camera widens back out, and only then
 // "Great work!" shows. For this it gathers leaves whatever its task list says (kept in S.flags.endKeep, put back on
 // Continue, also after a reload).
-const END_PAUSE = 2, END_SLOW = 0.22, END_MORE = 5;   // (V21: END_PAUSE counts from when the truck has gone)
+const END_PAUSE = 3, END_SLOW = 0.22, END_MORE = 5;   // (V21: END_PAUSE counts from when the truck has gone; V21.3: 3 s, so Tinker can look both ways and blink once before it goes)
 function startEndReturn(r){
   const c = S.robots[r.id];
   if (c && !S.flags.endKeep) S.flags.endKeep = { prio: JSON.parse(JSON.stringify(c.prio)), off: c.off.slice() };
@@ -8645,7 +8646,9 @@ function updEndReturn(dt){
   E2.t += dt;
   const picked = l => l.st !== 'ground' && l.st !== 'fade';
   // (V21: it waits for the truck to drive off, then END_PAUSE more)
-  if (E2.ph === 'pause'){ if (truck.st === 'away' || E2.t > 25){ if (E2.gone == null) E2.gone = E2.t; } if (E2.gone != null && E2.t - E2.gone > END_PAUSE){ E2.ph = 'slow'; E2.t = 0; E2.spd = END_SLOW; } }
+  if (E2.ph === 'pause'){ if (truck.st === 'away' || E2.t > 25){ if (E2.gone == null){ E2.gone = E2.t; E2.dir = E2.first && E2.first.x < r.x ? -1 : 1; r.blinkT = 99; } }
+    // V21.3: once the truck has gone, Tinker looks the other way, then toward its first leaf, blinks once, and only then sets off
+    if (E2.gone != null){ const g = E2.t - E2.gone; r.face = g < 0.45 ? E2.dir : g < 1.35 ? -E2.dir : E2.dir; if (g > 2.0 && !E2.blinked){ E2.blinked = true; r.blink = 0.28; } } if (E2.gone != null && E2.t - E2.gone > END_PAUSE){ E2.ph = 'slow'; E2.t = 0; E2.spd = END_SLOW; } }
   else if (E2.ph === 'slow'){ if (!E2.first || picked(E2.first) || E2.t > 14){ E2.ph = 'fast'; E2.t = 0; } }
   else if (E2.ph === 'fast'){
     E2.spd = lerp(END_SLOW, 1.15, clamp(E2.t/1.6, 0, 1));
@@ -9147,7 +9150,7 @@ const ICON = {
   honey:  '<path d="M0,-5.2 L4.5,-2.6 V2.6 L0,5.2 L-4.5,2.6 V-2.6Z" fill="#e8a83a"/><path d="M0,-2.5 L2.2,-1.25 V1.25 L0,2.5 L-2.2,1.25 V-1.25Z" fill="#c67d1e"/>',
   truck:  '<rect x="-5.8" y="-3.8" width="7" height="5.6" rx=".8" fill="#c98f4c"/><path d="M-5.8,-1.6 H1.2" stroke="#a8703a" stroke-width=".6"/><path d="M1.6,-1.9 H3.9 L5.8,.4 V1.8 H1.6Z" fill="#5f8c87"/><path d="M2.4,-1.1 H3.6 L4.7,.3 H2.4Z" fill="#d6ecea"/><circle cx="-3.2" cy="2.6" r="1.7" fill="#3a2e22"/><circle cx="3.5" cy="2.6" r="1.7" fill="#3a2e22"/><circle cx="-3.2" cy="2.6" r=".6" fill="#c3cbd0"/><circle cx="3.5" cy="2.6" r=".6" fill="#c3cbd0"/>',
   clock:  '<circle r="5" fill="#fbf3e2" stroke="#7c5d47" stroke-width="1.2"/><path d="M0,-3 V0 L2,1.4" stroke="#4a3226" stroke-width="1.1" fill="none" stroke-linecap="round"/>',
-  coin:   '<circle r="5.4" fill="#c9922c"/><circle r="4.4" fill="#e8b84e"/><circle r="3" fill="none" stroke="#c9922c" stroke-width=".8"/><path d="M-2.4,-1.9 A3,3 0 0 1 .5,-2.9" stroke="#fbe3a0" stroke-width=".9" fill="none" stroke-linecap="round"/>',
+  coin:   '<rect x="-5.7" y="-3.3" width="11.4" height="6.8" rx="1" fill="#2f6a2b"/><rect x="-5.7" y="-4.1" width="11.4" height="6.8" rx="1" fill="#6fae55"/><rect x="-4.6" y="-3.1" width="9.2" height="4.4" rx=".7" fill="none" stroke="#e6facf" stroke-opacity=".65" stroke-width=".5"/><circle cx="-3.1" cy="-.9" r=".75" fill="#e6facf" fill-opacity=".75"/><circle cx="3.1" cy="-.9" r=".75" fill="#e6facf" fill-opacity=".75"/><rect x="-1.2" y="-4.1" width="2.4" height="6.8" fill="#f2e7cf"/>',
   wheel:  '<circle r="5.3" fill="#3f3730"/><circle r="3.3" fill="#d4672a"/><circle r="1.1" fill="#fbf3e2"/><path d="M0,-5.3 V-4 M0,5.3 V4 M-5.3,0 H-4 M5.3,0 H4 M-3.75,-3.75 L-2.85,-2.85 M3.75,3.75 L2.85,2.85 M3.75,-3.75 L2.85,-2.85 M-3.75,3.75 L-2.85,2.85" stroke="#7a6d62" stroke-width="1"/>',
   pick:   '<path d="M0,5.4 V.6" stroke="#7d868c" stroke-width="1.8" stroke-linecap="round"/><path d="M0,.4 C-3.8,-.2 -4.2,-3.4 -2.4,-5.2 M0,.4 C3.8,-.2 4.2,-3.4 2.4,-5.2" stroke="#d4672a" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cy=".4" r="1.5" fill="#4a423b"/><path d="M-5.6,3 H-3.6 M-5.6,4.8 H-3" stroke="#a08670" stroke-width=".8" stroke-linecap="round"/>',
   claw:   '<path d="M0,5.6 V-.4" stroke="#8a6040" stroke-width="1.5" stroke-linecap="round"/><path d="M-4.4,-.4 H4.4" stroke="#7d868c" stroke-width="1.5" stroke-linecap="round"/><path d="M-4.4,-.4 C-4.6,-2.6 -4.2,-3.8 -3.6,-4.8 M-1.5,-.4 V-5.2 M1.5,-.4 V-5.2 M4.4,-.4 C4.6,-2.6 4.2,-3.8 3.6,-4.8" stroke="#7d868c" stroke-width="1.1" stroke-linecap="round" fill="none"/>',
