@@ -712,3 +712,32 @@ paper like the cards) says what to do in a few words. All in one block in `game.
 - `flags.palletStorage` makes legacy storage migration in both yards idempotent: preserve old roadside capacity by selecting the first sufficient new tier. Saved rack stock is not clipped on reload; surplus waits to be hauled. Fresh games start at tier zero.
 - `tools/check-rack.js` verifies real purchases, every capacity tier, independence from raw storage, simultaneous batch reservations, retained recovery, reload/migration and produced/sold/stored/carried output conservation in both yards.
 - Passed 160 functional checks and six real-production conservation runs on the publication candidate. Six complete ingot-priority campaigns average 108.92 minutes overall and 22.66 minutes on final home, effectively unchanged from the latest pre-change control (108.82 / 22.56). Larger racks eliminate late sampled next-batch capacity failures; ore supply and work/rest cycles remain. Detailed evidence: `runs/rack-scaling/report.html` and the frozen campaign sources/data in `runs/campaign-timing/rack-equal/`.
+
+### V23.1 (Oct 14): every step moves on when you do it, a shorter task lesson, nine more lessons
+
+- **Doing the thing moves the lesson on, every time.** The robot card steps waited for Next even after you'd bought with
+  This robot / All robots, the task steps after a drag, the buildings step after a buy. Every step that asks for something
+  now has a `done()` that fires on the action itself (Next stays as a way past steps that are only shown). Root cause of
+  the worst of it: the "since this step began" counters compared against `undefined` (`n > undefined` is false), so
+  even steps that had a check never fired; now `tutDid(k)`.
+- **Task lesson is shorter:** tap the robot → Tasks tab → one drag ("Drag Research up into Do. The top row goes first.")
+  → "Drop a task beside another and they take turns" (moves on when you do) → "“all off” stops every task at once" (moves
+  on when tapped). The separate reorder and drag-to-Off steps are gone. A drop beside another task counts for the
+  side-by-side step too, so it's skipped if your first drag already did that.
+- **New lessons** (`TUTS`, order `TUT_ORDER`): `unlock` (a robot tier unlock you can afford: tap the robot, tap the Unlock
+  tag), `mine` (metal slot bought: tap the rocks, build a miner; then, if nobody gets to Mine metal because new tasks land
+  at the bottom of the list, tap a robot → Tasks → drag Mine metal to the top; ends as soon as anyone reaches it, e.g.
+  through the mine's Assign), `assign` (a bagging table, beehive or smelting plant nobody works at: tap it → Assign →
+  pick a robot), `research` (one robot researching while others could help: tap the book → Assign → pick a helper),
+  `trip` (a trip opens: tap the robot, and on crew trips the blower → Tasks → drag Go to new lot into Do, then where the
+  money comes from), `keep` (a few bags made and Keep for bagging at 0: tap the bin, slide it), `goal` (the first goal
+  pill: tap it), `camera` (the Meadow bought or 15 minutes in: drag, scroll/pinch, the recenter button), `follow` (a robot
+  card open with three or more robots: tap the eye, drag to stop following).
+- **Engine:** `end()` on a lesson stops it once its point has been reached another way; `back` can name a step id; `free`
+  steps show a bubble low in the middle with no spotlight (camera lessons); a 12 s pause between two lessons; HUD and
+  fixed-position targets work (the cash, goal pills, recenter button). New `use:` keys: `rup`, `tech`, `buy`, `join`,
+  `alloff`, `asg`, `watch`, `travel`, `keep`, `goal`, `pan`, `zoom`, `recenter` (hooks in `zoomAt`, the canvas drag,
+  `panKeys`, `recenter`, the goal pills and the keep sliders). Old saves are checked per lesson (`tut:k:<id>`), so the new
+  lessons also skip saves that are already past them.
+- **Checks** (headless): every lesson played through by doing each step (buy, unlock, drag, assign, slide, pan, zoom,
+  recenter, eye), the forced replays, the old-save check, the prairie and hollow dev starts, no page errors.

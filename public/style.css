@@ -520,6 +520,7 @@ body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, 
 #tut.on{opacity:1;visibility:visible;transition:opacity .25s ease}
 #tut .tspot{position:absolute;left:0;top:0;width:0;height:0;border-radius:14px;box-shadow:0 0 0 200vmax rgba(28,16,6,.34),0 0 0 3px rgba(255,214,128,.95),0 0 22px 6px rgba(255,190,90,.5)}
 #tut .tspot.round{border-radius:50%}
+#tut .tspot.none{display:none}
 #tut .tspot::after{content:"";position:absolute;inset:-7px;border-radius:inherit;border:2.5px solid rgba(255,224,150,.95);animation:tutPulse 1.5s ease-out infinite}
 #tut .ttap{display:none;position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:rgba(255,236,190,.55);border:2px solid rgba(255,246,222,.9);animation:tutTap 1.5s ease-out infinite}
 #tut .tspot.act .ttap{display:block}
