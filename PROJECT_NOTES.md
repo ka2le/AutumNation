@@ -662,3 +662,45 @@ All in `public/game.js` (the `location2/3` test copies are untouched).
   and idempotent; kiln goods conserved (made = sold + stand + rack + carried); bellows ≈ +39% / +93% processing at levels 2 / 4; with
   everything mature, 40 workers with two packers earn ≈ $5.2k (bees) and ≈ $5.8k (ants) a minute from honey/cans, one packer saturates at
   ≈ $2.5–2.9k with the tank filling about half the time.
+
+## V23 (Oct 14): little tutorials
+
+Short one-off lessons that play the first time something worth explaining turns up (like the milestones): the camera
+zooms in on the thing, a soft spotlight dims the rest of the screen, and a speech bubble beside it (hand-lettered, kraft
+paper like the cards) says what to do in a few words. All in one block in `game.js` (`TUT`, `TUTS`, `TUT_ORDER`,
+`updTut`, `tutStart`, `tutNext`, `tutTarget`, `tutPlace`) plus `#tut` in `style.css`.
+
+- **How a lesson runs:** each lesson is a list of steps. A step points at a spot in the yard (`world`: the camera zooms in
+  with a new `camFollow.tut` mode and glides back when the step ends) or at elements on the open card (`dom`). It either
+  waits for the player to do it (`act`/`done`: tap the bin, open the Tasks tab, buy the bigger bin) or has a Next button.
+  `need`/`back`: if the card it needs gets closed, it goes back to the "tap it" step. `skip`: already there (the card is
+  open already). `known`: the player has used that before, so the step is left out (shown anyway when replayed from the
+  test panel). A lesson whose every step is known never plays. Skip ends it for good. The overlay lets every tap through
+  (`pointer-events: none`), so nothing is blocked; it hides while the story camera, a trip, the ending or a task drag has
+  the screen (`tutBlocked`) and carries on after. The canvas tips (`drawHints`) hide while a lesson shows.
+- **The lessons** (`TUTS`, checked in this order, one at a time):
+  - `robots`, when the second robot is built: zoom on it ("Pip is here! Tap any robot to open it."), then on its card the
+    arrows ("flip between your robots") and the name ("pick one from a list"), the This robot buttons ("upgrade just this
+    robot"), the All robots lane ("upgrade all your robots at once") and a copied-level sticker, or the button if there
+    isn't one ("A skill another robot already has is cheaper to copy", no amount since it changes).
+  - `tasks`, the first time a robot has more than one task to choose from (in the first yard that's the old picture
+    book's Research): tap the robot, open the Tasks tab, drag the task in Off up into Do, the top row goes first, two on one
+    row take turns, Off stops it. Known once the player has dragged a task.
+  - `bin`, when the bin has been full for 30 s of game time and has never been made bigger (not in the Rainy hollow, where
+    wet leaves fill it whatever its size): tap the bin, then the Bigger bin button.
+  - `truck`, when the first More pickups step has been affordable for 60 s in all (game time) without being bought, at a
+    moment it's affordable: tap the pickup sign, "More pickups means more sales. Well worth it!".
+  - `shops`, once any card has been opened and a new affordable upgrade (the arrow) shows over a building the player has
+    never opened: "Every building has its own upgrades. Tap the pickup sign!" (or the workshop, the bin…), then "An arrow
+    over something means a new upgrade you can afford". Known once two different buildings have been opened.
+- **Saved in `S.flags.hints`** (so it rides along to the other yards like the tips): `tut:<id>` = done or skipped,
+  `use:<what>` = already used (`nav`, `pick`, `rall`, `drag`, `bin`, `truck`, `open:<card kind>`; recorded by `tutAct` in
+  the card's click handler, `tutBought` in `buy()`, `applyTaskDrop` and `openCard`), `tut:init` = checked once. The first
+  time an existing save meets this code, lessons it's already past are marked done (`past()`: two robots, a bigger bin,
+  a truck step, a robot with two tasks, a few things bought). Test jumps and `?fresh&lot=` starts mark every lesson done.
+- **Test panel:** a "Tutorial: …" dropdown with **Show tutorial** plays any lesson again, every step; `__leafYard.tut(id)`
+  does the same, and `__leafYard.tut()` returns what's showing, the trigger timers, what's done and what's been used.
+- **Checks** (headless, 1280×800 and 390×844): each lesson from a fresh game through every step (robot card arrows,
+  name, lanes, sticker; Tasks tab and a real drag; full bin → card → buy; truck after 60 s → card → buy; buildings), an
+  old save marks its past lessons done, the prairie and hollow dev starts don't play any, the built-in sim is untouched,
+  no page errors.

@@ -2265,9 +2265,10 @@ function startTruckCam(){
 }
 // V13.2: zoom in on a spot (the dead bee popping out from under a petal), hold a moment, then go back
 function startFindCam(x, y, dur, zmax){
-  if (simMode || (camFollow && !camFollow.watch)) return;
+  if (simMode || (camFollow && !camFollow.watch && !camFollow.tut)) return;   // (V23: a story beat wins over a tutorial's zoom)
+  const tutFrom = camFollow && camFollow.tut ? camFollow.from : null;   // (it still goes back to where you had the view)
   camAnim = null; closeCard();
-  camFollow = { spot: { x, y }, dur: dur || 4.6, zmax: !!zmax, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
+  camFollow = { spot: { x, y }, dur: dur || 4.6, zmax: !!zmax, from: tutFrom || { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
 function updCamFollow(dt){
   const F = camFollow; if (!F) return;
@@ -2291,6 +2292,18 @@ function updCamFollow(dt){
     const cx = lerp(F.c0.x, F.cx, k), cy = lerp(F.c0.y, F.cy, k), px = lerp(W/2, F.sx, k), py = lerp(H/2, F.sy, k);
     cam.z = z; cam.ox = px - cx*z; cam.oy = py - cy*z;
     if (F.t < 1.2) camMovedT = performance.now();
+    return;
+  }
+  if (F.tut){
+    // V23: a tutorial step zooms in on the thing it points at and stays there until the step is done (tutCamEnd glides back)
+    const p = F.get && F.get(); if (!p){ back(1.3); return; }
+    F.t += dt;
+    const zIn = Math.min(zoomLimits()[1], Math.max(F.from.z*1.6, 1.35)), k = ease(clamp(F.t/1.2, 0, 1)), z = lerp(F.z0, zIn, k);
+    F.cx = F.cx == null ? p.x : lerp(F.cx, p.x, 1 - Math.pow(0.02, dt)); F.cy = F.cy == null ? p.y : lerp(F.cy, p.y, 1 - Math.pow(0.02, dt));
+    const cx = lerp(F.c0.x, F.cx, k), cy = lerp(F.c0.y, F.cy, k);
+    cam.z = z; cam.ox = W/2 - cx*z; cam.oy = H*0.54 - cy*z;
+    if (F.t < 1.3) camMovedT = performance.now();
+    if (cardOpen) placeCard();
     return;
   }
   if (F.spot){
@@ -5542,6 +5555,7 @@ function learnDry(cfg, i){
 function buy(o){
   if (o.maxed || S.cash + 1e-9 < o.cost) return false;
   S.cash -= o.cost;
+  tutBought(o);   // V23
   if (o.id === 'up'){
     S.lv[o.key]++;
     const p = objPos(o.obj); if (p){ pop(p.x, p.y, (o.key === 'cleanup' ? UP.cleanup.name(S.lv.cleanup - 1) : UP[o.key].name) + '!', 'note', 16); sparkle(p.x, p.y + 20); }
@@ -8181,13 +8195,316 @@ function updHints(dt){
   if (lim && hintT > lim){ hintA = Math.max(0, 1 - (hintT - lim)/0.8); if (hintA <= 0) dismissHint(h.id); }
 }
 function drawHints(){
-  const h = hintNow; if (!h || hintA <= 0) return;
+  const h = hintNow; if (!h || hintA <= 0 || TUT.on) return;   // (V23: not over a tutorial)
   const c = ctx, s = w2s(h.x, h.y);
   c.save(); c.globalAlpha = hintA;
   const y = s.y + Math.sin(S.t*2.4)*3;
   c.font = '700 ' + Math.round(21*textScale()) + 'px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.lineJoin = 'round'; c.lineWidth = 4; c.strokeStyle = 'rgba(55,30,14,.6)'; c.strokeText(sayT(h.t), s.x, y); c.fillStyle = '#fff4e0'; c.fillText(sayT(h.t), s.x, y);
   c.restore();
+}
+
+// ───────────────────────── V23: little tutorials
+// Short, one-off lessons that play the first time something worth explaining turns up, like the milestones do: the
+// camera zooms in on the thing, a soft spotlight dims everything else, and a speech bubble beside it says what to do in a
+// few words. A step either waits for the player to do it (tap the bin, open the Tasks tab) or has a Next button. Anything
+// the player already worked out before the lesson started is left out (they used the robot arrows, dragged a task, bought
+// a bigger bin…), and a lesson whose every step is known never plays. Nothing here blocks the game: the overlay lets every
+// tap through, and the Skip link ends the lesson for good.
+// Saved in S.flags.hints (so it rides along to the other yards like the tips do): 'tut:<id>' = lesson done or skipped,
+// 'use:<what>' = the player has used that already, 'tut:init' = old saves were checked once. The test panel can play any
+// lesson again (Show tutorial), and __leafYard.tut(id) does the same.
+const TUT = { on: null, n: {}, binT: 0, truckT: 0, chk: 0, el: null, spot: null, bub: null, rect: null, shown: 0, lastT: -1, wait: null };
+const tutUsed = k => hintDone('use:' + k);
+function tutUse(k){ TUT.n[k] = (TUT.n[k] || 0) + 1; if (!simMode && !tutUsed(k)) dismissHint('use:' + k); }
+const tutCount = k => TUT.n[k] || 0;
+// building cards (for the "every building has its own upgrades" lesson)
+const TUT_SHOPS = { bin: 'leaf bin', sign: 'pickup sign', shed: 'workshop', hive: 'beehive', bagger: 'bagging table', plant: 'smelting plant', sale: 'For Sale sign', spot: 'rocks' };
+const shopOf = obj => obj && obj.startsWith('spot') ? 'spot' : obj;
+const tutCardIs = (kind, i) => !!cardOpen && !card.hidden && cardOpen.kind === kind && (i == null || cardOpen.i === i);
+const robotCardOpen = () => tutCardIs('robot') || tutCardIs('blower') || tutCardIs('shaker');
+// the first robot that has more than one task to choose from (the Tasks tab shows from then on)
+const twoTaskBot = () => S.robots.findIndex((c, i) => !c.away && R[i] && R[i].st !== 'gone' && visibleTasks('robot', c).length >= 2);
+// a building with a new upgrade you can afford (the arrow over it) that you've never opened
+function tutNewShop(){
+  for (const o of offers()){
+    if (o.cost > S.cash + 1e-9 || S.seen[offerKey(o)]) continue;
+    const k = shopOf(o.obj); if (!TUT_SHOPS[k] || tutUsed('open:' + k) || !objPos(o.obj)) continue;
+    return o.obj;
+  }
+  return null;
+}
+const shopsOpened = () => Object.keys(TUT_SHOPS).filter(k => tutUsed('open:' + k)).length;
+const tutQ = sel => card.hidden ? null : card.querySelector(sel);
+const tutQA = sel => card.hidden ? [] : [...card.querySelectorAll(sel)];
+const firstFilled = sel => tutQA(sel).find(e => e.children.length);
+// spots in the yard: what the camera zooms onto and the spotlight rings (world units)
+const tutAtRobot = ri => () => { const r = R[ri]; return r && r.st !== 'gone' ? { x: r.x, y: r.y - 30, r: 44 } : null; };
+const tutAtObj = obj => () => { const p = objPos(obj); return p ? { x: p.x, y: p.y + (obj === 'shed' ? 52 : 44), r: obj === 'shed' ? 72 : 56 } : null; };
+
+// Each lesson: when() starts it (checked a few times a second while nothing else is going on), past() marks it done for a
+// save that's already beyond it the first time this code sees it, known() = the player has done everything it teaches.
+// A step: text, world() or dom() for what it points at, act = it waits for the player (done()), skip() = nothing to do
+// (already there), known() = they've used this before (shown anyway when a lesson is replayed from the test panel),
+// need() = what must still be true (else it goes back to step `back`).
+const TUTS = {
+  robots: {
+    label: 'Your second robot',
+    when: () => S.robots.length >= 2,
+    past: () => S.robots.length >= 2,
+    known: () => tutUsed('nav') && tutUsed('pick') && tutUsed('rall'),
+    delay: 1.2,
+    steps(){
+      const ri = S.robots.length - 1, nm = styleOf(ri).name, onCard = () => tutCardIs('robot');
+      const upTab = () => { if (cardTab === 'tasks'){ cardTab = 'up'; renderCard(true); } };
+      return [
+        { world: tutAtRobot(ri), text: nm + ' is here! Tap any robot to open it.', act: true, skip: onCard, done: onCard },
+        { dom: () => tutQA('.navn .nav'), text: 'Use the arrows to flip between your robots.', need: onCard, back: 0, known: () => tutUsed('nav'), done: () => tutCount('nav') > TUT.on.n0.nav },
+        { dom: () => tutQ('.navn .nm'), text: 'Or tap the name to pick one from a list.', need: onCard, back: 0, known: () => tutUsed('pick'), done: () => tutCount('pick') > TUT.on.n0.pick },
+        { dom: () => [tutQ('.bothead .hm'), tutQ('.row.bot:not(.bothead) .btn.me')], text: 'These buttons upgrade just this robot.', need: onCard, back: 0, setup: upTab, known: () => tutUsed('rall') },
+        { dom: () => [tutQ('.bothead .ha'), firstFilled('.row.bot:not(.bothead) .btn.all')], text: 'These upgrade all your robots at once.', need: onCard, back: 0, setup: upTab, known: () => tutUsed('rall') },
+        { dom: () => { const s = tutQ('.row.bot .stk'); return s ? s.closest('.buy') : tutQ('.row.bot:not(.bothead) .btn.me'); }, text: 'A skill another robot already has is cheaper to copy.', need: onCard, back: 0, setup: upTab },
+      ];
+    }
+  },
+  tasks: {
+    label: 'Choosing tasks',
+    when: () => twoTaskBot() >= 0,
+    past: () => twoTaskBot() >= 0,
+    known: () => tutUsed('drag'),
+    delay: 0.8,
+    steps(){
+      const ri = Math.max(0, twoTaskBot()), nm = styleOf(ri).name;
+      const onCard = () => robotCardOpen() && !!tasksPanel(cardOpen.kind, cardOpen.i), onTab = () => onCard() && cardTab === 'tasks';
+      const offChip = () => tutQ('.tasks .toff .chip');
+      return [
+        { world: tutAtRobot(ri), text: nm + ' has more than one task now. Tap it to see them.', act: true, skip: onCard, done: onCard },
+        { dom: () => tutQ('[data-act="tab:tasks"]'), text: 'Open the Tasks tab.', act: true, need: onCard, back: 0, skip: onTab, done: onTab },
+        { dom: offChip, text: () => { const c = offChip(); return 'Drag ' + (c ? '<b>' + c.textContent + '</b>' : 'a task') + ' up into Do to switch it on.'; }, need: onTab, back: 1, skip: () => !offChip(), done: () => tutCount('drag') > TUT.on.n0.drag },
+        { dom: () => tutQ('.tasks .tdo'), text: 'The top row goes first. Drag tasks to change the order.', need: onTab, back: 1 },
+        { dom: () => tutQ('.tasks .tdo .trow:not(.tnew)'), text: 'Two tasks side by side on one row take turns.', need: onTab, back: 1 },
+        { dom: () => [tutQ('.tasks .th.off'), tutQ('.tasks .toff')], text: 'Drop a task in Off and it stops doing it.', need: onTab, back: 1 },
+      ];
+    }
+  },
+  bin: {
+    label: 'The bin is full',
+    when: () => TUT.binT >= 30,
+    past: () => S.lv.bin > 0,
+    known: () => tutUsed('bin'),
+    steps(){
+      const onCard = () => tutCardIs('bin'), bought = () => S.lv.bin > 0 || tutCount('bin') > TUT.on.n0.bin;
+      return [
+        { world: tutAtObj('bin'), text: 'The bin is full, so the robots have to wait. Tap the bin.', act: true, skip: onCard, done: onCard },
+        { dom: () => tutQ('[data-act="up:bin"]'), text: 'A bigger bin keeps them busy between pickups.', act: true, need: onCard, back: 0, skip: bought, done: bought, next: true },
+      ];
+    }
+  },
+  truck: {
+    label: 'More truck pickups',
+    when: () => TUT.truckT >= 60 && S.lv.truck === 0 && S.cash + 1e-9 >= upCost('truck'),
+    past: () => S.lv.truck > 0,
+    known: () => tutUsed('truck'),
+    steps(){
+      const onCard = () => tutCardIs('sign'), bought = () => S.lv.truck > 0 || tutCount('truck') > TUT.on.n0.truck;
+      return [
+        { world: tutAtObj('sign'), text: 'The truck could come more often. Tap the pickup sign.', act: true, skip: onCard, done: onCard },
+        { dom: () => tutQ('[data-act="up:truck"]'), text: 'More pickups means more sales. Well worth it!', act: true, need: onCard, back: 0, skip: bought, done: bought, next: true },
+      ];
+    }
+  },
+  shops: {
+    label: 'Every building has upgrades',
+    when: () => S.flags.opened && !!tutNewShop(),
+    past: () => S.flags.opened && (S.lv.bin > 0 || S.lv.leafPrice > 0) && (S.robots.length > 1 || S.lv.truck > 0),
+    known: () => shopsOpened() >= 2,
+    steps(){
+      const obj = tutNewShop() || 'shed', kind = shopOf(obj), onCard = () => tutCardIs(kind);
+      return [
+        { world: tutAtObj(obj), text: 'Every building has its own upgrades. Tap the ' + TUT_SHOPS[kind] + '!', act: true, skip: onCard, done: onCard },
+        { dom: () => tutQ('.cbody .buy:not([aria-disabled="true"])') || tutQ('.cbody .buy'), text: 'An arrow over something means a new upgrade you can afford.', need: onCard, back: 0 },
+      ];
+    }
+  },
+};
+const TUT_ORDER = ['robots', 'tasks', 'bin', 'truck', 'shops'];
+const tutAllDone = () => { const o = { 'tut:init': 1 }; for (const id of TUT_ORDER) o['tut:' + id] = 1; return o; };
+// nothing starts (and a running lesson waits, hidden) while the story camera, a trip, the ending or a drag has the screen
+const tutBlocked = () => simMode || travelling || (EN && EN.on) || !!endRt || !!tdrag || !!(camFollow && !camFollow.watch && !camFollow.tut) || !!(labRt && labRt.fail);
+
+function tutStart(id, forced){
+  const D = TUTS[id]; if (!D) return;
+  tutStop(false);
+  const n0 = Object.assign({}, TUT.n);
+  TUT.on = { id, forced: !!forced, steps: D.steps(), i: -1, n0, t: 0, miss: 0, seen: [] };
+  tutNext();
+}
+function tutNext(){
+  const T = TUT.on; if (!T) return;
+  tutCamEnd();
+  for (;;){
+    T.i++;
+    const st = T.steps[T.i];
+    if (!st){ tutStop(true); return; }
+    if (st.skip && st.skip()) continue;
+    if (!T.forced && st.known && st.known()) continue;
+    break;
+  }
+  tutEnter();
+}
+function tutEnter(){
+  const T = TUT.on, st = T.steps[T.i];
+  T.t = 0; T.miss = 0; T.n0 = Object.assign({}, TUT.n);
+  if (!T.seen.includes(T.i)) T.seen.push(T.i);
+  if (st.setup) st.setup();
+  if (st.world){
+    // the yard step: close a card that would be in the way and zoom in on the thing
+    if (cardOpen && !(st.done && st.done())) closeCard();
+    const p = st.world();
+    if (p && !simMode){ camAnim = null; camFollow = { tut: true, get: st.world, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 }; }
+  }
+  TUT.rect = null;
+  tutBubble(true);
+}
+// done: the lesson ran to the end (or was skipped) and is marked as seen
+function tutStop(done){
+  const T = TUT.on; if (!T) return;
+  TUT.on = null; tutCamEnd();
+  if (done) dismissHint('tut:' + T.id);
+  if (TUT.el){ TUT.el.classList.remove('on'); }
+}
+function tutCamEnd(){
+  if (camFollow && camFollow.tut){ camAnim = { from: { z: cam.z, ox: cam.ox, oy: cam.oy }, to: camFollow.from, t: 0, dur: 1.3 }; camFollow = null; camMovedT = performance.now(); }
+}
+function tutEls(){
+  if (TUT.el) return;
+  const el = document.createElement('div'); el.id = 'tut';
+  el.innerHTML = '<div class="tspot"><i class="ttap"></i></div><div class="tbub" role="status" aria-live="polite"><div class="tt"></div><div class="tf"><span class="tdots"></span><button class="ts" data-tut="skip">Skip</button><button class="tn" data-tut="next">Next</button></div><i class="ttail"></i></div>';
+  document.body.appendChild(el);
+  TUT.el = el; TUT.spot = el.querySelector('.tspot'); TUT.bub = el.querySelector('.tbub');
+  TUT.bub.addEventListener('pointerdown', e => e.stopPropagation());
+  TUT.bub.addEventListener('click', e => {
+    const b = e.target.closest('[data-tut]'); if (!b || !TUT.on) return;
+    sfx('paper');
+    if (b.dataset.tut === 'skip') tutStop(true); else tutNext();
+  });
+}
+function tutBubble(fresh){
+  tutEls();
+  const T = TUT.on, st = T.steps[T.i], b = TUT.bub;
+  const txt = typeof st.text === 'function' ? st.text() : st.text;
+  b.querySelector('.tt').innerHTML = sayH(txt);
+  // dots: one per step that will show (the known ones are left out)
+  const vis = T.steps.filter((q, j) => T.seen.includes(j) || (j > T.i && !(q.skip && q.skip()) && (T.forced || !(q.known && q.known()))));
+  const at = Math.max(0, vis.indexOf(st));
+  b.querySelector('.tdots').innerHTML = vis.length > 1 ? vis.map((q, j) => '<i' + (j === at ? ' class="on"' : '') + '></i>').join('') : '';
+  const last = !T.steps.slice(T.i + 1).some(q => !(q.skip && q.skip()) && (T.forced || !(q.known && q.known())));
+  const nb = b.querySelector('.tn');
+  nb.hidden = !!st.act && !st.next;
+  nb.textContent = last ? 'Got it' : 'Next';
+  b.querySelector('.ts').hidden = last && !nb.hidden;
+  TUT.spot.classList.toggle('act', !!st.act);
+  if (fresh){ b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+  T.txt = txt;
+}
+// where the step points, in screen pixels: a ring round a spot in the yard, or a box round card elements
+function tutTarget(st){
+  if (st.world){
+    const p = st.world(); if (!p) return null;
+    const s = w2s(p.x, p.y), r = Math.max(30, p.r*cam.z);
+    return { x: s.x - r, y: s.y - r, w: 2*r, h: 2*r, round: true };
+  }
+  if (st.dom){
+    let els = st.dom(); els = (Array.isArray(els) ? els : [els]).filter(e => e && e.isConnected && e.offsetParent !== null);
+    if (!els.length) return null;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const e of els){ const r = e.getBoundingClientRect(); if (!r.width && !r.height) continue; x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top); x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom); }
+    if (x1 < x0) return null;
+    const pad = 5;
+    return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2*pad, h: y1 - y0 + 2*pad, el: els[0] };
+  }
+  return null;
+}
+function updTut(dt){
+  if (simMode) return;
+  // once per save: a game that's already past a lesson never gets it
+  if (!hintDone('tut:init')){
+    if (!lotWasNew) for (const id of TUT_ORDER) if (TUTS[id].past()) dismissHint('tut:' + id);
+    dismissHint('tut:init');
+  }
+  // the timed triggers (game time, so they follow the test speed)
+  const gdt = TUT.lastT < 0 ? 0 : clamp(S.t - TUT.lastT, 0, 5); TUT.lastT = S.t;
+  if (!hintDone('tut:bin') && !DRY_BENCH && S.lv.bin === 0 && !tutUsed('bin') && binRoom() <= 0) TUT.binT += gdt; else TUT.binT = 0;   // (not in the hollow, where wet leaves fill it whatever its size)
+  if (!hintDone('tut:truck') && S.lv.truck === 0 && !tutUsed('truck') && S.cash + 1e-9 >= upCost('truck')) TUT.truckT += gdt;
+  const blocked = tutBlocked();
+  if (!TUT.on){
+    if (TUT.el && TUT.el.classList.contains('on')) TUT.el.classList.remove('on');
+    if (blocked){ TUT.wait = null; return; }
+    if ((TUT.chk -= dt) > 0) return;
+    TUT.chk = 0.3;
+    if (TUT.wait){ if (TUTS[TUT.wait.id].when() && performance.now() >= TUT.wait.at) { const id = TUT.wait.id; TUT.wait = null; tutStart(id); } else if (!TUTS[TUT.wait.id].when()) TUT.wait = null; return; }
+    for (const id of TUT_ORDER){
+      if (hintDone('tut:' + id)) continue;
+      const D = TUTS[id];
+      if (!D.when()) continue;
+      if (D.known && D.known()){ dismissHint('tut:' + id); continue; }   // they've worked it all out already
+      TUT.wait = { id, at: performance.now() + (D.delay || 0.5)*1000 };
+      return;
+    }
+    return;
+  }
+  const T = TUT.on, st = T.steps[T.i];
+  if (blocked){ TUT.el.classList.remove('on'); return; }
+  T.t += dt;
+  // something it needs went away (the card was closed): back to the step that gets it there
+  if (st.need && !st.need()){ if (T.t > 0.25){ T.i = (st.back || 0) - 1; tutNext(); } return; }
+  if (st.done && st.done() && T.t > 0.15){ tutNext(); return; }
+  const tg = tutTarget(st);
+  if (!tg){
+    // nothing to point at (a row that isn't there on this card): move on after a moment
+    T.miss += dt; if (T.miss > (st.world ? 3 : 0.7)){ tutNext(); } else TUT.el.classList.remove('on');
+    return;
+  }
+  T.miss = 0;
+  // a card element scrolled out of view inside the card: bring it in
+  if (tg.el && T.t < 0.6){ const cb = card.querySelector('.cbody'); if (cb && cb.contains(tg.el)){ const r = cb.getBoundingClientRect(); if (tg.y < r.top || tg.y + tg.h > r.bottom) tg.el.scrollIntoView({ block: 'nearest' }); } }
+  // the text can depend on the card (the task's name)
+  if (typeof st.text === 'function'){ const t = st.text(); if (t !== T.txt) tutBubble(false); }
+  // the spotlight glides to its target
+  const R0 = TUT.rect, k = R0 && T.t < 0.4 ? 1 - Math.pow(0.00005, dt) : 1;   // (glides to a new step's target, then sticks to it)
+  TUT.rect = R0 ? { x: lerp(R0.x, tg.x, k), y: lerp(R0.y, tg.y, k), w: lerp(R0.w, tg.w, k), h: lerp(R0.h, tg.h, k), round: tg.round } : tg;
+  const r = TUT.rect, sp = TUT.spot.style;
+  sp.left = r.x.toFixed(1) + 'px'; sp.top = r.y.toFixed(1) + 'px'; sp.width = r.w.toFixed(1) + 'px'; sp.height = r.h.toFixed(1) + 'px';
+  TUT.spot.classList.toggle('round', !!r.round);
+  tutPlace(r, !!st.dom);
+  if (!TUT.el.classList.contains('on')) TUT.el.classList.add('on');
+}
+// the bubble goes beside the card for card steps (so it doesn't cover the rows), else above or below the spot
+function tutPlace(r, inCard){
+  const b = TUT.bub, bw = b.offsetWidth, bh = b.offsetHeight, m = 10, gap = 16, cx = r.x + r.w/2, cy = r.y + r.h/2;
+  const cands = [];
+  if (inCard && !card.hidden){
+    const L = card.offsetLeft, Rr = L + card.offsetWidth;
+    cands.push({ x: L - gap - bw, y: cy - bh/2, side: 'r' }, { x: Rr + gap, y: cy - bh/2, side: 'l' });
+  }
+  cands.push({ x: cx - bw/2, y: r.y - gap - bh, side: 'b' }, { x: cx - bw/2, y: r.y + r.h + gap, side: 't' }, { x: r.x + r.w + gap, y: cy - bh/2, side: 'l' }, { x: r.x - gap - bw, y: cy - bh/2, side: 'r' });
+  const fits = c => c.side === 'l' || c.side === 'r' ? c.x >= m && c.x + bw <= W - m : c.y >= m && c.y + bh <= H - m;
+  const c = cands.find(fits) || { x: cx - bw/2, y: m, side: '' };
+  c.x = clamp(c.x, m, Math.max(m, W - bw - m)); c.y = clamp(c.y, m, Math.max(m, H - bh - m));
+  b.style.left = Math.round(c.x) + 'px'; b.style.top = Math.round(c.y) + 'px';
+  b.dataset.side = c.side;
+  // the tail points at the middle of the spot, as far as the bubble's edge allows
+  const tp = c.side === 'l' || c.side === 'r' ? clamp(cy - c.y, 16, bh - 16) : clamp(cx - c.x, 18, bw - 18);
+  b.style.setProperty('--tp', Math.round(tp) + 'px');
+}
+// what the player has used already (from the card's buttons): those steps are left out of later lessons
+function tutAct(act){
+  if (act.startsWith('nav:')) tutUse('nav');
+  else if (act === 'pick' || act.startsWith('go:')) tutUse('pick');
+}
+function tutBought(o){
+  if (o.id === 'up' && (o.key === 'bin' || o.key === 'truck')) tutUse(o.key);
+  else if (o.id === 'rall') tutUse('rall');
 }
 
 // ───────────────────────── V14 (from the Rainy hollow test copy): rain, puddles, splashes and wet tracks (LOT.rain)
@@ -9088,7 +9405,7 @@ function runJump(){
   if (!st || st.lot !== LOT_ID){ stop(); return; }
   if (st.kit || st.story || st.letter || st.go){
     // the early tips are long done by now
-    S.flags.hints = Object.assign({ tap: 1, unlock: 1, tasks: 1 }, S.flags.hints || {}); S.flags.opened = S.flags.taskHint = S.flags.sentHint = true;
+    S.flags.hints = Object.assign({ tap: 1, unlock: 1, tasks: 1 }, tutAllDone(), S.flags.hints || {});   // (V23: and the tutorials) S.flags.opened = S.flags.taskHint = S.flags.sentHint = true;
   }
   const np = pops.length, nq = parts.length;
   if (st.kit) applyKit(st.kit);
@@ -9120,7 +9437,8 @@ function toggleTestPanel(force){
       SPEED_PRESETS.map(v => '<button data-t="speed:' + v + '">' + (v >= 1000 ? v/1000 + 'k' : v) + '×</button>').join('') + '</div></div>' +
       '<button class="tpn" data-t="next"></button>' +
       '<div class="tpj"><select aria-label="Jump to a story point">' + JUMPS.map(J => '<option value="' + J.id + '">' + J.label + '</option>').join('') + '</select>' +
-      '<button data-t="jump">Jump to this step</button></div><div class="tpw" hidden></div>';
+      '<button data-t="jump">Jump to this step</button></div><div class="tpw" hidden></div>' +
+      '<div class="tpj tpt"><select aria-label="Show a tutorial">' + TUT_ORDER.map(id => '<option value="' + id + '">Tutorial: ' + TUTS[id].label + '</option>').join('') + '</select><button data-t="tut">Show tutorial</button></div>';   // V23
     el.addEventListener('pointerdown', e => e.stopPropagation());
     el.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -9128,6 +9446,7 @@ function toggleTestPanel(force){
       if (t === 'close') toggleTestPanel(false);
       else if (t.startsWith('cash:')) testCash(+t.slice(5));
       else if (t.startsWith('speed:')) setSpeed(+t.slice(6));
+      else if (t === 'tut'){ toggleTestPanel(false); tutStart(el.querySelector('.tpt select').value, true); }   // V23: plays it again, every step
       else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
       else if (t === 'jump'){
         // V14.1: jumping starts a new game; outside ?fresh that wipes your saves, so it asks once
@@ -9636,6 +9955,7 @@ function keepRow(k, icon, name, now, tip, v){
 }
 
 function applyTaskDrop(kind, i, task, tgt){
+  tutUse('drag');   // V23
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   let rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length).map(r => r.map(t => t === task ? null : t));
   let off = cfg.off.filter(t => vis.includes(t)).map(t => t === task ? null : t);
@@ -10314,6 +10634,7 @@ function openCard(kind, i, still){
   resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false; assignOpen = false;
   card.hidden = false; if (!still){ card.style.animation = 'none'; void card.offsetWidth; card.style.animation = ''; }
   if (kind !== 'sound') S.flags.opened = true;
+  if (!simMode && kind !== 'sound') tutUse('open:' + kind);   // V23
   // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
   if (kind === 'robot'){ dismissHint('unlock'); if (tasksPanel('robot', i)){ if (!hintDone('tasks') && !S.flags.taskHint) cardTab = 'tasks'; dismissHint('tasks'); if (researchOpen() && S.story.opened && !S.story.prog && !S.robots.some(c => taskOn(c, 'research'))) cardTab = 'tasks'; } }
   if (kind === 'book') S.story.opened = true;
@@ -10329,6 +10650,7 @@ card.addEventListener('pointerdown', e => e.stopPropagation());
 card.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
+  tutAct(act);   // V23
   if (act === 'close'){ closeCard(); return; }
   if (act === 'watch'){ if (watching(cardOpen.kind, cardOpen.i)){ camFollow = null; camMovedT = performance.now(); } else startWatch(cardOpen.kind, cardOpen.i); sfx('paper'); renderCard(true); return; }
   if (act.startsWith('tab:')){ cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
@@ -10756,6 +11078,7 @@ function frame(ts){
   if (SND){ SND.update(dt, wind); if (RAINY && SND.rain) SND.rain(dt, RAIN.k); ambientChatter(dt); }
   if (cardOpen){ renderCard(false); if ((seenT -= dt) <= 0){ seenT = 0.25; markSeen(); } }
   updHints(dt);
+  updTut(dt);   // V23: the little tutorials
   if (RAINY) updRain(dt*Math.min(TIME_SCALE, 4));   // (looks only; V21: capped so fast-forward doesn't flood the screen)
   draw();
   requestAnimationFrame(frame);
@@ -10797,6 +11120,7 @@ function simTasks(){
   }
 }
 window.__leafYard = {
+  tut(id){ if (id) tutStart(id, true); return { on: TUT.on && { id: TUT.on.id, step: TUT.on.i, text: TUT.on.txt }, binT: TUT.binT, truckT: TUT.truckT, done: TUT_ORDER.filter(k => hintDone('tut:' + k)), used: Object.keys(S.flags.hints || {}).filter(k => k.startsWith('use:')) }; },   // V23
   sim(seconds, opts){
     opts = opts || {};
     simMode = true;
@@ -10869,6 +11193,7 @@ window.__leafYard = {
 // dev (?fresh&lot=prairie): a new lot with nobody arriving gets a robot like one that has worked the first yard to $900
 function devTraveller(){
   const c = S.robots[0] || (S.robots[0] = newRobotCfg());
+  S.flags.hints = Object.assign({}, S.flags.hints || {}, tutAllDone());   // (V23: someone sent from the first yard knows the basics)
   c.home = 0; Object.assign(c.lv, DEV_TRAVELLER.lv);
   for (const k of DEV_TRAVELLER.tech) S.tech[k] = true;
   S.cash = S.peak = TRIP_CASH;

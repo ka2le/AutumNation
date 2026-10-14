@@ -514,3 +514,37 @@ body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, 
 .x.eye:hover{background:#fbe9c9;color:var(--ink)}
 .x.eye.on{background:linear-gradient(#5f909a,#467079);color:#f2faf7;border-color:#2f555c;box-shadow:0 2px 0 #2f555c}
 .x.eye.on svg circle:last-child{fill:#467079}
+/* V23: little tutorials: a soft spotlight on the thing to tap (the rest of the screen dimmed, every tap still goes
+   through) and a speech bubble beside it in the hand-lettered tip font */
+#tut{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s linear .25s}
+#tut.on{opacity:1;visibility:visible;transition:opacity .25s ease}
+#tut .tspot{position:absolute;left:0;top:0;width:0;height:0;border-radius:14px;box-shadow:0 0 0 200vmax rgba(28,16,6,.34),0 0 0 3px rgba(255,214,128,.95),0 0 22px 6px rgba(255,190,90,.5)}
+#tut .tspot.round{border-radius:50%}
+#tut .tspot::after{content:"";position:absolute;inset:-7px;border-radius:inherit;border:2.5px solid rgba(255,224,150,.95);animation:tutPulse 1.5s ease-out infinite}
+#tut .ttap{display:none;position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:rgba(255,236,190,.55);border:2px solid rgba(255,246,222,.9);animation:tutTap 1.5s ease-out infinite}
+#tut .tspot.act .ttap{display:block}
+@keyframes tutPulse{0%{transform:scale(1);opacity:.95}100%{transform:scale(1.22);opacity:0}}
+@keyframes tutTap{0%{transform:scale(.55);opacity:.95}70%{transform:scale(1.5);opacity:0}100%{transform:scale(1.5);opacity:0}}
+#tut .tbub{position:absolute;left:0;top:0;pointer-events:auto;width:max-content;max-width:min(250px,calc(100vw - 24px));background:var(--paper);border:2px solid var(--kraft);border-radius:16px;padding:9px 14px 7px;box-shadow:0 3px 0 var(--kraft-dk),0 12px 26px rgba(40,18,4,.38);color:var(--ink)}
+#tut .tbub::before{content:"";position:absolute;inset:3px;border:1.2px dashed var(--stitch);border-radius:12px;pointer-events:none}
+#tut .tbub.pop{animation:tutPop .32s cubic-bezier(.2,1.4,.4,1)}
+@keyframes tutPop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+#tut .tt{position:relative;font-family:var(--font-hand);font-weight:700;font-size:22px;line-height:1.08;color:#4a2a16}
+#tut .tt b{color:var(--accent-dk)}
+#tut .tf{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;font-family:var(--font-ui)}
+#tut .tdots{display:flex;gap:4px;margin-right:auto}
+#tut .tdots i{width:6px;height:6px;border-radius:50%;background:#d8c29c}
+#tut .tdots i.on{background:var(--accent)}
+#tut .tf button{font:800 13px/1 var(--font-ui);cursor:pointer;border-radius:999px}
+#tut .tn{color:#fff8ea;background:linear-gradient(#e08241,#c45e22);border:2px solid var(--accent-dk);padding:6px 14px 5px;box-shadow:0 2px 0 var(--accent-dk)}
+#tut .tn:active{transform:translateY(2px);box-shadow:none}
+#tut .ts{color:var(--ink-faint);background:none;border:0;padding:5px 4px;text-decoration:underline;text-underline-offset:2px}
+#tut .ts:hover{color:var(--ink-soft)}
+#tut .ttail{position:absolute;width:14px;height:14px;background:var(--paper);transform:rotate(45deg);display:none}
+#tut .tbub[data-side="l"] .ttail{display:block;left:-8.5px;top:calc(var(--tp) - 7px);border-left:2px solid var(--kraft);border-bottom:2px solid var(--kraft)}
+#tut .tbub[data-side="r"] .ttail{display:block;right:-8.5px;top:calc(var(--tp) - 7px);border-right:2px solid var(--kraft);border-top:2px solid var(--kraft)}
+#tut .tbub[data-side="t"] .ttail{display:block;top:-8.5px;left:calc(var(--tp) - 7px);border-left:2px solid var(--kraft);border-top:2px solid var(--kraft)}
+#tut .tbub[data-side="b"] .ttail{display:block;bottom:-8.5px;left:calc(var(--tp) - 7px);border-right:2px solid var(--kraft);border-bottom:2px solid var(--kraft)}
+body.ending #tut{display:none !important}
+@media (max-width:640px){ #tut .tt{font-size:20px} #tut .tbub{max-width:min(220px,calc(100vw - 24px))} }
+@media (prefers-reduced-motion: reduce){ #tut .tspot::after,#tut .ttap{animation:none} #tut .tbub.pop{animation:none} }
