@@ -6,7 +6,7 @@ it, how to measure it with the headless tools, the current numbers (V9), and wha
 to check them.
 
 Contents: 1 Goals · 2 Core ideas and formulas · 3 Methods and tools · 4 Pricing something new · 5 Current balance (V9)
-· 6 Pitfalls · 7 History of balance passes
+· 6 Pitfalls · 7 History of balance passes · 8 Pending balance work
 
 ---
 
@@ -490,3 +490,13 @@ of tiny steps that ends in very expensive ones, each nudging one stat that may n
 - **V21.1:** the first unlock on each basic skill costs twice what it did: Rubber treads $6, Wicker hamper $7, Quick servos $8
   (were $3 / 3.50 / 4); levels and later tiers unchanged, helpers unchanged. Balance player (3 runs): those unlocks are
   bought at ~7 / 13 / 15 min (were ~5 / 6 / 8), the bagging table earlier (~7 min), Meadow ~42, metal ~36, robot 10 ~51.
+
+## 8. Pending balance work
+
+The October 14 audit and the next implementation targets are recorded in
+[`BALANCE_IMPLEMENTATION_NOTES.md`](BALANCE_IMPLEMENTATION_NOTES.md). The selected changes, purposes, migration
+requirements and acceptance checks are in [`BALANCE_CHANGE_BRIEF.md`](BALANCE_CHANGE_BRIEF.md). Preserve the strong early shaker. Investigate
+storage tails against production peaks, kiln/furnace operator synergy, stronger nectar-to-goods conversion, $120
+hive upgrades, a more useful nursery, later leaf-value steps, and late truck/multiplier payback. These are pending
+targets; live economy values have not been changed. The guide's V9 income tables remain historical references,
+not measurements of the current three-yard campaign.

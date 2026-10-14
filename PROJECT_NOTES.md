@@ -632,3 +632,33 @@ The whole plan, scene by scene, is in **`ENDING.md`** (read that before working 
   Same colours as `itemCash` in `ending.js` (`#6fae55` with a cream band).
 - **Homecoming pause:** after the truck drives off, Tinker stands a moment (`END_PAUSE` 3 s), looks the other way, then
   toward its first leaf, blinks once, and only then goes slowly for the leaf (`updEndReturn`).
+
+
+## V22 (Oct 14): the combined balance pass (spec: `BALANCE_CHANGE_BRIEF.md`, evidence: `BALANCE_IMPLEMENTATION_NOTES.md`)
+
+All in `public/game.js` (the `location2/3` test copies are untouched).
+
+- **Hive / ant hill:** the six one-off upgrades cost $120 (`HIVE_UP_COST`), the nursery gives 40% off (`beeCost`), a jar needs 18 nectar
+  (Better recipe 12) and a can 12 mushrooms (Tight packing 6): `jarNectarAt(recipe)`, which switches on `ANTS`. Filling takes 2.5 s
+  (`JAR_TIME`). Upgrade descriptions and short labels read the numbers from `jarNectarAt`, so the hollow's phrase swap still works.
+- **Sort leaves 8–10:** `UP.leafPrice` max 10, extra costs $2,200 / $4,000 / $7,500, value ×1.25, ×1.30, ×1.35 over the previous level
+  (`late`, ×2.19375 in all). Loose, dry and bagged leaves use `val('leafPrice')`; the cleanup bonus is separate.
+- **Coal (hollow only, `COAL`):** the kiln is 4 logs → 3 coal in 27 s (`KILN_LOGS`, `SMELT_TIME`); a coal unit sells for twice as much
+  (`COAL_UNIT`, in `ingotPrice`); raw logs sell for 90% (`RAW_LOG_MUL`, only in `metalPrice()`, never in `val('metalPrice')`, which still prices
+  charcoal). The coal stand follows `COAL_STAND_CAP` by log-crib level (24 … 125, 200), not the crib's size. The kiln's rack stays at 24.
+  The dryer's stove gives `BENCH_ASH_PER_LOG` = 0.5 coal a burnt log (kept in `S.bench.ashAcc`), its ash pan holds 6 (`BENCH_COAL_MAX`), and the
+  first-ash discovery is still on the first burnt log. The coal goal is `COAL_GOAL` = 100.
+- **Extra yield on kilns and furnaces:** a batch adds `batchOut × ((1 + Tight stacking/Slag recovery) × (1 + 0.5 × doubleChance) − 1)` goods
+  (`batchBonus`), kept as a fraction in `S.plant.slagAcc` and paid onto the rack by `settleRecovery()` whenever there is room (never thrown away;
+  it used to be capped at 0.99). `rackHasRoom()` reserves each active operator's base output plus the whole units of its bonus (`r.resv`,
+  `smeltReserve`) and counts whole units already owed.
+- **Bellows:** `TRACKS.stoke.vals` = 0, .2, .4, .65, 1 (kiln and furnace share it).
+- **Save migration (`migrateCoalUnits`, flag `flags.coalV22`):** a hollow save from before has its stand, rack, ash pan, owed recovery and the
+  `coal` / `ingots` / `coalSold` / `kilnSold` counters halved. An odd old unit is half a new one: the ash pan's goes into `ashAcc`, the others
+  into `S.coalCredit`, which the truck pays (at the coal price) with the next coal sale. Total value is unchanged; a second load does nothing.
+  Robot baskets and kiln batches under way are not saved (never were), so there is nothing to convert there. A stand above the new capacity
+  keeps its contents and sells down.
+- Checked in headless Chromium (paired runs, not tuned): nursery savings $240 / $165 / $87.50 at 10 / 20 / 30 workers; migration value-preserving
+  and idempotent; kiln goods conserved (made = sold + stand + rack + carried); bellows ≈ +39% / +93% processing at levels 2 / 4; with
+  everything mature, 40 workers with two packers earn ≈ $5.2k (bees) and ≈ $5.8k (ants) a minute from honey/cans, one packer saturates at
+  ≈ $2.5–2.9k with the tank filling about half the time.
