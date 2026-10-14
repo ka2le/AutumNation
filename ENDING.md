@@ -61,7 +61,10 @@ Scene names are never shown in the game; they're only for us.
 ## 7. Back home (game.js)
 
 `endingHome()`: the camera goes back to where it was, the truck pulls in with Tinker in the back and Tinker hops off at
-the curb, like coming home from a trip. A second later: the **"Great work!"** popup (`showEndPopup`, `#endPop`):
+the curb, like coming home from a trip. V21 (`startEndReturn`, `updEndReturn`): Tinker stands still at the curb while the
+camera closes in on its head (~2 s), then slowly (at 22% speed) goes to a leaf a little way up the yard and picks it up,
+then speeds up and picks up several more as the camera widens back to the yard. For this its list is just Gather leaves
+(its own list waits in `S.flags.endKeep` and comes back on Continue, also after a reload). Then: the **"Great work!"** popup (`showEndPopup`, `#endPop`):
 "You really did collect a lot of leaves" and a **Continue** button. Continue closes it and the yard just carries on;
 there are no more milestones.
 
@@ -86,8 +89,9 @@ there are no more milestones.
 - **Nothing gives the secret away from outside** (`sc.open`, set as the robots step through the door): the factory's
   finished robots wait at the wall instead of riding out on the conveyor, and the bank's runner waits inside with its
   bundle instead of going out to the container.
-- **Tinker is silent** in the ending (no "!" or "…" bubbles). Other robots still have a word now and then (a new robot's
-  "!", the inspector's "ok!").
+- **Tinker is silent** in the ending (no "!" or "…" bubbles). V21: so is everyone else (the new robots' "!" and the
+  inspector's "ok!" are gone), there's no "All aboard!" as Tinker climbs in, and the "new upgrade" arrows are hidden from
+  the moment the truck camera starts to ride out.
 - Robots' looks for the ending are registered on the yard's `ROBOT_LOOKS`: `hardhat` (yellow hard hat, high-vis
   stripe), `banker` (vest, shirt, bow tie, green eyeshade), and for new models `twin`, `dome`, `scope`. `look(shape, o)`
   makes a style from one of the yard's body shapes with new colours. `noPlate` / `noBasket` (new in drawRobot) leave
@@ -98,17 +102,20 @@ there are no more milestones.
 
 **Idea:** iron ingots go in, new robots come out. The crew all wear yellow hard hats.
 
+- **V21 outside:** corrugated walls with seams, steel columns with bolts, a concrete plinth, factory windows (one pane
+  tipped open) with gooseneck lamps, the roller door's guides, header and hazard stripes, a vent box, a red hose box, a
+  ladder to the roof; the roof has glazing bars, gutters, drifting reflections, fans in housings and an extractor duct.
 - **Outside:** ribbed steel front, a big roller door, a plaque with a robot head over the man door, a sawtooth roof
   with skylights, roof fans, a water tank and a smoking chimney. Two pallets of ingots wait on the verge. The conveyor
   comes out of the right-hand wall on legs and disappears into a low covered chute.
 - **Inside (left → right):** two ingot pallets → the **press** (one ingot → one body shell, with a thump and sparks) and
   the **wheel lathe** (one ingot → a set of treads) → **two assembly bays** (a shell + treads → a robot, welded over
-  5 s: treads, body, head, then its eye lights up) → the new robot says "!", queues and drives into the **paint booth**
+  5 s: treads, body, head, then its eye lights up) → the new robot wakes up, queues and drives into the **paint booth**
   (coloured puffs come out of the vents) → it comes out as a new model and hops onto the **conveyor**, which carries it
   out through the wall (only once we're inside; until then they wait at the wall, a gap between each).
 - **Crew** (`build()`, 15 robots): two ingot carriers side by side for each machine, a shell runner and a tread runner
   for each bay, a welder at each bay (torch up while welding), the press operator (wrench up while it presses), the
-  inspector at the start of the belt (clipboard, "ok!"), and round the edges a sweeper going up and down the walkway, a
+  inspector at the start of the belt (clipboard), and round the edges a sweeper going up and down the walkway, a
   robot fixing something at the workbench, and one moving crates from one stack to the other and back.
 - **Props** (`props()`, no purpose shown): a pegboard of tools on the back wall (spanners, hammer, saw, pliers, cable),
   a workbench with a vice and a lamp, lockers, crate stacks, oil drums, a trash can (inside by the door and outside on
@@ -130,20 +137,30 @@ there are no more milestones.
 - **Outside:** cream stone front with columns and a pediment over the door (gold coin), tall lit windows, lanterns, a
   slate roof with a copper ridge, chimneys and a glass dome with a gold coin on top. **Massive heaps of leaves** along
   the curb, and a big green **cash container** by the side door.
+- **V21 outside:** a rusticated base, pilasters, arched windows with glazing bars and keystones, a coin frieze and dentil
+  cornice, the portico with fluted columns, a fanlight and steps (its pediment drawn in front of the roof edge), dormers,
+  chimney pots, cresting on the ridge, and the dome in full (`drawDome`): a stone drum with pilasters and lit windows, a
+  glass dome with lead ribs and rings, a shine and a drifting glint, a gold band, and a little lantern with the gold coin.
+  The eyeshades are a stitched band with a buckle and a see-through green brim that tints the face under it.
 - **Inside:** a checkered marble floor with a red carpet from the door, wood panelling, a framed golden leaf, a
   landscape, a clock, columns and the round vault door on the back wall. Left → right: two piles of **leaf bags** →
   the **shredder** (bags tipped into its hopper, blades turning, shreds fly over to a pot) → **two big copper pots**
   on brick stoves → the **roller mill** (buckets of green sludge go into its hopper; a big drum rolls it out) → one
   **long green sheet** along a table → the **cutter** (a guillotine chops it into notes onto a tray) → a robot
   **stacks** the notes into bundles on a table → a runner takes the bundles out of the side door to the container.
+- **V21: pouring.** The shredder is lower, with a wide open hopper and a wooden step beside it (`STEP`). One carrier at a
+  time climbs the step, holds the bag up over the hopper (`BAGAT`, drawn by `drawPour` with the robot's arms) and tips it:
+  a stream of leaves pours in (`pourLeaf`) and heaps up in the hopper (`M.shred.pile`), sinking and churning while the
+  blades chew. About one leaf in eleven misses and lands on the floor (`M.spill`); a **sweeper** picks those up one by one
+  into a dustpan and tips them back into the hopper.
 - **The pots run in batches** (`pot.st`): `fill` (the shredder fills it with leaf mash, brown) → `mix` (the chemist
   pours something in from a jug, the stirrer stirs it to a grey sludge) → `dye` (the chemist pours in the green
   colouring, it turns green) → `ready` (the bucket robots scoop it) → `fill` again. When we walk in, the back pot is
   already green and buckets are going back and forth to the mill, while the front pot goes through mix → dye → green
   in front of us.
-- **Crew** (`build()`, 15 robots): three bag carriers, the chemist, a stirrer at each pot (long paddles going round),
+- **Crew** (`build()`, 16 robots): three bag carriers, the chemist, a stirrer at each pot (long paddles going round),
   four bucket robots, the stacker, the cash runner, and round the edges a clerk stamping papers at a desk and a robot
-  polishing the vault door.
+  polishing the vault door, and (V21) the sweeper picking up spilled leaves.
 - **Props** (`props()`, no purpose shown): the clerk's desk with a green lamp and papers, potted plants, a water
   cooler, filing cabinets, a coat stand with a bowler hat and an umbrella, rope barriers along the carpet, a trash can.
 - **Leaving** (`leave()`): the horn, and all the cash in the container flies into the back of the truck, the way the
@@ -161,7 +178,9 @@ after window there are shelves of honey jars and mushroom cans, aisle behind ais
 black while the truck is still driving.
 
 - The front is drawn for whatever is on screen, so it really doesn't end. Each window is one of three pictures
-  (honey, cans, a mix: `windowView`, drawn once) with three racks at different depths and a hanging lamp.
+  (`windowView`, drawn once) with three racks at different depths and a hanging lamp. V21: every shelf has four honey
+  jars to every mushroom can (three different patterns), every fourth bay is a loading door with a hoist beam, and the
+  front has arched brick lintels, a corbelled cornice, downpipes, and skylights and turning ventilators on the roof.
 - **Later:** forklift robots inside, labels on the shelves, a glimpse of the yard's own bags and ingots stored too.
 
 ## Ideas not done (yet)

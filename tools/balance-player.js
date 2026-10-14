@@ -47,7 +47,7 @@ function setTasks(S){
   const wantPack = (S.bag.built || S.hive.built) && n >= 3 ? 1 + (S.hive.bees >= 14 && n >= 6 ? 1 : 0) : 0;
   for (let k=0;k<wantPack;k++) roles.push('pack');
   for (let k=0;k<wantMine;k++) roles.push('mine');
-  if (S.plant.built){ roles.push('smelt', 'smelt', 'haul', 'smelt'); }
+  if (S.plant.built){ roles.push('smelt', 'smelt', 'haul'); }   // V21: two furnace doors (was three)
   // with two packers, one puts honey first and the other bags first (both do both)
   // (V11: packers who fill jars also wrap them, once Gift wrapping is bought)
   const P = { pack: [['bag', 'jar'], ['wrap'], ['leaves']], pack2: [['jar', 'wrap'], ['bag'], ['leaves']], pack1: [['bag'], ['jar'], ['wrap'], ['leaves']], mine: [['mine'], ['leaves']], smelt: [['smelt'], ['haul'], ['leaves']], haul: [['haul'], ['leaves']] };

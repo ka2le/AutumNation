@@ -263,11 +263,7 @@ function ambStep(dt, wind, t){
   windLP.frequency.setTargetAtTime(240 + 650 * w, t, 0.6);
   windGain.gain.setTargetAtTime(0.06 + 0.2 * w * w, t, 0.7);
   airGain.gain.setTargetAtTime(0.006 + 0.035 * w * w, t, 0.9);
-  if (!prefs.amb) return;
-  // a gentle trickle of rustles, more when the wind picks up
-  if (Math.random() < (1.6 + 4 * w * w) * dt) rustle({ vol: rnd(0.05, 0.12) * (0.7 + 0.8 * w), pan: rnd(-0.85, 0.85) }, t);
-  // now and then a little pile shifts
-  if (Math.random() < 0.04 * (1 + 3 * w) * dt){ const p = rnd(-0.7, 0.7), n = 2 + (Math.random() * 3 | 0); for (let i = 0; i < n; i++) rustle({ delay: rnd(0, 0.6), vol: rnd(0.04, 0.09), pan: p + rnd(-0.15, 0.15) }, t); }
+  // V21: no ambient rustling any more; the leaves are only heard when the truck takes them (pour)
 }
 
 // ───────────────────────── small instruments
@@ -475,12 +471,9 @@ const api = {
   thunder(pan){ if (!live() || !rainBus || !gate('thunder', 1)) return; thunderAt(pan || 0, ctx.currentTime + 0.05); },
   crackle(pan, vol){ if (!live() || !rainBus || !gate('crackle', 0.12)) return; crackleAt(pan || 0, vol == null ? 1 : vol, ctx.currentTime); },
 
-  // a robot's arm closes on some leaves
-  grab(n, pan, vol){ if (!live() || !prefs.amb || !gate('grab', 0.08)) return; rustle({ buf: rustleBufs[1 + 3 * (Math.random() * 3 | 0)], rate: rnd(1.1, 1.45), vol: (0.07 + 0.015 * Math.min(n, 6)) * vol, pan, bright: rnd(3500, 5500) }, ctx.currentTime); },
-  // leaves tip into the bin
-  dump(n, pan, vol){ if (!live() || !prefs.amb || !gate('dump', 0.12)) return; const t = ctx.currentTime; const k = Math.min(3, 1 + Math.floor(n / 4)); for (let i = 0; i < k; i++) rustle({ delay: i * 0.07, rate: rnd(0.8, 1.05), vol: (0.09 + 0.01 * Math.min(n, 8)) * vol, pan: pan + rnd(-0.08, 0.08), bright: rnd(2600, 4200) }, t); },
-  // your tap pushes the leaves around
-  kick(n, pan){ if (!live() || !prefs.amb || !gate('kick', 0.05)) return; const t = ctx.currentTime; rustle({ rate: rnd(1.0, 1.3), vol: n ? clamp(0.08 + n * 0.012, 0.08, 0.2) : 0.05, pan, bright: n ? rnd(3800, 5600) : 2600 }, t); if (n > 6) rustle({ delay: 0.05, vol: 0.08, pan: pan + 0.1 }, t); },
+  // V21: leaves are only heard when they're sold (pour). Picking up, tipping into the bin and kicking leaves about are
+  // silent now; these stay as no-ops so older callers don't break.
+  grab(){}, dump(){}, kick(){},
   // a robot says something
   beep(ri, mood, pan, vol, force){
     if (!live() || !prefs.sfx) return;
@@ -501,7 +494,8 @@ const api = {
   pour(leaves, metal, pan){
     if (!live()) return;
     const t = ctx.currentTime;
-    if (prefs.amb && leaves > 0){ const n = clamp(Math.round(2 + leaves / 6), 2, 10); for (let i = 0; i < n; i++) rustle({ delay: 0.45 + i * rnd(0.09, 0.16), rate: rnd(0.75, 1.1), vol: rnd(0.08, 0.13), pan: pan + rnd(-0.15, 0.15), bright: rnd(2500, 4200) }, t); }
+    // V21: softer, quieter and sparser: a few low, dark swishes as the leaves slide into the truck (was up to 10 bright ones)
+    if (prefs.amb && leaves > 0 && gate('pour', 3)){ const n = clamp(Math.round(1 + leaves / 20), 1, 3); for (let i = 0; i < n; i++) rustle({ buf: rustleBufs[2 + 3 * (i % 3)] || null, delay: 0.5 + i * rnd(0.22, 0.34), rate: rnd(0.62, 0.8), vol: rnd(0.028, 0.045), pan: pan + rnd(-0.1, 0.1), bright: rnd(1500, 2300), hp: rnd(320, 520) }, t); }
     if (prefs.sfx && metal > 0) for (let i = 0; i < Math.min(metal, 6); i++) tinkAt(pan + rnd(-0.1, 0.1), 0.7, t + 0.55 + i * 0.09);
   },
   // the truck pays: a small music-box arpeggio, longer for bigger loads

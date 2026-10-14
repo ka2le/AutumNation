@@ -479,3 +479,11 @@ of tiny steps that ends in very expensive ones, each nudging one stat that may n
   6,000); the prairie's Wildflower seeding is unchanged. The first yard's Meadow is 1080 × 600 (was 1280 × 720) with the
   same leaf fall and cap, nine more own bushes (one on the cottage plot) and a fourth small tree, so shakers have more to
   shake. Not re-measured with the balance player; built-in sims run clean.
+- **V21:** shakers each have their own 15 s cooldown per tree or bush plus a shared 5 s (was one shared 15 s), so a second
+  and third shaker add leaves instead of queueing for the same trees. Yard-wide upgrades priced for a bigger crew: Grease
+  every axle $240 (was $30; forks of a balance-player run: +$21/min with 4 robots at 30 min, +$112/min with 10 at 50 min,
+  so ~2 min payback once the crew is big), Shared basket plans $150 (was $35; saves 40% of every copied basket level, so it
+  pays once several robots go past the hamper), Copy the blueprints $500 (was $150). The old book needs $60 earned or $36
+  held (was $30 / $18). Smelting plant and charcoal kiln: two robot spots (was three). Balance player (3 runs, first yard,
+  70 min): Meadow ~42 → 39 min, metal ~35 → 31, robot 10 ~51 → 48, income at 70 min ~$2.9k → $3.1k a minute. The greedy
+  built-in sim reacts much more to the shaker change (~+70% earned by 45 min).

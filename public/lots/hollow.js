@@ -24,7 +24,7 @@ LOTS.hollow = H => {
   // ── the land: one yard, between the first yard's cottage plot and its meadow in size, that doesn't grow. (The other
   // two sizes stay in AREAS for what lies beyond the fence; landForSale: false keeps the sign from going up.)
   const AREAS = [
-    { w: 700,  h: 440,  name: 'Drizzly hollow', spawn: 1.9, cap: 130 },   // (V15: was 930 × 550; V17: a bit more falls, was 1.6 / 115)
+    { w: 650,  h: 400,  name: 'Drizzly hollow', spawn: 1.9, cap: 130 },   // (V15: was 930 × 550; V17: a bit more falls, was 1.6 / 115; V21: 650 × 400, was 700 × 440)
     { w: 1280, h: 720,  name: 'Puddle meadow',  spawn: 2.8, cap: 220, cost: 3000 },
     { w: 2000, h: 1150, name: 'Misty woods',    spawn: 5.6, cap: 380, cost: 38000 },
   ];
@@ -36,10 +36,11 @@ LOTS.hollow = H => {
   ];
   // V17: the charcoal kiln (this place's smelting plant, once the robots know coal) stands in the top left corner of the
   // yard, its work spots just above the puddle there (was the drying shed, at -170, -290)
-  const PLANT = { x: -228, y: -384 };
+  const PLANT = { x: -214, y: -346 };   // (V21: down and in with the smaller yard, was -228, -384)
   // V15: the road row, spread out across the (narrower) yard so the drying bench fits beside the bin
-  const ROW = { SHED: { x: -268, y: -22 }, SIGN: { x: -166, y: -8 }, BAGGER: { x: -78, y: -14 }, BIN: { x: 8, y: -12 },
-    TUB: { x: 66, y: -12 }, PALLET: { x: 122, y: -12 }, CRATE: { x: 182, y: -12 }, HIVE: { x: 262, y: -20 } };
+  // (V21: squeezed a little for the smaller yard; was -268 / -166 / -78 / 8 / 66 / 122 / 182 / 262)
+  const ROW = { SHED: { x: -256, y: -22 }, SIGN: { x: -156, y: -8 }, BAGGER: { x: -72, y: -14 }, BIN: { x: 6, y: -12 },
+    TUB: { x: 64, y: -12 }, PALLET: { x: 117, y: -12 }, CRATE: { x: 173, y: -12 }, HIVE: { x: 250, y: -20 } };
   // trees that have lost about half their leaves
   const TREES = [
     { x: -150, y: -660, r: 120, seed: 11 }, { x: 300, y: -580, r: 135, seed: 23 }, { x: 575, y: -255, r: 92, seed: 37 },
@@ -58,7 +59,7 @@ LOTS.hollow = H => {
     { x: 610, y: -380, r: 96, seed: 163, pine: true }, { x: -640, y: -470, r: 104, seed: 167, pine: true }, { x: 130, y: -690, r: 92, seed: 173, pine: true },
     { x: -330, y: -760, r: 110, seed: 179, pine: true },
     // V17: two more at the top edge of the yard, their trunks just inside the fence, for the shakers
-    { x: 296, y: -474, r: 62, seed: 191, fam: ['red','orange'] }, { x: -62, y: -500, r: 68, seed: 193, fam: ['gold','rust'] },
+    { x: 284, y: -434, r: 62, seed: 191, fam: ['red','orange'] }, { x: -62, y: -460, r: 68, seed: 193, fam: ['gold','rust'] },   // (V21: 40 lower with the fence)
   ];
   const BUSHES = [ { x: -312, y: -166, s: 1.0, seed: 7 }, { x: 40, y: -350, s: 0.95, seed: 19 } ];   // (V17: the left one moved down, out of the kiln's way)
   // puddles: their muddy beds are painted into the ground; game.js draws the water live (reflections, rings, wakes)
@@ -67,7 +68,7 @@ LOTS.hollow = H => {
     { x: -70,  y: -118, rx: 58, ry: 19 }, { x: 64, y: -94, rx: 38, ry: 13 }, { x: -195, y: -152, rx: 46, ry: 15 }, { x: 172, y: -238, rx: 40, ry: 14 },
     { x: 246, y: -108, rx: 34, ry: 12 }, { x: -40, y: -350, rx: 42, ry: 14 },
     // the meadow
-    { x: -278, y: -314, rx: 70, ry: 22 },   // (V17: a little lower, so the kiln's robots stand just above it) { x: 290, y: -400, rx: 66, ry: 21 }, { x: -20, y: -472, rx: 62, ry: 20 }, { x: -385, y: -178, rx: 54, ry: 17 },
+    { x: -262, y: -282, rx: 58, ry: 19 },   // (V21: was -278, -314, 70 × 22: lower again, below the kiln that moved down)   // (V17: a little lower, so the kiln's robots stand just above it) { x: 290, y: -400, rx: 66, ry: 21 }, { x: -20, y: -472, rx: 62, ry: 20 }, { x: -385, y: -178, rx: 54, ry: 17 },
     { x: 520,  y: -565, rx: 52, ry: 17 }, { x: -470, y: -418, rx: 70, ry: 21 }, { x: -560, y: -110, rx: 50, ry: 16 }, { x: 455, y: -125, rx: 56, ry: 18 },
     { x: 120,  y: -640, rx: 58, ry: 18 }, { x: 560, y: -690, rx: 46, ry: 15 }, { x: -430, y: -295, rx: 40, ry: 13 }, { x: 590, y: -470, rx: 36, ry: 12 },
     // the misty woods
@@ -1140,7 +1141,8 @@ LOTS.hollow = H => {
     c.save(); c.translate(PLANT.x, PLANT.y);
     if (!S.plant.built){ drawPlot(c, 150, 46, 'charcoal kiln', plantRt.shownT); c.restore(); return; }
     const grow = clamp((S.t - plantRt.builtT)/1.5, 0, 1); if (grow < 1) c.scale(1, ease(grow));
-    const busy = [0, 1, 2].map(i => { const ri = STN.smelt[i]; return ri != null && R[ri] && R[ri].st === 'smelt'; });
+    const { SMELT_N } = H;
+    const busy = [0, 1, 2].map(i => { if (i >= SMELT_N) return !!stoker(); const ri = STN.smelt[i]; return ri != null && R[ri] && R[ri].st === 'smelt'; });   // (V21: the right kiln is the bellows')
     const any = busy.some(b => b), st2 = stoker();
     c.lineCap = 'round';
     c.fillStyle = 'rgba(20,14,8,.36)'; ell(c, 4, 3, 104, 12); c.fill();
@@ -1152,7 +1154,7 @@ LOTS.hollow = H => {
       for (let y=ctop; y<-52; y+=5) for (let x=cx - 9 + ((y/5) % 2 ? 0 : 4.5); x<cx + 9; x+=9){ c.fillStyle = r2() < .5 ? '#8a5640' : '#6e4232'; rr(c, x + 0.4, y + 0.4, 8.2, 4.2, 0.8); c.fill(); }
       const sg = c.createLinearGradient(0, ctop, 0, ctop + 30); sg.addColorStop(0, 'rgba(20,16,14,.85)'); sg.addColorStop(1, 'rgba(20,16,14,0)'); c.fillStyle = sg; c.fillRect(cx - 9, ctop, 18, 30);
       c.fillStyle = '#3a2a24'; c.fillRect(cx - 11, ctop - 4, 22, 5); c.fillStyle = '#1a1210'; ell(c, cx, ctop - 4, 8, 1.8); c.fill(); }
-    // three brick domes, side by side
+    // three brick domes, side by side (V21: two for robots, the right one for the blower on the bellows)
     for (let i=0;i<3;i++){
       const dx = (i - 1)*40, on = busy[i], fl = on ? (st2 ? 0.95 : 0.78) + (st2 ? 0.05 : 0.2)*Math.sin(t*12 + i*2) : 0.16 + 0.05*Math.sin(t*2 + i);
       const dome = () => { c.beginPath(); c.moveTo(dx - 22, -4); c.bezierCurveTo(dx - 24, -38, dx - 12, -54, dx, -54); c.bezierCurveTo(dx + 12, -54, dx + 24, -38, dx + 22, -4); c.closePath(); };

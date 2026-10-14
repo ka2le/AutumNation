@@ -1,5 +1,5 @@
 // AutumNation — game logic and rendering.
-// Dev URL options: ?fresh (play without loading or saving)  ?speed=4 (fast-forward, 0.25–20)
+// Dev URL options: ?fresh (play without loading or saving)  ?speed=4 (fast-forward, 0.25–10,000; also in the test panel)
 (() => {
 'use strict';
 if (window.LOC_LEAVING) return;   // index.html is opening a ?locationN copy instead
@@ -21,7 +21,16 @@ function shade(hex, k){ const n = parseInt(hex.slice(1), 16); const r = clamp(Ma
 const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
 
 const PARAMS = new URLSearchParams(location.search);
-const TIME_SCALE = clamp(+PARAMS.get('speed') || 1, 0.25, 20);
+// V21: the game speed can be changed from the test panel (0.25× to 10,000×); it lasts for the browser session, so it
+// survives a jump or a trip (sessionStorage), and ?speed= still sets it
+const SPEED_MIN = 0.25, SPEED_MAX = 10000, SPEED_KEY = 'leaf-yard-speed';
+let TIME_SCALE = (() => { let v = +PARAMS.get('speed'); if (!v){ try { v = +sessionStorage.getItem(SPEED_KEY); } catch(e){} } return clamp(v || 1, SPEED_MIN, SPEED_MAX); })();
+let speedReal = TIME_SCALE;   // how fast it really runs (very high speeds are held back by how many steps fit in a frame)
+function setSpeed(v){
+  v = clamp(+v || 1, SPEED_MIN, SPEED_MAX); TIME_SCALE = v; speedReal = v;
+  try { if (v === 1) sessionStorage.removeItem(SPEED_KEY); else sessionStorage.setItem(SPEED_KEY, String(v)); } catch(e){}
+  if (typeof updSpeedUi === 'function') updSpeedUi(true);
+}
 const FRESH = PARAMS.has('fresh');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -388,12 +397,15 @@ const TECH = {
 const OIL_BONUS = 0.3, CUT_BONUS = 0.25;   // V19.3: the one step of Grease every axle / Cutting oil
 const GEN = {
   // V19.3: one step each for Grease every axle and Cutting oil (were 3 and 2); Wider claw fingers is gone
-  oil:      { name:'Grease every axle',  max:1, cost:[30],  desc:()=>'All robots drive <b>'+Math.round(OIL_BONUS*100)+'%</b> faster.' },
-  basket:   { name:'Shared basket plans', max:1, cost:[35],  desc:()=>'Basket upgrades another robot already has cost <b>10%</b> instead of 50%.' },
+  // V21: Grease, Shared basket plans and Copy the blueprints are for a bigger crew now (were $30 / $35 / $150): Grease
+  // measured +$21/min with 4 robots at ~30 min but +$112/min with 10 at ~50 min; the plans save 40% (or 20%) of every
+  // copied level, so they only pay with several robots upgrading
+  oil:      { name:'Grease every axle',  max:1, cost:[240],  desc:()=>'All robots drive <b>'+Math.round(OIL_BONUS*100)+'%</b> faster.' },
+  basket:   { name:'Shared basket plans', max:1, cost:[150],  desc:()=>'Basket upgrades another robot already has cost <b>10%</b> instead of 50%.' },
   // Parked for now to keep the list short; good ideas to bring back later. Their effects switch off while commented out.
   // servo:    { name:'Oil the servos',     max:2, cost:[45, 240], desc:l=>'Every grab is <b>'+(15*(l+1))+'%</b> quicker'+(l ? ' (now '+(15*l)+'%)' : '')+'.' },
   // bulk:     { name:'Bulk robot parts',   max:1, cost:[60],  desc:()=>'New robots cost <b>25%</b> less.' },
-  blueprint:{ name:'Copy the blueprints', max:1, cost:[150], desc:()=>'Any upgrade another robot already has costs <b>30%</b> instead of 50%.' },
+  blueprint:{ name:'Copy the blueprints', max:1, cost:[500], desc:()=>'Any upgrade another robot already has costs <b>30%</b> instead of 50%.' },
   cutting:  { name:'Cutting oil',        max:1, cost:[400], needs:()=>S.miners.length > 0, desc:()=>'All drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
   market:   { name:'Market stall',       max:3, cost:[140, 600, 1800], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
   charm:    { name:'Lucky horseshoe',    max:1, cost:[950], needs:()=>S.miners.length > 0, desc:()=>'Every robot gets <b>+8%</b> extra yield on top of its own.' },
@@ -778,7 +790,9 @@ const mainCtx = ctx;      // (the screen's own context: card portraits and puddl
 let groundCv = null, groundCam = { z:1, ox:0, oy:0, mx:0, my:0, rs:1 }, vignetteCv = null, canopyCvs = [];
 
 function camTarget(level){
-  const A = AREAS[level], vw = A.w + (W < 640 ? 16 : 80), vh = A.h + ROAD + 84;   // phones: let the yard use the full width
+  // V21: the cottage plot (the very first view) is framed tighter, so the game opens a little more zoomed in
+  const tight = LOT_ID === 'home' && level === 0;
+  const A = AREAS[level], vw = A.w + (W < 640 ? 16 : tight ? 36 : 80), vh = A.h + ROAD + (tight ? 38 : 84);   // phones: let the yard use the full width
   const z = Math.min(W/vw, H/vh, 1.9);
   return { z, ox: W/2, oy: H - ROAD*z };
 }
@@ -999,7 +1013,6 @@ function treeDrop(force){
   if (!simMode){
     pop(o.t.x, o.t.y - o.t.r*0.55, 'whoosh!', 'note', 20);
     for (let k=0;k<4;k++) spawnFg();
-    const a = sndAt(o.t.x, o.t.y); sfx('kick', 14, a.pan);
   }
   return true;
 }
@@ -1056,7 +1069,9 @@ const drillSkill = ri => TRACKS.drill.vals[0]/rv(ri, 'drill');
 const smeltSkill = ri => packSpeed(ri)*(1 + 0.5*(drillSkill(ri) - 1));
 const smeltTime = ri => { const b = stoker(); return SMELT_TIME/smeltSkill(ri)/val('smeltSpeed')/(b ? 1 + hv(b, 'stoke') : 1); };
 // the bellows: one blower can stand in front of the plant blowing into the intake grate under the furnaces
-const STOKE_SPOT = { x: PLANT.x + 52, y: PLANT.y + 30 }, PLANT_VENT = { x: PLANT.x + 21, y: PLANT.y + 2 };
+// V21: the bellows blower has the third door on the right: it stands in front of it and blows into the grate at its foot
+// (the vent was between the middle and right doors)
+const STOKE_SPOT = { x: PLANT.x + 52, y: PLANT.y + 30 }, PLANT_VENT = { x: PLANT.x + 40, y: PLANT.y + 3 };
 // V7: ingots ride in the basket too, but each one takes the room of INGOT_SPACE leaves, so bigger baskets haul more
 const INGOT_SPACE = COAL ? 2 : 4;   // (V17: coal is lighter: two leaves' worth of room)
 const ingotCarry = ri => Math.max(1, Math.floor(leafCap(ri)/INGOT_SPACE));
@@ -1216,8 +1231,12 @@ function drillTimeAt(ri, sp){
   if (S.shafts.includes(sp)){ t *= 0.74; const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === sp); if (ex) t /= 1 + hv(ex, 'dig'); }
   return t;
 }
-// ── work stations: two spots at the bagging table, two at the honey crate (V7), three furnace doors at the plant
-const STN = { bag: [null, null], jar: [null, null], smelt: [null, null, null] };
+// ── work stations: two spots at the bagging table, two at the honey crate (V7), and at the plant two of its three
+// furnace doors for robots (V21: was all three); the third, on the right, is the bellows blower's (STOKE_SPOT). The
+// charcoal kiln the same: three kilns, two robots and the blower
+const SMELT_N = 2;
+const smeltDoorX = i => (i - 1)*40;   // where furnace door / kiln i stands, from the plant's middle (0 and 1: robots, 2: the bellows)
+const STN = { bag: [null, null], jar: [null, null], smelt: Array(SMELT_N).fill(null) };
 const JAR_SPOTS = [{ x: CRATE.x - 12, y: CRATE.y - 15, face: 1 }, { x: CRATE.x + 14, y: CRATE.y - 15, face: -1 }];
 const BAG_SPOTS = [{ x: BAGGER.x - 13, y: BAGGER.y - 9, face: 1 }, { x: BAGGER.x + 16, y: BAGGER.y - 9, face: -1 }];
 // wrapping gift jars uses the honey crate's two spots
@@ -1225,7 +1244,7 @@ const stKey = t => t === 'wrap' ? 'jar' : t;
 function stationPos(t, i){
   if (t === 'bag') return BAG_SPOTS[i] || BAG_SPOTS[0];
   if (t === 'jar' || t === 'wrap') return JAR_SPOTS[i] || JAR_SPOTS[0];
-  return { x: PLANT.x + (i - 1)*40 - 9, y: PLANT.y + 15, face: 1 };
+  return { x: PLANT.x + smeltDoorX(i) - 9, y: PLANT.y + 15, face: 1 };
 }
 function stationFree(t, r){ const a = STN[t], mine = a.indexOf(r.id); return mine >= 0 ? mine : a.indexOf(null); }
 function claimStation(t, r){ const a = STN[t], i = stationFree(t, r); if (i >= 0) a[i] = r.id; r.spot = i; return i; }
@@ -1432,7 +1451,6 @@ function finishWork(r){
     S.bag.bags++; S.totals.bags = (S.totals.bags || 0) + 1;
     flyTo('bag', BAGGER.x + 9, BAGGER.y - 36, BIN.x + 14 + rand(-4, 8), BIN.y - 50, 0.5, 30, {});
     pop(BAGGER.x + 4, BAGGER.y - 70, '+1 bag', 'bag', 15, 0.35);
-    { const a = sndAt(BAGGER.x, BAGGER.y); sfx('dump', 3, a.pan, a.vol*0.8); }
   } else if (t === 'jar'){
     S.totals.jars = (S.totals.jars || 0) + 1;
     // V11: a robot that also has Wrap gift jars in its Do list wraps the jar it just filled straight away
@@ -1486,11 +1504,16 @@ function grabLeaves(r){
   }
   for (const l of r.plan || []) if (l.claim === r) l.claim = null;
   r.plan = null;   // the fingers stay drawn while the arm pulls back
-  if (got.length){ const a = sndAt(r.x, r.y); sfx('grab', got.length, a.pan, a.vol); }
   if (got.length >= 2) pop(r.x, r.y - 70, '×' + got.length, 'note', 15);
 }
 
 function updRobot(r, dt){
+  // V21: back from the ending, Tinker stands still at the curb a moment, then goes for its first leaf slowly, then faster
+  if (endRt && endRt.ret && r.id === endRt.ri){
+    const m = endRt.ret.spd;
+    if (m <= 0){ r.moving = false; r.anim += dt; r.blinkT -= dt; if (r.blinkT < 0){ r.blink = 0.14; r.blinkT = rand(2, 5); } if (r.blink > 0) r.blink -= dt; return; }
+    dt *= m;
+  }
   r.moving = false; r.anim += dt;
   r.blinkT -= dt; if (r.blinkT < 0){ r.blink = 0.14; r.blinkT = rand(2, 5); } if (r.blink > 0) r.blink -= dt;
   const sp = robotSpeed(r.id);
@@ -1749,7 +1772,7 @@ function deposit(r){
       pop(BIN.x - 8, BIN.y - 74, '+' + n, 'leaf', 19);
       for (let i=0;i<Math.min(n,6);i++) flyTo('leaf', r.x, r.y - 36, BIN.x + rand(-20,20), BIN.y - 46, 0.32 + i*0.05, 26, { ci: pickColor(), sh: Math.random()<.5?1:0, s: 5 });
       bumpBin = 0.25;
-      { const a = sndAt(BIN.x, BIN.y); sfx('dump', n, a.pan, a.vol); if (Math.random() < 0.12) robotSays(r, Math.random() < .6 ? 'happy' : 'chat'); }
+      { if (Math.random() < 0.12) robotSays(r, Math.random() < .6 ? 'happy' : 'chat'); }
     }
   }
   if (r.carryM > 0 && S.metalSlot){
@@ -1794,11 +1817,12 @@ const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this ma
 const CANNED_CASH = 200;     // V17: the hollow's mushroom goal, once the ant hill is going: $ of canned mushrooms sold
 const LOGS_GOAL = 100;       // V17: logs the truck has taken (the third of the goals that bring the lightning)
 const COAL_GOAL = 200;       // V18: coal sold once the charcoal kiln is built: the letter about taking the fire home
+const BOOK_EARNED = 60, BOOK_HELD = 36;   // V21: the old picture book turns up (was $30 / $18)
 const INGOT_GOAL = 2000;     // V18: iron ingots sold from the old works back home, once it's repaired (V20: was 1,000; reaching it brings the final letter)
 const MILESTONES = [
-  // the old picture book turns up under a leaf once you've earned $30 in all (or once you hold $18, if that's sooner;
-  // V16.1, was $20 / $12, so it turns up a little later)
-  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $30', prog: () => Math.max((S.totals.cash || 0)/30, S.cash/18), on: () => { S.story.armed = true; } },
+  // the old picture book turns up under a leaf once you've earned $60 in all (or once you hold $36, if that's sooner;
+  // V21, was $30 / $18 (V16.1: $20 / $12), so it turns up later still)
+  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $' + BOOK_EARNED, prog: () => Math.max((S.totals.cash || 0)/BOOK_EARNED, S.cash/BOOK_HELD), on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
   // V14: the travel money is a live goal: it's reached while you hold $100 and not any more if you spend it, and it only
   // comes out of the cash when the robot climbs into the truck (S.trip.cash, see board()). Until then the robot only
@@ -2073,7 +2097,7 @@ function updResearchBot(r, dt, sp){
       // (the first time research starts, the camera zooms in and follows it to the workshop)
       if (!S.story.cam && !simMode){ S.story.cam = true; startFollow(r); }
       r.timer -= dt;
-      if (!bookRt.held && r.timer < 0.6){ bookRt.held = true; const a = sndAt(r.x, r.y); sfx('grab', 1, a.pan, a.vol); }
+      if (!bookRt.held && r.timer < 0.6){ bookRt.held = true; }
       if (r.timer <= 0) r.st = 'toStudy';
       break;
     case 'toStudy':
@@ -2376,7 +2400,6 @@ function updLabBlower(h, dt){
       flyTo('needle', HIVE.x + rand(10, 52), HIVE.y + rand(-16, 8), q.x, q.y, rand(0.45, 0.8), rand(16, 34), { col: NEEDLE_COL[Math.floor(Math.random()*NEEDLE_COL.length)] });
     }
   }
-  if (Math.random() < dt*0.6){ const a = sndAt(h.x, h.y); sfx('kick', 1, a.pan); }
 }
 // the bees and ants of the show
 function newLabFlyer(){
@@ -2463,7 +2486,6 @@ function labSplash(x, y){
   parts.push({ k:'ring', x, y, r0: 1, r1: 9, life: 0.5, t: 0 });
   for (let k=0;k<6;k++) parts.push({ k:'drop', x: x + rand(-3, 3), y: y - 1, vx: rand(-40, 40), vy: rand(-55, -20), g: 220, life: rand(.3, .5), t: 0 });
   for (let k=0;k<4;k++) parts.push({ k:'speck', x, y: y - 1, vx: rand(-30, 30), vy: rand(-40, -15), g: 160, life: rand(.3, .5), t: 0 });
-  const a = sndAt(x, y); sfx('kick', 2, a.pan);
 }
 // a crashed bee nobody is fetching yet, near enough (helpers go first; the lead researcher only if it has no helpers)
 function labCrashed(r){
@@ -2479,7 +2501,7 @@ function updLabFetch(r, dt, sp){
   if (!b || !hiveLabOn()){ leaveResearch(r); r.st = 'idle'; return; }
   if (b.st === 'down'){
     const side = r.x < b.x ? -1 : 1;
-    if (moveTo(r, b.x + side*13, b.y + 2, sp, dt)){ r.face = -side; r.timer += dt; if (r.timer > 0.45){ b.st = 'carried'; b.rot = 0; r.timer = 0; const a = sndAt(r.x, r.y); sfx('grab', 1, a.pan, a.vol); } }
+    if (moveTo(r, b.x + side*13, b.y + 2, sp, dt)){ r.face = -side; r.timer += dt; if (r.timer > 0.45){ b.st = 'carried'; b.rot = 0; r.timer = 0; } }
   } else if (b.st === 'carried'){
     const D = HIVE_DOOR_BEE(), side = r.x < D.x ? -1 : 1;
     if (moveTo(r, D.x + side*20, D.y + 6, sp*0.8, dt)){
@@ -2519,7 +2541,6 @@ function updBeeFail(dt){
         f.hits++; f.wet = Math.min(1, f.wet + 0.25); f.z -= rand(6, 10); f.wob = 0.45;
         const bx = f.x, by = f.y - f.z;
         for (let k=0;k<6;k++) parts.push({ k:'drop', x: bx + rand(-2, 2), y: by - 3, vx: rand(-45, 45), vy: rand(-55, -10), g: 220, life: rand(.25, .45), t: 0 });
-        { const a = sndAt(bx, f.y); sfx('kick', 1, a.pan); }
         if (f.hits >= 5){ f.st = 'fall'; f.vz = -12; f.vx = -10; f.spin = 12; pop(f.x, f.y - f.z - 16, '!?', 'note', 18); }
       }
     }
@@ -2667,7 +2688,6 @@ function updBranchFalls(dt){
       const P = fireBranchPos(f.i);
       for (let q=0;q<10;q++) parts.push({ k:'spark', x: P.x + rand(-12, 12), y: P.y - 2, vx: rand(-50, 50), vy: rand(-70, -20), g: 160, life: rand(.3, .7), t: 0 });
       parts.push({ k:'dust', x: P.x, y: P.y, vx: 0, vy: -6, g: 0, life: 1, t: 0, r: 7, gray: true });
-      const a = sndAt(P.x, P.y); sfx('dump', 1, a.pan, a.vol*0.5);
     }
   }
 }
@@ -2820,7 +2840,6 @@ function updFireDo(r, dt, sp){
       f.st = 'ouch'; f.t = 0; f.held = false; fireRt.taken.delete(f.i); r.ouch = 3; fireRt.hands = r.id;
       pop(r.x, r.y - 80, Math.random() < 0.5 ? 'ouch!' : 'hot hot hot!', 'note', 17); robotSays(r, 'hmm', true);
       for (let k=0;k<8;k++) parts.push({ k:'spark', x: p.x + rand(-6, 6), y: p.y - 6, vx: rand(-40, 40), vy: rand(-60, -20), g: 140, life: rand(.3, .6), t: 0 });
-      const a = sndAt(p.x, p.y); sfx('kick', 3, a.pan);
     } }
     else if (f.st === 'ouch'){ r.lean = 0; if (f.t > 2.6){ fireRt.grabT = S.t + rand(14, 24); backToFire(r); } }
     return;
@@ -2880,7 +2899,7 @@ function updFireDo(r, dt, sp){
     }
     else if (f.st === 'take'){ r.lean = 0.12*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.3 && !f.held){ f.held = true; if (f.src.tub && S.binMetal > 0) S.binMetal--; } if (f.t > 0.6){ f.st = 'carry'; f.t = 0; r.lean = 0; } }
     else if (f.st === 'carry'){ const side = r.x < P.x ? -1 : 1; if (moveTo(r, P.x + side*15, P.y + 3, sp*0.85, dt)){ r.face = -side; f.st = 'put'; f.t = 0; } }
-    else if (f.st === 'put'){ r.lean = 0.16*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.4 && f.held){ f.held = false; if (S.fire.camp < FIRE_CAMP.length) fireRt.campUnlit = slot; const a = sndAt(P.x, P.y); sfx('dump', 1, a.pan, a.vol*0.6); } if (f.t > 0.7){ fireRt.logT = S.t + rand(8, 14); backToFire(r); } }
+    else if (f.st === 'put'){ r.lean = 0.16*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.4 && f.held){ f.held = false; if (S.fire.camp < FIRE_CAMP.length) fireRt.campUnlit = slot; } if (f.t > 0.7){ fireRt.logT = S.t + rand(8, 14); backToFire(r); } }
     return;
   }
   if (f.kind === 'lead'){
@@ -2947,7 +2966,6 @@ function updFireHelper(h, dt){
         parts.push({ k:'air', x: tip.x, y: tip.y, vx: (dx/d*Math.cos(j) - dy/d*Math.sin(j))*v, vy: (dx/d*Math.sin(j) + dy/d*Math.cos(j))*v, g: 0, life: Math.min(0.6, d/v), t: 0, curl: rand(-1, 1), len: rand(7, 11) });
         if (h.fm === 'stoke' && Math.random() < 0.4) parts.push({ k:'spark', x: FIRE_BASE.x + rand(-14, 14), y: FIRE_BASE.y - rand(4, 16), vx: rand(-30, 30), vy: rand(-80, -40), g: 100, life: rand(.4, .8), t: 0 });
       }
-      if (Math.random() < dt*0.6){ const a = sndAt(h.x, h.y); sfx('kick', 1, a.pan); }
     }
     return;
   }
@@ -3651,7 +3669,7 @@ function updHop(o, dt){
   o.hz = 0; o.hop = null; o.moving = false;
   if (h.dir === 'in'){
     o.st = 'ride'; o.face = -1;
-    if (truck.riders.every(q => q.st === 'ride')){ pop(truck.x + 34, RIDE.y - 70, 'All aboard!', 'note', 17); sparkle(o.x, RIDE.y - 30); if (S.trip && S.trip.bee && !guest.on) beeAboard(); }
+    if (truck.riders.every(q => q.st === 'ride')){ if (!(S.trip && S.trip.to === 'ending')) pop(truck.x + 34, RIDE.y - 70, 'All aboard!', 'note', 17); sparkle(o.x, RIDE.y - 30); if (S.trip && S.trip.bee && !guest.on) beeAboard(); }   // (V21: the ride to the ending goes quietly)
   } else {
     o.st = 'idle'; truck.riders = truck.riders.filter(q => q !== o); sparkle(o.x, o.y - 20);
     // V18: home with the flame from the hollow: up to the old works with it (the camera goes along)
@@ -3787,7 +3805,11 @@ function arriveScene(A){
 // Neither one carries anything, so they never visit the bin.
 let HB = [];
 const BIN_MOUTH = { x: BIN.x + 18, y: BIN.y - 84 };   // where blowers aim: just above the bin, where leaves can still land
-const SHAKE_COOLDOWN = 15;                           // seconds before a shaker can shake the same tree or bush again (hidden)
+// V21: each shaker has its own cooldown per tree and bush (SHAKE_OWN_CD), plus a short shared one after any shaker has
+// shaken it (SHAKE_COOLDOWN), so two shakers get noticeably more out of the same trees than one (was one shared 15 s).
+// Deadheading a flower keeps the old shared 15 s (SNIP_COOLDOWN). All hidden.
+const SHAKE_COOLDOWN = 5, SHAKE_OWN_CD = 15, SNIP_COOLDOWN = 15;
+const ownCD = (h, o) => !!(h.own && h.own[o.type + o.i] > S.t);   // this shaker shook it too recently
 const shakeCD = { tree: TREES.map(() => 0), bush: BUSHES.map(() => 0), flower: [] };
 const bushShake = BUSHES.map(() => 0);
 function newHelper(kind, idx){
@@ -3945,7 +3967,7 @@ function shakeTarget(h){
   const sp = helperSpeed(h);
   let best = null, bs = -1;
   for (const o of shakeables()){
-    if (shakeCD[o.type][o.i] > 0) continue;
+    if (shakeCD[o.type][o.i] > 0 || ownCD(h, o)) continue;
     if (HB.some(q => q !== h && q.target && q.target.type === o.type && q.target.i === o.i)) continue;
     const d = Math.hypot(o.x - h.x, o.y - h.y), worth = o.type === 'tree' ? treeYieldMul(TREES[o.i]) : BUSH_YIELD, sc = worth/(d/sp + 2);
     if (sc > bs){ bs = sc; best = o; }
@@ -4007,7 +4029,6 @@ function finishDry(h){
     const T = DRY_TRAY(h.dryI | 0);
     flyTo('bag', T.x, T.y - 4, BIN.x + 14 + rand(-4, 8), BIN.y - 50, 0.5, 30, {});
     pop(T.x, BAGGER.y - 68, '+' + BAG_SIZE + ' dry leaves', 'bag', 14, 0.35);
-    const a = sndAt(BAGGER.x, BAGGER.y); sfx('dump', 3, a.pan, a.vol*0.7);
     if (Math.random() < 0.15) helperSays(h, 'happy');
   }
   unitDone(h, 'bag'); h.st = 'idle';
@@ -4083,7 +4104,6 @@ function shakeDrop(h, o){
   if (!simMode && made){
     const p = bush ? { x: BUSHES[o.i].x, y: BUSHES[o.i].y - 40 } : { x: TREES[o.i].x, y: TREES[o.i].y - TREES[o.i].r*0.4 };
     pop(p.x, p.y, '+' + made, 'leaf', 15);
-    const a = sndAt(p.x, p.y); sfx('kick', bush ? 5 : 9, a.pan);
     if (Math.random() < 0.3) helperSays(h, 'happy');
   }
   return made;
@@ -4102,7 +4122,7 @@ function updHelper(h, dt){
     case 'idle': helperDecide(h); break;
     case 'go': {
       const res = h.task === 'research';
-      if (h.kind === 'shaker' && !res && h.target && (shakeCD[h.target.type][h.target.i] > 0 || (h.target.type === 'flower' && FLOWERS[h.target.i].full))){ h.target = null; h.st = 'idle'; break; }
+      if (h.kind === 'shaker' && !res && h.target && (shakeCD[h.target.type][h.target.i] > 0 || (h.target.type !== 'flower' && ownCD(h, h.target)) || (h.target.type === 'flower' && FLOWERS[h.target.i].full))){ h.target = null; h.st = 'idle'; break; }
       if (h.kind === 'blower' && h.task === 'dig' && (h.dig == null || !S.shafts.includes(h.dig))){ h.st = 'idle'; break; }
       if (res && (!researchOpen() || (FIND().atFire && !fireOn()))){ h.st = 'idle'; break; }
       const to = h.kind === 'shaker' && !res ? h.target : { x: h.tx, y: h.ty };
@@ -4115,7 +4135,7 @@ function updHelper(h, dt){
         else if (h.kind === 'blower' && h.task === 'stoke'){ h.st = 'stoke'; h.digT = DIG_STINT; h.face = -1; h.puffT = 0; }
         else if (h.kind === 'blower'){ h.st = 'lap'; h.pi = 1; h.puffT = 0; }
         else if (h.target.type === 'flower'){ h.st = 'snip'; h.timer = SNIP_TIME; h.dropped = false; }
-        else { h.st = 'shake'; h.timer = h.target.type === 'tree' ? 1.7 : 1.2; h.dropped = false; shakeCD[h.target.type][h.target.i] = SHAKE_COOLDOWN; }
+        else { h.st = 'shake'; h.timer = h.target.type === 'tree' ? 1.7 : 1.2; h.dropped = false; shakeCD[h.target.type][h.target.i] = SHAKE_COOLDOWN; (h.own || (h.own = {}))[h.target.type + h.target.i] = S.t + SHAKE_OWN_CD; }
       }
       break;
     }
@@ -4128,7 +4148,7 @@ function updHelper(h, dt){
       const n = blowLeaves(h, dt);
       if (moveTo(h, p.x, p.y, sp*0.85, dt)){ h.pi++; if (h.pi >= h.path.length){ h.st = 'idle'; unitDone(h, 'blow'); } }
       h.face = dx >= 0 ? 1 : -1;
-      if (!simMode){ blowAir(h, dt); if (Math.random() < dt*0.8){ const a = sndAt(h.x, h.y); sfx('kick', n ? 2 : 0, a.pan); } }
+      if (!simMode){ blowAir(h, dt); }
       break;
     }
     case 'shake': {
@@ -4151,7 +4171,6 @@ function updHelper(h, dt){
           parts.push({ k:'air', x: tip.x, y: tip.y, vx: dx/d*v, vy: dy/d*v, g:0, life: rand(.3, .45), t:0, curl: rand(-1, 1), len: rand(6, 10) });
           if (Math.random() < 0.3) parts.push({ k:'spark', x: PLANT.x + rand(-40, 40), y: PLANT.y - 10 - rand(0, 8), vx: rand(-30, 30), vy: rand(-70, -30), g: 140, life: rand(.3, .5), t:0 });
         }
-        if (Math.random() < dt*0.6){ const a = sndAt(h.x, h.y); sfx('kick', 1, a.pan); }
       }
       if (h.digT <= 0){ h.st = 'idle'; unitDone(h, 'stoke'); }
       break;
@@ -4170,7 +4189,6 @@ function updHelper(h, dt){
           if (Math.random() < 0.35) parts.push({ k:'dust', x: hole.x + rand(-10, 10), y: hole.y - 2, vx: rand(-6, 6), vy: rand(-22, -10), g:0, life: rand(.7,1.2), t:0, r: rand(3,6) });
           if (Math.random() < 0.05){ const cart = { x: SPOTS[sp].x + 30, y: SPOTS[sp].y - 18 }; flyTo('metal', hole.x, hole.y - 4, cart.x + rand(-4, 4), cart.y, 0.55, 26, {}); }
         }
-        if (Math.random() < dt*0.6){ const a = sndAt(h.x, h.y); sfx('kick', 1, a.pan); }
       }
       if (h.digT <= 0){ h.st = 'idle'; unitDone(h, 'dig'); }
       break;
@@ -4181,13 +4199,12 @@ function updHelper(h, dt){
       if (!h.dropped && h.timer <= SNIP_TIME*0.45){
         h.dropped = true;
         if (!f.full){
-          f.full = true; f.t = 0; f.bob = 0.5; shakeCD.flower[h.target.i] = SHAKE_COOLDOWN;
+          f.full = true; f.t = 0; f.bob = 0.5; shakeCD.flower[h.target.i] = SNIP_COOLDOWN;
           S.totals.snips = (S.totals.snips || 0) + 1;
           if (!simMode){
             const hy = f.y - flowerHead(f);
             for (let k=0;k<5;k++) parts.push({ k:'petal', x: f.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-26, 26), vy: rand(-40, -10), g: 90, life: rand(.6, 1), t: 0, col: '#8a7a4a' });
             if (Math.random() < 0.35) pop(f.x, hy - 16, 'snip!', 'note', 13);
-            const a = sndAt(f.x, f.y); sfx('grab', 1, a.pan, a.vol*0.6);
           }
         }
       }
@@ -4206,7 +4223,6 @@ function updHelper(h, dt){
           parts.push({ k:'air', x: tip.x, y: tip.y, vx: dx/d*v, vy: dy/d*v, g:0, life: rand(.25, .4), t:0, curl: rand(-1, 1), len: rand(5, 8), warm: true });
           if (Math.random() < 0.5*(1 - h.workP*0.6)) parts.push({ k:'dust', x: T.x + rand(-8, 8), y: T.y - 3, vx: rand(-4, 4) + wind*0.12, vy: rand(-24, -12), g:0, life: rand(.8, 1.4), t:0, r: rand(2, 3.4), gray: true });   // steam
         }
-        if (Math.random() < dt*0.5){ const a = sndAt(h.x, h.y); sfx('kick', 1, a.pan); }
       }
       if (h.workP >= 1) finishDry(h);
       break;
@@ -4320,6 +4336,8 @@ function updTruck(dt){
             if (q.res === 'honey' && honeyFly){ goalRt.pending += q.v; pops.push({ kind:'sale', toHud: honeyGoal, v: q.v, x: q.x, y: q.y, oy: 0, tx, ty, text: '+' + cash2(q.v), res: q.res, icon: q.icon, size: 19, t: -n*SALE_STEP, life: SALE_HOLD + SALE_FLY*1.4 }); }
           });
           T.st = 'pay'; T.timer = (sale.length - 1)*SALE_STEP + SALE_HOLD + SALE_FLY + 0.05; T.payAmt = amt;
+          // V21: the money is yours as soon as the sale is made, so you can spend it while the numbers fly
+          S.cash += amt; S.totals.cash += amt;
         }
       } else { pop(BIN.x, BIN.y - 104, DRY_BENCH ? 'can’t accept wet leaves, dry them first!' : 'nothing to take today', 'note', 16); T.st = 'leave'; T.v = 10; }
       // the clock for the next pickup starts now, so a long payout doesn't push the next truck back
@@ -4327,11 +4345,11 @@ function updTruck(dt){
       if (T.st === 'leave') sfx('truckOut', sndAt(PARK + 30, LANE).pan);
     }
   } else if (T.st === 'pay'){
-    // the numbers are flying into the truck; once they're all in, the total pops up and the money is yours
+    // the numbers are flying into the truck; once they're all in, the total pops up (V21: the money was already added when
+    // the sale was made; this is only the show)
     T.timer -= dt; S.truckT -= dt; puffExhaust(T, dt, 0.25);
     if (T.timer <= 0){
       const amt = T.payAmt || 0, px = T.x + 26, py = LANE - 92;
-      S.cash += amt; S.totals.cash += amt;
       sfx('coins', amt);
       pop(px, py, '+' + cash2(amt), 'cash', 26);
       sparkle(px, py + 16);
@@ -6583,7 +6601,7 @@ function drawPlant(){
   c.save(); c.translate(PLANT.x, PLANT.y);
   if (!S.plant.built){ drawPlot(c, 150, 46, 'smelting plant', plantRt.shownT); c.restore(); return; }
   const grow = clamp((S.t - plantRt.builtT)/1.5, 0, 1); if (grow < 1) c.scale(1, ease(grow));
-  const busy = [0, 1, 2].map(i => { const ri = STN.smelt[i]; return ri != null && R[ri] && R[ri].st === 'smelt'; });
+  const busy = [0, 1, 2].map(i => { if (i >= SMELT_N) return !!stoker(); const ri = STN.smelt[i]; return ri != null && R[ri] && R[ri].st === 'smelt'; });   // (V21: door 3 is the bellows')
   const any = busy.some(b => b), t = S.t;
   // ground shadow and a stone apron
   c.fillStyle = 'rgba(30,22,10,.32)'; ell(c, 6, 3, 104, 12); c.fill();
@@ -6633,7 +6651,7 @@ function drawPlant(){
     const a = -2.3 + (any ? 2.6 + Math.sin(t*7 + ph)*0.25 : 0.6);
     c.strokeStyle = '#a8361d'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(gx, -36); c.lineTo(gx + Math.cos(a)*3.8, -36 + Math.sin(a)*3.8); c.stroke();
   }
-  // three furnace doors, glowing hotter where a robot is working
+  // three furnace doors, glowing hotter where a robot is working (V21: two for robots, the right one for the bellows)
   for (let i=0;i<3;i++){
     const dx = (i - 1)*40, on = busy[i], fl = on ? (stoker() ? 0.92 : 0.75) + (stoker() ? 0.08 : 0.25)*Math.sin(t*13 + i*2) : 0.25 + 0.05*Math.sin(t*2 + i);
     c.fillStyle = '#2b2724'; c.beginPath(); c.moveTo(dx - 12, -1); c.lineTo(dx - 12, -18); c.arc(dx, -18, 12, Math.PI, 0); c.lineTo(dx + 12, -1); c.closePath(); c.fill();
@@ -8005,8 +8023,13 @@ function drawMarkers(){
   if (researchOpen() && !S.story.opened && !bookRt.held && S.t >= bookRt.landT) groups.book = true;
   S.letters.forEach((l, i) => { if (!l.read) groups['letter' + i] = true; });
   if (cardOpen) groups[cardOpen.obj] = false;
+  // V21: no arrows while the story camera rides out with the truck or the ending's homecoming plays, and none over a
+  // robot or helper that's on its way somewhere in the truck
+  if ((camFollow && camFollow.truck) || (endRt && (endRt.waitHop || endRt.ret))) return;
+  const away = o => ['hopIn', 'ride', 'hopOut', 'gone'].includes(o.st);
   for (const k in groups){
     if (!groups[k]) continue;
+    if (k.startsWith('robot')){ const r = R[+k.slice(5)]; if (r && away(r)) continue; }
     const p = objPos(k); if (!p) continue;
     const s = w2s(p.x, p.y), ts = textScale();
     const y = s.y - 8 + Math.sin(S.t*3 + p.x)*2.5;
@@ -8123,7 +8146,6 @@ function wade(o, moving, half, dt, big){
       // in it goes: a burst of spray and a ring
       for (let k=0;k<(big ? 16 : 10);k++){ const a = rand(-Math.PI, 0), v = rand(30, 70)*(big || 1); parts.push({ k:'drop', x: o.x + rand(-half, half), y: o.y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*1.3 - 20, g: 260, life: rand(0.35, 0.6), t: 0 }); }
       RAIN.ripples.push({ p, x: o.x, y: o.y + 1, t: 0, life: 1.1, r1: 18*(big || 1), w: 1 });
-      if (!simMode){ const a = sndAt(o.x, o.y); sfx('grab', 1, a.pan, a.vol*0.35); }
     }
     o._wk = (o._wk || 0) - dt;
     if (o._wk <= 0){
@@ -8322,6 +8344,22 @@ function drawGlows(){
   c.globalCompositeOperation = 'source-over';
 }
 
+// V21: one tree, crown and trunk, drawn where it stands in depth (see draw). Its crown fades while something behind the
+// tree (higher up the yard than the foot of its trunk) would be hidden under it
+function drawTreeAt(i, onTrunk){
+  const c = ctx, t = TREES[i], cc = canopyCvs[i], base = t.y + cc.base;
+  const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
+  // under the crown: within reach of the crown's middle, and behind the trunk's foot
+  const hid = (x, y, top) => y < base - 1 && Math.hypot(x - t.x, y - top - t.y) < t.r*0.92;
+  let under = R.some(r => r.st !== 'ride' && r.st !== 'gone' && hid(r.x, r.y, 30)) || HB.some(h => !onTrunk(h) && h.st !== 'gone' && h.st !== 'ride' && hid(h.x, h.y, 24)) || S.miners.some(m => hid(SPOTS[m].x, SPOTS[m].y, 30));
+  if (!under && saleVisible()){ const sp = salePos(); under = sp.y < base && Math.hypot(sp.x - t.x, sp.y - 40 - t.y) < t.r*0.95; }
+  // buildings standing behind a crown fade it too
+  if (!under && plantShown() && PLANT.y < base){ const px = clamp(t.x, PLANT.x - 100, PLANT.x + 100), py = clamp(t.y, PLANT.y - 150, PLANT.y); under = Math.hypot(px - t.x, py - t.y) < t.r*0.8; }
+  if (!under && S.hive.built && HIVE.y < base){ const hx = clamp(t.x, HIVE.x - 22, HIVE.x + 22), hy = clamp(t.y, HIVE.y - hiveTopZ() - 20, HIVE.y - 14); under = Math.hypot(hx - t.x, hy - t.y) < t.r*0.85; }
+  treeAlpha[i] = lerp(treeAlpha[i], under ? 0.42 : 0.96, 0.06);
+  c.save(); c.translate(t.x, base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(canopyImg(i, DPR*cam.z, i === FIRE_TI && S.fire.struck ? charCanopy() : null), -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
+}
+
 function draw(){
   const c = ctx;
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -8368,9 +8406,18 @@ function draw(){
   for (const l of S.letters) list.push({ y: l.y, f: () => drawGroundLetter(l) });
   if (driver && driver.y < LANE - 26) list.push({ y: driver.y, f: () => drawRobot(driver) });
   BUSHES.forEach((b, i) => list.push({ y: b.y, f: () => drawBushObj(i) }));
-  // a shaker hugging a trunk is drawn after the tree crowns, so it stays in front of the trunk
+  // a shaker hugging a trunk is drawn just after its tree, so it stays in front of the trunk (V21: in depth with
+  // everything else; the one shaking the burning tree goes in front of the flames)
   const onTrunk = h => h.kind === 'shaker' && ((h.st === 'shake' && h.target && h.target.type === 'tree') || (h.st === 'fire' && h.fireShake));
-  for (const h of HB) if (!onTrunk(h) && h.st !== 'ride' && h.st !== 'gone') list.push({ y: h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
+  const trunkY = i => { const cc = canopyCvs[i]; return TREES[i].y + (cc ? cc.base : 0); };
+  for (const h of HB) if (h.st !== 'ride' && h.st !== 'gone'){
+    const ti = onTrunk(h) ? (h.st === 'fire' ? FIRE_TI : h.target.i) : -1;
+    list.push({ y: ti >= 0 ? Math.max(h.y, trunkY(ti) + (h.st === 'fire' ? 0.2 : 0.1)) : h.y, f: () => h.kind === 'blower' ? drawBlower(h) : drawShaker(h) });
+  }
+  // V21: the trees take their place in depth at the foot of their trunks: a robot in front of a trunk is drawn over the
+  // whole tree (crown and all), one behind it is hidden by it, and the crown only fades for things that really are behind
+  TREES.forEach((t, i) => { const cc = canopyCvs[i]; if (!cc || t.x + t.r < V.x0 || t.x - t.r > V.x1 || t.y + t.r*1.3 < V.y0 || t.y - t.r > V.y1) return; list.push({ y: t.y + cc.base, f: () => drawTreeAt(i, onTrunk) }); });
+  if (FIRE_STORY && canopyCvs[FIRE_TI]) list.push({ y: trunkY(FIRE_TI) + 0.15, f: drawTreeFire });   // the flames, just in front of their tree
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
   if (LOT.antsOnGround && !ART.drawAnt) drawBees(V);   // V14: the hollow's ants walk on the ground, under the tree crowns (V15: drawn in depth above)
@@ -8378,21 +8425,6 @@ function draw(){
   if (driver && driver.y >= LANE - 26) drawRobot(driver);   // the driver on the road side of the truck
   for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
   drawParts();
-  TREES.forEach((t, i) => {
-    const cc = canopyCvs[i]; if (!cc) return;
-    if (t.x + t.r < V.x0 || t.x - t.r > V.x1 || t.y + t.r*1.3 < V.y0 || t.y - t.r > V.y1) return;
-    const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
-    // canopies fade when a robot or miner is underneath, so nothing gets lost under a tree
-    let under = R.some(r => Math.hypot(r.x - t.x, r.y - 30 - t.y) < t.r*0.92) || HB.some(h => !onTrunk(h) && h.st !== 'gone' && Math.hypot(h.x - t.x, h.y - 24 - t.y) < t.r*0.92) || S.miners.some(m => Math.hypot(SPOTS[m].x - t.x, SPOTS[m].y - 30 - t.y) < t.r*0.92);
-    if (!under && saleVisible()){ const sp = salePos(); under = Math.hypot(sp.x - t.x, sp.y - 40 - t.y) < t.r*0.95; }
-    // the hive stands in front of the little corner tree, so that crown fades when it overlaps the tower
-    if (!under && plantShown()){ const px = clamp(t.x, PLANT.x - 100, PLANT.x + 100), py = clamp(t.y, PLANT.y - 150, PLANT.y); under = Math.hypot(px - t.x, py - t.y) < t.r*0.8; }
-    if (!under && S.hive.built){ const hx = clamp(t.x, HIVE.x - 22, HIVE.x + 22), hy = clamp(t.y, HIVE.y - hiveTopZ() - 20, HIVE.y - 14); under = Math.hypot(hx - t.x, hy - t.y) < t.r*0.85; }
-    treeAlpha[i] = lerp(treeAlpha[i], under ? 0.42 : 0.96, 0.06);
-    c.save(); c.translate(t.x, t.y + cc.base); c.rotate(sway); c.translate(0, -cc.base); c.globalAlpha = treeAlpha[i]; c.drawImage(canopyImg(i, DPR*cam.z, i === FIRE_TI && S.fire.struck ? charCanopy() : null), -cc.ox, -cc.oy, cc.w, cc.h); c.restore();
-  });
-  for (const h of HB) if (onTrunk(h) && !h.fireShake) drawShaker(h);
-  if (FIRE_STORY){ drawTreeFire(); for (const h of HB) if (onTrunk(h) && h.fireShake) drawShaker(h); }   // V17 (V17.1: a shaker shaking the burning tree in front of the flames)
   if (!LOT.antsOnGround) drawBees(V);
   if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -8465,6 +8497,8 @@ $('hCash').addEventListener('pointerdown', e => {
   cheat.n++; cheat.last = now;
   if (cheat.n >= 3 && now - cheat.first <= 2000){ cheat.n = 0; toggleTestPanel(); }
 });
+$('speedTag').addEventListener('pointerdown', e => e.stopPropagation());
+$('speedTag').addEventListener('click', () => setSpeed(1));   // V21: the speed tag under the HUD goes back to normal speed
 const TEST_AMOUNTS = [10, 100, 500, 1000, 10000, 100000];
 function testCash(add){
   S.cash += add; S.peak = Math.max(S.peak || 0, S.cash); cashBumpT = 0.25;
@@ -8522,6 +8556,52 @@ function endingHome(){
   endRt.waitHop = true;
   lotFade(true, '', true); setTimeout(() => lotFade(false), 60);
 }
+// V21: home again. Tinker hops off and stands still at the curb while the camera closes in on its head; then it slowly
+// goes for a leaf and picks it up, speeds up and picks up a few more as the camera widens back out, and only then
+// "Great work!" shows. For this it gathers leaves whatever its task list says (kept in S.flags.endKeep, put back on
+// Continue, also after a reload).
+const END_PAUSE = 2.2, END_SLOW = 0.22, END_MORE = 5;
+function startEndReturn(r){
+  const c = S.robots[r.id];
+  if (c && !S.flags.endKeep) S.flags.endKeep = { prio: JSON.parse(JSON.stringify(c.prio)), off: c.off.slice() };
+  if (c){ const all = c.prio.flat().concat(c.off).filter(t => t !== 'leaves'); c.prio = [['leaves']]; c.off = all; }
+  release(r); r.st = 'idle'; r.plan = null; r.target = null;
+  // a few leaves to come home to: the first one a short walk up from the curb, more further up the yard
+  const ls = [], put = (dx, dy) => { for (let k = 0; k < 14; k++){ const x = r.x + dx + rand(-12, 12)*(k ? 1 : 0.3), y = r.y + dy + rand(-10, 10)*(k ? 1 : 0.3); if (landingOK(x, y)){ const l = newLeaf(x, y, y, true); l.st = 'ground'; leaves.push(l); ls.push(l); return; } dx += rand(-20, 20); dy -= 6; } };
+  { const d = rv(r.id, 'reach')*0.7 + 46; put(d*0.42, -d*0.9); }   // (far enough that it has to drive to it, whatever its reach)
+  for (let k = 0; k < END_MORE + 2; k++) put(rand(-120, 160), -rand(120, 230));
+  const head = { x: r.x, y: r.y - 46 };
+  endRt.ret = { ph: 'pause', t: 0, spd: 0, ls, first: ls[0], got: 0, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, zc: Math.min(3.4, Math.max(2.4, camTarget(S.land).z*3)), cx: head.x, cy: head.y, k: 0 };
+  r.face = ls[0] && ls[0].x < r.x ? -1 : 1;
+  camFollow = null; camAnim = null; closeCard();
+  save();
+}
+function updEndReturn(dt){
+  const E2 = endRt && endRt.ret; if (!E2) return;
+  const r = R[endRt.ri]; if (!r){ endRt.ret = null; showEndPopup(false); return; }
+  E2.t += dt;
+  const picked = l => l.st !== 'ground' && l.st !== 'fade';
+  if (E2.ph === 'pause'){ if (E2.t > END_PAUSE){ E2.ph = 'slow'; E2.t = 0; E2.spd = END_SLOW; } }
+  else if (E2.ph === 'slow'){ if (!E2.first || picked(E2.first) || E2.t > 14){ E2.ph = 'fast'; E2.t = 0; } }
+  else if (E2.ph === 'fast'){
+    E2.spd = lerp(END_SLOW, 1.15, clamp(E2.t/1.6, 0, 1));
+    E2.got = E2.ls.slice(1).filter(picked).length;
+    if (E2.ph === 'fast' && E2.t > 3.6 && (E2.got >= END_MORE || E2.t > 10)){ E2.ph = 'done'; E2.spd = 1; setTimeout(() => showEndPopup(false), 500); }
+  }
+  // the camera: in close on its head while it waits and walks to the first leaf, then back out to the yard
+  const hx = r.x, hy = r.y - 46 - (r.hz || 0);
+  E2.cx = lerp(E2.cx, hx, 1 - Math.pow(0.02, dt)); E2.cy = lerp(E2.cy, hy, 1 - Math.pow(0.02, dt));
+  const zIn = E2.ph === 'pause' ? ease(clamp(E2.t/1.4, 0, 1)) : E2.ph === 'slow' ? 1 : E2.ph === 'fast' ? 1 - ease(clamp(E2.t/3.6, 0, 1)) : 0;
+  const F = E2.from, z = lerp(F.z, E2.zc, zIn), fc = { x: (W/2 - F.ox)/F.z, y: (H/2 - F.oy)/F.z };
+  const x = lerp(fc.x, E2.cx, zIn), y = lerp(fc.y, E2.cy, zIn);
+  cam.z = z; cam.ox = W/2 - x*z; cam.oy = H/2 - y*z;
+  if (E2.ph === 'done' && E2.t > 0) endRt.ret = null;   // (stays at the yard's view; the popup is on its way)
+}
+function endRestoreTasks(){
+  const k = S.flags.endKeep, i = S.flags.endBot | 0, c = S.robots[i];
+  if (k && c){ c.prio = k.prio; c.off = k.off; tasksFix(c, 'robot'); taskListChanged('robot', i); }
+  delete S.flags.endKeep;
+}
 // "Great work!": Continue and you're back in the yard (no more milestones; the yard goes on as before)
 function showEndPopup(preview){
   let el = $('endPop');
@@ -8531,7 +8611,7 @@ function showEndPopup(preview){
   sfx('chime', 'sale');
   $('epGo').onclick = () => {
     el.classList.remove('on'); setTimeout(() => { el.hidden = true; }, 500);
-    if (!preview){ S.flags.ending = 3; S.flags.endPop = 0; endRt = null; save(); }
+    if (!preview){ S.flags.ending = 3; S.flags.endPop = 0; endRt = null; endRestoreTasks(); save(); }   // (V21: and Tinker's own task list back)
   };
   setTimeout(() => { const b = $('epGo'); if (b) b.focus(); }, 300);
 }
@@ -8914,7 +8994,11 @@ function toggleTestPanel(force){
     el = document.createElement('div'); el.id = 'testPanel'; el.hidden = true;
     el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div><div class="tpm">' +
       TEST_AMOUNTS.map(a => '<button data-t="cash:' + a + '">+' + (a >= 1000 ? (a/1000).toLocaleString('en-US') + 'k' : a) + '</button>').join('') +
-      '</div><button class="tpn" data-t="next"></button>' +
+      '</div><div class="tps"><div class="tpsh"><b>Speed</b><span class="tpsv"></span></div>' +
+      '<input type="range" min="0" max="4" step="0.005" aria-label="Game speed">' +
+      '<div class="tpsr"><input type="number" min="' + SPEED_MIN + '" max="' + SPEED_MAX + '" step="0.1" aria-label="Game speed, times normal"><span>×</span>' +
+      SPEED_PRESETS.map(v => '<button data-t="speed:' + v + '">' + (v >= 1000 ? v/1000 + 'k' : v) + '×</button>').join('') + '</div></div>' +
+      '<button class="tpn" data-t="next"></button>' +
       '<div class="tpj"><select aria-label="Jump to a story point">' + JUMPS.map(J => '<option value="' + J.id + '">' + J.label + '</option>').join('') + '</select>' +
       '<button data-t="jump">Jump to this step</button></div><div class="tpw" hidden></div>';
     el.addEventListener('pointerdown', e => e.stopPropagation());
@@ -8923,6 +9007,7 @@ function toggleTestPanel(force){
       const t = b.dataset.t;
       if (t === 'close') toggleTestPanel(false);
       else if (t.startsWith('cash:')) testCash(+t.slice(5));
+      else if (t.startsWith('speed:')) setSpeed(+t.slice(6));
       else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
       else if (t === 'jump'){
         // V14.1: jumping starts a new game; outside ?fresh that wipes your saves, so it asks once
@@ -8933,13 +9018,38 @@ function toggleTestPanel(force){
         else { jumpArm = id; w.hidden = false; w.textContent = 'This wipes every yard and starts a new game at that point. Tap again to go.'; b.textContent = 'Yes, jump'; }
       }
     });
+    // V21: the speed slider is logarithmic (1× to 10,000×) and snaps to round numbers; the box takes any value (1.1, 1.25…)
+    const rng = el.querySelector('.tps input[type=range]'), num = el.querySelector('.tps input[type=number]');
+    rng.addEventListener('input', () => setSpeed(niceSpeed(Math.pow(10, +rng.value))));
+    num.addEventListener('change', () => setSpeed(+num.value));
+    num.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') num.blur(); });
     el.querySelector('.tpj select').addEventListener('change', () => { jumpArm = null; el.querySelector('.tpw').hidden = true; el.querySelector('[data-t="jump"]').textContent = 'Jump to this step'; });
     document.body.appendChild(el);
   }
   el.hidden = force != null ? !force : !el.hidden;
   testSig = ''; updTestPanel();
 }
+const SPEED_PRESETS = [1, 1.5, 2, 10, 100, 1000, 10000];
+// round a slider speed to something readable: 1.1, 1.2 … 9.9, 10, 11 … 100, 110 … 10,000
+const niceSpeed = v => { const d = Math.pow(10, Math.max(0, Math.floor(Math.log10(v)) - 1)); return v < 10 ? Math.round(v*10)/10 : Math.round(v/d)*d; };
+const speedTxt = v => (v >= 100 ? Math.round(v).toLocaleString('en-US') : +v.toFixed(v < 10 ? 2 : 1)) + '×';
+let speedSig = '';
+function updSpeedUi(force){
+  const el = $('testPanel');
+  const b = $('speedTag');
+  const on = TIME_SCALE !== 1, lag = TIME_SCALE > 4 && speedReal < TIME_SCALE*0.8;
+  if (b){ b.hidden = !on; if (on){ const t = '⏩ ' + speedTxt(TIME_SCALE) + (lag ? ' (~' + speedTxt(speedReal) + ')' : ''); if (b.textContent !== t) b.textContent = t; } }
+  if (!el || el.hidden) return;
+  const sig = TIME_SCALE + '|' + (lag ? Math.round(speedReal) : 0);
+  if (!force && sig === speedSig) return; speedSig = sig;
+  el.querySelector('.tpsv').textContent = speedTxt(TIME_SCALE) + (lag ? ' · running at ~' + speedTxt(speedReal) : '');
+  const rng = el.querySelector('.tps input[type=range]'), num = el.querySelector('.tps input[type=number]');
+  if (document.activeElement !== rng) rng.value = Math.log10(Math.max(1, TIME_SCALE));
+  if (document.activeElement !== num) num.value = TIME_SCALE;
+  for (const q of el.querySelectorAll('[data-t^="speed:"]')) q.classList.toggle('on', +q.dataset.t.slice(6) === TIME_SCALE);
+}
 function updTestPanel(){
+  updSpeedUi();
   const el = $('testPanel'); if (!el || el.hidden) return;
   const top = Math.round($('hud').getBoundingClientRect().bottom + 10) + 'px'; if (el.style.top !== top) el.style.top = top;   // stays under the cash and goal pill
   const n = nextStep(), sig = n ? n.label : '-';
@@ -9145,15 +9255,24 @@ const TRACK_VAL = {
 function robotRow(ri, k, kind){
   kind = kind || 'robot';
   const T = TRACKS[k], L = cfgsOf(kind)[ri].lv[k], cap = trackCap(k), max = trackMax(k), maxed = L >= max, locked = !maxed && L >= cap;
-  const a = TRACK_VAL[k](T.vals[L]), b = maxed || locked ? a : TRACK_VAL[k](T.vals[L + 1]);
-  let val = fromTo(a[0], b[0], a[1], maxed || locked), btn = '', sig = '';
+  // V21: a locked tier that can be unlocked already shows what its first level gives and costs (with a lock), next to
+  // the separate Unlock price, and says what the new tier is about
+  const tid0 = locked ? nextUnlock(k) : null, peek = !!tid0;
+  const a = TRACK_VAL[k](T.vals[L]), b = maxed || (locked && !peek) ? a : TRACK_VAL[k](T.vals[L + 1]);
+  let val = fromTo(a[0], b[0], a[1], maxed || (locked && !peek)), btn = '', sig = '', lockx = '';
   if (k === 'carry' && S.metalSlot){ const m0 = 2 + Math.floor(L/2), m1 = maxed || locked ? m0 : 2 + Math.floor((L + 1)/2); val += xt((m1 !== m0 ? m0 + arrow + '<b>' + m1 + '</b>' : '<b>' + m0 + '</b>') + ic('ore'), 'Metal it carries'); }
   // smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
   if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Load & pack × Operate machinery)'); sig += smeltSkill(ri).toFixed(2); }
   if (k === 'snip') val = L ? 'Deadheads spent flowers' : 'Deadhead spent flowers: they bloom again sooner, so more nectar for the bees';   // V13.7
   if (k === 'dry' && !L) val = 'Learn to dry wet leaves at the drying bench';   // V15
   if (maxed){ btn = stamp('max'); sig += 'max'; }
-  else if (locked){ btn = nextUnlock(k) ? '' : '<span class="lk-ic" title="More levels unlock later">' + ic('lock') + '</span>'; sig += 'lock' + L; }
+  else if (locked && peek){
+    const c = botCost(kind, ri, k), t = TECH[tid0];
+    btn = c ? '<button class="buy locked" aria-disabled="true" title="' + attr('Unlock ' + t.name + ' first, then this level costs ' + cash$(c.cost)) + '" aria-label="' + attr(T.label + ', locked: unlock ' + t.name + ' first') + '">' + ic('lock', 'lk') + ic('coin', 'cn') + '<span>' + pr(c.cost) + '</span></button>' : '';
+    lockx = '<span class="lockx">' + t.desc + '</span>';
+    sig += 'peek' + L + tid0 + (c ? c.cost : '');
+  }
+  else if (locked){ btn = '<span class="lk-ic" title="More levels unlock later">' + ic('lock') + '</span>'; sig += 'lock' + L; }
   else {
     const c = botCost(kind, ri, k);
     btn = coinBtn('rup:' + k, c.cost, { label: T.label, sticker: c.disc ? '−' + Math.round((1 - discFor(k))*100) + '%' : '', tip: c.disc ? 'Another robot already has this level, so it’s cheaper (full price ' + cash$(c.full) + ')' : '' });
@@ -9175,7 +9294,7 @@ function robotRow(ri, k, kind){
     unl = '<button class="unlock" data-act="tech:' + tid + '" data-cost="' + t.cost + '" aria-disabled="' + !a2 + '" style="--p:' + pfill(t.cost) + '" title="' + t.name + ': ' + g.n + ' more levels, for every robot">' + ic('lock') + '<span>Unlock</span>' + ic('coin', 'cn') + pr(t.cost) + '</button>';
     sig += '|u' + tid + a2;
   }
-  return { sig: k + sig + val, html: row({ icon: ic(TRACK_ICON[k]), name: T.label, tip: genNameAt(k, L) + ' · ' + TRACK_TIP[k], pips: nuts(L, trackGroups(k)), val: val + unl, btn }) };
+  return { sig: k + sig + val, html: row({ icon: ic(TRACK_ICON[k]), name: T.label, tip: genNameAt(k, L) + ' · ' + TRACK_TIP[k], pips: nuts(L, trackGroups(k)), val: val + unl + lockx, btn }) };
 }
 // a one-off purchase (a building, a robot, a deal)
 function buyRow(name, val, act, cost, done, icon, tip){
@@ -9190,11 +9309,11 @@ function bagBuildRow(){
 function plantBuildRow(){
   // V17: the hollow's charcoal kiln: logs in, more coal out than the dryer makes
   if (COAL) return buyRow('Charcoal kiln', KILN_LOGS + ic('ore') + arrow + KILN_COAL + ic('ingot') + '<b>' + cash$(ingotPrice()*KILN_COAL) + '</b> ' + pct(ingotPrice()*KILN_COAL/KILN_LOGS, metalPrice()), 'plant', PLANT_COST, '', ic('flame'),
-    'Robots burn ' + KILN_LOGS + ' logs at a time into ' + KILN_COAL + ' coal: more coal per log than the dryer’s stove, and much faster. Three kiln doors, and someone has to haul the coal to the stand by the road');
+    'Robots burn ' + KILN_LOGS + ' logs at a time into ' + KILN_COAL + ' coal: more coal per log than the dryer’s stove, and much faster. Three kilns: two for robots and one for a blower on the bellows, and someone has to haul the coal to the stand by the road');
   if (RUIN) return buyRow('Repair the smelting plant', ORE_PER_INGOT + ic('ore') + arrow + ic('ingot') + '<b>' + cash$(ingotPrice()) + '</b> ' + pct(ingotPrice()/ORE_PER_INGOT, metalPrice()), 'plant', PLANT_COST, '', ic('flame'),
-    'Mend the old works: robots melt ' + ORE_PER_INGOT + ' metal into an iron ingot worth more. Three furnaces that burn coal (the truck brings it free to a stand by the road), and someone has to haul the ingots to the road');   // V18
+    'Mend the old works: robots melt ' + ORE_PER_INGOT + ' metal into an iron ingot worth more. Three furnaces that burn coal, two for robots and one for a blower on the bellows (the truck brings the coal free to a stand by the road), and someone has to haul the ingots to the road');   // V18
   return buyRow('Smelting plant', ORE_PER_INGOT + ic('ore') + arrow + ic('ingot') + '<b>' + cash$(ingotPrice()) + '</b> ' + pct(ingotPrice()/ORE_PER_INGOT, metalPrice()), 'plant', PLANT_COST, '', ic('flame'),
-    'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth more. Three furnaces, and someone has to haul the ingots to the road');
+    'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth more. Three furnaces (two for robots, one for a blower on the bellows), and someone has to haul the ingots to the road');
 }
 const metalSlotRow = () => buyRow('Metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
   'A metal tub beside the bin, so the truck buys metal too. Then build miners on the rocks (' + cash$(MINER_COST) + ' each, a robot works each one)');
@@ -9256,6 +9375,47 @@ function navTitle(k, i, name){
     h += '</div>';
   }
   return h;
+}
+// V21: put a robot (or a blower or shaker, where the work needs one) to work from an object's card: research finds and
+// work stations have a picker like the one by a robot's name. Choosing one puts that task alone on a new top row of its
+// list, the rest stays below (to share a row with another task, use the Tasks tab). [[kind, task], ...]
+let assignOpen = false;
+function assignOpts(k, i){
+  const o = [];
+  if (k === 'book' && researchOpen()){ o.push(['robot', 'research']); if (FIND().blower) o.push(['blower', 'research']); if (FIND().shaker) o.push(['shaker', 'research']); }
+  else if (k === 'bagger' && S.bag.built){ if (DRY_BENCH) o.push(['blower', 'bag'], ['robot', 'fuel']); else o.push(['robot', 'bag']); }
+  else if (k === 'hive' && S.hive.built && !hiveGrounded()) o.push(['robot', 'jar'], ['robot', 'wrap'], ['shaker', 'snip']);
+  else if (k === 'plant' && S.plant.built) o.push(['robot', 'smelt'], ['robot', 'haul'], ['robot', 'refuel'], ['blower', 'stoke']);
+  else if (k === 'spot' && S.miners.includes(i)){ o.push(['robot', 'mine']); if (S.shafts.includes(i)) o.push(['blower', 'dig']); }
+  return o.filter(([kind, t]) => KIND_TASKS[kind].includes(t) && assignWho(kind, t).length);
+}
+// who could take it: everyone of that kind who's here and can do it (the list order is build order, like the name picker)
+const assignWho = (kind, t) => botNav().filter(q => q.kind === kind && taskOpen(t, cfgsOf(kind)[q.i]));
+function assignTitle(name, opts){
+  let h = name + '<span class="asg"><button class="asgb' + (assignOpen ? ' on' : '') + '" data-act="apick" aria-haspopup="listbox" aria-expanded="' + assignOpen + '" title="Put a robot to work here">' + ic('robot') + '<span>Assign</span>' +
+    '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3.5,-1.5 L0,2 L3.5,-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>';
+  if (assignOpen){
+    h += '<div class="pick apk" role="listbox">';
+    for (const [kind, t] of opts){
+      const kinds = new Set(opts.map(q => q[0])).size > 1;
+      h += '<div class="pk">' + ic(t) + TASKS[t].name + (kinds ? ' <small>· ' + kind + 's</small>' : '') + '</div>';
+      for (const q of assignWho(kind, t)){
+        const c = cfgsOf(kind)[q.i], on = taskTop(c, t) && c.prio[0].length === 1;
+        h += '<button role="option" aria-selected="' + on + '" class="po' + (on ? ' on' : '') + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(on ? q.name + ' already has this first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' + q.name + (on ? '<span class="ok">' + ic('tick') + '</span>' : '') + '</button>';
+      }
+    }
+    h += '</div>';
+  }
+  return h;
+}
+function assignTo(kind, i, t){
+  const c = cfgsOf(kind)[i]; if (!c || !taskOpen(t, c)) return;
+  putTop(c, t);
+  if (kind === 'robot' && t === 'mine' && cardOpen && cardOpen.kind === 'spot'){ const sp = cardOpen.i; if (S.robots[i].miner !== sp){ if (S.robots[i].miner != null) S.robots[i].miner = null; assign(i, sp); } }
+  if (kind === 'robot') S.flags.taskHint = true;
+  taskListChanged(kind, i);
+  const nm = kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
+  cardNote = nm + ': ' + TASKS[t].name + ' first' + (t === 'research' || cfgsOf(kind)[i].prio.length < 2 ? '' : ', the rest below it') + '.';
 }
 function navGo(kind, i){
   pickOpen = false;
@@ -9583,7 +9743,7 @@ function cardModel(){
       rows.push(upRow('smeltSpeed')); rows.push(upRow('slag'));
       rows.push(upRow('ingotGrade', COAL ? xt(cash$(ingotPrice()*KILN_COAL*(1 + val('slag'))/KILN_LOGS) + '/' + ic('ore'), 'Per log, burnt to coal (sold as logs: ' + cash$(metalPrice()) + ')') : xt(cash$(ingotPrice()*(1 + val('slag'))/ORE_PER_INGOT) + '/' + ic('ore'), 'Per chunk of metal, smelted')));
       rows.push(upRow('hopper'));
-      rows2.push(crewRow('smelt', 'Smelters', 'smelt', ri => smeltSkill(ri).toFixed(1) + '×'));
+      rows2.push(crewRow('smelt', 'Smelters <small class="cap">' + SMELT_N + ' robots at a time</small>', 'smelt', ri => smeltSkill(ri).toFixed(1) + '×'));   // V21: two robot doors
       rows2.push(crewRow('haul', 'Haulers', 'haul', ri => ingotCarry(ri) + '<small>/trip</small>'));
       if (PLANT_COAL){
         // V18: the coal: the truck fills the stand by the road for free, a robot carries it up to the bunker when it runs low
@@ -9705,11 +9865,12 @@ function cardModel(){
       if (!S.metalSlot){
         // the metal slot can be bought right here as well as on the bin
         if (metalSlotShown()) rows.push(metalSlotRow());
-        else rows.push({ sig:'locked', html: row({ icon: ic('lock'), cls:'soon', name:'Needs a metal slot', val:'on the bin, once you’ve held ' + cash$(METAL_SLOT_COST*0.25) }) });
+        else rows.push({ sig:'locked', html: row({ icon: ic('vein'), cls:'soon', name:'This looks promising for later' }) });   // V21 (was "Needs a metal slot")
       }
       else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a robot', 'miner', MINER_COST, '', ic('vein'), 'A robot with Mine metal on its list works it'));
     }
   }
+  { const ao = assignOpts(k, cardOpen.i); if (ao.length) title = assignTitle(title, ao); else assignOpen = false; }   // V21
   return { title, tag, rows, rows2, top, foot, live, tabs, head };
 }
 // V12: the picture book's two pages, as the card shows them: an alphabet book with everything but E and C torn out
@@ -9906,7 +10067,7 @@ function liveHTML(kind){
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, RACK_CAP, 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
-    + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), 3, 'Furnaces working');   // (V18: and the coal)
+    + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
   if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), 'Bags') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
   if (kind === 'truck'){
     let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
@@ -9999,7 +10160,7 @@ function openCard(kind, i){
   cardOpen = { kind, i, obj };
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
   if (kind === 'blower' || kind === 'shaker'){ const h = HB.find(q => q.kind === kind && q.idx === i); cardOpen.ax = h.x; cardOpen.ay = h.y - 46; }
-  resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false;
+  resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false; assignOpen = false;
   card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
   if (kind !== 'sound') S.flags.opened = true;
   // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
@@ -10011,7 +10172,7 @@ function openCard(kind, i){
   sfx('paper');
   renderCard(true);
 }
-function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; }
+function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; assignOpen = false; }
 
 card.addEventListener('pointerdown', e => e.stopPropagation());
 card.addEventListener('click', e => {
@@ -10026,6 +10187,8 @@ card.addEventListener('click', e => {
     const q = L[((at < 0 ? 0 : at) + +act.slice(4) + L.length) % L.length]; navGo(q.kind, q.i); return;
   }
   if (act.startsWith('go:')){ const [, kind, n] = act.split(':'); navGo(kind, +n); return; }
+  if (act === 'apick'){ assignOpen = !assignOpen; sfx('paper'); renderCard(true); return; }   // V21
+  if (act.startsWith('asg:')){ const [, kind, n, t] = act.split(':'); assignTo(kind, +n, t); assignOpen = false; sfx('paper'); save(); renderCard(true); return; }
   if (act.startsWith('snd:')){ const k = act.slice(4); if (k === 'on1' || k === 'on0') SND.set('on', k === 'on1'); else SND.toggle(k); renderCard(true); return; }
   if (b.dataset.lock === 'bee'){ cardNote = 'Get your first bee before the hive upgrades.'; renderCard(true); }
   if (b.getAttribute('aria-disabled') === 'true'){ sfx('deny'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
@@ -10101,7 +10264,6 @@ function tap(sx, sy){
   parts.push({ k:'ring', x: w.x, y: w.y, r0: 4, r1: 46, life: 0.5, t: 0 });
   let kicked = 0;
   for (const l of leaves){ if (l.st !== 'ground') continue; const dx = l.x - w.x, dy = l.y - w.y, d = Math.hypot(dx, dy); if (d < 60 && d > 0.1){ kicked++; const f = (1 - d/60)*160; l.kx += dx/d*f; l.ky += dy/d*f*0.7; } }
-  { const a = sndAt(w.x, w.y); sfx('kick', kicked, a.pan); }
 }
 const ptrs = new Map(); let drag = null, pinch = null;
 cv.addEventListener('pointerdown', e => {
@@ -10215,7 +10377,7 @@ function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = sayH(
 // a location copy (public/locationN/, see index.html) keeps its own save, and so does every lot (V13)
 const KEY = lotKey(LOT_ID);
 let lotWasNew = false;   // this lot had no save yet (a fresh game, or the first time a robot rides here)
-function save(){ if (simMode || FRESH || travelling) return; try { localStorage.setItem(KEY, JSON.stringify(truck.st === 'pay' ? Object.assign({}, S, { cash: S.cash + (truck.payAmt || 0) }) : S)); } catch(e){} }
+function save(){ if (simMode || FRESH || travelling) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }   // (V21: a payout's money is already in S.cash)
 function merge(base, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && base[k] && typeof base[k] === 'object') merge(base[k], src[k]); else if (k in base) base[k] = src[k]; } return base; }
 function load(data){
   let src = data && data.S;
@@ -10398,9 +10560,15 @@ function frame(ts){
   const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
   // V20: while the ending plays, the yard stands still and ending.js draws everything
   if (EN && EN.on){ EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
-  if (endRt && endRt.waitHop){ const r = R[endRt.ri]; if (!r || (r.st !== 'ride' && r.st !== 'hopOut' && truck.st !== 'arrive')){ endRt.waitHop = false; setTimeout(() => showEndPopup(false), 1100); } }
-  const n = Math.ceil(TIME_SCALE);
-  if (!travelling) for (let i=0;i<n;i++) step(dt*TIME_SCALE/n);   // (V13: everything stops while the page moves to another lot)
+  if (endRt && endRt.waitHop){ const r = R[endRt.ri]; if (!r || (r.st !== 'ride' && r.st !== 'hopOut' && truck.st !== 'arrive')){ endRt.waitHop = false; if (r) startEndReturn(r); else setTimeout(() => showEndPopup(false), 1100); } }
+  // V21: fast-forward in steps of at most 1/20 s of game time (like the sim), and never more than ~30 ms of work a frame,
+  // so even 10,000× stays usable (it then runs as fast as the computer allows; speedReal says how fast that is)
+  if (!travelling){   // (V13: everything stops while the page moves to another lot)
+    const want = dt*TIME_SCALE, n = TIME_SCALE <= 1 ? 1 : Math.ceil(want/0.05 - 1e-9), h = want/n, t0 = performance.now();
+    let done = 0;
+    for (let i=0;i<n;i++){ step(h); done += h; if (n > 1 && performance.now() - t0 > 30) break; }
+    if (dt > 0) speedReal += (done/dt - speedReal)*Math.min(1, dt*3);
+  }
   if (camAnim){
     camAnim.t += dt;
     const e = ease(clamp(camAnim.t/camAnim.dur, 0, 1));
@@ -10410,12 +10578,13 @@ function frame(ts){
   }
   panKeys(dt);
   updCamFollow(dt);
+  updEndReturn(dt);   // V21: Tinker's first leaves back home
   updGround();   // V16.1: a new ground is painted a little each frame when the view needs one
   updHud(dt);
   if (SND){ SND.update(dt, wind); if (RAINY && SND.rain) SND.rain(dt, RAIN.k); ambientChatter(dt); }
   if (cardOpen){ renderCard(false); if ((seenT -= dt) <= 0){ seenT = 0.25; markSeen(); } }
   updHints(dt);
-  if (RAINY) updRain(dt*TIME_SCALE);
+  if (RAINY) updRain(dt*Math.min(TIME_SCALE, 4));   // (looks only; V21: capped so fast-forward doesn't flood the screen)
   draw();
   requestAnimationFrame(frame);
 }
@@ -10442,7 +10611,7 @@ function simTasks(){
   if (s0 && fireLab && !S.shakers.some(c => taskTop(c, 'research'))) putTop(s0, 'research');
   else if (s0 && !fireLab && taskTop(s0, 'research')) putOff(s0, 'research');
   const n = S.robots.length, want = { bag: S.bag.built && !DRY_BENCH ? Math.max(1, Math.round(n*0.3)) : 0, jar: S.hive.built && !hiveGrounded() ? (S.hive.bees >= 12 ? 2 : 1) : 0, fuel: FIRE_STORY && S.bench.fire ? 1 : 0,
-    smelt: S.plant.built ? Math.min(3, Math.max(1, Math.floor(n/3))) : 0, haul: palletShown() ? 1 : 0 };
+    smelt: S.plant.built ? Math.min(SMELT_N, Math.max(1, Math.floor(n/3))) : 0, haul: palletShown() ? 1 : 0 };
   for (const t in want){
     let have = S.robots.filter(c => taskTop(c, t)).length;
     for (let j = n - 1; j >= 0 && have < want[t]; j--){
@@ -10512,6 +10681,7 @@ window.__leafYard = {
   ending: which => previewEnding(which || 'all'),   // V20: 'factory', 'bank', 'storage' or 'all'
   endingState: () => EN && EN.state(),
   endingFF: s => { if (EN) EN.ff(s); return EN && EN.state(); },   // (tests: fast-forward the ending without drawing)
+  endingPeek: (x, y, z, hold) => { if (EN && EN.peek) EN.peek(x, y, z, hold); },   // (V21 tests: hold the ending's camera somewhere)
   next: () => { const st = nextStep(); if (!st) return null; st.run(); return st.label; },   // the test panel's Next step (for tests)
   dev: code => eval(code),   // reads/changes the game's own variables (headless tests only)
   fire: cmd => FIRE_STORY ? (cmd === 'out' ? fireOut() : cmd === 'strike' ? strike() : S.fire) : null,   // V17: for tests
@@ -10544,7 +10714,7 @@ function start(data){
   if (LOT.styles) for (const k in LOT.styles) Object.assign(STYLES[k], LOT.styles[k]);
   if (LOT.taskCols) for (const k in LOT.taskCols) if (TASKS[k]) TASKS[k].col = LOT.taskCols[k];
   // the helpers lot files use (see public/lots/); they only call them once the game is running
-  Object.assign(LH, { ell, rr, TAU, clamp, lerp, ease, rand, mulberry, cellRnd, shade, leafPath, leafBlob, scallop, drawLeaf, chalk, keepMark, drawPlot,
+  Object.assign(LH, { SMELT_N, smeltDoorX, ell, rr, TAU, clamp, lerp, ease, rand, mulberry, cellRnd, shade, leafPath, leafBlob, scallop, drawLeaf, chalk, keepMark, drawPlot,
     LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE, HIVE, TUB, PALLET, PLANT_VENT, HOPPER, RACK, RACK_CAP, mainCtx, reduceMotion,
     drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, puddleTrace, puddleAt, gl, flowerSpr: () => flowerSpr,
     hiveShown, hiveFloors, hiveTopZ, honeyCap, tankCap, tankFull, beeSip, hiveRt, plantRt, STN, stoker, minerWorkers, palletCap, plantShown,

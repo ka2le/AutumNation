@@ -99,6 +99,19 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .navn .nm.on svg{transform:rotate(180deg)}
 .pick{position:absolute;left:62px;top:calc(100% - 4px);z-index:8;min-width:190px;max-height:min(330px,60vh);overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cdb58f transparent;
   background:var(--paper);border:2px solid var(--kraft);border-radius:12px;padding:5px;box-shadow:0 3px 0 var(--kraft-dk),0 12px 26px rgba(40,18,4,.35);font-family:var(--font-ui)}
+/* V21: the Assign picker on research finds and work stations */
+.asg{display:inline-flex;align-items:center;margin-left:2px}
+.asgb{display:inline-flex;align-items:center;gap:4px;font:700 13px/1 var(--font-ui);color:var(--ink);padding:4px 7px 4px 5px;border-radius:9px;border:1.5px solid #cdb58f;background:var(--paper-3);box-shadow:0 1.5px 0 #cdb58f;cursor:pointer}
+.asgb .ic{width:15px;height:15px}
+.asgb svg:not(.ic){width:11px;height:11px;opacity:.6;transition:transform .15s}
+.asgb.on svg:not(.ic){transform:rotate(180deg)}
+.asgb.on,.asgb:hover{background:#fbe9c9}
+.asgb:active{transform:translateY(1px);box-shadow:0 .5px 0 #cdb58f}
+.pick.apk{left:auto;right:40px;min-width:210px}
+.pick.apk .pk{display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-size:12px}
+.pick.apk .pk .ic{width:14px;height:14px}
+.pick .po .ok{margin-left:auto;display:grid;place-items:center}
+.pick .po .ok .ic{width:14px;height:14px}
 .pick .pk{font:700 10.5px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);padding:7px 7px 4px}
 .pick .po{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;border-radius:8px;padding:3px 8px 3px 4px;font:700 14px/1.1 var(--font-ui);color:var(--ink);cursor:pointer;text-align:left}
 .pick .po img{width:30px;height:30px;border-radius:50%;flex:none;background:radial-gradient(circle at 50% 70%,#8fa04e,#6c7a37 70%,#5d6a2e);box-shadow:0 0 0 1.5px #c9a24a}
@@ -223,6 +236,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .none{font-size:12px;font-weight:600;color:var(--ink-faint);display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
 .none.pad{padding:8px 0}
 .row.crewrow .v{color:var(--ink)}
+.row .v .lockx{display:block;flex-basis:100%;font-size:11.5px;font-weight:600;line-height:1.25;color:var(--ink-soft);margin-top:2px;white-space:normal}
+.buy.locked{cursor:default;filter:grayscale(.55);opacity:.72}
+.buy.locked .lk{width:12px;height:12px;margin-right:1px}
+.row .n small.cap{font-size:11px;font-weight:600;color:var(--ink-faint);margin-left:4px}
 .huddle{display:inline-flex;padding-left:6px}
 .huddle img{width:28px;height:28px;border-radius:50%;margin-left:-8px;background:radial-gradient(circle at 50% 70%,#8fa04e,#6c7a37 75%);box-shadow:0 0 0 2px var(--paper);display:block}
 .each{font-size:12px;font-weight:800;align-self:center;margin-left:6px}
@@ -386,6 +403,18 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #testPanel .tpj button{flex:1 1 100%;padding:6px 9px;font-size:13px;background:#f3dcc0}
 #testPanel .tpw{margin-top:5px;font-size:12px;line-height:1.3;color:#8a3a1c}
 #testPanel .tpw[hidden]{display:none}
+/* V21: game speed in the test panel, and a little tag under the HUD while it isn't 1× */
+#testPanel .tps{margin-top:7px;padding:6px 7px 7px;border:1.5px dashed var(--stitch);border-radius:10px}
+#testPanel .tpsh{display:flex;flex-wrap:wrap;gap:0 8px;justify-content:space-between;align-items:baseline;font-size:13px}
+#testPanel .tpsv{margin-left:auto;text-align:right;font-size:12px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+#testPanel .tps input[type=range]{width:100%;margin:4px 0 3px;accent-color:var(--accent)}
+#testPanel .tpsr{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+#testPanel .tpsr input[type=number]{width:74px;font:inherit;font-size:13px;font-weight:700;padding:3px 5px;border:1.5px solid var(--kraft);border-radius:8px;background:#fbf3e2;color:var(--ink)}
+#testPanel .tpsr span{font-weight:700;font-size:13px;margin-right:2px}
+#testPanel .tpsr button{padding:2px 5px;font-size:11.5px;border-radius:7px}
+#testPanel .tpsr button.on{background:var(--accent);border-color:var(--accent-dk);color:#fff}
+#speedTag{pointer-events:auto;align-self:flex-start;font:inherit;font-weight:800;font-size:12.5px;color:#fff;background:var(--accent);border:1.5px solid var(--accent-dk);border-radius:999px;padding:1px 10px;cursor:pointer;box-shadow:0 2px 0 var(--accent-dk);font-variant-numeric:tabular-nums}
+#speedTag[hidden]{display:none}
 
 /* V20: the ending. The HUD and cards step aside while it plays; the final letter is golden; "Great work!" at the end */
 body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, body.ending #fsBtn, body.ending #recenter, body.ending #testPanel{display:none !important}
