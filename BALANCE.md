@@ -490,6 +490,10 @@ of tiny steps that ends in very expensive ones, each nudging one stat that may n
 - **V21.1:** the first unlock on each basic skill costs twice what it did: Rubber treads $6, Wicker hamper $7, Quick servos $8
   (were $3 / 3.50 / 4); levels and later tiers unchanged, helpers unchanged. Balance player (3 runs): those unlocks are
   bought at ~7 / 13 / 15 min (were ~5 / 6 / 8), the bagging table earlier (~7 min), Meadow ~42, metal ~36, robot 10 ~51.
+- **V22.4:** the ingot pallet has its own size track on the plant card, 16 → 100 ingots in four steps for $400 / 550 / 750 /
+  1,000 (was half the metal tub), so the metal tub's later half is cheaper ($220 / 280 / 340 / 400, was 320 / 700 / 1,600 /
+  3,500; the hollow's log crib keeps the old prices because it still sizes the coal stand). Not re-measured with the
+  balance player; with a strong smelting crew the 16-ingot pallet fills between pickups.
 
 ## 8. Pending balance work
 

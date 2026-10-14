@@ -704,7 +704,52 @@ function fireTaskWait(t, cfg){
   const k = cfg && kindOfCfg(cfg), me = k === 'robot' ? R.find(r => S.robots[r.id] === cfg) : HB.find(h => helperCfg(h) === cfg);
   return me && (k === 'robot' ? labOnTask(me) : me.st === 'fire') ? w : '';
 }
-const taskWaitText = (t, cfg) => t === 'travel' ? crewWaitFor(cfg) : labWaitFor(t, cfg) || fireTaskWait(t, cfg);
+// V22.1: a robot or helper with nothing to do says what each task in its Do list is waiting for, on the task chips
+// ("Bag - waiting for leaves") and in its live line ("Waiting for leaves"). Only while it's idle, so the chips of a
+// busy robot don't fill up with reasons for the tasks below the one it's doing.
+function idleOf(cfg){
+  if (!cfg) return null;
+  const k = kindOfCfg(cfg);
+  if (k === 'robot'){ const r = R.find(q => S.robots[q.id] === cfg); return r && !r.task && (r.st === 'wander' || r.st === 'rest' || r.st === 'idle') ? r : null; }
+  const h = HB.find(q => q.kind === k && helperCfg(q) === cfg); return h && !h.task && (h.st === 'wander' || h.st === 'rest') ? h : null;
+}
+const cashWait = () => S.trip && !tripCashOK() ? '$' + Math.round(S.trip.cash).toLocaleString('en-US') : '';
+function needFor(t, who, kind){
+  if (kind === 'robot'){
+    const r = who;
+    switch (t){
+      case 'leaves': return !hasLeaves() ? 'leaves' : binRoom() <= 0 && r.carryL >= leafCap(r.id) ? 'room in the bin' : '';
+      case 'mine': return !S.metalSlot ? '' : !S.miners.length ? 'a miner' : mineSlotFor(r) == null ? 'a free spot at a mine' : metalRoom() <= 0 ? 'room in the tub' : '';
+      case 'bag': return !S.bag.built ? '' : bagRoom() <= 0 ? 'room for bags' : bagLeavesFor(r) < BAG_SIZE ? 'leaves' : stationFree('bag', r) < 0 ? 'a free spot at the bagging table' : '';
+      case 'jar': return !S.hive.built ? '' : crateFull() ? 'room in the crate' : plainJars() < 1 ? 'honey' : stationFree('jar', r) < 0 ? 'a free spot at the crate' : '';
+      case 'wrap': return !S.hive.packing ? '' : wrapJars(r) < 1 ? 'jars to wrap' : stationFree('jar', r) < 0 ? 'a free spot at the crate' : '';
+      case 'smelt': return !S.plant.built ? '' : PLANT_COAL && S.plant.coal <= 0 ? 'coal' : !rackHasRoom(r) ? 'room on the rack' : stationFree('smelt', r) < 0 ? 'a free furnace' : 'ore';
+      case 'haul': return !palletShown() ? '' : palletRoom() <= 0 ? 'room on the pallet' : 'ingots';
+      case 'fuel': return FIRE_STORY && S.bench.fire ? (fuelRoom(r) <= 0 ? 'room in the stove' : 'logs') : '';
+      case 'travel': return cashWait();
+    }
+    return '';
+  }
+  const h = who;
+  switch (t){
+    case 'blow': return 'leaves';
+    case 'shake': return tooManyLeaves() ? 'the leaves to be picked up' : 'the trees to refill';
+    case 'snip': return S.hive.built ? 'spent flowers' : '';
+    case 'dig': return S.shafts.length ? 'a robot mining a shaft' : '';
+    case 'stoke': return !S.plant.built ? '' : HB.some(q => q !== h && q.kind === 'blower' && (q.st === 'stoke' || (q.st === 'go' && q.task === 'stoke'))) ? 'its turn' : 'someone smelting';
+    case 'bag': return !(DRY_BENCH && S.bag.built && hv(h, 'dry') > 0) ? '' : dryRoom() <= 0 ? 'room for bags' : dryLeaves() < BAG_SIZE ? 'leaves' : 'a free spot at the bagging table';
+    case 'travel': return cashWait();
+  }
+  return '';
+}
+const idleWait = (t, cfg) => { const who = idleOf(cfg); return who && taskOpen(t, cfg) ? needFor(t, who, kindOfCfg(cfg)) : ''; };
+// the first thing an idle robot or helper is waiting for, going down its Do list ('' if nothing says)
+function idleWaitFirst(cfg){
+  if (!idleOf(cfg)) return '';
+  for (const row of cfg.prio) for (const t of row){ const w = idleWait(t, cfg); if (w) return w; }
+  return '';
+}
+const taskWaitText = (t, cfg) => (t === 'travel' ? crewWaitFor(cfg) : labWaitFor(t, cfg) || fireTaskWait(t, cfg)) || idleWait(t, cfg);
 const taskShort = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research' : 'Researching') : TASKS[t].short) + (w ? ' - waiting for ' + w : ''); };
 const taskName = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research the fire' : 'Researching') : TASKS[t].name) + (w ? ' - waiting for ' + w : ''); };
 function tasksFix(cfg, kind){
@@ -9402,8 +9447,19 @@ const JUMP_KITS = {
   hollowKiln: { base: 'hollowCoal', plant: true, robots: [{}, {}, {}, { speed:3, carry:3, pick:3, pack:2 }], cash: 800 },
   // V19.3: 200 coal sold: the smoky letter lies by the sign, not read yet
   hollowLetter: { base: 'hollowKiln', coalSold: true, cash: 900 },
+  // V22.4: back home from the hollow (every first-yard jump from here on builds on it), set up for testing the smelting:
+  // eight robots. Tinker as it came home; two smelters trained up for the furnace (Operate machinery and Load & pack
+  // maxed) with Smelt as their only task; a hauler (fast, big basket) that gathers leaves on the side; three miners, two
+  // in the Meadow vein's shaft and one at the cottage vein; a bagger and honey packer that also refuels the furnace.
+  // The second blower works the bellows, fully trained.
+  homeBack: { tech: ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper', 'diamond', 'horseshoe', 'jig', 'precision', 'turbine', 'forge'],
+            robots: [{}, { speed:8, carry:8, pick:4, drill:7, pack:11 }, { speed:8, carry:8, pick:4, drill:7, pack:11 },
+              { speed:11, carry:11, pick:6, grab:4, reach:4 },
+              { speed:8, carry:8, pick:4, drill:7, magnet:6 }, { speed:8, carry:8, pick:4, drill:7, magnet:6 }, { speed:7, carry:7, pick:4, drill:5, magnet:3 },
+              { speed:8, carry:8, pick:6, grab:3, reach:3, pack:8 }],
+            blowers: [{}, { speed:8, blow:4, stoke:4 }], land: 1, metalSlot: true, miners: [0, 1], shafts: [1], smeltCrew: true },
   // V18: back home with the fire, set down by the old works: Research at the top of Tinker's list
-  homeWorks: { ember: true, cash: 300 },
+  homeWorks: { base: 'homeBack', ember: true, cash: 300 },
   // V19.3: the old works worked out, not repaired yet: the money for the repair in hand
   homeRuin: { base: 'homeWorks', works: 'known', cash: PLANT_COST + 100 },
   // V18: the old works worked out and repaired, the coal bunker full
@@ -9439,7 +9495,7 @@ const JUMPS = [
   { id: 'kiln',    label: 'Rainy hollow: kiln built, selling coal',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln' }] },
   { id: 'fireLet', label: 'Rainy hollow: 200 coal sold, the smoky letter', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowLetter' }] },
   { id: 'fireGo',  label: 'Rainy hollow: taking the fire home',         stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln', letter: 'fireHome' }] },
-  { id: 'back',    label: 'First yard: back from the hollow with the fire', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home' }] },
+  { id: 'back',    label: 'First yard: back from the hollow with the fire', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeBack' }] },
   { id: 'works',   label: 'First yard: researching the old works',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeWorks' }] },
   { id: 'ruin',    label: 'First yard: old works researched, ready to repair', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeRuin' }] },
   { id: 'smelt',   label: 'First yard: the old works repaired, smelting', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeSmelt' }] },
@@ -9488,6 +9544,22 @@ function applyKit(name){
   });
   for (const sp of (K.miners || [])) if (S.metalSlot && !S.miners.includes(sp) && SPOTS[sp] && SPOTS[sp].land <= S.land) free({ id: 'miner', arg: sp });
   if (K.plant && !S.plant.built && plantOpen()) free({ id: 'plant' });
+  for (const sp of (K.shafts || [])) if (S.miners.includes(sp) && !S.shafts.includes(sp)) free({ id: 'shaft', arg: sp });   // V22.4
+  // V22.4: the first yard's smelting crew for testing (homeBack): fixed task lists and mines, the bellows blower. Smelt,
+  // Haul and Refuel count as already opened here, so repairing the works later doesn't add them to anyone else's list
+  if (K.smeltCrew && RUIN){
+    const T = S.flags.tOpen || (S.flags.tOpen = {}); for (const t of ['smelt', 'haul', 'refuel']) T[t] = 1;
+    const list = (i, rows) => { const c = S.robots[i]; if (!c) return; c.prio = rows.map(r => r.slice()); c.off = []; tasksFix(c, 'robot'); };
+    list(1, [['smelt']]); list(2, [['smelt']]);              // the smelters: nothing else
+    list(3, [['haul'], ['leaves']]);                         // the hauler, gathering leaves on the side
+    for (const i of [4, 5, 6]) list(i, [['mine'], ['leaves']]);
+    list(7, [['refuel'], ['bag', 'jar'], ['wrap'], ['leaves']]);
+    S.robots.forEach(c => { c.miner = null; });
+    const mine = (i, sp) => { if (S.robots[i] && S.miners.includes(sp)) S.robots[i].miner = sp; };
+    mine(4, 1); mine(5, 1); mine(6, 0); fixSlots();          // two in the Meadow vein's shaft, one at the cottage vein
+    const b = S.blowers[1] || S.blowers[0];
+    if (b){ b.prio = [['stoke'], ['blow']]; b.off = []; tasksFix(b, 'blower'); }
+  }
   // V15: the hollow's beehive story: done (antHill), or the research part of the way in (lab: how far)
   if (HIVE_STORY && (K.antHill || K.lab != null) && !S.flags.antHill){
     if (!S.hive.built){ S.flags.hiveKnown = true; free({ id: 'hive' }); }
@@ -10049,22 +10121,54 @@ function assignOpts(k, i){
 }
 // who could take it: everyone of that kind who's here and can do it (the list order is build order, like the name picker)
 const assignWho = (kind, t) => botNav().filter(q => q.kind === kind && taskOpen(t, cfgsOf(kind)[q.i]));
-function assignTitle(name, opts){
-  let h = name + '<span class="asg"><button class="asgb' + (assignOpen ? ' on' : '') + '" data-act="apick" aria-haspopup="listbox" aria-expanded="' + assignOpen + '" title="Put a robot to work here">' + ic('robot') + '<span>Assign</span>' +
-    '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3.5,-1.5 L0,2 L3.5,-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>';
-  if (assignOpen){
-    h += '<div class="pick apk" role="listbox">';
-    for (const [kind, t] of opts){
-      const kinds = new Set(opts.map(q => q[0])).size > 1;
-      h += '<div class="pk">' + ic(t) + TASKS[t].name + (kinds ? ' <small>· ' + kind + 's</small>' : '') + '</div>';
-      for (const q of assignWho(kind, t)){
-        const c = cfgsOf(kind)[q.i], on = taskTop(c, t) && c.prio[0].length === 1;
-        h += '<button role="option" aria-selected="' + on + '" class="po' + (on ? ' on' : '') + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(on ? q.name + ' already has this first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' + q.name + (on ? '<span class="ok">' + ic('tick') + '</span>' : '') + '</button>';
-      }
+// V22.2: the Assign button sits under the row it fills (Research, Fillers, Smelters, Bellows…), not by the card's title.
+// Each option goes to the row whose sig starts with its key (ASSIGN_ROWS); anything without a row gets one of its own
+// at the end. assignOpen is the key of the row whose picker is open (false when none).
+const ASSIGN_ROWS = {
+  book: { 'robot:research': ['rw'], 'blower:research': ['lb', 'fhblower'], 'shaker:research': ['fhshaker'] },
+  bagger: { 'blower:bag': ['dryc'], 'robot:fuel': ['crewfuel'], 'robot:bag': ['crewbag'] },
+  hive: { 'robot:jar': ['crewjar'], 'robot:wrap': ['crewwrap'], 'shaker:snip': ['dhd'] },
+  plant: { 'robot:smelt': ['crewsmelt'], 'robot:haul': ['crewhaul'], 'robot:refuel': ['crewrefuel'], 'blower:stoke': ['stk'] },
+  spot: { 'robot:mine': ['nw', 'w'], 'blower:dig': ['ex'] },
+};
+function assignPicker(opts){
+  const kinds = new Set(opts.map(q => q[0])).size > 1;
+  let h = '<div class="pick apk inl" role="listbox">';
+  for (const [kind, t] of opts){
+    if (opts.length > 1) h += '<div class="pk">' + ic(t) + TASKS[t].name + (kinds ? ' <small>· ' + kind + 's</small>' : '') + '</div>';
+    for (const q of assignWho(kind, t)){
+      const c = cfgsOf(kind)[q.i], on = taskTop(c, t) && c.prio[0].length === 1;
+      h += '<button role="option" aria-selected="' + on + '" class="po' + (on ? ' on' : '') + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(on ? q.name + ' already has this first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' + q.name + (on ? '<span class="ok">' + ic('tick') + '</span>' : '') + '</button>';
     }
-    h += '</div>';
   }
-  return h;
+  return h + '</div>';
+}
+function assignBtnHTML(key, opts){
+  const open = assignOpen === key, kinds = [...new Set(opts.map(q => q[0]))];
+  return '<div class="asg"><button class="asgb' + (open ? ' on' : '') + '" data-act="apick:' + key + '" aria-haspopup="listbox" aria-expanded="' + open + '" title="Put ' + (kinds.length === 1 && kinds[0] !== 'robot' ? 'a ' + kinds[0] : 'a robot') + ' to work on this">' + ic(kinds.length === 1 ? (kinds[0] === 'blower' ? 'blow' : kinds[0] === 'shaker' ? 'shake' : 'robot') : 'robot') + '<span>Assign</span>' +
+    '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3.5,-1.5 L0,2 L3.5,-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>' + (open ? assignPicker(opts) : '');
+}
+function placeAssign(k, opts, rows, rows2){
+  const map = ASSIGN_ROWS[k] || {}, groups = new Map(), left = [];
+  const all = rows.concat(rows2);
+  for (const o of opts){
+    const pre = map[o[0] + ':' + o[1]] || [];
+    let r = null;
+    for (const pf of pre){ r = all.find(x => x.sig && x.sig.startsWith(pf) && x.html.includes('<div class="btn">')); if (r) break; }
+    if (!r){ left.push(o); continue; }
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(o);
+  }
+  let n = 0;
+  for (const [r, os] of groups){
+    const key = 'r' + (n++) + os.map(o => o.join('-')).join('_'), i = r.html.lastIndexOf('</div><div class="btn">');
+    r.html = r.html.slice(0, i) + assignBtnHTML(key, os) + r.html.slice(i);
+    r.sig += '|asg' + key + (assignOpen === key ? 'O' : '') + (assignOpen === key ? os.map(([kind, t]) => assignWho(kind, t).map(q => q.i + (taskTop(cfgsOf(kind)[q.i], t) ? 't' : '')).join()).join() : '');
+  }
+  if (left.length){
+    const key = 'x' + left.map(o => o.join('-')).join('_');
+    rows.push({ sig: 'asgx' + key + (assignOpen === key ? 'O' : ''), html: row({ icon: ic(left[0][1]), name: left.map(o => TASKS[o[1]].name).join(' · '), val: assignBtnHTML(key, left) }) });
+  }
 }
 function assignTo(kind, i, t){
   const c = cfgsOf(kind)[i]; if (!c || !taskOpen(t, c)) return;
@@ -10153,7 +10257,8 @@ function robotDoing(r){
     case 'hopIn': case 'hopOut': case 'ride': return ['travel', 'Riding the truck'];
   }
   if (!cfg.prio.some(row => row.some(t => taskOpen(t, cfg)))) return ['list', 'Nothing on its list', 1];
-  return ['list', 'Looking for work'];
+  const w = idleWaitFirst(cfg);   // V22.1
+  return w ? ['clock', 'Waiting for ' + w] : ['list', 'Looking for work'];
 }
 // a "don't sell below this line" slider on the bin card
 function keepRow(k, icon, name, now, tip, v){
@@ -10353,6 +10458,14 @@ function cardModel(){
       }
       rows.push(crewRow('jar', 'Fillers', 'jar', ri => smeltSkillPack(ri)));
       if (H.packing) rows.push(crewRow('wrap', 'Wrappers', 'wrap', ri => smeltSkillPack(ri)));
+      if (S.shakers.length){
+        // V22.3: shakers with Garden shears deadhead spent flowers so they bloom again sooner (its Assign sits here)
+        const dh = S.shakers.map((c, i) => taskOn(c, 'snip') && c.lv.snip > 0 ? i : -1).filter(i => i >= 0), learnt = S.shakers.some(c => c.lv.snip > 0);
+        rows.push({ sig:'dhd' + dh.join(',') + learnt + S.shakers.length, html: row({ icon: ic('snip'), name:'Deadheaders', cls:'crewrow',
+          val: dh.length ? dh.map(i => helperStyleOf('shaker', i).name).join(', ')
+            : '<span class="none">' + (learnt ? 'nobody · add <span class="chip mini" style="--tc:' + TASKS.snip.col + '">' + ic('snip') + TASKS.snip.short + '</span> to a shaker' : 'a shaker can learn it (Garden shears, on its card)') + '</span>',
+          tip:'A shaker with Garden shears deadheads spent flowers: they bloom again sooner, so more nectar for the bees' }) });
+      }
       rows2.push({ sig:'hh', html:'<div class="sect">Hive upgrades <span>any order · same price</span></div>' });
       let tiles = '';
       for (const key in HIVE_UP){
@@ -10539,7 +10652,7 @@ function cardModel(){
       else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a robot', 'miner', MINER_COST, '', ic('vein'), 'A robot with Mine metal on its list works it'));
     }
   }
-  { const ao = assignOpts(k, cardOpen.i); if (ao.length) title = assignTitle(title, ao); else assignOpen = false; }   // V21
+  { const ao = assignOpts(k, cardOpen.i); if (ao.length) placeAssign(k, ao, rows, rows2); else assignOpen = false; }   // V21 (V22.2: under its row)
   return { title, tag, rows, rows2, top, foot, live, tabs, head };
 }
 // V12: the picture book's two pages, as the card shows them: an alphabet book with everything but E and C torn out
@@ -10712,6 +10825,7 @@ function liveHTML(kind){
     const w = h.st === 'curb' ? crewWaitFor(helperCfg(h)) : '';
     const trav = { toCurb: 'To the curb', curb: w ? 'Waiting for ' + w : 'Waiting for the truck', hopIn: 'Riding the truck', hopOut: 'Riding the truck', ride: 'Riding the truck' }[h.st];
     if (trav) s = ['travel', trav];
+    else if (idleWaitFirst(helperCfg(h))) s = ['clock', 'Waiting for ' + idleWaitFirst(helperCfg(h))];   // V22.1
     else if (h.kind === 'blower'){
       // (V19: says which bellows and what it's excavating or drying, like the task chips)
       s = h.st === 'stoke' ? ['stoke', TASKS.stoke.short + ' <b class="gain">+' + Math.round(hv(h, 'stoke')*100) + '%</b>'] : h.st === 'dig' ? ['dig', TASKS.dig.short + ' <b class="gain">+' + Math.round(hv(h, 'dig')*100) + '%</b>']
@@ -10873,7 +10987,7 @@ card.addEventListener('click', e => {
     const q = L[((at < 0 ? 0 : at) + +act.slice(4) + L.length) % L.length]; navGo(q.kind, q.i); return;
   }
   if (act.startsWith('go:')){ const [, kind, n] = act.split(':'); navGo(kind, +n); return; }
-  if (act === 'apick'){ assignOpen = !assignOpen; sfx('paper'); renderCard(true); return; }   // V21
+  if (act.startsWith('apick:')){ const key = act.slice(6); assignOpen = assignOpen === key ? false : key; sfx('paper'); renderCard(true); return; }   // V21 (V22.2: one picker per row)
   if (act.startsWith('asg:')){ const [, kind, n, t] = act.split(':'); assignTo(kind, +n, t); assignOpen = false; sfx('paper'); save(); renderCard(true); return; }
   if (act.startsWith('snd:')){ const k = act.slice(4); if (k === 'on1' || k === 'on0') SND.set('on', k === 'on1'); else SND.toggle(k); renderCard(true); return; }
   if (b.dataset.lock === 'bee'){ cardNote = 'Get your first bee before the hive upgrades.'; renderCard(true); }
