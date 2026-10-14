@@ -756,3 +756,14 @@ paper like the cards) says what to do in a few words. All in one block in `game.
   lessons also skip saves that are already past them.
 - **Checks** (headless): every lesson played through by doing each step (buy, unlock, drag, assign, slide, pan, zoom,
   recenter, eye), the forced replays, the old-save check, the prairie and hollow dev starts, no page errors.
+
+### V23.2 (Oct 14): a lesson for the first ride to a new yard
+- **`arrive`** (first in `TUT_ORDER`): the first time a robot rides to another yard (the Wildflower prairie), once the
+  truck has dropped it off: tap the traveller ("Tinker came along. Tap it to see what it kept.") → its skill rows ("All of
+  Tinker’s skills came too, level by level.") → its level nuts ("So did every unlock, for every robot you build here.") →
+  tap the pickup sign ("Truck upgrades come along too.") → its rows ("More pickups and the cleanup deal are kept.") →
+  the bin ("Everything else starts over here: the bin, prices, buildings and cash.") → "Your first yard waits, paused,
+  just as you left it." Taps and buys move it on like the other lessons. `tutTraveller()` = the robot with `cfg.home`.
+- Shown once (it rides along in the hints like every lesson). Old saves: done if a robot has already spent 2 minutes on
+  this yard, or (at home) if another yard has a save (`tutVisited`). The test jumps "Prairie: just arrived" and "Rainy
+  hollow: just arrived" show it (`runJump` clears `tut:arrive` for a just-arrived stop), other jumps don't.

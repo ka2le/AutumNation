@@ -8333,6 +8333,27 @@ function tutAssignSteps(onCard, back, what){
   ];
 }
 const TUTS = {
+  // V23.2: the first time a robot rides to another yard: what came along (its skills, every unlock, the truck upgrades)
+  // and what starts over. Waits until the truck has dropped the traveller off.
+  arrive: {
+    label: 'A new yard: what comes along',
+    when: () => { if (LOT_ID === 'home') return false; const i = tutTraveller(), r = R[i]; return i >= 0 && !!r && !['ride', 'hopIn', 'hopOut', 'gone'].includes(r.st) && truck.st !== 'arrive' && S.t > 2; },
+    past: () => LOT_ID === 'home' ? tutVisited() : S.t > 120,
+    delay: 2.5,
+    steps(){
+      const ri = Math.max(0, tutTraveller()), nm = styleOf(ri).name, onBot = () => tutCardIs('robot', ri), onSign = () => tutCardIs('sign');
+      const upTab = () => { if (cardTab === 'tasks'){ cardTab = 'up'; renderCard(true); } };
+      return [
+        { id: 'bot', world: tutBotAt('robot', ri), text: nm + ' came along. Tap it to see what it kept.', act: true, skip: onBot, done: onBot },
+        { dom: () => tutQA('.row.bot:not(.bothead) .rm').slice(0, 3), text: 'All of ' + nm + '’s skills came too, level by level.', need: onBot, back: 'bot', setup: upTab, done: () => tutDid('rup') },
+        { dom: () => tutQ('.row.bot:not(.bothead) .pips'), text: 'So did every unlock, for every robot you build here.', need: onBot, back: 'bot', setup: upTab, done: () => tutDid('rup') || tutDid('tech') },
+        { id: 'sign', world: tutAtObj('sign'), text: 'Truck upgrades come along too. Tap the pickup sign.', act: true, skip: onSign, done: onSign },
+        { dom: () => tutQA('.cbody .row').slice(0, 2), text: 'More pickups and the cleanup deal are kept.', need: onSign, back: 'sign', done: () => tutDid('buy') },
+        { world: tutAtObj('bin'), text: 'Everything else starts over here: the bin, prices, buildings and cash.' },
+        { free: true, text: 'Your first yard waits, paused, just as you left it.' },
+      ];
+    }
+  },
   robots: {
     label: 'Your second robot',
     when: () => S.robots.length >= 2,
@@ -8551,13 +8572,16 @@ const TUTS = {
     }
   },
 };
+// V23.2: the robot that rode here from another yard (it remembers where it came from), and whether another yard was ever visited
+const tutTraveller = () => S.robots.findIndex((c, i) => c.home != null && !c.away && R[i]);
+const tutVisited = () => { try { return Object.keys(window.LOTS || {}).some(k => !!localStorage.getItem(lotKey(k))); } catch(e){ return false; } };
 // who can take the open trip: the robot it names (or the first one that may go), or the first blower that may
 function tripWho(kind){
   const L = cfgsOf(kind) || [];
   if (kind === 'robot' && S.trip && S.trip.who != null && L[S.trip.who] && !L[S.trip.who].away) return S.trip.who;
   return L.findIndex((c, i) => !c.away && tripFor(c) && (kind !== 'robot' || (R[i] && R[i].st !== 'gone')));
 }
-const TUT_ORDER = ['robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'mine', 'assign', 'research', 'trip', 'keep', 'goal', 'camera', 'follow'];
+const TUT_ORDER = ['arrive', 'robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'mine', 'assign', 'research', 'trip', 'keep', 'goal', 'camera', 'follow'];
 const tutAllDone = () => { const o = {}; for (const id of TUT_ORDER) o['tut:' + id] = o['tut:k:' + id] = 1; return o; };
 // nothing starts (and a running lesson waits, hidden) while the story camera, a trip, the ending or a drag has the screen
 const tutBlocked = () => simMode || travelling || (EN && EN.on) || !!endRt || !!tdrag || !!(camFollow && !camFollow.watch && !camFollow.tut) || !!(labRt && labRt.fail);
@@ -9699,6 +9723,7 @@ function runJump(){
     if (!jumpGo(st.go)){ stop(); lotFade(false); }
     return;
   }
+  if (LOT_ID !== 'home' && !st.kit && !st.story && !st.letter && S.flags.hints) delete S.flags.hints['tut:arrive'];   // (V23.2: a "just arrived" jump shows the arrival lesson)
   stop(); save();
   setTimeout(() => showToast('Test', 'Jumped to: ' + J.label, 5), 300);
 }
