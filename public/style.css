@@ -344,6 +344,46 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tasks.dragging .trow.drop-bottom::after{bottom:-4px}
 .tasks.dragging .toff.drop-off{border-color:var(--accent);background:rgba(255,236,200,.6)}
 
+
+/* V21.2: a calmer, easier-to-read card on bigger screens: bigger text and buttons, a little more room.
+   (Phones keep their own sizes: the media queries below come after this and win.) */
+#card{width:min(360px,calc(100vw - 24px))}
+#card.wide{width:min(740px,calc(100vw - 24px))}
+#card.bots{width:min(460px,calc(100vw - 24px))}
+#card.wide.bots{width:min(920px,calc(100vw - 24px))}
+.row{grid-template-columns:36px minmax(0,1fr) auto;column-gap:12px;padding:11px 0}
+.ri{width:36px;height:36px}
+.ri .ic{width:24px;height:24px}
+.row .n{font-size:16px}
+.row .v{font-size:14.5px;margin-top:2px}
+.xt{font-size:13px}
+.row .v .lockx{font-size:12.5px}
+.live{font-size:14px;min-height:24px}
+.st .ic,.bk .ic,.mt .ic,.slots .ic{width:17px;height:17px}
+.tabs button{font-size:15px;padding:9px 8px 7px}
+.tabs button .ic{width:18px;height:18px}
+.buy{font-size:16px;min-width:84px;padding:8px 13px 7px 9px;gap:5px}
+.buy .cn{width:18px;height:18px}
+.stk{font-size:11px;padding:3px 5px 2px}
+.buy.all{font-size:14px;padding:6px 10px 5px 7px}
+.buy.all .cn,.buy.max .cn{width:15px;height:15px}
+.allt{font-size:11px}
+.unlock{font-size:13px;padding:5px 10px 4px 7px}
+.unlock .ic{width:15px;height:15px}
+.stamp{font-size:12.5px}
+.row.bot{grid-template-columns:36px minmax(0,1fr) 96px 112px;column-gap:10px}
+.row.bot .btn.me{gap:7px}
+.row.bot .btn.all{margin:-11px 0;padding:10px 0}
+.row.bot .btn.all .buy.all{font-size:14.5px;padding:5px 10px 6px 8px;gap:1px 4px}
+/* the green "match all / all +1" and this robot's "match": the word on top, the price under it, so they stay narrow */
+.row.bot .buy.all,.row.bot .buy.max{flex-wrap:wrap;min-width:84px;row-gap:3px}
+.row.bot .buy.all .allt,.row.bot .buy.max .allt{flex-basis:100%;text-align:center;font-size:10px;line-height:1;margin:0;opacity:.9}
+.buy.max{font-size:14.5px;padding:5px 10px 6px 8px}
+.row.bothead{font-size:11px}
+.row.bothead .hm{padding:0 4px 6px}
+.chip{font-size:14px}
+.chip .ic{width:18px;height:18px}
+
 /* phones and short screens: everything a notch smaller; on a narrow screen the card docks at the bottom (placed in game.js) */
 @media (max-width:640px), (max-height:500px){
   #card{padding:10px 11px 6px;border-radius:16px}
@@ -374,7 +414,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .row.vol{grid-template-columns:28px auto 1fr}
 }
 @media (max-width:640px){
-  .row.bot{grid-template-columns:28px minmax(0,1fr) 80px 96px;column-gap:6px}
+  .row.bot{grid-template-columns:28px minmax(0,1fr) 80px 92px;column-gap:6px}
+  .row.bot .btn.all .buy.all,.buy.max{font-size:13px;padding:4px 7px 5px 6px}
+  .row.bot .buy.all,.row.bot .buy.max{min-width:0}
+  .row.bot .buy.all .allt,.row.bot .buy.max .allt{font-size:9px}
+  .row.bot .btn.all{margin:-7px 0;padding:6px 0}
+  .row.bothead{font-size:9.5px}
+  .x.eye{margin-right:2px}
   .cols{grid-template-columns:1fr}
   .col + .col::before{display:none}
   .col + .col > .row:first-child{border-top:1.5px dashed var(--rule)}
@@ -458,3 +504,9 @@ body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, 
 #endPop button:focus-visible{outline:2px solid var(--kraft-dk);outline-offset:3px}
 #endBlock{position:fixed;inset:0;z-index:19;background:transparent;touch-action:none}
 #endBlock[hidden]{display:none}
+/* V21.2: focus and follow (the eye by the close button on robot cards) */
+.x.eye{margin-right:6px}
+.x.eye svg{width:18px;height:18px}
+.x.eye:hover{background:#fbe9c9;color:var(--ink)}
+.x.eye.on{background:linear-gradient(#5f909a,#467079);color:#f2faf7;border-color:#2f555c;box-shadow:0 2px 0 #2f555c}
+.x.eye.on svg circle:last-child{fill:#467079}

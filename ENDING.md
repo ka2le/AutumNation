@@ -16,7 +16,7 @@ scene on its own, so one scene can be worked on later without reading the rest.
 | 2 | The final letter arrives (golden) | first yard | next pickup |
 | 3 | Tinker rides off, the camera follows the truck, cut | first yard | ~10 s |
 | 4 | **Scene 1 — Robot factory** | ending.js | ~45 s |
-| 5 | **Scene 2 — Bank** | ending.js | ~55 s |
+| 5 | **Scene 2 — Bank** | ending.js | ~52 s |
 | 6 | **Scene 3 — Storage** | ending.js | ~14 s |
 | 7 | Back in the yard, Tinker hops off, "Great work!", Continue | first yard | — |
 
@@ -170,7 +170,18 @@ there are no more milestones.
   leaves fly in at the yard; the cash rides along in a pile on the bed.
 - **V21.1 baggers:** three robots on the curb scoop leaves from the heaps into bags and carry them in through the front
   door to the bag piles (`M.piles`, drawn by count); the carriers take them from there. Each bag pours ~60 leaves.
-- **Camera** (V21.1): wide, then close and step by step: a bagger filling a bag outside and carrying it in → a bag poured
+- **V21.2: arrival and order.** The truck carries a load of leaves for the bank (`T.leaves`). A greeter (`sc.greeter`)
+  waits just inside the front door and comes out as the truck pulls up; after Tinker hops off it says "Welcome!", the
+  load jumps off the bed into its sack (`greet`, called by `visit()` after the hop), and it leads the way in (`lead`)
+  to drop the sack on the bag pile; then it stands by the door. The curb baggers are gone, as is the heap just behind
+  the truck's stop. When we step in (`sc.open`), the floor is set for the tour: back pot full and green, front pot
+  nearly empty, the shredder holding its heap (`M.hold`; carriers keep pouring, misses capped so the floor never fills).
+  The shredder has a swivelling copper **spout** on top (`spoutTip`, `M.spout`) that blows a stream of shreds and leaf
+  bits into whichever pot is filling; it only runs while a pot is filling. Pots show their level (clipped by the rim).
+- **Camera** (V21.2): the sack onto the pile → a bag poured into the waiting shredder and one round of the sweeper →
+  the shredder starts, the spout fills the front pot, the chemist mixes and dyes it green (×3 while we watch) → the mill,
+  sheet, cutter and stacks → the runner out to the container → wide. Later steps run at 60% meanwhile (`tempo`).
+  About 52 s in all.
   into the shredder → the pots, mixed and dyed green → a bucket to the mill → the sheet, cutter and stacks → the runner
   out to the container → wide. Later steps' machines run at 60% meanwhile (`tempo`).
 - **Layout:** building x −400…400, back wall −340, front −38, walls 104 high; truck stops at x −150; main door −262,

@@ -570,14 +570,18 @@ function allPlan(k){
   const behind = lv.filter(l => l < target).length;
   return { cost: Math.round(cost*100)/100, full, target, catchUp: target === top, behind };
 }
-// V21: this one robot (or helper) up to the highest level unlocked so far on a track, in one go (each level at its own
-// price, copied levels discounted as usual). Only offered when that's at least two levels.
+// V21.2: "match": this one robot (or helper) up to the level of the best one that has the track (Wheels: every robot,
+// blower and shaker), in one go: every level is one another robot already has, so each is at the copied-level price.
+// Only offered when that's at least two levels (one level is the plain buy button next to it). (Was "max" in V21.1.)
 function maxPlan(kind, i, k){
-  const me = cfgsOf(kind)[i], L = me.lv[k], cap = Math.min(trackCap(k), trackMax(k));
-  if (cap - L < 2) return null;
+  const me = cfgsOf(kind)[i], L = me.lv[k], peers = peersFor(k).filter(c => c !== me);
+  if (!peers.length) return null;
+  const best = Math.max(...peers.map(c => c.lv[k])), top = Math.min(best, trackCap(k), trackMax(k));
+  if (top - L < 2) return null;
   let cost = 0;
-  for (let l = L; l < cap; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx], disc = !NO_DISCOUNT.includes(k) && peersFor(k).some(c => c !== me && c.lv[k] > l); cost += disc ? niceCost(f*discFor(k)) : f; }
-  return { cost: Math.round(cost*100)/100, target: cap, n: cap - L };
+  for (let l = L; l < top; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx]; cost += NO_DISCOUNT.includes(k) ? f : niceCost(f*discFor(k)); }
+  const who = peers.find(c => c.lv[k] >= best);
+  return { cost: Math.round(cost*100)/100, target: top, n: top - L, who };
 }
 // the first locked tier of a track, if it can be unlocked yet (prerequisites met and its price in sight)
 function nextUnlock(k){ for (const g of TRACKS[k].gens){ if (!g.tech) continue; if (!S.tech[g.tech]) return techAvailable(g.tech) ? g.tech : null; } return null; }
@@ -2197,9 +2201,22 @@ function startFollow(r, mode){
   if (simMode) return;
   camAnim = null; closeCard();   // (V13.2: an open card would hide what the story camera is showing)
   // (if the camera is still on the find, it carries on from there and still goes back to where you had it)
-  const prev = camFollow;
+  const prev = camFollow && !camFollow.watch ? camFollow : null;   // (V21.2: a focus-and-follow gives way; the story goes back to this view)
   camFollow = { id: r.id, mode, from: prev ? prev.from : { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
+// V21.2: "Focus and follow" (the eye button on a robot's, blower's or shaker's card): the camera centres on it, zooms in
+// a little and stays on it until anything else moves the camera: a drag, pinch, zoom or key pan, recentering, a resize,
+// buying land, or a story beat taking the camera (those all clear camFollow or replace it).
+function watchTarget(w){
+  if (w.kind === 'robot'){ const c = S.robots[w.i], r = R[w.i]; return r && c && !c.away && r.st !== 'gone' ? r : null; }
+  const c = cfgsOf(w.kind)[w.i], h = HB.find(q => q.kind === w.kind && q.idx === w.i); return h && c && !c.away && h.st !== 'gone' ? h : null;
+}
+function startWatch(kind, i){
+  if (simMode || !watchTarget({ kind, i })) return;
+  camAnim = null; userCam = true; $('recenter').hidden = false;
+  camFollow = { watch: { kind, i }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
+}
+const watching = (kind, i) => !!(camFollow && camFollow.watch && camFollow.watch.kind === kind && camFollow.watch.i === i);
 // V18: the camera rides out with the truck taking the fire home from the hollow (V19.3: on every trip)
 function startTruckCam(){
   if (simMode) return;
@@ -2208,13 +2225,34 @@ function startTruckCam(){
 }
 // V13.2: zoom in on a spot (the dead bee popping out from under a petal), hold a moment, then go back
 function startFindCam(x, y, dur, zmax){
-  if (simMode || camFollow) return;
+  if (simMode || (camFollow && !camFollow.watch)) return;
   camAnim = null; closeCard();
   camFollow = { spot: { x, y }, dur: dur || 4.6, zmax: !!zmax, from: { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
 function updCamFollow(dt){
   const F = camFollow; if (!F) return;
   const back = dur => { camAnim = { from: { z: cam.z, ox: cam.ox, oy: cam.oy }, to: F.from, t: 0, dur }; camFollow = null; camMovedT = performance.now(); };
+  if (F.watch){
+    const r = watchTarget(F.watch);
+    if (!r){ camFollow = null; camMovedT = performance.now(); return; }   // gone (rode off to another lot): leave the view where it is
+    F.t += dt;
+    const fit = camTarget(S.land).z, [, zmax] = zoomLimits(), zIn = Math.min(zmax, Math.max(F.z0, fit*1.6));
+    const k = ease(clamp(F.t/1.1, 0, 1)), z = lerp(F.z0, zIn, k), tx = r.x, ty = r.y - (r.kind ? 22 : 32);
+    F.cx = F.cx == null ? tx : lerp(F.cx, tx, 1 - Math.pow(0.004, dt)); F.cy = F.cy == null ? ty : lerp(F.cy, ty, 1 - Math.pow(0.004, dt));
+    // keep it where an open card doesn't cover it: beside the card on a wide screen, above it on a phone
+    let sx = W/2, sy = H/2;
+    if (cardOpen && !card.hidden){
+      const L = card.offsetLeft, T = card.offsetTop, cw = card.offsetWidth, R2 = W - L - cw;
+      if (W < 640) sy = Math.max(60, T/2);
+      else if (Math.max(L, R2) >= 150) sx = L >= R2 ? L/2 : L + cw + R2/2;
+    }
+    const a = 1 - Math.pow(0.03, dt);
+    F.sx = F.sx == null ? sx : lerp(F.sx, sx, a); F.sy = F.sy == null ? sy : lerp(F.sy, sy, a);
+    const cx = lerp(F.c0.x, F.cx, k), cy = lerp(F.c0.y, F.cy, k), px = lerp(W/2, F.sx, k), py = lerp(H/2, F.sy, k);
+    cam.z = z; cam.ox = px - cx*z; cam.oy = py - cy*z;
+    if (F.t < 1.2) camMovedT = performance.now();
+    return;
+  }
   if (F.spot){
     F.t += dt; if (F.t > (F.dur || 4.6)){ back(1.8); return; }
     const zIn = F.zmax ? zoomLimits()[1] : Math.min(zoomLimits()[1], Math.max(F.from.z*1.9, 1.5)), k = ease(clamp(F.t/1.3, 0, 1)), z = lerp(F.z0, zIn, k);
@@ -5466,7 +5504,7 @@ function buy(o){
     const c = cfgsOf(o.kind)[o.ri], was = c.lv[o.key]; c.lv[o.key] = Math.max(was, o.target);
     if (o.kind !== 'robot' && !was){ if (o.key === 'snip') putBeside(c, 'snip', 'shake'); if (o.key === 'dig') putBeside(c, 'dig', 'blow'); if (o.key === 'stoke') putBeside(c, 'stoke', 'blow'); if (o.key === 'brolly') putBeside(c, 'brolly', 'blow'); if (o.key === 'dry') learnDry(c, o.ri); }
     const r = o.kind === 'robot' ? R[o.ri] : HB.find(q => q.kind === o.kind && q.idx === o.ri);
-    if (r){ pop(r.x, r.y - (o.kind === 'robot' ? 76 : 60), TRACKS[o.key].label + ' ' + o.target + ' (max)', 'note', 16); sparkle(r.x, r.y - 30); }
+    if (r){ pop(r.x, r.y - (o.kind === 'robot' ? 76 : 60), TRACKS[o.key].label + ' ' + o.target + ' (matched)', 'note', 16); sparkle(r.x, r.y - 30); }
   } else if (o.id === 'rup'){
     S.robots[o.ri].lv[o.key]++;
     const r = R[o.ri]; if (r){ pop(r.x, r.y - 76, TRACKS[o.key].label + ' upgraded', 'note', 16); sparkle(r.x, r.y - 30); }
@@ -9306,14 +9344,14 @@ function robotRow(ri, k, kind){
     btn = coinBtn('rup:' + k, c.cost, { label: T.label, sticker: c.disc ? '−' + Math.round((1 - discFor(k))*100) + '%' : '', tip: c.disc ? 'Another robot already has this level, so it’s cheaper (full price ' + cash$(c.full) + ')' : '' });
     sig += L + '' + aff$(c.cost) + c.disc;
     const mp = maxPlan(kind, ri, k);
-    if (mp){ const tip = 'This ' + (kind === 'robot' ? 'robot' : kind) + ' straight to level ' + mp.target + ' (' + mp.n + ' levels, the highest unlocked so far)'; btn += coinBtn('rmax:' + k, mp.cost, { cls: 'max', tip, label: tip, pre: '<b class="allt">max</b>' }); sig += '|m' + mp.target + aff$(mp.cost) + mp.cost; }
+    if (mp){ const tip = 'Match: this ' + (kind === 'robot' ? 'robot' : kind) + ' up to level ' + mp.target + ', like the best one (' + mp.n + ' levels' + (NO_DISCOUNT.includes(k) ? ', full price' : ', copied, so discounted') + ')'; btn += coinBtn('rmax:' + k, mp.cost, { cls: 'max', tip, label: tip, pre: '<b class="allt">match</b>' }); sig += '|m' + mp.target + aff$(mp.cost) + mp.cost; }
   }
   const ap = allPlan(k);
   if (ap){
     const n = peersFor(k).length, nd = NO_DISCOUNT.includes(k);
     const tip = ap.catchUp ? 'Bring ' + (ap.behind === 1 ? 'the robot that is behind' : 'the ' + ap.behind + ' robots that are behind') + ' up to level ' + ap.target + (nd ? ' (full price)' : ' (copied levels, so discounted)')
                            : 'Give all ' + n + ' robots level ' + ap.target + (nd ? ', each at full price' : ': one at full price, the rest at ' + Math.round(discFor(k)*100) + '%');
-    allb += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match' : 'all') + '</b>' });
+    allb += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match all' : 'all +1') + '</b>' });
     sig += '|a' + ap.target + aff$(ap.cost) + ap.cost;
   }
   // the next tier unlock sits by the level nuts (away from the buy buttons) and unlocks it for every robot that has this track
@@ -9457,7 +9495,10 @@ function assignTo(kind, i, t){
 function navGo(kind, i){
   pickOpen = false;
   const keep = cardTab;
-  openCard(kind, i);
+  // V21.2: stepping to another robot keeps the card where it is on screen (it doesn't jump to where that robot stands)
+  const pin = card.hidden ? null : { x: card.offsetLeft, y: card.offsetTop };
+  openCard(kind, i, !!pin);
+  if (pin && cardOpen) cardOpen.pin = pin;
   if (keep === 'tasks' && tasksPanel(kind, i)) cardTab = 'tasks';
   renderCard(true);
 }
@@ -9651,9 +9692,10 @@ function cardModel(){
     if (tp) tabs = { peek: tasksPeek(k, i) };
     if (tp && cardTab === 'tasks') top = tp;
     else if (k === 'robot'){
-      // two columns: movement and carrying on the left, grabbing, mining and packing on the right
-      for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick'].includes(t) ? rows : rows2).push(robotRow(i, t));
-      if (!rows2.length && rows.length > 2) rows2.push(rows.pop());
+      // two columns: movement, carrying and grabbing on the left, machines, packing and research on the right
+      // (V21.2: Claw and Reach moved to the left with the other gathering skills; the right column was crowded)
+      for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick','grab','reach'].includes(t) ? rows : rows2).push(robotRow(i, t));
+      if (!rows2.length && rows.length > 2) rows2.push(...rows.splice(rows.length - Math.floor(rows.length/2)));
     } else for (const t of BOT_TRACKS[k]) if (trackVisible(t)) rows.push(robotRow(i, t, k));
     if (!(tp && cardTab === 'tasks')){ if (rows.length) rows.unshift(botHead(k)); if (rows2.length) rows2.unshift(botHead(k)); }   // V21
     // keep the card the same width on both tabs
@@ -10114,10 +10156,17 @@ function liveHTML(kind){
   }
   return '';
 }
+// V21.2: the eye by the close button on a robot's, blower's or shaker's card
+function watchBtn(){
+  const k = cardOpen.kind; if (!['robot', 'blower', 'shaker'].includes(k)) return '';
+  const on = watching(k, cardOpen.i), t = on ? 'Following: tap to stop (moving the camera stops it too)' : 'Focus and follow: keep the camera on this ' + k;
+  return '<button class="x eye' + (on ? ' on' : '') + '" data-act="watch" aria-pressed="' + on + '" aria-label="' + attr(t) + '" title="' + attr(t) + '"><svg viewBox="-8 -8 16 16" aria-hidden="true">' +
+    '<path d="M-6.6,0 Q0,-6.2 6.6,0 Q0,6.2 -6.6,0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle r="2.5" fill="currentColor"/><circle cx="-.8" cy="-.9" r=".8" fill="#fbf3e2"/></svg></button>';
+}
 function renderCard(force){
   if (!cardOpen) return;
   const m = cardModel();
-  const sig = cardOpen.kind + (cardOpen.i ?? '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
+  const sig = cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
   if ((sig !== cardSig || force) && !tdrag && !sliding){
     cardSig = sig;
     const two = m.rows2.length > 0, body = m.rows.map(r => r.html).join('');
@@ -10126,7 +10175,7 @@ function renderCard(force){
     card.classList.toggle('bots', ['robot', 'blower', 'shaker'].includes(cardOpen.kind));   // (V21: a little wider, for the this robot / all robots lanes)
     const medal = m.head === 'portrait' ? '<canvas id="cardPortrait" width="128" height="128"></canvas>' : m.head ? ic(m.head) : '';
     card.innerHTML = sayH('<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
-      '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div><button class="x" data-act="close" aria-label="Close">' +
+      '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div>' + watchBtn() + '<button class="x" data-act="close" aria-label="Close">' +
       '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       (m.tabs ? '<div class="tabs" role="tablist"><button role="tab" data-act="tab:up" class="' + (cardTab !== 'tasks' ? 'on' : '') + '">' + ic('wrench') + 'Upgrades</button><button role="tab" data-act="tab:tasks" class="' + (cardTab === 'tasks' ? 'on' : '') + '">' + ic('list') + 'Tasks<span class="peek">' + m.tabs.peek + '</span></button></div>' : '') +
       '<div class="cbody">' + m.top +
@@ -10151,6 +10200,12 @@ function placeCard(){
   if (card.style.maxHeight !== maxH + 'px') card.style.maxHeight = maxH + 'px';
   // narrow screens (phones held upright): the card docks to the bottom edge like a sheet
   if (W < 640){ const cw = card.offsetWidth, ch = card.offsetHeight; card.style.left = Math.round((W - cw)/2) + 'px'; card.style.top = Math.max(CARD_M, H - ch - CARD_M) + 'px'; return; }
+  if (cardOpen.pin){   // V21.2: a card you stepped to with the arrows / picker stays put (kept on screen)
+    const cw = card.offsetWidth, ch = Math.min(card.offsetHeight, maxH);
+    card.style.left = Math.round(clamp(cardOpen.pin.x, CARD_M, Math.max(CARD_M, W - cw - CARD_M))) + 'px';
+    card.style.top = Math.round(clamp(cardOpen.pin.y, CARD_M, Math.max(CARD_M, H - ch - CARD_M))) + 'px';
+    return;
+  }
   const a = cardAnchor(), cw = card.offsetWidth, ch = Math.min(card.offsetHeight, maxH);
   const midX = (W - cw)/2, midY = (H - ch)/2;
   // sideways: next to the thing you tapped, on the side with more room, then pulled a little toward the middle
@@ -10190,7 +10245,7 @@ function cardAnchor(){
   const s = w2s(p.x, p.y);
   return { x: s.x, y: s.y, below: below*cam.z };
 }
-function openCard(kind, i){
+function openCard(kind, i, still){
   if (kind === 'hive' && hiveLabOn()) kind = 'book';   // V15: the hollow's hive, while it's being researched
   if (kind === 'plant' && RUIN && researchOpen() && FIND().atRuin) kind = 'book';   // V18: the old works, while it's being worked out
   if (kind === 'hive' && labRt.fail) return;          // (and nothing to open while its bee is trying to fly)
@@ -10200,7 +10255,7 @@ function openCard(kind, i){
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
   if (kind === 'blower' || kind === 'shaker'){ const h = HB.find(q => q.kind === kind && q.idx === i); cardOpen.ax = h.x; cardOpen.ay = h.y - 46; }
   resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false; assignOpen = false;
-  card.hidden = false; card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  card.hidden = false; if (!still){ card.style.animation = 'none'; void card.offsetWidth; card.style.animation = ''; }
   if (kind !== 'sound') S.flags.opened = true;
   // the first time a robot's tasks are worth a look (the tip says so), its card opens on the Tasks tab
   if (kind === 'robot'){ dismissHint('unlock'); if (tasksPanel('robot', i)){ if (!hintDone('tasks') && !S.flags.taskHint) cardTab = 'tasks'; dismissHint('tasks'); if (researchOpen() && S.story.opened && !S.story.prog && !S.robots.some(c => taskOn(c, 'research'))) cardTab = 'tasks'; } }
@@ -10218,6 +10273,7 @@ card.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'close'){ closeCard(); return; }
+  if (act === 'watch'){ if (watching(cardOpen.kind, cardOpen.i)){ camFollow = null; camMovedT = performance.now(); } else startWatch(cardOpen.kind, cardOpen.i); sfx('paper'); renderCard(true); return; }
   if (act.startsWith('tab:')){ cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
   // V19.3: the arrows and the picker by a robot's name
   if (act === 'pick'){ pickOpen = !pickOpen; sfx('paper'); renderCard(true); return; }
