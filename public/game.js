@@ -9351,7 +9351,7 @@ function robotRow(ri, k, kind){
     const n = peersFor(k).length, nd = NO_DISCOUNT.includes(k);
     const tip = ap.catchUp ? 'Bring ' + (ap.behind === 1 ? 'the robot that is behind' : 'the ' + ap.behind + ' robots that are behind') + ' up to level ' + ap.target + (nd ? ' (full price)' : ' (copied levels, so discounted)')
                            : 'Give all ' + n + ' robots level ' + ap.target + (nd ? ', each at full price' : ': one at full price, the rest at ' + Math.round(discFor(k)*100) + '%');
-    allb += coinBtn('rall:' + k, ap.cost, { cls: 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match all' : 'all +1') + '</b>' });
+    allb += coinBtn('rall:' + k, ap.cost, { cls: ap.catchUp ? 'all match-all' : 'all', tip, label: tip, pre: '<b class="allt">' + (ap.catchUp ? 'match all' : 'all +1') + '</b>' });
     sig += '|a' + ap.target + aff$(ap.cost) + ap.cost;
   }
   // the next tier unlock sits by the level nuts (away from the buy buttons) and unlocks it for every robot that has this track

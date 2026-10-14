@@ -213,13 +213,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .buy.ghost{min-width:0;padding:6px 11px 5px;color:var(--ink);text-shadow:none;border-color:#cdb58f;background:linear-gradient(#fbf3e2,#efe1c6);box-shadow:inset 0 1px 0 #fff,0 2.5px 0 #cdb58f}
 .buy.ghost:active{box-shadow:0 .5px 0 #cdb58f}
 .buy.ghost[aria-disabled="true"]{color:var(--ink-faint)}
-/* "Unlock": a teal key tag next to the level nuts (it unlocks the next tier for every robot) */
-.unlock{display:inline-flex;align-items:center;gap:3px;font:800 11.5px/1 var(--font-ui);color:#2c5a62;padding:4px 9px 3px 6px;border-radius:6px 999px 999px 6px;border:1.5px solid var(--teal);cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums;
+/* "Unlock": a teal button for the next tier on every robot */
+.unlock{display:inline-flex;align-items:center;gap:3px;font:800 11.5px/1 var(--font-ui);color:#2c5a62;padding:4px 9px 3px 6px;border-radius:9px;border:1.5px solid var(--teal);cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums;
   background:linear-gradient(90deg,rgba(79,124,132,.26) calc(var(--p,0)*100%),transparent calc(var(--p,0)*100%)),#e6efea}
 .unlock .ic{width:13px;height:13px}
 .unlock .ic.cn{margin-left:3px}
-.unlock:not([aria-disabled="true"]){background:linear-gradient(#5f909a,#467079);color:#f2faf7;box-shadow:0 2px 0 #2f555c;border-color:#2f555c;text-shadow:0 1px 0 rgba(20,50,55,.4)}
-.unlock:not([aria-disabled="true"]):active{transform:translateY(1.5px);box-shadow:0 .5px 0 #2f555c}
+.unlock:not([aria-disabled="true"]){background:linear-gradient(#5f909a,#467079);color:#f2faf7;box-shadow:inset 0 1.5px 0 rgba(220,246,245,.42),0 3px 0 #2f555c,0 4px 6px rgba(32,60,60,.22);border-color:#2f555c;text-shadow:0 1px 0 rgba(20,50,55,.4)}
+.unlock:not([aria-disabled="true"]):active{transform:translateY(2.5px);box-shadow:inset 0 1px 0 rgba(220,246,245,.35),0 .5px 0 #2f555c}
 .unlock[aria-disabled="true"]{cursor:default}
 .unlock.shake{animation:shake .3s}
 .v .unlock{margin:1px 0 1px 8px;vertical-align:1px}
@@ -375,9 +375,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .row.bot .btn.me{gap:7px}
 .row.bot .btn.all{margin:-11px 0;padding:10px 0}
 .row.bot .btn.all .buy.all{font-size:14.5px;padding:5px 10px 6px 8px;gap:1px 4px}
+.row.bot .btn.all .buy.match-all{width:min(96px,100%)}
 /* the green "match all / all +1" and this robot's "match": the word on top, the price under it, so they stay narrow */
 .row.bot .buy.all,.row.bot .buy.max{flex-wrap:wrap;min-width:84px;row-gap:3px}
 .row.bot .buy.all .allt,.row.bot .buy.max .allt{flex-basis:100%;text-align:center;font-size:10px;line-height:1;margin:0;opacity:.9}
+.row.bot .unlock{width:min(100px,100%);min-height:38px;justify-content:center;gap:4px;font-size:14px;padding:5px 7px 4px}
+.row.bot .unlock .ic{width:16px;height:16px}
+.row.bot .unlock .ic.cn{margin-left:0}
 .buy.max{font-size:14.5px;padding:5px 10px 6px 8px}
 .row.bothead{font-size:11px}
 .row.bothead .hm{padding:0 4px 6px}
