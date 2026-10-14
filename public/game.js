@@ -96,7 +96,9 @@ const ROAD = 84, LANE = 56, VERGE = 30;
 const ROW = LOT.ROW || {};
 const BIN = ROW.BIN || { x: 28, y: -12 }, TUB = ROW.TUB || { x: 86, y: -12 }, SIGN = ROW.SIGN || { x: -110, y: -8 }, SHED = ROW.SHED || { x: -222, y: -22 }, PARK = 50;
 const BAGGER = ROW.BAGGER || { x: -48, y: -14 };  // the bagging table (built later) between the pickup sign and the bin
-const PALLET = ROW.PALLET || { x: 138, y: -12 };  // the ingot pallet (where haulers drop ingots for the truck), right of the metal tub
+// (V22.4: in the first yard it stands by the road left of the coal stand, SHED.x - 160, out of the way of the bin row; it
+// only shows once the old works are repaired)
+const PALLET = ROW.PALLET || (LOT_ID === 'home' ? { x: SHED.x - 160, y: -12 } : { x: 138, y: -12 });  // the ingot pallet (where haulers drop ingots for the truck)
 const HIVE = ROW.HIVE || { x: 250, y: -20 };   // the robot beehive stands at the right end of the row
 const CRATE = ROW.CRATE || { x: 190, y: -12 };  // the honey crate (jars waiting for the truck) sits between the ingot pallet and the hive
 // V18: the first yard's smelting plant is an old ruin up in the top-left corner of the Meadow (the bigger yard), there
@@ -221,8 +223,9 @@ const UP = {
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
   metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 380, 1400, 2600, 4200], vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
-  // V7: a bigger tub also makes the ingot pallet beside it bigger (palletCap), the way the bin's bag shelf grows with the bin
-  metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[30, 55, 90, 160, 320, 700, 1600, 3500], vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
+  // Raw metal and logs have their own storage; finished-goods pallets use the separate pallet track.
+  metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[30, 55, 90, 160, 220, 280, 340, 400],
+                 vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 28, 90, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
@@ -243,12 +246,14 @@ const UP = {
   // about what the old top ribbon gave) and the ribbons are cheaper
   giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[700, 1500], vals:[2.6, 3.1, 3.7], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
   // the smelting plant
-  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[400, 1000, 1500], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
+  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[240, 720, 1300], vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[500, 1600, 2800, 4500, 6000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[300, 1050, 2000, 3600, 5200], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
-  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[450, 1100, 2200], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
-  hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[80, 260, 700], vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
+  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[270, 800, 1900], vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
+  // V22.4: the ingot pallet has its own size track on the plant card (was half the metal tub); the same 100 at the top
+  pallet:     { obj:'plant', name:'Bigger ingot pallets', max:4, costs:[400, 550, 750, 1000], vals:[16, 28, 46, 70, 100], val:l=>UP.pallet.vals[l], show:v=>v+' ingots per pallet' },
+  hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[50, 190, 600], vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
 };
 // V16: a lot can reprice upgrades (the Rainy hollow's mushroom labels and D.O.P. seals): LOT.UP = { key: { costs } }
 if (LOT.UP) for (const k in LOT.UP) if (UP[k]) Object.assign(UP[k], LOT.UP[k]);
@@ -276,7 +281,6 @@ const BAG_SORT = 5;             // V19.1: the bagging table shows after 5 Sort l
 const HONEY_PACK_COST = 550;    // Gift wrapping: opens the Wrap task at the crate (V11: was 800)
 const PLANT_COST = LOT.plantCost || 500;   // the smelting plant (V7: was 300; V17: the hollow's charcoal kiln is cheaper)
 const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
-const RACK_CAP = COAL ? 24 : 10;  // ingots waiting on the plant's rack (the ore hopper's size is UP.hopper; V17: coal on the kiln's shelf)
 // seconds per bag / honey jar / gift wrap / ingot at packing speed 1 (V7: jars 2.2 → 3, smelting 10 → 13.5; V11: wrapping a
 // gift jar is its own step, 2.6 s, was 1.6 s on top of the jar)
 const BAG_TIME = 4, JAR_TIME = 2.5, WRAP_TIME = 2.6, SMELT_TIME = COAL ? 27 : 13.5;   // (V22: the kiln's batch is twice as long)
@@ -315,7 +319,7 @@ const TRACKS = {
   // ~$3,150 in all (was ~$5,900)
   magnet: { label:'Extra yield', gens:[
       { name:'Keen eye', n:3, cost:[35, 60, 100], needsMetal:true },
-      { tech:'horseshoe', name:'Master’s touch', n:3, cost:[450, 800, 1300] } ],
+      { tech:'horseshoe', name:'Master’s touch', n:3, cost:[150, 300, 600] } ],   // (V22: was 450 / 800 / 1,300; the unlock stays $400)
     vals:[0, .1, .2, .3, .44, .58, .72], show:v=>v ? Math.round(v*100)+'% extra yield' : 'no extra yield' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
   // V13.7: 8 levels instead of 11 (2 + 3 + 3) over the same range, and a gentler price climb (~75× first to last, was ~190×)
@@ -341,7 +345,7 @@ const TRACKS = {
   pack: { label:'Load & pack', gens:[
       { name:'Clumsy hands', n:3, cost:[3, 6, 11], needsPack:true },
       { tech:'jig', name:'Packing jig', n:4, cost:[22, 36, 56, 85] },
-      { tech:'precision', name:'Precision tools', n:4, cost:[280, 450, 700, 1100] } ],
+      { tech:'precision', name:'Precision tools', n:4, cost:[100, 170, 290, 500] } ],   // (V22: was 280 / 450 / 700 / 1,100; the unlock stays $700)
     vals:[0.6, 0.72, 0.84, 0.96, 1.12, 1.3, 1.5, 1.75, 2.3, 2.95, 3.7, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
   // V12: how quickly a robot works through the old picture book (the Research task). The robot holding the book does
   // RESEARCH_MAIN units a second, each robot helping RESEARCH_HELP; every level doubles that robot's share.
@@ -510,14 +514,12 @@ const metalPerIngot = () => COAL ? KILN_LOGS : ORE_PER_INGOT;
 const batchOut = () => COAL ? KILN_COAL : 1;
 const hopperCap = () => val('hopper');
 const tubRoom = () => S.metalSlot ? Math.max(0, metalCap() - S.binMetal) : 0;
-// V7: the ingot pallet by the road grows with the metal tub (like the bags' shelf grows with the bin): ingots don't take
-// the tub's room, but every bigger tub also means a bigger pallet. The plant's own ingot rack stays a fixed size.
-// V19: the hollow's coal stand holds twice as much (4× the log crib, at least 48; was 2×, at least 24): the kiln and the dryer
-// both fill it, and it used to be full long before the truck came
-// V22: the coal stand is sized by its own ladder, one entry for each level of the log crib (half the old 4× the crib, and the
-// last steps are 90 / 110 / 125 / 200 new coal), since a coal unit is now twice as big
-const COAL_STAND_CAP = [24, 24, 36, 54, 80, 90, 110, 125, 200];
-const palletCap = () => COAL ? COAL_STAND_CAP[clamp(S.lv.metalBin | 0, 0, COAL_STAND_CAP.length - 1)] : Math.max(6, Math.round(metalCap()*0.5));
+// Each material uses equally sized production and selling pallets. Their shared upgrade is separate from raw storage.
+// Both processing reservations and output hauling use upgraded capacity immediately.
+// The old coal stand followed log-crib levels. Keep its lookup only to preserve existing storage on load.
+const LEGACY_COAL_STAND_CAP = [24, 24, 36, 54, 80, 90, 110, 125, 200];
+const palletCap = () => val('pallet');
+const rackCap = () => palletCap();
 // V17 (COAL): the coal stand by the road is there once the robots know what coal is, kiln or no kiln (the dryer makes coal too)
 const palletShown = () => S.plant.built || (COAL && !!S.flags.coalKnown);
 const palletRoom = () => Math.max(0, palletCap() - S.ingots);
@@ -796,7 +798,7 @@ function freshState(){
       flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
-    flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
+    flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, palletStorage:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
       hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false,
       // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
@@ -1108,12 +1110,12 @@ const smeltReserve = ri => batchOut() + Math.ceil(batchBonus(ri) - 1e-9);
 function rackHasRoom(r){
   let need = S.plant.rack + Math.floor((S.plant.slagAcc || 0) + 1e-9) + smeltReserve(r.id);
   for (const q of R) if (q !== r && q.st === 'smelt') need += q.resv != null ? q.resv : smeltReserve(q.id);
-  return need <= RACK_CAP;
+  return need <= rackCap();
 }
 // puts whole units of the owed recovery on the rack while there is room (called when a batch ends and every tick)
 function settleRecovery(x, y){
   let n = 0;
-  while (S.plant.slagAcc >= 1 - 1e-9 && S.plant.rack < RACK_CAP){ S.plant.slagAcc -= 1; S.plant.rack++; S.totals.ingots = (S.totals.ingots || 0) + 1; if (COAL) S.totals.coal = (S.totals.coal || 0) + 1; n++; }
+  while (S.plant.slagAcc >= 1 - 1e-9 && S.plant.rack < rackCap()){ S.plant.slagAcc -= 1; S.plant.rack++; S.totals.ingots = (S.totals.ingots || 0) + 1; if (COAL) S.totals.coal = (S.totals.coal || 0) + 1; n++; }
   if (n && x != null && !simMode) pop(x, (y != null ? y : PLANT.y - 88), '+' + n + ' extra', 'ingot', 13, 0.4);
   return n;
 }
@@ -1518,7 +1520,7 @@ function finishWork(r){
   } else if (t === 'smelt'){
     const out = batchOut();   // (V17: the kiln makes several coal a batch)
     // the room for the base output was reserved when the batch started; anything that still doesn't fit is owed, not lost
-    const fit = Math.min(out, Math.max(0, RACK_CAP - S.plant.rack));
+    const fit = Math.min(out, Math.max(0, rackCap() - S.plant.rack));
     S.plant.rack += fit; S.totals.ingots = (S.totals.ingots || 0) + fit; if (COAL) S.totals.coal = (S.totals.coal || 0) + fit; plantRt.bump = 0.3;
     // recovery: Tight stacking / Slag recovery and (V22) half the operator's Extra yield add to the output of every batch.
     // The extra is kept as a fraction that fills up (S.plant.slagAcc, whole and fractional units owed) and is paid onto the
@@ -5518,6 +5520,7 @@ function offers(all){
   if (S.hive.built && S.hive.bees > 0){ if (!S.hive.packing){ if (packShown()) o.push({ id:'honeyPack', obj:'hive', cost: HONEY_PACK_COST }); } else o.push(up('giftPrice')); }
   if (!S.plant.built){ if (plantBuyable() && (all ? S.metalSlot && plantGrade() : plantShown())) o.push({ id:'plant', obj:'plant', cost: PLANT_COST }); }
   else o.push(up('smeltSpeed'), up('ingotGrade'), up('slag'), up('hopper'));
+  if (palletShown()) o.push(up('pallet'));
   if (all ? S.miners.length : shaftShown()) for (const sp of S.miners) if (!S.shafts.includes(sp)) o.push({ id:'shaft', arg:sp, obj:'spot'+sp, cost: shaftCost() });
   if (landForSale() && (all || saleVisible())) o.push({ id:'land', obj:'sale', cost: AREAS[S.land + 1].cost });
   if (!S.hive.built){ if (all ? hiveKnown() : hiveShown()) o.push({ id:'hive', obj:'hive', cost: hiveCost() }); }
@@ -6812,7 +6815,7 @@ function drawPlant(){
   c.save(); c.translate(RACK.x - PLANT.x, RACK.y - PLANT.y);
   c.fillStyle = '#5a3b26'; c.fillRect(-15, -36, 3, 36); c.fillRect(12, -36, 3, 36);
   c.fillStyle = '#8a6040'; rr(c, -16, -19, 32, 3, 1); c.fill(); rr(c, -16, -37, 32, 3, 1); c.fill();
-  const nr = Math.min(S.plant.rack, RACK_CAP);
+  const nr = Math.min(8, Math.ceil(S.plant.rack/rackCap()*8));
   for (let i=0;i<nr;i++){ const shelf = i < 4 ? 0 : 1, k = i % 4; drawIngot(c, -9 + k*6, shelf ? -37 : -19, 7, 0); }
   if (plantRt.bump > 0){ c.fillStyle = 'rgba(255,200,120,' + plantRt.bump + ')'; ell(c, 0, -26, 18, 10); c.fill(); }
   c.restore();
@@ -6823,7 +6826,7 @@ function drawPlant(){
     for (const [sx, , top] of stacks){ if (Math.random() < 0.05*k*(reduceMotion ? 0.3 : 1)) parts.push({ k:'smoke', x: PLANT.x + sx + rand(-2, 2), y: PLANT.y + top - 4, vx: rand(-4, 4) + wind*0.25, vy: rand(-22, -14), g: 0, life: rand(2.2, 3.4), t: 0, r: rand(4, 6) }); }
   }
   if (grow >= 1){
-    if (S.plant.rack >= RACK_CAP) bubbles.push({ x: RACK.x, y: RACK.y - 50, t: 'rack full' });
+    if (S.plant.rack >= rackCap()) bubbles.push({ x: RACK.x, y: RACK.y - 50, t: 'rack full' });
     else if (S.plant.ore < metalPerIngot() - 1e-9 && STN.smelt.some(v => v != null) && !S.binMetal && !R.some(r => r.st === 'toBin' && r.at === 'metal')) bubbles.push({ x: HOPPER.x, y: HOPPER.y - 68, t: 'needs ore' });
   }
 }
@@ -9650,24 +9653,25 @@ const fromTo = (a, b, unit, maxed) => maxed ? '<b>' + a + '</b>' + (unit || '') 
 function visibleTasks(kind, cfg){ return KIND_TASKS[kind].filter(t => taskOpen(t, cfg)); }
 // ── yard upgrades (bin, truck, hive, plant): short names, a picture, and the value as number + unit picture
 const UP_ICON = { bin:ic('bin'), leafPrice:icp('leaf'), bagPrice:icp('bag'), metalPrice:icp('ore'), metalBin:ic('tub'), truck:ic('truck'), cleanup:ic('cleanup'),
-  hiveTank:ic('nectar'), hiveStore:ic('honey'), honeyPrice:icp('jar'), giftPrice:icp('gift'), smeltSpeed:ic('flame'), ingotGrade:icp('gold'), slag:ic('slag'), hopper:ic('hopper') };
-const UP_SHORT = { truck:'More pickups', hiveTank:'Nectar tank', hiveStore:'Honey store', honeyPrice:'Honey labels', giftPrice:'Gift ribbons', hopper:'Ore hopper', metalBin:'Metal tub', ...(COAL ? { ingotGrade:'Briquettes', slag:'Tight stacking', smeltSpeed:'Hotter kiln' } : {}) };
+  hiveTank:ic('nectar'), hiveStore:ic('honey'), honeyPrice:icp('jar'), giftPrice:icp('gift'), smeltSpeed:ic('flame'), ingotGrade:icp('gold'), slag:ic('slag'), hopper:ic('hopper'), pallet:ic('pallet') };
+const UP_SHORT = { truck:'More pickups', hiveTank:'Nectar tank', hiveStore:'Honey store', honeyPrice:'Honey labels', giftPrice:'Gift ribbons', hopper:'Ore hopper', pallet:COAL ? 'Coal pallets' : 'Ingot pallets', metalBin:'Metal tub', ...(COAL ? { ingotGrade:'Briquettes', slag:'Tight stacking', smeltSpeed:'Hotter kiln' } : {}) };
 const UP_TIP = {
   bin:'How many loose leaves the bin holds before robots have to wait', leafPrice:'What the truck pays for a loose leaf', bagPrice:'What the truck pays for a bag of ' + BAG_SIZE + ' leaves',
-  metalPrice: COAL ? 'What the truck pays for a log (a lump of coal is worth a log × the briquettes)' : 'What the truck pays for a chunk of metal (ingots are worth 4 chunks × the alloy)', metalBin: COAL ? 'How many logs the crib holds. A bigger crib also makes the coal stand by the road bigger (24 up to 200 coal, a lump of coal now being twice the size)' : 'How much metal the tub holds. A bigger tub also makes the ingot pallet bigger',
+  metalPrice: COAL ? 'What the truck pays for a log (a lump of coal is worth a log × the briquettes)' : 'What the truck pays for a chunk of metal (ingots are worth 4 chunks × the alloy)', metalBin: COAL ? 'How many raw logs the crib holds. Coal pallets are upgraded separately at the kiln.' : 'How much metal the tub holds',
   truck:'How often the truck comes by', cleanup:'A one-off deal: the truck pays a bonus for every 100 leaves it takes (bagged leaves count too)',
   hiveTank:'Nectar the hive can hold. Every second tank or store step adds a hive floor, and each floor makes honey', hiveStore:'Jars of honey the hive and crate can hold',
   honeyPrice:'What the truck pays for a jar of honey', giftPrice:'What the truck pays for a gift jar', smeltSpeed:'How hot the furnaces burn: every smelter is faster',
-  ingotGrade:'What an ingot sells for', slag:'Extra ingots from the same metal', hopper:'Ore waiting at the plant for the smelters' };
+  ingotGrade:'What an ingot sells for', slag:'Extra ingots from the same metal', hopper:'Ore waiting at the plant for the smelters', pallet:COAL ? 'Increases both the kiln shelf and the selling pallet at the roadside coal stand. Both hold the same number of coal units. The log crib is upgraded separately.' : 'Increases both the furnace rack and the selling pallet by the road. Both hold the same number of ingots. The metal tub is upgraded separately.' };
 const UP_VAL = {
   bin: v => [v, ic('leaf')], leafPrice: v => [cash$(v*sellMul()), ''], bagPrice: v => [cash$(BAG_SIZE*val('leafPrice')*v*sellMul()), ''],
   metalPrice: v => [cash$(v*sellMul()*RAW_LOG_MUL), ''], metalBin: v => [v, ic('ore')], truck: v => [v + 's', ''], cleanup: v => [v ? '$' + v : '–', v ? '<small>/100</small>' + ic('leaf') : ''],
   hiveTank: v => [v, ic('nectar')], hiveStore: v => [v, ic('jar')], honeyPrice: v => [cash$(v*sellMul()), ''], giftPrice: v => [cash$(val('honeyPrice')*v*sellMul()), ''],
-  smeltSpeed: v => [v.toFixed(2) + '×', ''], ingotGrade: v => [cash$((COAL ? COAL_UNIT : ORE_PER_INGOT)*val('metalPrice')*v*sellMul()), ''], slag: v => [v ? '+' + Math.round(v*100) + '%' : '0%', ic('ingot')], hopper: v => [v, ic('ore')],
+  smeltSpeed: v => [v.toFixed(2) + '×', ''], ingotGrade: v => [cash$((COAL ? COAL_UNIT : ORE_PER_INGOT)*val('metalPrice')*v*sellMul()), ''], slag: v => [v ? '+' + Math.round(v*100) + '%' : '0%', ic('ingot')], hopper: v => [v, ic('ore')], pallet: v => [v, ic('ingot')],
 };
 function upRow(k, extra){
   const u = UP[k], l = S.lv[k], maxed = l >= u.max, cost = maxed ? 0 : upCost(k);
   const a = UP_VAL[k](u.val(l)), b = maxed ? a : UP_VAL[k](u.val(l + 1));
+  if (k === 'pallet') extra = (extra || '') + '<br><small>' + (COAL ? 'Kiln shelf: ' : 'Furnace rack: ') + fromTo(u.val(l), u.val(maxed ? l : l + 1), ic('ingot'), maxed) + '</small>';
   const val = fromTo(a[0], b[0], a[1], maxed) + (extra || '');
   return { sig: k + l + (maxed ? 'M' : aff$(cost)) + val, html: row({ icon: UP_ICON[k], name: UP_SHORT[k] || upName(k), tip: (typeof u.name === 'function' ? upName(k) + ': ' : '') + UP_TIP[k], pips: nuts(l, upGroups(k)), val,
     btn: maxed ? stamp('max') : coinBtn('up:' + k, cost, { label: upName(k) }) }) };
@@ -10088,7 +10092,7 @@ function cardModel(){
       else if (!metalOpen()) rows.push({ sig:'metalsoon', html: row({ icon: ic('tub'), cls:'soon', name:'Metal slot', val:'No metal on this plot. Mining opens with the ' + AREAS[MINE_LAND].name.toLowerCase() }) });
     }
     else {
-      rows2.push(upRow('metalBin', S.plant.built ? xt(palletCap() + ic('ingot'), 'Room on the ingot pallet') : '')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
+      rows2.push(upRow('metalBin')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
       if (S.plant.built) rows2.push(keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal));
       if (plantGrade() && !S.plant.built) rows2.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html: row({ icon: ic('flame'), cls:'soon', name:'Smelting plant', val:'shows up once you’ve held ' + cash$(PLANT_COST*0.25), tip:'Turns metal into ingots worth a lot more' }) });
     }
@@ -10194,12 +10198,16 @@ function cardModel(){
       title = 'Old works'; head = 'ruin';
       top = '<div class="bookart beeart">' + RUIN_SVG + '</div><p class="story">' + (S.flags.ember >= 2 ? 'Some old industrial building, long cold. With the fire from the hollow beside it, maybe the robots can work out how it ran.' : 'It looks like some old industrial building, but there seems to be a lot missing to make any use of it.') + '</p>';
       if (S.flags.ember >= 2) rows.push({ sig:'emb', html: row({ icon: ic('flame'), name:'The fire from the hollow', val:'burning in the fire basket beside it' }) });
-    } else if (!S.plant.built) rows.push(plantBuildRow());
+    } else if (!S.plant.built){
+      rows.push(plantBuildRow());
+      if (COAL && palletShown()) rows.push(upRow('pallet'));
+    }
     else {
       live = 'plant';
       rows.push(upRow('smeltSpeed')); rows.push(upRow('slag'));
       rows.push(upRow('ingotGrade', COAL ? xt(cash$(ingotPrice()*KILN_COAL*(1 + val('slag'))/KILN_LOGS) + '/' + ic('ore'), 'Per log, burnt to coal (sold as logs: ' + cash$(metalPrice()) + ')') : xt(cash$(ingotPrice()*(1 + val('slag'))/ORE_PER_INGOT) + '/' + ic('ore'), 'Per chunk of metal, smelted')));
       rows.push(upRow('hopper'));
+      rows.push(upRow('pallet'));
       rows2.push(crewRow('smelt', 'Smelters <small class="cap">' + SMELT_N + ' robots at a time</small>', 'smelt', ri => smeltSkill(ri).toFixed(1) + '×'));   // V21: two robot doors
       rows2.push(crewRow('haul', 'Haulers', 'haul', ri => ingotCarry(ri) + '<small>/trip</small>'));
       if (PLANT_COAL){
@@ -10523,7 +10531,7 @@ function liveHTML(kind){
       meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + v + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');
-  if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, RACK_CAP, 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
+  if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
     + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
   if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), 'Bags') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
   if (kind === 'truck'){
@@ -10949,7 +10957,8 @@ function load(data){
     S.miners = S.miners.filter(sp => SPOTS[sp]); S.shafts = S.shafts.filter(sp => SPOTS[sp]);
     for (const c of S.robots) if (c.miner != null && !SPOTS[c.miner]) c.miner = null;
     S.bag.bags = Math.max(0, S.bag.bags | 0); S.hive.gift = Math.max(0, S.hive.gift | 0); S.ingots = Math.max(0, S.ingots | 0);
-    S.plant.ore = Math.max(0, Math.floor(+S.plant.ore || 0)); S.plant.rack = clamp(S.plant.rack | 0, 0, RACK_CAP); S.binMetal = Math.max(0, Math.floor(+S.binMetal || 0));
+    // Keep already-earned rack stock when an older save exceeds the new starting capacity; hauling makes room.
+    S.plant.ore = Math.max(0, Math.floor(+S.plant.ore || 0)); S.plant.rack = Math.max(0, Math.floor(+S.plant.rack || 0)); S.binMetal = Math.max(0, Math.floor(+S.binMetal || 0));
     // V22: the hollow's coal units doubled in size (4 logs → 3 coal, each worth twice as much). A save from before has its coal
     // counted in old units: 2 old = 1 new. Whole new units stay where they were (the stand, the kiln's rack, the ash pan);
     // an odd old unit is half a new one and is kept as credit (S.coalCredit, paid with the next coal sale; the ash pan's goes
@@ -11015,6 +11024,13 @@ function load(data){
     }
     if (v9back > 0){ S.cash += v9back; setTimeout(() => showToast('Rebalanced!', 'There are fewer veins and robot slots now. You got ' + money(v9back) + ' back for the ones that are gone.', 9), 1600); }
     for (const k in UP) S.lv[k] = clamp(S.lv[k] | 0, 0, UP[k].max);
+    // Preserve paid roadside capacity when splitting finished storage from raw storage.
+    if (!(src.flags && src.flags.palletStorage)){
+      const oldCap = COAL ? LEGACY_COAL_STAND_CAP[S.lv.metalBin] : Math.max(6, Math.round(metalCap()*0.5));
+      const level = UP.pallet.vals.findIndex(v => v >= oldCap);
+      S.lv.pallet = Math.max(S.lv.pallet, level < 0 ? UP.pallet.max : level);
+    }
+    S.flags.palletStorage = true;
     S.hive.bees = clamp(S.hive.bees | 0, 0, MAX_BEES); S.hive.nectar = Math.max(0, +S.hive.nectar || 0); S.hive.honey = Math.max(0, +S.hive.honey || 0);
     if (src.hive && src.hive.jars === undefined){
       // before V6.3 the hive filled the jars itself: what it held were finished jars, so they go in the crate
@@ -11166,7 +11182,7 @@ window.__leafYard = {
   open: (kind, i) => openCard(kind, i),
   portrait: (kind, i, cv, z) => drawPortrait(cv, kind, i, z),
   buy: o => buy(o),
-  fn: () => ({ UP, GEN, offers, binCap, metalCap, hopperCap, honeyCap, tankCap, palletCap, truckEvery, bagCap, upCost, rCost, allPlan, binRoom, tubRoom, hopperRoom, plainJars, crateCap, crateJars }),   // for balance tests
+  fn: () => ({ UP, GEN, offers, binCap, metalCap, hopperCap, rackCap, honeyCap, tankCap, palletCap, truckEvery, bagCap, upCost, rCost, allPlan, binRoom, tubRoom, hopperRoom, plainJars, crateCap, crateJars }),   // for balance tests
   stations: () => STN,
   treeDrop: () => treeDrop(true),
   bounds: () => ({ view: visRect(), bounds: camBounds() }),
@@ -11212,13 +11228,13 @@ function start(data){
   if (LOT.taskCols) for (const k in LOT.taskCols) if (TASKS[k]) TASKS[k].col = LOT.taskCols[k];
   // the helpers lot files use (see public/lots/); they only call them once the game is running
   Object.assign(LH, { SMELT_N, smeltDoorX, ell, rr, TAU, clamp, lerp, ease, rand, mulberry, cellRnd, shade, leafPath, leafBlob, scallop, drawLeaf, chalk, keepMark, drawPlot,
-    LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE, HIVE, TUB, PALLET, PLANT_VENT, HOPPER, RACK, RACK_CAP, mainCtx, reduceMotion,
+    LEAFC, FOLIAGE, TREES, SPOTS, VERGE, ROAD, LANE, HIVE, TUB, PALLET, PLANT_VENT, HOPPER, RACK, mainCtx, reduceMotion,
     drawRockBed, drawBush, drawFence, FLOWER_TYPES, drawDecoFlowers, puddleTrace, puddleAt, gl, flowerSpr: () => flowerSpr,
     hiveShown, hiveFloors, hiveTopZ, honeyCap, tankCap, tankFull, beeSip, hiveRt, plantRt, STN, stoker, minerWorkers, palletCap, plantShown,
     hopperCap, metalPerIngot, metalCap, tubRoom, keepMetal,
     BAGGER, BIN, BAG_SIZE, bagCap, dryTrays, drawLeafBag, hiveGrounded, HV_BEE, HV_LIFT: HV.lift || 0, LAB_WIN, hexPath, drawBeeBrass, drawPrism, prismFace, LAB_DOME, NEEDLE_COL, labBlower,
     palletShown, benchLit, BENCH_LOGS, flameAt, KILN_COAL });   // (V17)
-  for (const [k, f] of Object.entries({ S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
+  for (const [k, f] of Object.entries({ RACK_CAP: rackCap, S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
     parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck, px: () => DPR*cam.z })) Object.defineProperty(LH, k, { get: f, enumerable: true });
   LH_READY = true;
   load(data);

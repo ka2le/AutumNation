@@ -500,3 +500,15 @@ storage tails against production peaks, kiln/furnace operator synergy, stronger 
 hive upgrades, a more useful nursery, later leaf-value steps, and late truck/multiplier payback. These are pending
 targets; live economy values have not been changed. The guide's V9 income tables remain historical references,
 not measurements of the current three-yard campaign.
+
+## V22.5: separate raw storage and matching finished pallets (14 October 2026)
+
+Raw metal/log storage is independent from finished goods. Home ingot pallets hold 16 / 28 / 46 / 70 / 100, and both the furnace rack and roadside selling pallet use that capacity. Hollow coal pallets hold 32 / 56 / 92 / 140 / 200 on both the kiln shelf and roadside stand. Coal needs half the carrying space of an ingot, so the coal ladder has twice the unit capacity at the same prices.
+
+Both raw tracks cost $30 / 55 / 90 / 160 / 220 / 280 / 340 / 400 ($1,575 total). Both finished-pallet tracks cost $400 / 550 / 750 / 1,000 ($2,700 total). Maxing the log crib and coal pallets costs $4,275 combined, below the previous $6,455 shared crib/stand track. Kiln heat, briquettes, stacking and log-hopper prices are unchanged.
+
+The capacity is read dynamically by batch reservations, recovery settlement, finished-output placement, meters and drawing. Pallet upgrade rows display production and selling capacities together. Coal pallets can be upgraded once coal is researched, before building the kiln. Existing saves in both yards map the old raw-storage-derived selling capacity to the first new pallet tier that preserves it; the migration is idempotent and retains any already-separated pallet upgrades. Earned rack and roadside stock are retained, including stock above the current capacity.
+
+Run `node tools/check-rack.js` for all tier purchases, independent raw storage, reservations, save preservation, coal migration and real-production conservation checks. Campaign measurements and frozen sources are in `runs/rack-scaling/` and `runs/campaign-timing/rack-equal/`.
+
+Verification: 160 functional checks and six production-conservation runs passed, with no browser exceptions. Six ingot-priority campaigns averaged 108.92 minutes to the cutscene, versus 108.82 minutes in the latest pre-change control. Final-home duration averaged 22.66 versus 22.56 minutes. Late sampled next-batch rack reservations no longer fail for capacity; this is not an operator-idle measurement. The larger buffer fixes storage pressure while ore delivery and work/rest cycles continue to limit the final section. The detailed local report is `runs/rack-scaling/report.html`.
