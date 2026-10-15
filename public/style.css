@@ -84,7 +84,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #card.bots{width:min(400px,calc(100vw - 24px))}
 #card.wide.bots{width:min(780px,calc(100vw - 24px))}
 @keyframes pop{from{transform:scale(.94) translateY(6px);opacity:0}to{transform:none;opacity:1}}
-.cbody{overflow-y:auto;overscroll-behavior:contain;min-height:0;margin:0 -9px;padding:2px 9px 0;scrollbar-width:thin;scrollbar-color:#cdb58f transparent}
+.cbody{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;overflow-anchor:none;flex:1 1 auto;min-height:0;margin:0 -9px;padding:2px 9px 0;scrollbar-width:thin;scrollbar-color:#cdb58f transparent}
 
 /* header: a round medallion (the building's picture, or the robot itself through a porthole), the name, and what's going on */
 .ch{display:flex;align-items:center;gap:10px;padding:2px 0 6px;position:relative}
@@ -428,6 +428,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .stat.cash{font-size:16px}
   #soundBtn,#tutBtn,#recenter{width:40px;height:40px}
   #tutBtn{left:calc(62px + env(safe-area-inset-left,0px))}
+  #tutBtn{z-index:5}   /* (V25: under a docked card sheet on phones) */
   #fsBtn{width:38px;height:38px}
   .chip{font-size:12px;padding:5px 8px 4px 6px}
   .trow{min-height:34px}
