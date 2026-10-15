@@ -8244,7 +8244,7 @@ function updHints(dt){
   if (lim && hintT > lim){ hintA = Math.max(0, 1 - (hintT - lim)/0.8); if (hintA <= 0) dismissHint(h.id); }
 }
 function drawHints(){
-  const h = hintNow; if (!h || hintA <= 0 || TUT.on) return;   // (V23: not over a tutorial)
+  const h = hintNow; if (!h || hintA <= 0 || TUT.on || !tutPref) return;   // (V23: not over a tutorial)
   const c = ctx, s = w2s(h.x, h.y);
   c.save(); c.globalAlpha = hintA;
   const y = s.y + Math.sin(S.t*2.4)*3;
@@ -8265,6 +8265,23 @@ function drawHints(){
 // lesson again (Show tutorial), and __leafYard.tut(id) does the same.
 const TUT = { on: null, n: {}, binT: 0, truckT: 0, chk: 0, el: null, spot: null, bub: null, rect: null, shown: 0, lastT: -1, wait: null };
 const tutUsed = k => hintDone('use:' + k);
+// V23.3: the tutorials on/off button by the sound button (for this browser, every yard): off stops a lesson that's
+// showing (it isn't counted as seen, so it comes back once they're switched on again) and hides the little tips too
+const TUT_KEY = 'leaf-yard-tut-v1';
+let tutPref = (() => { try { return localStorage.getItem(TUT_KEY) !== '0'; } catch(e){ return true; } })();
+const tutBtn = $('tutBtn');
+function tutBtnIcon(){ if (!tutBtn) return; tutBtn.classList.toggle('off', !tutPref); tutBtn.setAttribute('aria-pressed', String(tutPref)); tutBtn.title = tutPref ? 'Tutorials are on (tap to turn off)' : 'Tutorials are off (tap to turn on)'; }
+if (tutBtn){
+  tutBtnIcon();
+  tutBtn.addEventListener('pointerdown', e => e.stopPropagation());
+  tutBtn.addEventListener('click', () => {
+    tutPref = !tutPref; try { localStorage.setItem(TUT_KEY, tutPref ? '1' : '0'); } catch(e){}
+    tutBtnIcon(); sfx('paper');
+    if (!tutPref && TUT.on && !TUT.on.forced) tutStop(false);
+    TUT.wait = null; TUT.gapT = performance.now() + (tutPref ? 1500 : 0);
+    showToast(tutPref ? 'Tutorials on' : 'Tutorials off', tutPref ? 'New things get a short how-to when they turn up.' : 'Turn them back on with this button any time.', 3.5);
+  });
+}
 function tutUse(k){ TUT.n[k] = (TUT.n[k] || 0) + 1; if (!simMode && !tutUsed(k)) dismissHint('use:' + k); }
 const tutCount = k => TUT.n[k] || 0;
 const tutDid = k => !!TUT.on && tutCount(k) > ((TUT.on.n0 && TUT.on.n0[k]) || 0);   // done since this step began
@@ -8692,7 +8709,8 @@ function updTut(dt){
   const gdt = TUT.lastT < 0 ? 0 : clamp(S.t - TUT.lastT, 0, 5); TUT.lastT = S.t;
   if (!hintDone('tut:bin') && !DRY_BENCH && S.lv.bin === 0 && !tutUsed('bin') && binRoom() <= 0) TUT.binT += gdt; else TUT.binT = 0;   // (not in the hollow, where wet leaves fill it whatever its size)
   if (!hintDone('tut:truck') && S.lv.truck === 0 && !tutUsed('truck') && S.cash + 1e-9 >= upCost('truck')) TUT.truckT += gdt;
-  const blocked = tutBlocked();
+  if (!tutPref && TUT.on && !TUT.on.forced) tutStop(false);
+  const blocked = tutBlocked() || (!tutPref && !TUT.on);
   if (!TUT.on){
     if (TUT.el && TUT.el.classList.contains('on')) TUT.el.classList.remove('on');
     if (blocked){ TUT.wait = null; return; }
@@ -10142,10 +10160,13 @@ function assignOpts(k, i){
   else if (k === 'hive' && S.hive.built && !hiveGrounded()) o.push(['robot', 'jar'], ['robot', 'wrap'], ['shaker', 'snip']);
   else if (k === 'plant' && S.plant.built) o.push(['robot', 'smelt'], ['robot', 'haul'], ['robot', 'refuel'], ['blower', 'stoke']);
   else if (k === 'spot' && S.miners.includes(i)){ o.push(['robot', 'mine']); if (S.shafts.includes(i)) o.push(['blower', 'dig']); }
+  else if (k === 'letter' && S.trip) for (const kind of tripKinds()) o.push([kind, 'travel']);   // V22.3: who goes on the trip (only those tripFor allows: Tinker on the hollow and the final ride, the one from home going back)
+  if (k === 'plant' && S.plant.built && WET_WOOD) o.push(['blower', 'brolly']);
   return o.filter(([kind, t]) => KIND_TASKS[kind].includes(t) && assignWho(kind, t).length);
 }
 // who could take it: everyone of that kind who's here and can do it (the list order is build order, like the name picker)
-const assignWho = (kind, t) => botNav().filter(q => q.kind === kind && taskOpen(t, cfgsOf(kind)[q.i]));
+// (V22.3: for a trip, everyone the trip allows, even while another one holds it; picking one moves the trip over)
+const assignWho = (kind, t) => botNav().filter(q => q.kind === kind && (t === 'travel' ? tripFor(cfgsOf(kind)[q.i]) : taskOpen(t, cfgsOf(kind)[q.i])));
 // V22.2: the Assign button sits under the row it fills (Research, Fillers, Smelters, Bellows…), not by the card's title.
 // Each option goes to the row whose sig starts with its key (ASSIGN_ROWS); anything without a row gets one of its own
 // at the end. assignOpen is the key of the row whose picker is open (false when none).
@@ -10153,8 +10174,9 @@ const ASSIGN_ROWS = {
   book: { 'robot:research': ['rw'], 'blower:research': ['lb', 'fhblower'], 'shaker:research': ['fhshaker'] },
   bagger: { 'blower:bag': ['dryc'], 'robot:fuel': ['crewfuel'], 'robot:bag': ['crewbag'] },
   hive: { 'robot:jar': ['crewjar'], 'robot:wrap': ['crewwrap'], 'shaker:snip': ['dhd'] },
-  plant: { 'robot:smelt': ['crewsmelt'], 'robot:haul': ['crewhaul'], 'robot:refuel': ['crewrefuel'], 'blower:stoke': ['stk'] },
+  plant: { 'robot:smelt': ['crewsmelt'], 'robot:haul': ['crewhaul'], 'robot:refuel': ['crewrefuel'], 'blower:stoke': ['stk'], 'blower:brolly': ['brl'] },
   spot: { 'robot:mine': ['nw', 'w'], 'blower:dig': ['ex'] },
+  letter: { 'robot:travel': ['triprobot'], 'blower:travel': ['tripblower'] },
 };
 function assignPicker(opts){
   const kinds = new Set(opts.map(q => q[0])).size > 1;
@@ -10196,7 +10218,8 @@ function placeAssign(k, opts, rows, rows2){
   }
 }
 function assignTo(kind, i, t){
-  const c = cfgsOf(kind)[i]; if (!c || !taskOpen(t, c)) return;
+  const c = cfgsOf(kind)[i]; if (!c || !(t === 'travel' ? tripFor(c) : taskOpen(t, c))) return;
+  if (t === 'travel') cfgsOf(kind).forEach((o, j) => { if (o !== c && taskOn(o, 'travel')){ taskRemove(o, 'travel'); o.off.push('travel'); taskListChanged(kind, j); } });   // V22.3: one per kind
   putTop(c, t);
   if (kind === 'robot' && t === 'mine' && cardOpen && cardOpen.kind === 'spot'){ const sp = cardOpen.i; if (S.robots[i].miner !== sp){ if (S.robots[i].miner != null) S.robots[i].miner = null; assign(i, sp); } }
   if (kind === 'robot') S.flags.taskHint = true;

@@ -756,6 +756,7 @@ paper like the cards) says what to do in a few words. All in one block in `game.
   lessons also skip saves that are already past them.
 - **Checks** (headless): every lesson played through by doing each step (buy, unlock, drag, assign, slide, pan, zoom,
   recenter, eye), the forced replays, the old-save check, the prairie and hollow dev starts, no page errors.
+- **Assign on letters** (V22.3): a letter's trip rows ("Go to new lot · robot / · blower") have an Assign button. It lists only who the trip allows (`tripFor`: Tinker for the hollow and the final ride, the robot from home going back, any robot for the prairie), even while another one already has the trip; picking one moves the trip there (the others of that kind get it back in Off). Also the Wood umbrella row (`brl`) when wet wood is on.
 
 ### V23.2 (Oct 14): a lesson for the first ride to a new yard
 - **`arrive`** (first in `TUT_ORDER`): the first time a robot rides to another yard (the Wildflower prairie), once the
@@ -767,3 +768,12 @@ paper like the cards) says what to do in a few words. All in one block in `game.
 - Shown once (it rides along in the hints like every lesson). Old saves: done if a robot has already spent 2 minutes on
   this yard, or (at home) if another yard has a save (`tutVisited`). The test jumps "Prairie: just arrived" and "Rainy
   hollow: just arrived" show it (`runJump` clears `tut:arrive` for a just-arrived stop), other jumps don't.
+
+### V23.3 (Oct 14): tutorials on/off button
+- A round button with a speech bubble and a question mark (`#tutBtn` in `index.html`) sits beside the sound button in the
+  bottom left, above a lesson's dim so it's easy to find. Tap to switch tutorials off (the bubble gets a slash and fades)
+  or back on; a short toast says which. Saved for this browser in `localStorage` `leaf-yard-tut-v1` (`'0'` = off; shared
+  by every yard, like the sound settings), read into `tutPref`.
+- Off: no lesson starts, one that's showing stops without being counted as seen (it plays again once they're back on and
+  its moment comes round), and the little canvas tips (`drawHints`) hide too. Lessons played from the test panel still
+  show while off. Hidden during the ending like the other buttons.
