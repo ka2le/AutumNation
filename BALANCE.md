@@ -516,3 +516,14 @@ The capacity is read dynamically by batch reservations, recovery settlement, fin
 Run `node tools/check-rack.js` for all tier purchases, independent raw storage, reservations, save preservation, coal migration and real-production conservation checks. Campaign measurements and frozen sources are in `runs/rack-scaling/` and `runs/campaign-timing/rack-equal/`.
 
 Verification: 160 functional checks and six production-conservation runs passed, with no browser exceptions. Six ingot-priority campaigns averaged 108.92 minutes to the cutscene, versus 108.82 minutes in the latest pre-change control. Final-home duration averaged 22.66 versus 22.56 minutes. Late sampled next-batch rack reservations no longer fail for capacity; this is not an operator-idle measurement. The larger buffer fixes storage pressure while ore delivery and work/rest cycles continue to limit the final section. The detailed local report is `runs/rack-scaling/report.html`.
+
+## V24: shared robots, bagging before the book, equal research (15 October 2026)
+
+Robot skills now belong to identities shared by every yard, and a yard's robots can be copies at 50% of the identity's
+build price (see PROJECT_NOTES V24). A copy brings every skill, so a new yard ramps up much faster than before; the
+prairie and the hollow were not repriced for that. The copied-level discount counts identities in every yard, and Load
+& pack is discounted like everything else. Robot 5 costs $95 (was $70), Quick servos $2.20 / 3.80 / 6.50 / 11 (was up
+to $7.50). The bagging table comes at Sort 3, and 5 bags bring the book (~9.5 min, research done ~12 min). Research is
+4 / 8 / 16 / 42 a second per robot, helpers equal to the reader. In the hollow, 300 dry leaves after the fire research
+line up with the stove's first whole coal (~110 s). First-yard balance-player milestones and income are within noise of
+V23.3 (4 runs each).

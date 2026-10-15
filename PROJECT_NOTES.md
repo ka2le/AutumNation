@@ -777,3 +777,64 @@ paper like the cards) says what to do in a few words. All in one block in `game.
 - Off: no lesson starts, one that's showing stops without being counted as seen (it plays again once they're back on and
   its moment comes round), and the little canvas tips (`drawHints`) hide too. Lessons played from the test panel still
   show while off. Hidden during the ending like the other buttons.
+
+## V24 (Oct 15): robots shared across yards, home-only general upgrades, bagging before the book, equal research
+
+- **Robot identities** (block "V24: robot identities" near the top of `game.js`: `WORLD.ids`, `bindIds`, `idPeers`,
+  `copyable`, `nextCopy`, `copyCost`, `idPrice`). Every robot, blower and shaker is an identity: its look and name
+  (`cfg.sty`, now always set). Each yard keeps its own local copies (task list, mine, `away`/`home` stay local), but the
+  skill levels belong to the identity and live in `leaf-yard-world-v1` as `ids.{robot,blower,shaker}[sty].lv`. A copy's
+  `cfg.lv` *is* that object, so upgrading Pip in any yard upgrades every Pip. `ids[..].at` lists the yards with a copy
+  (not one that's away), for the robot card's foot note "Skills shared with Pip in …". `bindIds()` ties everything
+  together and merges anything out of step by taking the higher level (levels only go up): end of `load()` (skipped on a
+  new lot a crew is riding to), `arrive()`, `devTraveller()`, every robot/helper/copy purchase, the end of every kit,
+  and every `save()` (which now also writes the world). Tier unlocks are one shared object (`S.tech` is `WORLD.tech`).
+  - **Prices:** the first of a new identity costs the normal build price by how many identities exist in every yard
+    (`ROBOT_COST` / `BLOWER_COST` / `SHAKER_COST`; at most `ROBOT_MAX` 10 robots and 3 of each helper in all). A copy in
+    any other yard (home included, for identities first built elsewhere) costs `COPY_SHARE` 50% of that identity's own
+    price (`idPrice`: its place in the list; Tinker counts as robot 2's price). One copy of an identity per yard.
+  - **Workshop:** only the next one up, as before: while this yard is missing a copy of an existing identity, the row is
+    "Build Pip COPY" (the lowest one missing) with its skills as pictures and levels (`idSkills`) and the same green
+    −50% sticker as a copied skill level (full price in the tooltip); once every identity has a copy here, the row is a
+    new robot. Same for blowers and shakers (copies of helpers once blowers and shakers are known).
+  - **Copied-level discounts** look at every identity in every yard (`idPeers`): a level any robot anywhere already has
+    is discounted, and Match / Match all bring robots here up to the best identity anywhere. All robots / Match all
+    still upgrade the robots in this yard (which upgrades their copies elsewhere).
+  - **Travel** is unchanged: the robot (and blower) with the trip still rides the truck, `away` and `home` work as
+    before, and the story crews are the same. `arrive()` matches the arriving robot to its identity (`sty`); a copy that
+    already worked here keeps its own task list. Buying copies never takes a worker from another yard.
+  - **Old saves:** the roster is built from whatever yard loads first and merged by taking the higher level as each yard
+    loads (a prairie robot that has Pip's look *is* Pip). No refunds.
+  - **Sim / tests:** `__leafYard.sim` swaps in a scratch roster (`IDW`), so it never touches the real one. Start over and
+    jumps wipe the roster too. Kits build copies of robots that exist elsewhere before new ones (`another` in `applyKit`).
+- **General upgrades only at home** (`SHARED_GEN`: Grease every axle, Shared basket plans, Copy the blueprints, Cutting
+  oil, Market stall, Lucky horseshoe; `genHere`). Bought in the home workshop (section "Every yard"), shared through
+  `WORLD.gen`, and in effect in every yard. Elsewhere the workshop shows them under "From home" as chips (level number
+  when not maxed) with a note. The lots' own upgrades (Petal press, Wildflower seeding, Sweet clover; Leaf mould deal,
+  Spore scattering, Mossy mulch) and every bin, price, building, hive and plant upgrade stay local.
+- **Bagging before the book:** the bagging table shows after 3 Sort leaves steps (`BAG_SORT` 3, was 5), still $18. Two
+  early goal pills: **Build the bagging table** (`$x / $18`, from when it shows) and **Make 5 bags of leaves**
+  (`BOOK_BAGS`); 5 bags arm the book (replaces $60 earned / $36 held). The task lesson's drag step now names the task the
+  robot doesn't get to yet, so its first example is always Bag leaves ("Drag Bag leaves to the top"). Kit `home6`
+  includes the table and the bags. Measured (balance player, 4 runs): table ~7 min, book ~9.5 (was 8.8), research done
+  ~12.2 (was 11.6).
+- **Equal research:** every robot on a research adds its full share, `RESEARCH_UNIT` 4 × its Research level
+  (`researchShare`); the reader no longer gets 4 to a helper's 1. Research levels 4 / 8 / 16 / **42** units a second
+  (`TRACKS.study.vals` 1 / 2 / 4 / 10.5, top was 64). The hive's and the fire's `robotMul` 0.5, crew limits and the
+  required blower/shaker/second robot are unchanged and apply to everyone equally. Card tips and the study row say so.
+- **From the fire to the charcoal (the hollow):** once the fire is worked out, a goal pill **Sell 300 dry leaves**
+  (`DRY_FIRE_GOAL`, group `hollowF`, counted from that moment: `S.fire.dryBase`, `dryAfterFire`). The coal find is now
+  the stove's first *whole* lump (two logs, 90 s of burning) and waits in the ash pan until that goal is reached
+  (`updBenchFire`). Measured from the strike jump with one robot put on Fuel straight away: first whole coal ~102 s
+  after the fire research, 300 dry leaves sold ~113 s, coal find ~110–113 s. The 500 dry leaves before the lightning is
+  unchanged. Test panel: "Sell 300 dry leaves (after the fire)", then "Burn the first two logs in the dryer".
+- **Load & pack** follows the copied-level discount like every other skill (`NO_DISCOUNT` is empty).
+- **Prices:** robot 5 $95 (was $70); Quick servos $2.20 / 3.80 / 6.50 / 11 (was 2.20 / 3.30 / 5 / 7.50). Balance player
+  (4 runs, 2 h, first yard): robot 2 ~17 min, table ~7, metal ~35, Meadow ~41, robot 10 ~50, income at 60 min ~$3.3k/min
+  (before ~$3.2k); the last Pickup level is bought ~3 min later than before.
+- **Text:** the prairie and hollow letters' small print says skills, unlocks, truck and general upgrades are shared and
+  other robots can join as copies; the arrival lesson has a step at the workshop about copies.
+- **Balance player:** with the bagging table and no packer yet, leaf robots have [Gather leaves + Bag leaves] side by side.
+- **Checks** (headless): every test jump (new game to the final letter) with no page errors; prairie: a copy upgraded
+  there is upgraded at home after the ride back; an old two-yard save merges into one roster; 1-hour sims on all three
+  lots; the task lesson on a fresh game shows "Drag Bag leaves to the top".

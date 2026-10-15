@@ -300,6 +300,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .locked .n,.locked .v,.locked .rm,.tiles.locked .tile{opacity:.55}
 
 .foot{font-size:12px;color:var(--ink-soft);padding:7px 0 3px;border-top:1.5px dashed var(--rule);display:flex;justify-content:flex-end;align-items:center;gap:8px}
+/* V24: robots shared across yards: a copy's skills on the workshop row, the note on a robot card */
+.cpsk{display:inline-flex;flex-wrap:wrap;gap:3px 7px;align-items:center}
+.cpsk .sk{display:inline-flex;align-items:center;gap:1px;font-size:12.5px;white-space:nowrap}
+.cpsk .sk .ic{width:15px;height:15px}
+.cpsk.none{font-size:12px;color:var(--ink-soft)}
+.n .cpy{font:700 10.5px var(--font-ui);letter-spacing:.04em;text-transform:uppercase;color:#2f6f8f;background:rgba(47,111,143,.12);border-radius:5px;padding:0 5px;margin-left:5px;vertical-align:1px}
+.dchip b{position:absolute;right:-3px;bottom:-4px;font-size:10.5px;background:var(--paper-3);border-radius:6px;padding:0 3px;box-shadow:inset 0 0 0 1px var(--rule)}
+.foot.shr{justify-content:flex-start;gap:5px}
+.foot.shr .ic{width:15px;height:15px}
 .foot kbd{font:700 11px var(--font-ui);background:var(--paper-3);border-radius:5px;padding:1px 6px;box-shadow:0 1.5px 0 #cdb58f}
 .link{border:0;background:none;color:var(--ink-faint);font:600 12px var(--font-ui);text-decoration:underline dotted;cursor:pointer;padding:2px}
 .link.danger{color:#fff;background:var(--red);border-radius:8px;padding:5px 10px;text-decoration:none;box-shadow:0 2px 0 #7e2a18}
@@ -557,3 +566,5 @@ body.ending #hud, body.ending #card, body.ending #toast, body.ending #soundBtn, 
 body.ending #tut{display:none !important}
 @media (max-width:640px){ #tut .tt{font-size:20px} #tut .tbub{max-width:min(220px,calc(100vw - 24px))} }
 @media (prefers-reduced-motion: reduce){ #tut .tspot::after,#tut .ttap{animation:none} #tut .tbub.pop{animation:none} }
+/* V24: how many of the kind this yard has, after a copy's skills */
+.cpn{font-size:11px;color:var(--ink-soft);margin-left:4px}

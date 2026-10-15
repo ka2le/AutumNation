@@ -1,7 +1,8 @@
 // AutumNation: the Wildflower prairie, the second lot (V13).
 // The truck driver brings a letter once the first yard has earned $900: "We found another spot that could use some
 // cleanup". A robot rides over in the back of the truck and starts again here, keeping its own upgrades, every robot
-// unlock, the truck schedule and the cleanup program. Everything else starts over.
+// unlock, the truck schedule and the cleanup program. (V24: robot skills, unlocks and the general workshop upgrades are
+// shared by every yard; robots from home can be built here as copies at half price.) Everything else starts over.
 //
 // A lot file only describes what's different about a place: its layout, its look, its words and a few upgrades of its
 // own. game.js calls LOTS.<id>(H) once at startup, before anything else exists, so nothing in here may touch H until

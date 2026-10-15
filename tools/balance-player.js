@@ -54,7 +54,8 @@ function setTasks(S){
   if (wantPack === 2){ roles[0] = 'pack1'; roles[1] = 'pack2'; }
   S.robots.forEach((c, j) => {
     const role = j >= 1 ? roles[n - 1 - j] : null;   // robot 0 always gathers leaves
-    c.prio = (P[role] || [['leaves']].concat(S.bag.built && !wantPack ? [['bag']] : [])).map(r => r.slice());
+    // (V24: with the bagging table and no packer yet, the leaf robots bag too, taking turns: the book comes after 5 bags)
+    c.prio = (P[role] || (S.bag.built && !wantPack ? [['leaves', 'bag']] : [['leaves']])).map(r => r.slice());
     // V12: robot 0 reads the old picture book while there's research (it unlocks blowers and shakers)
     if (j === 0 && S.story && S.story.found && !S.story.done) c.prio.unshift(['research']);
     c.off = ['leaves','mine','bag','jar','wrap','smelt','haul','research'].filter(t => !c.prio.flat().includes(t));

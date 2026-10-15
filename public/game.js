@@ -277,7 +277,7 @@ const OLD_PALLET_COSTS = [60, 200, 600];
 // V6 refinement: buildings and constants
 const BAG_SIZE = 10;            // leaves in a bag
 const BAGGER_COST = 18;         // the bagging table: a bit more than the next sorting step would have been
-const BAG_SORT = 5;             // V19.1: the bagging table shows after 5 Sort leaves steps (it was "maxed"; there are 10 now)
+const BAG_SORT = 3;             // V24: the bagging table shows after 3 Sort leaves steps, before the old picture book (V19.1–V23: 5)
 const HONEY_PACK_COST = 550;    // Gift wrapping: opens the Wrap task at the crate (V11: was 800)
 const PLANT_COST = LOT.plantCost || 500;   // the smelting plant (V7: was 300; V17: the hollow's charcoal kiln is cheaper)
 const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
@@ -298,7 +298,7 @@ const TRACKS = {
     vals:[3,5,7,9, 12,15,18,21, 25,29,33,38], show:v=>v+' leaves' },
   pick: { label:'Pickup', gens:[
       { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'servos', name:'Quick servos', n:4, cost:[2.2, 3.3, 5, 7.5] } ],
+      { tech:'servos', name:'Quick servos', n:4, cost:[2.2, 3.8, 6.5, 11] } ],   // (V24: the last three were 3.30 / 5 / 7.50)
     vals:[1.3,1.05,0.85,0.7, 0.56,0.46,0.38,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
@@ -339,22 +339,22 @@ const TRACKS = {
   snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[25] } ],
     vals:[0, 1], show:v=>v ? 'can deadhead flowers' : 'trees only' },
   // V6: packing & refining: how fast a robot bags leaves, fills honey jars and smelts ingots.
-  // V7: a robot starts clumsier, every level is bought at full price (no copied-level discount), and the last tier is
-  // much stronger, so a robot you train up as a packer is worth the money.
+  // V7: a robot starts clumsier and the last tier is much stronger, so a robot you train up as a packer is worth the money.
+  // (V24: copied levels are discounted like every other skill; V7 to V23 bought every Load & pack level at full price)
   // V19: Load & pack (was Packing): loading kilns and furnaces as well as packing bags, jars and cans
   pack: { label:'Load & pack', gens:[
       { name:'Clumsy hands', n:3, cost:[3, 6, 11], needsPack:true },
       { tech:'jig', name:'Packing jig', n:4, cost:[22, 36, 56, 85] },
       { tech:'precision', name:'Precision tools', n:4, cost:[100, 170, 290, 500] } ],   // (V22: was 280 / 450 / 700 / 1,100; the unlock stays $700)
     vals:[0.6, 0.72, 0.84, 0.96, 1.12, 1.3, 1.5, 1.75, 2.3, 2.95, 3.7, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
-  // V12: how quickly a robot works through the old picture book (the Research task). The robot holding the book does
-  // RESEARCH_MAIN units a second, each robot helping RESEARCH_HELP; every level doubles that robot's share.
+  // V12: how quickly a robot works through the old picture book (the Research task). V24: every robot on the research adds
+  // its full share, RESEARCH_UNIT units a second × its Research level (helpers used to add a quarter of the reader's share)
   study: { label:'Research', gens:[
       { name:'Squinting at pictures', n:0, cost:[], needsBook:true },
       { name:'Reading glasses', n:1, cost:[5] },
       { name:'Speed reading', n:1, cost:[80] },
-      { name:'Photographic memory', n:1, cost:[200] } ],   // V13.1: up to 16 × 4 = 64 research a second for the reader
-    vals:[1, 2, 4, 16], show:v=>v+'× research' },
+      { name:'Photographic memory', n:1, cost:[200] } ],   // V13.1: the fourth level. V24: 10.5 × 4 = 42 research a second at the top (was 16 × 4 = 64)
+    vals:[1, 2, 4, 10.5], show:v=>v+'× research' },
   // V6: blowers at a mine shaft suck up dirt so the robots mining there get on faster. Level 1 teaches it.
   // V19: 2 levels and 2 more after the unlock (was 3 + 4), same +25% → +95%
   dig: { label:'Shaft excavating', gens:[
@@ -435,10 +435,14 @@ const sownTier = () => gl('seeding') * ((GEN.seeding && GEN.seeding.tiers) || 1)
 const pressMul = () => 1 + 0.15*gl('press');
 const regrowMul = () => 1 + 0.3*gl('clover');
 const genCost = k => GEN[k].cost[gl(k)];
-const genAvail = k => gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) && seenPrice(genCost(k));
+// (V24: the general upgrades (SHARED_GEN) are bought in the home workshop only, and work in every yard)
+const genHere = k => LOT_ID === 'home' || !SHARED_GEN.includes(k);
+const genAvail = k => genHere(k) && gl(k) < GEN[k].max && (!GEN[k].needs || GEN[k].needs()) && seenPrice(genCost(k));
 const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
 // V6: twelve robots (since V6.1), and each one costs only a little more than the last (there's a lot more for them to do now)
-const ROBOT_COST = [0, 8, 15, 30, 70, 140, 240, 380, 560, 800, 1100, 1500];
+// (V24: the fifth costs $95, was $70: four robots come easily, more is an investment; copies of a robot from another yard
+// cost half of its own price, so a fifth here is often a copy)
+const ROBOT_COST = [0, 8, 15, 30, 95, 140, 240, 380, 560, 800, 1100, 1500];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 const MINER_COST = 100;   // every miner costs the same; far veins are already worth less
 const METAL_SLOT_COST = 160;
@@ -449,7 +453,9 @@ const BLOWER_COST = [7, 25, 50];
 const SHAKER_COST = [9, 30, 60];
 const OLD_HELPER5 = { blower: 4500, shaker: 5000 };   // what a fifth helper cost before V7 (refunded on load)
 const DISCOUNT = 0.5;
-const NO_DISCOUNT = ['pack'];   // V7: packing levels are always bought at full price
+// V7 kept Load & pack at full price for levels another robot already has; V24 drops that, so it follows the same copied-level
+// rules as every other skill (single levels, Match and the All robots button). The list stays for any skill that needs it.
+const NO_DISCOUNT = [];
 
 const STYLES = [
   { name:'Tinker',  blurb:'The original yard bot. Dusty, squeaky, wears an old tin bucket for a hat, never complains.', body:'#cfc09f', body2:'#94825f', head:'#e0d4b8', head2:'#b4a586', band:'#5f8f88', bw:24, bh:22, hw:18, hh:13, tw:28, rust:1, dust:true, look:'bucket' },   // V14.2: the bucket hat (ROBOT_LOOKS)
@@ -470,7 +476,8 @@ const STYLES = [
 // another lot take the looks that are still free there
 const styleIdx = ri => { const c = S.robots[ri]; return c && c.sty != null ? c.sty : ri; };
 const styleOf = ri => STYLES[styleIdx(ri)] || STYLES[0];
-function nextStyle(){ const used = new Set(S.robots.map((c, i) => c.sty != null ? c.sty : i)); for (let k=0;k<STYLES.length;k++) if (!used.has(k)) return k; return S.robots.length % STYLES.length; }
+// (V24: a new identity takes the first look no identity has, in any yard)
+function nextStyle(){ const used = new Set([...S.robots.map((c, i) => c.sty != null ? c.sty : i), ...Object.keys(idsOf('robot')).map(Number)]); for (let k=0;k<STYLES.length;k++) if (!used.has(k)) return k; return S.robots.length % STYLES.length; }
 // Blowers: yard robots built like a low robot vacuum, with a hose trunk and hinged flaps on the head.
 const BLOWER_STYLES = [
   { name:'Puff',   blurb:'A low, wide robot with a hose for a trunk. Blows far-off leaves toward the bin.', body:'#d3cab2', body2:'#a2957a', head:'#ddd4be', head2:'#b2a68b', band:'#4f7c84', bw:30, bh:13, hw:15, hh:12, tw:30, trunk:1,    flap:1,    rust:.6 },
@@ -552,13 +559,72 @@ function genNameAt(k, level){ let acc = 0, name = TRACKS[k].gens[0].name; for (c
 // robots of every kind: 'robot' (the regular yard bots), 'blower' and 'shaker'
 const KIND_LIST = { robot:'robots', blower:'blowers', shaker:'shakers' };
 const cfgsOf = kind => S[KIND_LIST[kind]];
-// everyone who has track k: Wheels are on every robot of every kind, the rest only on one kind
-function peersFor(k){ if (k === 'speed') return [...S.robots, ...S.blowers, ...S.shakers]; if (k === 'blow' || k === 'dig' || k === 'stoke' || k === 'brolly' || k === 'dry') return S.blowers; if (k === 'shake' || k === 'snip') return S.shakers; return S.robots; }
+// everyone here who has track k: Wheels are on every robot of every kind, the rest only on one kind
+const trackKind = k => k === 'blow' || k === 'dig' || k === 'stoke' || k === 'brolly' || k === 'dry' ? 'blower' : k === 'shake' || k === 'snip' ? 'shaker' : 'robot';
+function peersFor(k){ if (k === 'speed') return [...S.robots, ...S.blowers, ...S.shakers]; return cfgsOf(trackKind(k)); }
+
+// ───────────────────────── V24: robot identities, shared across yards
+// Every robot, blower and shaker is an identity (its look and name: cfg.sty). A yard keeps its own local copies (each
+// with its own task list, mine, and away/home), but the skill levels belong to the identity and live in WORLD.ids, so
+// upgrading Pip in any yard upgrades every Pip in every yard (a copy's cfg.lv IS the identity's level object). Tier
+// unlocks (S.tech is WORLD.tech) and the general workshop upgrades (SHARED_GEN, bought only at home) are shared the same
+// way. The first of a new identity costs the normal build price (ROBOT_COST / BLOWER_COST / SHAKER_COST, by how many
+// identities there are); every further local copy costs COPY_SHARE of that identity's own price, at home too. A yard
+// holds one copy of each identity. bindIds() keeps all of this tied together (load, arrive, buying, kits, every save).
+const SHARED_GEN = ['oil', 'basket', 'blueprint', 'cutting', 'market', 'charm'];
+const COPY_SHARE = 0.5;
+const LV_KEYS = { robot: TRACK_ORDER, blower: ['speed', 'blow', 'dig', 'stoke', 'brolly', 'dry'], shaker: ['speed', 'shake', 'snip'] };
+const ID_MAX = { robot: ROBOT_MAX, blower: HELPER_MAX, shaker: HELPER_MAX };
+let IDW = WORLD;   // where the shared roster lives (the headless sim swaps in a scratch one so it never touches the real one)
+function idRoot(){
+  const w = IDW;
+  if (!w.ids || typeof w.ids !== 'object') w.ids = {};
+  for (const k of ['robot', 'blower', 'shaker']) if (!w.ids[k] || typeof w.ids[k] !== 'object') w.ids[k] = {};
+  if (!w.tech || typeof w.tech !== 'object') w.tech = {};
+  if (!w.gen || typeof w.gen !== 'object') w.gen = {};
+  return w;
+}
+const idsOf = kind => idRoot().ids[kind];
+const cfgId = (kind, c, i) => c && c.sty != null ? c.sty : i;
+const idCount = kind => Object.keys(idsOf(kind)).length;
+const idHere = (kind, sty) => cfgsOf(kind).some((c, i) => cfgId(kind, c, i) === +sty);
+// the identity's own build price (what its first one cost, or would have): its place in the price list
+const idPrice = (kind, sty) => { const L = kind === 'robot' ? ROBOT_COST : kind === 'blower' ? BLOWER_COST : SHAKER_COST; return L[clamp(+sty, kind === 'robot' ? 1 : 0, L.length - 1)]; };
+const copyCost = (kind, sty) => niceCost(idPrice(kind, sty)*COPY_SHARE);
+// identities that exist somewhere but have no copy in this yard yet (lowest first)
+const copyable = kind => Object.keys(idsOf(kind)).map(Number).filter(s => !idHere(kind, s)).sort((a, b) => a - b);
+// a new identity can be made while there are fewer than ID_MAX of them in all
+const newIdOK = kind => idCount(kind) < ID_MAX[kind];
+// tie every local robot to its identity's level object, and the unlocks and general upgrades to the shared ones.
+// Levels only ever go up, so anything out of step is merged by taking the higher level.
+function bindIds(){
+  const w = idRoot();
+  for (const kind of ['robot', 'blower', 'shaker']){
+    const ids = w.ids[kind];
+    cfgsOf(kind).forEach((c, i) => {
+      const sty = cfgId(kind, c, i); c.sty = sty;
+      let e = ids[sty];
+      if (!e || typeof e !== 'object') e = ids[sty] = {};
+      if (!e.lv || typeof e.lv !== 'object') e.lv = {};
+      if (e.lv !== c.lv){ for (const k of LV_KEYS[kind]) e.lv[k] = Math.max(e.lv[k] | 0, (c.lv && c.lv[k]) | 0); c.lv = e.lv; }
+      for (const k of LV_KEYS[kind]) e.lv[k] = clamp(e.lv[k] | 0, 0, TRACKS[k].vals.length - 1);
+    });
+    // which yards have a copy (for the "shared with" note): this one, exactly what's here now
+    for (const s in ids){ const e = ids[s]; if (!e || typeof e !== 'object') continue; if (!e.at || typeof e.at !== 'object') e.at = {}; if (cfgsOf(kind).some((c, i) => cfgId(kind, c, i) === +s && !c.away)) e.at[LOT_ID] = 1; else delete e.at[LOT_ID]; }   // (one that's away isn't a copy here)
+  }
+  if (S.tech !== w.tech){ for (const k in S.tech) if (S.tech[k]) w.tech[k] = true; S.tech = w.tech; }
+  for (const k of SHARED_GEN){ const v = Math.max((S.gen && S.gen[k]) | 0, w.gen[k] | 0); if (v){ S.gen[k] = v; w.gen[k] = v; } }
+}
+// every identity's levels, in every yard, of the kinds that have track k (Wheels: every kind)
+function idPeers(k){ const out = []; for (const kind of k === 'speed' ? ['robot', 'blower', 'shaker'] : [trackKind(k)]){ const ids = idsOf(kind); for (const s in ids) if (ids[s] && ids[s].lv) out.push(ids[s].lv); } return out; }
+// the yards (other than this one) that have a copy of this identity
+const idElsewhere = (kind, sty) => { const e = idsOf(kind)[sty]; return e && e.at ? Object.keys(e.at).filter(l => l !== LOT_ID) : []; };
 function botCost(kind, i, k){
   const me = cfgsOf(kind)[i], L = me.lv[k], ge = genAt(k, L);
   if (!ge) return null;
   const full = ge.g.cost[ge.idx];
-  const disc = !NO_DISCOUNT.includes(k) && peersFor(k).some(c => c !== me && c.lv[k] > L);
+  // (V24: "another robot already has it" counts every identity in every yard)
+  const disc = !NO_DISCOUNT.includes(k) && (idPeers(k).some(lv => lv !== me.lv && lv[k] > L) || peersFor(k).some(c => c !== me && c.lv[k] > L));
   return { cost: disc ? niceCost(full*discFor(k)) : full, full, disc };
 }
 const rCost = (ri, k) => botCost('robot', ri, k);
@@ -571,7 +637,9 @@ const robotCost = n => niceCost(ROBOT_COST[n]*(gl('bulk') ? 0.75 : 1));
 function allPlan(k){
   const peers = peersFor(k), n = peers.length;
   if (n < 2 || !trackVisible(k)) return null;
-  const lv = peers.map(r => r.lv[k]), top = Math.max(...lv), cap = trackCap(k);
+  // (V24: "the best robot" can be an identity in another yard: everyone here is brought up to it, all at the copied price)
+  const lv = peers.map(r => r.lv[k]), cap = trackCap(k), gtop = Math.max(0, ...idPeers(k).map(l => l[k] | 0));
+  const top = Math.max(...lv, Math.min(gtop, cap, trackMax(k)));
   const price = (L, disc) => { const ge = genAt(k, L); if (!ge) return null; const f = ge.g.cost[ge.idx]; return disc && !NO_DISCOUNT.includes(k) ? niceCost(f*discFor(k)) : f; };
   let cost = 0, full = 0, target;
   if (lv.some(l => l < top)){
@@ -580,7 +648,8 @@ function allPlan(k){
   } else {
     if (top >= cap || top >= trackMax(k)) return null;
     target = top + 1;
-    const f = price(top, false); cost = f + (n - 1)*price(top, true); full = f*n;
+    const f = price(top, false), elsewhere = gtop > top;   // (someone elsewhere already has it: all copied)
+    cost = (elsewhere ? price(top, true) : f) + (n - 1)*price(top, true); full = f*n;
   }
   const behind = lv.filter(l => l < target).length;
   return { cost: Math.round(cost*100)/100, full, target, catchUp: target === top, behind };
@@ -589,9 +658,9 @@ function allPlan(k){
 // blower and shaker), in one go: every level is one another robot already has, so each is at the copied-level price.
 // Only offered when that's at least two levels (one level is the plain buy button next to it). (Was "max" in V21.1.)
 function maxPlan(kind, i, k){
-  const me = cfgsOf(kind)[i], L = me.lv[k], peers = peersFor(k).filter(c => c !== me);
-  if (!peers.length) return null;
-  const best = Math.max(...peers.map(c => c.lv[k])), top = Math.min(best, trackCap(k), trackMax(k));
+  const me = cfgsOf(kind)[i], L = me.lv[k], peers = peersFor(k).filter(c => c !== me), others = idPeers(k).filter(lv => lv !== me.lv);
+  if (!peers.length && !others.length) return null;
+  const best = Math.max(0, ...peers.map(c => c.lv[k]), ...others.map(lv => lv[k] | 0)), top = Math.min(best, trackCap(k), trackMax(k));   // (V24: the best identity anywhere)
   if (top - L < 2) return null;
   let cost = 0;
   for (let l = L; l < top; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx]; cost += NO_DISCOUNT.includes(k) ? f : niceCost(f*discFor(k)); }
@@ -814,12 +883,22 @@ const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
 function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
 function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke: COAL && S && S.flags && S.flags.coalKnown ? 1 : 0, brolly:0, dry: DRY_BENCH ? 1 : 0 } }, 'blower')
  : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
-const helperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[cfgsOf(kind).length];
+// V24: a new identity costs its place in the price list (how many of that kind exist in every yard); once there are as
+// many identities as a yard can hold, the next one here is a copy (half of that identity's own price)
+const newHelperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[idCount(kind)];
+const helperCost = kind => newIdOK(kind) ? newHelperCost(kind) : copyable(kind).length ? copyCost(kind, copyable(kind)[0]) : undefined;
+const newRobotCost = () => robotCost(idCount('robot'));
+const robotNextCost = () => newIdOK('robot') ? newRobotCost() : copyable('robot').length ? copyCost('robot', copyable('robot')[0]) : undefined;
+// V24: the workshop offers just the next one up: a copy of the first robot (or blower, shaker) this yard doesn't have yet,
+// at half its price; once every identity has a copy here, a new one
+const nextCopy = kind => { const cp = copyable(kind); return cp.length ? cp[0] : null; };
+// copies of identities this yard doesn't have yet can be built while it has room (helpers once blowers and shakers are known)
+const copyShown = kind => (kind === 'robot' || helpersKnown()) && cfgsOf(kind).length < (kind === 'robot' ? ROBOT_MAX : HELPER_MAX) && copyable(kind).length > 0;
 // a helper shows up in the workshop once you've held a quarter of its price (or already own one of that kind)
 // V12: and only once the robots have worked out the old picture book (an elephant that blows, a crab that shakes)
 // (V13: a robot that rode to another lot brings what it knows: S.flags.helpers)
 const helpersKnown = () => (S.story.done && (S.story.item || 'book') === 'book') || S.flags.helpers || S.blowers.length > 0 || S.shakers.length > 0;
-const helperShown = kind => helpersKnown() && cfgsOf(kind).length < HELPER_MAX && (cfgsOf(kind).length > 0 || seenPrice(helperCost(kind)));
+const helperShown = kind => helpersKnown() && cfgsOf(kind).length < HELPER_MAX && newIdOK(kind) && (cfgsOf(kind).length > 0 || seenPrice(newHelperCost(kind)));
 function freshState(){
   return {
     v:2, t:0, cash:0, peak:0, binLeaves:0, binMetal:0, land:0,
@@ -834,7 +913,7 @@ function freshState(){
     // waiting; n: strikes so far; camp: logs the robots have set burning beside it; bench: the stove's been tried), and the
     // drying bench's stove (fire: they know how; logs in it, burn: how far through the log in the fire it is; coal in its ash pan)
     // (V17.1: down: branches the shaker has shaken down so far, lit: which of them are burning, a bit each)
-    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false, down:0, lit:0 },
+    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false, down:0, lit:0, dryBase:-1 },   // (V24 dryBase: dry leaves sold when the fire was worked out)
     bench:{ fire:false, logs:0, burn:0, coal:0, ashAcc:0 },
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
@@ -1919,13 +1998,22 @@ const HOLLOW_CASH = 1000;    // V14: the third beat: hold this much (with a bigg
 const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this many dry leaves (V17: was 100)
 const CANNED_CASH = 200;     // V17: the hollow's mushroom goal, once the ant hill is going: $ of canned mushrooms sold
 const LOGS_GOAL = 100;       // V17: logs the truck has taken (the third of the goals that bring the lightning)
+// V24: after the fire research, sell this many more dry leaves (the stove helps); sized so it's reached about when the
+// stove's first whole lump of coal is in the ash pan (two logs, 2 × LOG_BURN s of burning), which then pops out as the find
+const DRY_FIRE_GOAL = 300;
 const COAL_GOAL = 100;       // V18: coal sold once the charcoal kiln is built: the letter about taking the fire home (V22: 100 new coal, was 200 old)
-const BOOK_EARNED = 60, BOOK_HELD = 36;   // V21: the old picture book turns up (was $30 / $18)
+// V24: the old picture book turns up once the bagging table has made BOOK_BAGS bags (was $60 earned or $36 held), so the
+// bagging table comes first: an early goal of its own (save up and build it, then make the bags), and the first time a
+// robot has two tasks to choose from (the task lesson's first example) is always Bag leaves
+const BOOK_BAGS = 5;
 const INGOT_GOAL = 2000;     // V18: iron ingots sold from the old works back home, once it's repaired (V20: was 1,000; reaching it brings the final letter)
 const MILESTONES = [
-  // the old picture book turns up under a leaf once you've earned $60 in all (or once you hold $36, if that's sooner;
-  // V21, was $30 / $18 (V16.1: $20 / $12), so it turns up later still)
-  { id:'book', lot:'home', hidden:true, name:'A curious find', goal:'Earn $' + BOOK_EARNED, prog: () => Math.max((S.totals.cash || 0)/BOOK_EARNED, S.cash/BOOK_HELD), on: () => { S.story.armed = true; } },
+  // V24: two early goals in the first yard: save up for and build the bagging table, then make BOOK_BAGS bags; the old
+  // picture book turns up under a leaf after that (V12–V23: once $60 was earned or $36 held, hidden)
+  { id:'bagTable', lot:'home', name:'A bagging table', goal:'Build the bagging table', prog: () => S.bag.built ? 1 : 0,
+    hud:{ icon:'bag', cash:true, val: () => S.bag.built ? BAGGER_COST : S.cash, of: BAGGER_COST, show: () => baggerShown() } },
+  { id:'book', lot:'home', name:'Bags of leaves', goal:'Make ' + BOOK_BAGS + ' bags of leaves', prog: () => (S.totals.bags || 0)/BOOK_BAGS,
+    hud:{ icon:'bag', val: () => S.totals.bags || 0, of: BOOK_BAGS, show: () => S.bag.built }, on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
   // V14: the travel money is a live goal: it's reached while you hold $100 and not any more if you spend it, and it only
   // comes out of the cash when the robot climbs into the truck (S.trip.cash, see board()). Until then the robot only
@@ -1964,6 +2052,10 @@ const MILESTONES = [
   // then the fire, and the coal: one at a time, showing how far the research has got
   { id:'fire', lot:'hollow', group:'hollowB', name:'The fire', goal:'Research the fire', prog: () => S.flags.fireDone ? 1 : 0,
     hud:{ icon:'flame', pct:true, val: () => fireK(), of: 1 } },
+  // V24: the bridge from the fire to the charcoal: sell more dry leaves now the stove dries them too (counted from the moment
+  // the fire was worked out). Reached, the first whole lump of coal from the stove turns up (coalFind waits for both)
+  { id:'dryFire', lot:'hollow', group:'hollowF', name:'Dried by fire', goal:'Sell ' + DRY_FIRE_GOAL + ' dry leaves', prog: () => dryAfterFire()/DRY_FIRE_GOAL,
+    hud:{ icon:'bag', val: () => dryAfterFire(), of: DRY_FIRE_GOAL } },
   { id:'coal', lot:'hollow', group:'hollowC', name:'The coal', goal:'Research the coal', prog: () => S.flags.coalKnown ? 1 : 0,
     hud:{ icon:'ingot', pct:true, val: () => S.story.item === 'coal' ? clamp(S.story.prog/researchNeed(), 0, 1) : S.flags.coalKnown ? 1 : 0, of: 1 } },
   // V18: sell 200 coal (V19.2: shown and counted from the moment the coal is researched): the driver writes about taking the fire home
@@ -1986,6 +2078,8 @@ const GOAL_GROUPS = {
   hollowB: { show: () => FIRE_STORY && S.fire.struck && (!S.flags.fireDone || S.t - (S.miles.fire ?? 1e9) < GOAL_DONE_HOLD), done: () => {} },
   // V19.2: gone the moment the coal is worked out; Sell 200 coal takes its place straight away
   hollowC: { show: () => FIRE_STORY && S.story.item === 'coal' && !S.flags.coalKnown, done: () => {} },
+  // V24: between the fire and the coal: sell more dry leaves (shown from the fire's research on, until a moment after it's reached)
+  hollowF: { show: () => FIRE_STORY && S.flags.fireDone && !S.flags.coalKnown && (S.miles.dryFire == null || S.t - S.miles.dryFire < GOAL_DONE_HOLD), done: () => {} },
   // V18: the coal goal (V19.2: from the moment the coal is known, not the kiln), and back home the old works (from the moment the fire is set down by it)
   hollowD: { show: () => FIRE_STORY && S.flags.coalKnown && (S.miles.coalSold == null || S.t - S.miles.coalSold < GOAL_DONE_HOLD), done: () => {} },
   works: { show: () => RUIN && S.story.item === 'ruin' && S.story.found && (S.miles.ingots == null || S.t - S.miles.ingots < GOAL_DONE_HOLD), done: () => {} },
@@ -1998,7 +2092,7 @@ function updMilestones(){
   for (const m of MILESTONES){
     if ((m.lot || 'home') !== LOT_ID || S.miles[m.id] != null || m.prog() < 1) continue;
     S.miles[m.id] = Math.round(S.t);   // (for a live goal: the first time it was reached)
-    if (m.hud && !m.group && !m.live && !simMode){ goalRt.doneId = m.id; goalRt.doneT = S.t; goalRt.bumpT = 0.3; }
+    if (m.hud && !m.group && !m.live && !simMode && !jumpQuiet){ goalRt.doneId = m.id; goalRt.doneT = S.t; goalRt.bumpT = 0.3; }
     if (m.on) m.on();
   }
   for (const g in GOAL_GROUPS){
@@ -2010,7 +2104,9 @@ function updMilestones(){
 // V13.4: the goal pills under the cash. Honey money counts once the number flying up from the sale reaches the pill
 // (goalRt.pending is what's still in the air), so the pill and the milestone tick over together.
 const goalRt = { pending: 0, doneId: null, doneT: -99, bumpT: 0, tip: null, tipT: 0, els: {} };
-const GOAL_DONE_HOLD = 6;   // seconds a reached goal stays up (with a tick) before the next one, or none, shows
+const GOAL_DONE_HOLD = 6;
+// V24: dry leaves sold since the fire was worked out (an older save that had already worked it out counts from now)
+const dryAfterFire = () => { if (!S.flags.fireDone) return 0; if (!(S.fire.dryBase >= 0)) S.fire.dryBase = S.totals.drySold || 0; return Math.max(0, (S.totals.drySold || 0) - S.fire.dryBase); };   // seconds a reached goal stays up (with a tick) before the next one, or none, shows
 const honeyEarned = () => Math.max(0, (S.totals.honeyCash || 0) - goalRt.pending);
 // what shows right now, top first: [{ m, done }]. A group shows every member (done ones with a tick); a live goal shows
 // while its show() is true, ticked while it's reached; otherwise one goal at a time, ticked for a moment once reached.
@@ -2039,7 +2135,7 @@ const FINDS = {
     found: ['Something was hiding under that petal…', 'A little dead bee. New task available: Research'], holding: 'the bee' },
   // V15: the Rainy hollow's beehive, once its first bee has failed to fly in the rain. It's researched where it stands
   // (atHive): nothing to carry. A blower has to keep the rain off (blower: units a second it adds on its own; without
-  // it nothing moves), and the robots only count for half here (robotMul), so even three top researchers take ~2 minutes.
+  // it nothing moves), and the robots only count for half here (robotMul), so even three top researchers take ~1.5 minutes.
   // spots: where the two helpers stand, from the lead researcher's spot (STUDY)
   hive: { need: 6000, crew: 3, atHive: true, blower: 2, robotMul: 0.5, title: 'Bees in the rain', holding: 'the hive',
     story: 'The bee can’t fly in this rain. Maybe the robots can work out something that doesn’t need wings…',
@@ -2056,7 +2152,7 @@ const FINDS = {
     story: 'What’s left when a log burns down slowly in the dryer’s stove: black, light and dry. Maybe someone would buy it?',
     found: ['', ''] },
   // V18: the old works back home, once the fire from the hollow is set down beside it: worked out where it stands (atRuin),
-  // a quick one, up to three robots (the lead at full share, helpers as usual)
+  // a quick one, up to three robots (V24: every one of them at its full share)
   ruin: { need: 1200, crew: 3, atRuin: true, title: 'The old works', holding: 'the old works',
     story: 'An old brick works, cold for years: broken chimneys, rusted furnace doors. With the fire from the hollow and some coal, maybe the robots can work out how it ran.',
     spots: [[-56, 6, 1], [62, 4, -1]] },
@@ -2067,7 +2163,11 @@ const hiveGrounded = () => HIVE_STORY && !S.flags.antHill;
 const researchNeed = () => FIND().need;
 // is there room for robot r on the research? (the bee only has room for three around it)
 const researchRoom = r => !FIND().crew || RESEARCH_STATES.includes(r.st) || researchers().length < FIND().crew;
-const RESEARCH_MAIN = 4, RESEARCH_HELP = 1; // units a second: the robot holding the book, and each robot helping (× its Research level)
+// units a second each robot on the research adds, × its Research level (4 / 8 / 16 / 42), before a place's own modifier
+// (robotMul at the hive and the fire). V24: the same for everyone on it; the one holding the book only leads the way
+// (was 4 for the reader and 1 for each helper)
+const RESEARCH_UNIT = 4;
+const researchShare = q => RESEARCH_UNIT*studyMul(q.id);
 // (V13.2: the dead bee is studied where the beehive will go instead, facing the plot)
 // (V15: the hive is researched where it stands: the lead researcher in front of it on the left)
 // (V17: the fire is researched where it burns: the lead on the left of the trunk's foot, facing it)
@@ -2089,13 +2189,13 @@ function researchRate(){
     // V17: only while it burns, and only with a robot, a blower and a shaker all there
     if (!fireOn() || !fireHelper('blower') || !fireHelper('shaker')) return 0;
     let v = 0, n = 0;
-    for (const q of R){ if (!labOnTask(q)) continue; n++; v += (bookRt.by === q.id ? RESEARCH_MAIN : RESEARCH_HELP)*studyMul(q.id); }
+    for (const q of R){ if (!labOnTask(q)) continue; n++; v += researchShare(q); }
     return n >= (F.robots || 1) ? F.blower + F.shaker + v*F.robotMul : 0;   // (V17.1: two robots)
   }
   if (F.atRuin){
     // V18: the old works, worked out where they stand
     let v = 0;
-    for (const q of R){ if (!labOnTask(q)) continue; v += (bookRt.by === q.id ? RESEARCH_MAIN : RESEARCH_HELP)*studyMul(q.id); }
+    for (const q of R){ if (!labOnTask(q)) continue; v += researchShare(q); }
     return v;
   }
   if (F.atHive){
@@ -2103,12 +2203,12 @@ function researchRate(){
     if (!labBlower()) return 0;
     let v = 0;
     // (fetching a crashed bee, fitting a porthole and walking back are part of the work, so they keep counting)
-    for (const q of R){ if (!labOnTask(q)) continue; v += (bookRt.by === q.id ? RESEARCH_MAIN : RESEARCH_HELP)*studyMul(q.id); }
+    for (const q of R){ if (!labOnTask(q)) continue; v += researchShare(q); }
     return F.blower + v*F.robotMul;
   }
   const h = bookHolder(); if (!h || h.st !== 'study') return 0;
-  let v = RESEARCH_MAIN*studyMul(h.id);
-  for (const q of R) if (q !== h && q.st === 'assist') v += RESEARCH_HELP*studyMul(q.id);
+  let v = researchShare(h);
+  for (const q of R) if (q !== h && q.st === 'assist') v += researchShare(q);
   return v;
 }
 // at the hive: is robot q working on it right now? (at its spot, or off fetching a bee / fitting a porthole and on its way back)
@@ -3298,9 +3398,11 @@ function updBenchFire(dt){
         if (S.bench.coal < BENCH_COAL_MAX){ S.bench.ashAcc -= 1; S.bench.coal++; S.totals.coal = (S.totals.coal || 0) + 1; if (!simMode) pop(BAGGER.x - 2, BAGGER.y - 40, '+1 coal', 'ingot', 13); }
         else S.bench.ashAcc = Math.min(S.bench.ashAcc, 1);   // (a full pan: the ash waits, it doesn't pile up)
       }
-      if (!S.flags.coalFound && !S.flags.coalKnown) coalFind();
     }
   } else S.bench.burn = 0;
+  // V24: the first whole lump of coal (two logs' ash) pops out as the find, once the dry-leaves goal after the fire is reached
+  // (it waits in the ash pan until then); V17–V23 found it under the first burnt log
+  if (!S.flags.coalFound && !S.flags.coalKnown && S.bench.coal >= 1 && S.miles.dryFire != null) coalFind();
   if (!B.on){
     if (S.bench.logs <= 0 || dryRoom() <= 0 || dryLeaves() < BAG_SIZE) return;
     const i = STN.bag.indexOf(null); if (i < 0) return;
@@ -3324,7 +3426,7 @@ function updBenchFire(dt){
 // ── the first lump of coal: it pops out of the stove and lies in front of the bench, a find for one robot to research
 function coalFind(){
   S.flags.coalFound = true;
-  // (V22: the first log's ash is half a lump; the find takes it, as it used to take the first whole lump)
+  // (V24: it's the first whole lump in the ash pan; the find takes it. Test steps may call this with only ash: that goes instead)
   if (S.bench.coal > 0) S.bench.coal--; else S.bench.ashAcc = Math.max(0, (S.bench.ashAcc || 0) - BENCH_ASH_PER_LOG);
   const x = BAGGER.x + 34, y = BAGGER.y + 12;
   Object.assign(S.story, { item: 'coal', armed: true, found: true, foundT: S.t, opened: false, cam: false, prog: 0, eta: null, done: false, doneT: -1, x, y, flights: 0, wins: 0, walkK: -1 });
@@ -3335,7 +3437,7 @@ function coalFind(){
   sparkle(x, y - 6); sfx('chime', 'sale');
   pop(x, y - 46, 'New task available: Research', 'note', 18, 0.9, 4);
   startFindCam(x, y);
-  setTimeout(() => showToast('What’s this?', 'The log in the dryer’s stove burnt down to a black lump. Maybe it’s worth something? New task: Research. One robot is enough.', 11), 700);
+  setTimeout(() => showToast('What’s this?', 'The logs in the dryer’s stove burnt down to a black lump. Maybe it’s worth something? New task: Research. One robot is enough.', 11), 700);
   save();
 }
 // the coal is worked out: the coal stand by the road, the kiln can be built, and every blower knows Bellows 1
@@ -3354,7 +3456,7 @@ function finishCoal(from){
   setTimeout(() => showToast('Charcoal!', 'Coal sells at the new coal stand by the road. A charcoal kiln can be built up in the top left of the yard: it turns logs into much more coal than the dryer does. Blowers already know Bellows 1: give one the task.', 13), 600);
 }
 function finishFire(){
-  S.flags.fireDone = true; S.fire.next = -1; S.bench.fire = true; S.fire.bench = true;
+  S.flags.fireDone = true; S.fire.next = -1; S.bench.fire = true; S.fire.bench = true; S.fire.dryBase = S.totals.drySold || 0;
   for (const h of HB) if (h.st === 'fire'){ endHelperFire(h); h.st = 'idle'; unitDone(h, 'research'); }
   for (const q of R){ if (q.fx) endFireDo(q); q.ouch = 0; q.lean = 0; }
   fireRt.campUnlit = -1; fireRt.benchCall = false;
@@ -3702,7 +3804,7 @@ const LETTERS = {
   newLot: { at: () => ({ x: HIVE.x, y: HIVE.y - 4 }), title: 'A letter', sign: 'Trucker',
     text: 'We found another spot that could use some cleanup, send your best cleanup robot. Bring $' + TRIP_CASH + ' to get started there.',
     // V13.5: what carries over, in small print
-    note: () => 'Only truck upgrades, robot unlocks and ' + tripRobotName() + '’s skills stay across yards.',
+    note: () => 'Robot skills and unlocks, truck upgrades and the general workshop upgrades are shared by every yard. Your other robots can join there as copies, at half price.',
     open: () => openTrip({ to: 'prairie', cash: TRIP_CASH }) },
   goHome: { at: () => ({ x: HIVE.x - 8, y: HIVE.y + 16 }), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
@@ -3710,7 +3812,7 @@ const LETTERS = {
   // rainy hollow down the road: Tinker and a blower go, with the $1,000
   hollow: { at: () => ({ x: SIGN.x - 46, y: SIGN.y - 30 }), title: 'A soggy letter', sign: 'Trucker',
     text: 'There’s a rainy old hollow down the road, knee-deep in wet leaves. They need help badly. Bring Tinker and your best blower robot, and $' + HOLLOW_CASH.toLocaleString('en-US') + ' to get started there.',
-    note: () => 'Only truck upgrades, robot unlocks and the skills of the two robots that go stay across yards.',
+    note: () => 'Robot skills and unlocks, truck upgrades and the general workshop upgrades are shared by every yard. Your other robots can join there as copies, at half price.',
     open: () => openTrip({ to: 'hollow', cash: HOLLOW_CASH, crew: ['robot', 'blower'], who: 0 }) },
   // V18: the Rainy hollow's last beat. 200 coal sold from the kiln: take the fire home. Reading it opens the ride home;
   // the robot lights a little branch at the dryer's stove and the blower holds an umbrella over it while they wait
@@ -3907,13 +4009,18 @@ function arrive(a, wasNew){
   const crew = a.crew || [{ kind: 'robot', bot: a.bot, sty: a.sty, home: a.home }], out = [];
   for (const q of crew){
     const kind = q.kind || 'robot', list = cfgsOf(kind), fresh = () => kind === 'robot' ? newRobotCfg() : newHelperCfg(kind);
-    let i = home ? q.home : list.findIndex(c => c.home === q.home);
-    if (!(i >= 0 && list[i])){ i = list.length; list.push(fresh()); }
+    // (V24: the same identity: at home its own place in the list; elsewhere the copy with its look, or the one from its home slot)
+    let i = home ? q.home : list.findIndex((c, j) => q.sty != null && cfgId(kind, c, j) === q.sty);
+    if (!home && !(i >= 0)) i = list.findIndex(c => c.home === q.home);
+    let localCopy = !home && i >= 0 && !!list[i] && !list[i].away;   // (V24: a copy of it already works here)
+    if (!(i >= 0 && list[i])){ i = list.length; list.push(fresh()); localCopy = false; }
     const b = q.bot || {}, cfg = list[i];
-    cfg.lv = Object.assign(fresh().lv, b.lv || {});
-    cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); if (kind === 'robot') cfg.miner = null;
+    cfg.lv = Object.assign(fresh().lv, cfg.lv || {}, b.lv || {});   // (bindIds ties it to the identity's levels; levels only go up)
+    // (V24: task lists stay local: a copy that was already working here keeps its own)
+    if (!localCopy){ cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); }
+    if (kind === 'robot') cfg.miner = null;
     delete cfg.away; delete cfg.sty; delete cfg.home;
-    if (q.sty != null && q.sty !== i) cfg.sty = q.sty;
+    cfg.sty = q.sty != null ? q.sty : i;
     if (!home) cfg.home = q.home;
     taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, kind);
     // V15: a blower that knows Warm air goes back to the drying bench (V16.4: one that doesn't gets level 1 free, Dry leaves left in Don't)
@@ -3932,6 +4039,7 @@ function arrive(a, wasNew){
     // V14: a lot can let the crew ride home whenever you like (the Rainy hollow, for now)
     openTrip({ to: 'home', crew: out.map(q => q.kind).filter((k, j, A) => A.indexOf(k) === j), earned: LOT.tripHome.earned }, true);
   }
+  bindIds();
   return { crew: out, bee: !!a.bee, home, earned, fire: !!(a.fire && home && RUIN) };
 }
 // the truck pulls in with the robots (and maybe a bee) in the back; they hop off at the curb
@@ -3994,7 +4102,7 @@ const HELPER_LOOKS = kind => kind === 'blower' ? BLOWER_STYLES : SHAKER_STYLES;
 const helperStyleIdx = (kind, i) => { const c = cfgsOf(kind)[i]; return c && c.sty != null ? c.sty : i; };
 const helperStyleOf = (kind, i) => HELPER_LOOKS(kind)[helperStyleIdx(kind, i)] || HELPER_LOOKS(kind)[0];
 const helperStyle = h => helperStyleOf(h.kind, h.idx);
-function nextHelperStyle(kind){ const used = new Set(cfgsOf(kind).map((c, i) => c.sty != null ? c.sty : i)); for (let k=0;k<HELPER_LOOKS(kind).length;k++) if (!used.has(k)) return k; return cfgsOf(kind).length % HELPER_LOOKS(kind).length; }
+function nextHelperStyle(kind){ const used = new Set([...cfgsOf(kind).map((c, i) => c.sty != null ? c.sty : i), ...Object.keys(idsOf(kind)).map(Number)]); for (let k=0;k<HELPER_LOOKS(kind).length;k++) if (!used.has(k)) return k; return cfgsOf(kind).length % HELPER_LOOKS(kind).length; }
 function helperSays(h, mood){ const a = sndAt(h.x, h.y); sfx('beep', h.kind === 'blower' ? 5 : 6, mood, a.pan, a.vol*0.8); }
 // trees whose trunk stands on your land, and your bushes
 function shakeables(){
@@ -5555,10 +5663,14 @@ function offers(all){
       o.push({ id:'hup', kind, ri:i, key:k, obj:kind + i, cost:c.cost });
     }
   });
-  for (const kind of ['blower', 'shaker']) if (all ? helpersKnown() && cfgsOf(kind).length < HELPER_MAX : helperShown(kind)) o.push({ id:kind, obj:'shed', cost: helperCost(kind) });
+  for (const kind of ['blower', 'shaker']){
+    if (copyShown(kind)) o.push({ id:'copy', kind, sty:nextCopy(kind), obj:'shed', cost: copyCost(kind, nextCopy(kind)) });   // V24: the next one up is a copy while there is one
+    else if (newIdOK(kind) && (all ? helpersKnown() && cfgsOf(kind).length < HELPER_MAX : helperShown(kind))) o.push({ id:kind, obj:'shed', cost: newHelperCost(kind) });
+  }
   for (const id in TECH) if (techAvailable(id)){ const tk = TECH[id].track, kind = tk === 'blow' || tk === 'dig' || tk === 'stoke' || tk === 'dry' ? 'blower' : tk === 'shake' ? 'shaker' : 'robot'; o.push({ id:'tech', key:id, obj: kind + '0', cost: TECH[id].cost }); }
   if (genVisible()) for (const k in GEN) if (genAvail(k)) o.push({ id:'gen', key:k, obj:'shed', cost: genCost(k) });
-  if (S.robots.length < ROBOT_MAX) o.push({ id:'robot', obj:'shed', cost: robotCost(S.robots.length) });
+  if (copyShown('robot')) o.push({ id:'copy', kind:'robot', sty:nextCopy('robot'), obj:'shed', cost: copyCost('robot', nextCopy('robot')) });   // V24
+  else if (S.robots.length < ROBOT_MAX && newIdOK('robot')) o.push({ id:'robot', obj:'shed', cost: newRobotCost() });
   if (S.metalSlot) SPOTS.forEach((p, i) => { if (p.land <= S.land && !S.miners.includes(i)) o.push({ id:'miner', arg:i, obj:'spot'+i, cost: MINER_COST }); });
   // V6 refinement
   if (!S.bag.built){ if (all ? S.lv.leafPrice >= BAG_SORT : baggerShown()) o.push({ id:'bagger', obj:'bagger', cost: BAGGER_COST }); }
@@ -5631,12 +5743,21 @@ function buy(o){
     if (o.key === 'brolly' && hc.lv.brolly === 1) putBeside(hc, 'brolly', 'blow');
     if (o.key === 'dry' && hc.lv.dry === 1) learnDry(hc, o.ri);
     const h = HB.find(q => q.kind === o.kind && q.idx === o.ri); if (h){ pop(h.x, h.y - 60, TRACKS[o.key].label + ' upgraded', 'note', 16); sparkle(h.x, h.y - 20); }
-  } else if (o.id === 'blower' || o.id === 'shaker'){
-    const i = cfgsOf(o.id).length, cfg = newHelperCfg(o.id), sty = nextHelperStyle(o.id);
-    if (sty !== i) cfg.sty = sty;
-    cfgsOf(o.id).push(cfg); syncHelpers();
+  } else if ((o.id === 'blower' || o.id === 'shaker') && cfgsOf(o.id).length < HELPER_MAX && (newIdOK(o.id) || copyable(o.id).length)){
+    // (V24: a new identity, or once every identity there can be exists, a copy of the first one not here: kits and tests)
+    const i = cfgsOf(o.id).length, cfg = newHelperCfg(o.id);
+    cfg.sty = newIdOK(o.id) ? nextHelperStyle(o.id) : copyable(o.id)[0];
+    cfgsOf(o.id).push(cfg); bindIds(); syncHelpers();
     const st = helperStyleOf(o.id, i);
     pop(SHED.x, SHED.y - 112, st.name + ' joins the yard', 'note', 17); sparkle(SHED.x + 34, SHED.y);
+  } else if (o.id === 'copy'){
+    // V24: a copy of a robot (or blower, shaker) from another yard: its own task list here, every skill it already has
+    const list = cfgsOf(o.kind); if (list.length >= (o.kind === 'robot' ? ROBOT_MAX : HELPER_MAX) || idHere(o.kind, o.sty)){ S.cash += o.cost; return false; }
+    const i = list.length, cfg = o.kind === 'robot' ? newRobotCfg() : newHelperCfg(o.kind);
+    cfg.sty = o.sty; list.push(cfg); bindIds();
+    if (o.kind === 'robot') syncRobots(); else syncHelpers();
+    const nm = o.kind === 'robot' ? styleOf(i).name : helperStyleOf(o.kind, i).name;
+    pop(SHED.x, SHED.y - 112, nm + ' joins the yard (a copy, with all its skills)', 'note', 17); sparkle(o.kind === 'robot' ? SHED.x : SHED.x + 34, SHED.y);
   } else if (o.id === 'tech'){
     S.tech[o.key] = true; S.flags.research = true;
     const p = objPos(o.obj) || { x: SHED.x, y: SHED.y - 112 };
@@ -5692,10 +5813,10 @@ function buy(o){
   } else if (o.id === 'metalSlot'){
     S.metalSlot = true; openTasks(['mine']);
     pop(TUB.x, TUB.y - 72, 'Metal slot added', 'note', 17); sparkle(TUB.x, TUB.y - 30);
-  } else if (o.id === 'robot'){
-    const i = S.robots.length, cfg = newRobotCfg(), k = nextStyle();
-    if (k !== i) cfg.sty = k;
-    S.robots.push(cfg); syncRobots();
+  } else if (o.id === 'robot' && S.robots.length < ROBOT_MAX && (newIdOK('robot') || copyable('robot').length)){
+    const i = S.robots.length, cfg = newRobotCfg();
+    cfg.sty = newIdOK('robot') ? nextStyle() : copyable('robot')[0];   // (V24: see the helpers above)
+    S.robots.push(cfg); bindIds(); syncRobots();
     pop(SHED.x, SHED.y - 112, styleOf(i).name + ' joins the yard', 'note', 17); sparkle(SHED.x, SHED.y);
   } else if (o.id === 'miner'){
     S.miners.push(o.arg);
@@ -5731,10 +5852,10 @@ function buy(o){
       userCam = false; $('recenter').hidden = true;
       buildGround(to);
     }
-  }
+  } else if (o.id === 'robot' || o.id === 'blower' || o.id === 'shaker'){ S.cash += o.cost; return false; }   // (V24: no room, no identity left)
   // buying things is silent on purpose; only a new robot says hello
-  if (o.id === 'robot'){ const r = R[R.length - 1]; if (r && !simMode) setTimeout(() => robotSays(r, 'hello', true), 450); }
-  if (o.id === 'blower' || o.id === 'shaker'){ const h = HB[HB.length - 1]; if (h && !simMode) setTimeout(() => { const a = sndAt(h.x, h.y); sfx('beep', h.kind === 'blower' ? 5 : 6, 'hello', a.pan, a.vol, true); }, 450); }
+  if (o.id === 'robot' || (o.id === 'copy' && o.kind === 'robot')){ const r = R[R.length - 1]; if (r && !simMode) setTimeout(() => robotSays(r, 'hello', true), 450); }
+  if (o.id === 'blower' || o.id === 'shaker' || (o.id === 'copy' && o.kind !== 'robot')){ const h = HB[HB.length - 1]; if (h && !simMode) setTimeout(() => { const a = sndAt(h.x, h.y); sfx('beep', h.kind === 'blower' ? 5 : 6, 'hello', a.pan, a.vol, true); }, 450); }
   save();
   return true;
 }
@@ -8173,6 +8294,7 @@ function offerKey(o){
     case 'rup': case 'hup': return 'trk:' + o.key;
     case 'miner': case 'shaft': return o.id + ':' + o.arg;
     case 'land': return 'land:' + (S.land + 1);
+    case 'copy': return 'copy:' + o.kind;   // V24
   }
   return o.id;
 }
@@ -8366,6 +8488,8 @@ const TUTS = {
         { dom: () => tutQ('.row.bot:not(.bothead) .pips'), text: 'So did every unlock, for every robot you build here.', need: onBot, back: 'bot', setup: upTab, done: () => tutDid('rup') || tutDid('tech') },
         { id: 'sign', world: tutAtObj('sign'), text: 'Truck upgrades come along too. Tap the pickup sign.', act: true, skip: onSign, done: onSign },
         { dom: () => tutQA('.cbody .row').slice(0, 2), text: 'More pickups and the cleanup deal are kept.', need: onSign, back: 'sign', done: () => tutDid('buy') },
+        // V24: the robots back home can be built here as copies, skills and all
+        { world: tutAtObj('shed'), text: 'Your other robots can join here as copies: half price, every skill included.', skip: () => !copyShown('robot') && !copyShown('blower') && !copyShown('shaker') },
         { world: tutAtObj('bin'), text: 'Everything else starts over here: the bin, prices, buildings and cash.' },
         { free: true, text: 'Your first yard waits, paused, just as you left it.' },
       ];
@@ -8401,11 +8525,15 @@ const TUTS = {
       const onTab = () => robotCardOpen() && cardTab === 'tasks' && !!tasksPanel(cardOpen.kind, cardOpen.i);
       const onCard = () => robotCardOpen() && !!tasksPanel(cardOpen.kind, cardOpen.i);
       const offChip = () => tutQ('.tasks .toff .chip');
+      // V24: the example is the task this robot doesn't get to yet: Bag leaves in the first yard (the bagging table comes
+      // before the book now), else Research, or whatever sits in Off
+      const c0 = S.robots[ri], ex = c0 && ['bag', 'research', 'jar', 'mine'].find(t => visibleTasks('robot', c0).includes(t) && !taskReached(c0, t) && (t !== 'research' || researchOpen()));
+      const exChip = () => (ex && tutQ('.tasks .chip[data-task="' + ex + '"]')) || offChip();
       return [
         { id: 'in', world: tutBotAt('robot', ri), text: nm + ' has more than one task now. Tap it to see them.', act: true, skip: onCard, done: onCard },
         { id: 'tab', dom: () => tutQ('[data-act="tab:tasks"]'), text: 'Open the Tasks tab.', act: true, need: onCard, back: 'in', skip: onTab, done: onTab },
         // one move to show that tasks move (V23.1: the reorder, Off and side-by-side steps were three moves of the same kind)
-        { dom: () => offChip() || tutQ('.tasks .tdo .chip'), text: () => { const c = offChip(); return c ? 'Drag <b>' + c.textContent + '</b> up into Do. The top row goes first.' : 'Drag a task to change the order. The top row goes first.'; }, act: true, need: onTab, back: 'tab', known: () => tutUsed('drag'), done: () => tutDid('drag') },
+        { dom: () => exChip() || tutQ('.tasks .tdo .chip'), text: () => { const c = exChip(); return c ? 'Drag <b>' + c.textContent + '</b> to the top. The top row goes first.' : 'Drag a task to change the order. The top row goes first.'; }, act: true, need: onTab, back: 'tab', known: () => tutUsed('drag'), done: () => tutDid('drag') },
         { dom: () => tutQ('.tasks .tdo'), text: 'Drop a task beside another and they take turns.', need: onTab, back: 'tab', known: () => tutUsed('join'), done: () => tutDid('join') },
         { dom: () => tutQ('.tasks .toffall'), text: '“all off” stops every task at once.', need: onTab, back: 'tab', known: () => tutUsed('alloff'), done: () => tutDid('alloff') },
       ];
@@ -9401,7 +9529,8 @@ function nextStep(){
       return { label: researchLeft() > researchNeed()*0.25 + 1 ? 'Research the fire: +25%' : 'Finish researching the fire', run: () => {
         if (researchLeft() > researchNeed()*0.25 + 1){ S.story.prog += researchNeed()*0.25; if (fireK() >= 0.68 && !S.fire.bench) S.fire.camp = Math.max(1, S.fire.camp); } else finishResearch(); } };
     }
-    if (!S.flags.coalFound) return { label: 'Burn the first log in the dryer', run: () => { S.bench.logs = Math.max(1, S.bench.logs); coalFind(); } };
+    if (S.miles.dryFire == null) return { label: 'Sell ' + DRY_FIRE_GOAL + ' dry leaves (after the fire)', run: () => { dryAfterFire(); S.totals.drySold = Math.max(S.totals.drySold || 0, S.fire.dryBase + DRY_FIRE_GOAL); } };   // V24
+    if (!S.flags.coalFound) return { label: 'Burn the first two logs in the dryer', run: () => { S.bench.logs = Math.max(1, S.bench.logs); S.bench.coal = Math.max(1, S.bench.coal); coalFind(); } };
     if (!S.flags.coalKnown) return { label: 'Finish researching the coal', run: finishResearch };
     if (!S.plant.built) return { label: 'Build the charcoal kiln', run: () => freeBuy({ id:'plant', obj:'plant', cost: PLANT_COST }) };
     if (S.miles.coalSold == null) return { label: 'Sell ' + COAL_GOAL + ' coal', run: () => { S.totals.kilnSold = Math.max(S.totals.kilnSold || 0, COAL_GOAL); } };   // V18
@@ -9447,7 +9576,8 @@ function nextStep(){
 const JUMP_KEY = 'leaf-yard-jump';
 const JUMP_KITS = {
   // the first yard, ~6 min in: cheap robot upgrades and a few bin sizes
-  home6:  { robots: [{ speed:3, carry:3, pick:3 }], up: { bin:3, leafPrice:1 }, cash: 4, earned: 20 },
+  // (V24: the bagging table built and five bags made: that's what brings the book now)
+  home6:  { robots: [{ speed:3, carry:3, pick:3 }], up: { bin:3, leafPrice:3 }, bag: true, bags: BOOK_BAGS, cash: 4, earned: 40 },
   // ~12 min: the book is read; the first unlocks, a second robot and the bagging table
   home12: { tech: ['treads', 'hamper', 'servos'], robots: [{ speed:5, carry:5, pick:5, study:1 }, { speed:3, carry:3, pick:2 }],
             up: { bin:4, leafPrice:3, truck:1 }, bag: true, cash: 10, earned: 150 },
@@ -9577,9 +9707,12 @@ function applyKit(name){
   if (K.bag && !S.bag.built) free({ id: 'bagger' });
   if (K.metalSlot && !S.metalSlot) free({ id: 'metalSlot' });
   const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(lv[k], trackMax(k)) : lv[k]); };
-  (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX) free({ id: 'robot' }); if (S.robots[i]) levels(S.robots[i], lv); });
+  // (V24: like a player would, a kit builds copies of the robots it already has elsewhere before making new ones)
+  const another = kind => { const cp = copyable(kind); return cp.length ? free({ id: 'copy', kind, sty: cp[0] }) : free({ id: kind }); };
+  (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX){ if (!another('robot')) break; } if (S.robots[i]) levels(S.robots[i], lv); });
   for (const kind of ['blower', 'shaker']) (K[KIND_LIST[kind]] || []).forEach((lv, i) => {
-    while (cfgsOf(kind).length <= i) free({ id: kind });
+    while (cfgsOf(kind).length <= i){ if (!another(kind)) break; }
+    if (!cfgsOf(kind)[i]) return;
     const c = cfgsOf(kind)[i]; levels(c, lv);
     for (const [t, main] of [['snip', 'shake'], ['dig', 'blow'], ['stoke', 'blow'], ['brolly', 'blow']]) if (c.lv[t]) putBeside(c, t, main);
     if (DRY_BENCH && lv.dry && !taskTop(c, 'bag')) putTop(c, 'bag');
@@ -9612,6 +9745,7 @@ function applyKit(name){
     else { for (const c of [...S.robots.slice(0, 2), S.blowers[0]].filter(Boolean)) putTop(c, 'research'); for (const c of [...S.robots, ...S.blowers]) if (!taskOn(c, 'research')) putOff(c, 'research'); }
   }
   if (K.drySold) S.totals.drySold = Math.max(S.totals.drySold || 0, K.drySold);
+  if (K.bags || (K.bag && LOT_ID === 'home')) S.totals.bags = Math.max(S.totals.bags || 0, K.bags || BOOK_BAGS);   // V24: the bags that bring the book
   if (K.logsSold) S.totals.logsSold = Math.max(S.totals.logsSold || 0, K.logsSold);
   // V17: the fire crew (Research at the top of Tinker's, the second robot's, the first blower's and the shaker's lists, for
   // when the lightning strikes), the fire worked out, the coal worked out
@@ -9624,6 +9758,7 @@ function applyKit(name){
     for (const c of [...S.robots, ...S.blowers, ...S.shakers]) if (taskOn(c, 'research')) putOff(c, 'research');
   }
   if (K.coal === 'known' && FIRE_STORY && !S.flags.coalKnown){
+    if (S.miles.dryFire == null) S.miles.dryFire = Math.round(S.t);   // (V24)
     S.flags.coalFound = true; S.story.item = 'coal'; Object.assign(S.story, { found: true, opened: true, prog: researchNeed(), done: true, doneT: S.t });
     S.flags.coalKnown = S.flags.smeltKnown = S.flags.plantShown = true;
     for (const c of S.blowers){ if (!(c.lv.stoke > 0)) c.lv.stoke = 1; if (!taskOn(c, 'stoke')) putOff(c, 'stoke'); }
@@ -9660,6 +9795,7 @@ function applyKit(name){
   if (K.ingotsSold) S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, K.ingotsSold);   // V20
   if (K.truckSoon) S.truckT = Math.min(S.truckT, 5);
   if (K.cash != null){ S.cash = K.cash; S.peak = Math.max(S.peak || 0, S.cash); }
+  bindIds();
 }
 // this lot's find: 'armed' (it turns up under the next leaf a robot picks), or 'done' (found and worked out)
 function jumpStory(how){
@@ -10003,14 +10139,14 @@ const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in on
   drill: KEEP + 'Running the machines, in every yard: how fast it mines metal or saws logs (seconds a piece), and together with Load & pack how fast it smelts ingots or burns charcoal',
   magnet: KEEP + 'Chance that mining metal or sawing a log gives two instead of one, in every yard. At a kiln or furnace it works at half strength: every batch gives that chance × 0.5 more finished coal or ingots (on top of Tight stacking / Slag recovery)',
   pack: KEEP + 'How fast it packs and loads, in every yard: bagging leaves, filling and wrapping jars or cans, and loading the furnace or the charcoal kiln', blow:'How hard it blows leaves toward the bin (range, push and glide)',
-  study:'Research a second while it holds the book (a robot helping does a quarter of that)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows',
+  study:'Research a second it adds while it works on research, leading or helping (less at the hive and the fire)', shake:'Leaves a big tree drops when shaken (a bush gives a third)', snip:'Lets it deadhead spent flowers so they bloom again sooner: more nectar for the bees. Only with a beehive.', dig:'Faster mining at a shaft while it excavates', stoke:'Faster smelting while it works the bellows',
   brolly:'Lets it hold the big wood umbrella over a robot hauling dry wood, so none of it gets wet on the way',
   dry:'How fast it dries a tray of ' + BAG_SIZE + ' wet leaves at the drying bench, blowing warm air over them' };
 if (LOT.trackTips) Object.assign(TRACK_TIP, LOT.trackTips);   // V19: a lot's own wording (the Rainy hollow's woodpile drying)
 const TRACK_VAL = {
   speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
   drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small>×2</small>'], pack: v => [v.toFixed(2) + '×', ''],
-  study: v => [RESEARCH_MAIN*v, '<small>/s</small>'], blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
+  study: v => [RESEARCH_UNIT*v, '<small>/s</small>'], blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
   brolly: v => [v ? 'yes' : 'no', ''], dry: v => [v ? v.toFixed(2) + '×' : 'no', ''],
 };
 function robotRow(ri, k, kind){
@@ -10068,6 +10204,22 @@ function robotRow(ri, k, kind){
 function botHead(kind){
   const w = { robot: 'robots', blower: 'blowers', shaker: 'shakers' }[kind] || 'robots';
   return { sig: 'bh' + kind, html: '<div class="row bot bothead"><span></span><span></span><span class="hm" title="Upgrades for this ' + (kind || 'robot') + ' only">This ' + (kind || 'robot') + '</span><span class="ha" title="Unlocks and the green button apply to every one of them">All ' + w + '</span></div>' };
+}
+// V24: the skills an identity already has (every track with a level), as pictures with the level: what a copy comes with
+function idSkills(kind, sty){
+  const e = idsOf(kind)[sty], lv = (e && e.lv) || {};
+  const ks = LV_KEYS[kind].filter(k => (lv[k] | 0) > 0 && TRACKS[k] && (k !== 'dry' || DRY_BENCH) && (k !== 'brolly' || WET_WOOD));
+  if (!ks.length) return '<span class="cpsk none">no skills yet</span>';
+  return '<span class="cpsk">' + ks.map(k => '<span class="sk" title="' + attr(TRACKS[k].label + ' ' + lv[k] + ' (' + genNameAt(k, lv[k]) + ')') + '">' + ic(TRACK_ICON[k]) + '<b>' + lv[k] + '</b></span>').join('') + '</span>';
+}
+function copyRow(kind, sty){
+  const st = kind === 'robot' ? STYLES[sty] || STYLES[0] : HELPER_LOOKS(kind)[sty] || HELPER_LOOKS(kind)[0], cost = copyCost(kind, sty), where = idElsewhere(kind, sty).map(lotTitle);
+  const tip = 'A copy of ' + st.name + (where.length ? ' (from ' + where.join(', ') + ')' : '') + ': half its build price, and it comes with every skill ' + st.name + ' has. Upgrading either one upgrades both. It gets its own task list here.';
+  const name = 'Build ' + st.name + ' <small class="cpy">copy</small>', n = cfgsOf(kind).length, mx = kind === 'robot' ? ROBOT_MAX : HELPER_MAX;
+  // (the same green −50% sticker as a copied skill level; the full price is in the tooltip)
+  const html = row({ icon: ic(kind === 'robot' ? 'robot' : kind === 'blower' ? 'elephant' : 'crab'), name, tip: attr(tip), val: idSkills(kind, sty) + ' <small class="cpn">' + n + '/' + mx + '</small>',
+    btn: coinBtn('copy:' + kind + ':' + sty, cost, { label: 'Build a copy of ' + st.name, sticker: '−' + Math.round((1 - COPY_SHARE)*100) + '%', tip: 'A copy costs half (full price ' + cash$(idPrice(kind, sty)) + ')' }) });
+  return { sig: 'cp' + kind + sty + aff$(cost) + n + JSON.stringify((idsOf(kind)[sty] || {}).lv || {}), html };
 }
 // a one-off purchase (a building, a robot, a deal)
 function buyRow(name, val, act, cost, done, icon, tip){
@@ -10438,6 +10590,9 @@ function cardModel(){
     if (!(tp && cardTab === 'tasks')){ if (rows.length) rows.unshift(botHead(k)); if (rows2.length) rows2.unshift(botHead(k)); }   // V21
     // keep the card the same width on both tabs
     tabs && (tabs.wide = k === 'robot' && TRACK_ORDER.filter(rowShown).length > 3);
+    // V24: a robot with copies in other yards shares its skills with them
+    const where = idElsewhere(k, cfgId(k, cfgsOf(k)[i], i)).map(lotTitle);
+    if (where.length && !(tp && cardTab === 'tasks')) foot = '<div class="foot shr" title="Upgrading it in any yard upgrades every copy. Task lists stay with each yard.">' + ic('info') + 'Skills shared with ' + st.name + ' in ' + where.join(' and ') + '</div>';
   } else if (k === 'bin'){
     title = 'Leaf bin'; live = 'bin';
     rows.push(upRow('bin', S.bag.built ? xt('+' + bagCap() + ic('bag'), 'Room for bags, on a shelf of their own') : ''));
@@ -10463,12 +10618,19 @@ function cardModel(){
   } else if (k === 'shed'){
     title = 'Workshop';
     const n = S.robots.length;
-    if (n < ROBOT_MAX){ const ns = STYLES[nextStyle()]; rows.push(buyRow('Build ' + ns.name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', robotCost(n), '', ic('robot'), ns.blurb)); }
-    else rows.push(buyRow('Robots', 'all <b>' + ROBOT_MAX + '</b> built', 'robot', 0, 'done', ic('robot')));
-    for (const kind of ['blower', 'shaker']) if (helperShown(kind)){
-      const m = cfgsOf(kind).length, stl = HELPER_LOOKS(kind)[nextHelperStyle(kind)];
-      rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a blower: pushes leaves to the bin' : 'a shaker: more leaves from trees', kind, helperCost(kind), '', ic(kind === 'blower' ? 'elephant' : 'crab'), (kind === 'blower' ? 'A blower: blows far-off leaves toward the bin. ' : 'A shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
-    } else if (cfgsOf(kind).length >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', ic(kind === 'blower' ? 'elephant' : 'crab')));
+    // V24: a new robot is a new identity; robots you have in other yards can join as copies at half their price, with every
+    // skill they already have (the row lists them)
+    if (copyShown('robot')) rows.push(copyRow('robot', nextCopy('robot')));
+    else if (n < ROBOT_MAX && newIdOK('robot')){ const ns = STYLES[nextStyle()]; rows.push(buyRow('Build ' + ns.name, 'you have <b>' + n + '</b>/' + ROBOT_MAX, 'robot', newRobotCost(), '', ic('robot'), ns.blurb)); }
+    else if (n >= ROBOT_MAX) rows.push(buyRow('Robots', 'all <b>' + ROBOT_MAX + '</b> built', 'robot', 0, 'done', ic('robot')));
+    for (const kind of ['blower', 'shaker']){
+      const m = cfgsOf(kind).length, kic = ic(kind === 'blower' ? 'elephant' : 'crab');
+      if (copyShown(kind)) rows.push(copyRow(kind, nextCopy(kind)));
+      else if (helperShown(kind)){
+        const stl = HELPER_LOOKS(kind)[nextHelperStyle(kind)];
+        rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a blower: pushes leaves to the bin' : 'a shaker: more leaves from trees', kind, newHelperCost(kind), '', kic, (kind === 'blower' ? 'A blower: blows far-off leaves toward the bin. ' : 'A shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
+      } else if (m >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', kic));
+    }
     if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
     if (genVisible()){
       // V13: a lot's own upgrades (the prairie's flower upgrades) get a section of their own, always shown when available
@@ -10478,10 +10640,15 @@ function cardModel(){
       const genRow = q => { const g = GEN[q], l = gl(q); const r = buyRow(g.name + (g.max > 1 ? nuts(l, [{ n: g.max }]) : ''), GEN_SHORT[q](l), 'gen:' + q, genCost(q), '', ic(GEN_ICON[q]), g.desc(l).replace(/<[^>]+>/g, '')); r.sig += l; return r; };
       const ok = own.filter(genAvail);
       if (ok.length){ rows2.push({ sig:'gfh', html:'<div class="sect">' + LOT.genSection.title + '</div>' }); for (const q of ok) rows2.push(genRow(q)); }
-      rows2.push({ sig:'gh', html:'<div class="sect">Yard-wide</div>' });
+      // V24: the general upgrades are bought here at home and work in every yard; elsewhere they're listed as what home has
+      const home = LOT_ID === 'home';
+      rows2.push({ sig:'gh' + home, html:'<div class="sect" title="' + (home ? 'Bought here, these work in every yard' : 'Bought in your first yard’s workshop, these work here too') + '">' + (home ? 'Every yard' : 'From home') + '</div>' });
       for (const q of ks.slice(0, 6)) rows2.push(genRow(q));
-      if (!ks.length) rows2.push({ sig:'gnone', html:'<div class="none pad">More unlock as the yard grows.</div>' });
-      if (owned.length) rows2.push({ sig:'gown' + owned.length, html:'<div class="gdone">' + owned.map(q => '<span class="dchip" title="' + GEN[q].name + '">' + ic(GEN_ICON[q]) + ic('check', 'ck') + '</span>').join('') + '</div>' });
+      if (home && !ks.length) rows2.push({ sig:'gnone', html:'<div class="none pad">More unlock as the yard grows.</div>' });
+      const fromHome = home ? [] : SHARED_GEN.filter(q => GEN[q] && gl(q) > 0 && gl(q) < GEN[q].max);
+      if (!home) rows2.push({ sig:'gfrom', html:'<div class="none pad">General upgrades are bought in the workshop back home. They work in every yard.</div>' });
+      const chips = [...owned, ...fromHome];
+      if (chips.length) rows2.push({ sig:'gown' + chips.map(q => q + gl(q)).join(), html:'<div class="gdone">' + chips.map(q => '<span class="dchip" title="' + GEN[q].name + (GEN[q].max > 1 ? ' ' + gl(q) + '/' + GEN[q].max : '') + '">' + ic(GEN_ICON[q]) + (gl(q) >= GEN[q].max ? ic('check', 'ck') : '<b>' + gl(q) + '</b>') + '</span>').join('') + '</div>' });
     }
     foot = '<div class="foot">' + (resetArm ? '<button class="link danger" data-act="reset2">Yes, wipe my yard</button>' : '<button class="link" data-act="reset1">Start over</button>') + '</div>';
   } else if (k === 'hive'){
@@ -10614,9 +10781,8 @@ function cardModel(){
     top = '<div class="bookart' + (bee || hive || fire || coal || ruin ? ' beeart' : '') + '">' + (ruin ? RUIN_SVG : fire ? FIRE_SVG : coal ? COAL_SVG : hive ? HIVE_SVG : bee ? BEE_SVG : BOOK_SVG) + '</div><p class="story">' + story + '</p>';
     const chip = '<span class="chip mini" style="--tc:' + TASKS.research.col + '">' + ic('research') + 'Research</span>';
     const names = who.map(q => styleOf(q.id).name);
-    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the fire burns and a second robot, a blower and a shaker are there too. Progress is kept if they stop.' : hive ? 'The lead robot does ' + RESEARCH_MAIN*F.robotMul + ' research a second here and each robot helping ' + RESEARCH_HELP*F.robotMul + ' (more with Research upgrades), as long as the blower keeps the rain off. Progress is kept if they stop.'
-        : ruin ? 'The lead robot does ' + RESEARCH_MAIN + ' research a second here and each robot helping ' + RESEARCH_HELP + ' (more with Research upgrades). Progress is kept if they stop.'
-        : 'The robot holding ' + F.holding + ' does ' + RESEARCH_MAIN + ' research a second, each robot helping ' + RESEARCH_HELP + ' (more with Research upgrades). Progress is kept if they stop.',
+    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'Every robot on it does ' + RESEARCH_UNIT*F.robotMul + ' research a second here (more with Research upgrades), as long as the fire burns and a second robot, a blower and a shaker are there too. Progress is kept if they stop.' : hive ? 'Every robot on it does ' + RESEARCH_UNIT*F.robotMul + ' research a second here (more with Research upgrades), as long as the blower keeps the rain off. Progress is kept if they stop.'
+        : 'Every robot on it does ' + RESEARCH_UNIT + ' research a second (more with Research upgrades), whether it ' + (ruin ? 'leads or helps' : 'holds ' + F.holding + ' or helps') + '. Progress is kept if they stop.',
       val: names.length ? names.join(', ') + (names.length > 1 ? ' are on it' : ' is on it') : '<span class="none">nobody yet · add ' + chip + ' to a robot’s Do list</span>' }) });
     if (fire){
       // V17: the fire: is it burning, and the blower and the shaker it needs
@@ -10894,7 +11060,7 @@ function liveHTML(kind){
   if (kind === 'book'){
     const v = researchRate();
     return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : researchETA() == null ? 'Not started yet' : 'Paused: time left when they stopped') + '">' + ic('clock') + etaText() + '</span>' +
-      meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + v + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
+      meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + Math.round(v*10)/10 + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
@@ -11055,8 +11221,9 @@ card.addEventListener('click', e => {
   else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
   else if (act.startsWith('hiveUp:')){ const k = act.slice(7); if (HIVE_UP[k] && !S.hive.up[k]) buy({ id:'hiveUp', key:k, obj:'hive', cost:hiveUpCost() }); }
-  else if (act === 'robot') buy({ id:'robot', obj:'shed', cost:robotCost(S.robots.length) });
-  else if (act === 'blower' || act === 'shaker'){ if (cfgsOf(act).length < HELPER_MAX) buy({ id:act, obj:'shed', cost:helperCost(act) }); }
+  else if (act === 'robot'){ if (S.robots.length < ROBOT_MAX && newIdOK('robot') && !copyShown('robot')) buy({ id:'robot', obj:'shed', cost:newRobotCost() }); }
+  else if (act === 'blower' || act === 'shaker'){ if (cfgsOf(act).length < HELPER_MAX && newIdOK(act) && !copyShown(act)) buy({ id:act, obj:'shed', cost:newHelperCost(act) }); }
+  else if (act.startsWith('copy:')){ const [, kind, sty] = act.split(':'); if (copyShown(kind) && nextCopy(kind) === +sty) buy({ id:'copy', kind, sty:+sty, obj:'shed', cost:copyCost(kind, +sty) }); }   // V24
   else if (act === 'miner') buy({ id:'miner', arg:i, obj:'spot'+i, cost:MINER_COST });
   else if (act === 'land'){ if (landForSale()) buy({ id:'land', obj:'sale', cost:AREAS[S.land + 1].cost }); return; }
   else if (act === 'bagger'){ if (!S.bag.built) buy({ id:'bagger', obj:'bagger', cost:BAGGER_COST }); }
@@ -11226,7 +11393,7 @@ function showToast(main, small, secs){ const t = $('toast'); t.innerHTML = sayH(
 // a location copy (public/locationN/, see index.html) keeps its own save, and so does every lot (V13)
 const KEY = lotKey(LOT_ID);
 let lotWasNew = false;   // this lot had no save yet (a fresh game, or the first time a robot rides here)
-function save(){ if (simMode || FRESH || travelling) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }   // (V21: a payout's money is already in S.cash)
+function save(){ if (simMode || travelling) return; bindIds(); if (FRESH) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} saveWorld(); }   // (V24: and the shared robots, unlocks and general upgrades)   // (V21: a payout's money is already in S.cash)
 function merge(base, src){ for (const k in src){ if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && base[k] && typeof base[k] === 'object') merge(base[k], src[k]); else if (k in base) base[k] = src[k]; } return base; }
 // V22: converts a hollow save's coal from old units to new ones (2 old : 1 new); see the call in load()
 function migrateCoalUnits(){
@@ -11412,14 +11579,18 @@ function load(data){
     if (S.flags.fareOpen && !S.trip && S.miles.fare == null && !S.flags.fare && LOT_ID === 'home' && !S.robots.some(c => c.away)) openTrip({ to: 'prairie', cash: TRIP_CASH }, true);
     if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
   }
+  if (src && src.v === 2 && S.bag.built && S.miles.bagTable == null) S.miles.bagTable = 0;   // (V24: an older save that has the table: no tick to show)
+  // V24: every robot here is tied to its identity (a save from before gets its roster from what's here). A new lot that
+  // a crew is riding to waits for arrive() (its starting robot isn't really there)
+  if (!(lotWasNew && LOT_ID !== 'home')) bindIds();
 }
 function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
 function hardReset(){
   // V13: starting over wipes every lot and goes back to the first yard
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
-  delete WORLD.arrive; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
-  S = freshState(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
+  delete WORLD.arrive; delete WORLD.ids; delete WORLD.tech; delete WORLD.gen; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;   // (V24: the shared robots too)
+  S = freshState(); bindIds(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
   closeCard(); syncRobots(); seedLeaves();
@@ -11508,7 +11679,8 @@ window.__leafYard = {
     simMode = true;
     const keep = { S, R, HB, B, leaves, parts, pops, tst: truck.st, fl: FLOWERS.map(f => [f.full, f.t, f.claim]), stn: JSON.stringify(STN), bk: Object.assign({}, bookRt),
       drv: driver, gst: Object.assign({}, guest), riders: truck.riders, arr: truck.arriving };
-    S = freshState(); R = []; HB = []; B = []; truck.st = 'away'; parts = []; pops = []; resetStations(); seedLeaves();
+    keep.IDW = IDW; IDW = {};   // (V24: a scratch roster: the sim's robots never touch the real shared ones)
+    S = freshState(); bindIds(); R = []; HB = []; B = []; truck.st = 'away'; parts = []; pops = []; resetStations(); seedLeaves();
     driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
     bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
     for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
@@ -11537,7 +11709,7 @@ window.__leafYard = {
     }
     const gl0 = leaves.filter(l => l.st === 'ground' && l.collect), near = gl0.filter(l => Math.hypot(l.x - BIN.x, l.y - BIN.y) < 250).length;
     const out = { blown: S.totals.blown || 0, near, groundAll: gl0.length, avgD: Math.round(gl0.reduce((a, l) => a + Math.hypot(l.x - BIN.x, l.y - BIN.y), 0)/Math.max(1, gl0.length)), log, t:S.t, cash:S.cash, land:S.land, robots:S.robots.map(r => r.lv), extra:{ blowers:S.blowers.map(b => b.lv), shakers:S.shakers.map(b => b.lv), lv:S.lv }, miners:S.miners.length, totals:S.totals, miles:S.miles, story:S.story, tech:Object.keys(S.tech), jobs:S.robots.map(r => r.prio.map(row => row.join('+')).join(' > ')) };
-    S = keep.S; R = keep.R; HB = keep.HB; B = keep.B; leaves = keep.leaves; parts = keep.parts; pops = keep.pops; truck.st = keep.tst; simMode = false;
+    S = keep.S; R = keep.R; HB = keep.HB; B = keep.B; leaves = keep.leaves; parts = keep.parts; pops = keep.pops; truck.st = keep.tst; simMode = false; IDW = keep.IDW;
     Object.assign(bookRt, keep.bk);
     driver = keep.drv; Object.assign(guest, keep.gst); truck.riders = keep.riders; truck.arriving = keep.arr;
     { const st = JSON.parse(keep.stn); for (const k in STN) STN[k] = st[k]; }
@@ -11587,6 +11759,7 @@ function devTraveller(){
     S.cash = S.peak = HOLLOW_CASH; S.lv.truck = 3;
     if (!FIRE_STORY) openTrip({ to: 'home', crew: ['robot', 'blower'], earned: LOT.tripHome.earned }, true);
   }
+  bindIds();
 }
 function start(data){
   // V14: a lot can change a few robots' looks (the hollow's umbrellas) and task colours
