@@ -31,6 +31,9 @@ function setSpeed(v){
   try { if (v === 1) sessionStorage.removeItem(SPEED_KEY); else sessionStorage.setItem(SPEED_KEY, String(v)); } catch(e){}
   if (typeof updSpeedUi === 'function') updSpeedUi(true);
 }
+// V25.1: the test panel can pause the game: nothing in the yard moves and the run clock stops (the camera still works)
+let gamePaused = false;
+function setPaused(v){ gamePaused = !!v; if (typeof updSpeedUi === 'function') updSpeedUi(true); }
 const FRESH = PARAMS.has('fresh');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -8867,6 +8870,24 @@ function tripWho(kind){
 const TUT_ORDER = ['arrive', 'robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'general', 'mine', 'assign', 'research', 'antlab', 'deadhead', 'trip', 'keep', 'goal', 'camera', 'follow'];
 const tutAllDone = () => { const o = {}; for (const id of TUT_ORDER) o['tut:' + id] = o['tut:k:' + id] = 1; return o; };
 // nothing starts (and a running lesson waits, hidden) while the story camera, a trip, the ending or a drag has the screen
+// V25.1: an open card (an upgrade window, a letter) holds a lesson back until it's closed, and the lesson starts a moment
+// later, instead of the lesson closing the card. The exception is a lesson about the card that's open: its first step
+// points at something on that card (flipping between robots on an open robot card, the eye button), so it starts there
+// and the card stays open. The test panel doesn't hold lessons back (it's often left open while playing).
+const tutCardUp = () => !!cardOpen && !card.hidden;
+function tutFitsOpen(id){
+  if (!tutCardUp()) return false;
+  let steps; try { steps = TUTS[id].steps(); } catch(e){ return false; }
+  for (const st of steps){
+    if (st.skip && st.skip()) continue;
+    if (st.known && st.known()) continue;
+    if (!st.dom || (st.need && !st.need())) return false;
+    let els = st.dom(); els = (Array.isArray(els) ? els : [els]).filter(e => e && e.isConnected);
+    return els.length > 0 && els.every(e => card.contains(e));
+  }
+  return false;
+}
+const tutMayStart = id => tutCardUp() ? tutFitsOpen(id) : performance.now() - (TUT.winT || 0) > 1000;
 const tutBlocked = () => simMode || travelling || (EN && EN.on) || !!endRt || !!tdrag || !!(camFollow && !camFollow.watch && !camFollow.tut) || !!(labRt && labRt.fail);
 
 function tutStart(id, forced){
@@ -8981,6 +9002,7 @@ function updTut(dt){
   // V25: how long the hollow's hive research has stood without the robot or the blower it needs
   if (hiveLabOn() && (labNeedRobot() || labNeedBlower())) TUT.labT = (TUT.labT || 0) + gdt; else TUT.labT = 0;
   if (S.hive.built && S.flags.hiveAt == null) S.flags.hiveAt = S.t;   // (V25: saves from before: count from now)
+  if (tutCardUp()) TUT.winT = performance.now();   // (V25.1: when a card was last open)
   if (!tutPref && TUT.on && !TUT.on.forced) tutStop(false);
   const blocked = tutBlocked() || (!tutPref && !TUT.on);
   if (!TUT.on){
@@ -8989,7 +9011,7 @@ function updTut(dt){
     if ((TUT.chk -= dt) > 0) return;
     TUT.chk = 0.3;
     if (performance.now() < (TUT.gapT || 0)) return;   // (a short breather between two lessons)
-    if (TUT.wait){ if (TUTS[TUT.wait.id].when() && performance.now() >= TUT.wait.at) { const id = TUT.wait.id; TUT.wait = null; tutStart(id); } else if (!TUTS[TUT.wait.id].when()) TUT.wait = null; return; }
+    if (TUT.wait){ if (TUTS[TUT.wait.id].when() && performance.now() >= TUT.wait.at){ if (!tutMayStart(TUT.wait.id)) return; const id = TUT.wait.id; TUT.wait = null; tutStart(id); } else if (!TUTS[TUT.wait.id].when()) TUT.wait = null; return; }   // (V25.1: and no card in the way)
     for (const id of TUT_ORDER){
       if (hintDone('tut:' + id)) continue;
       const D = TUTS[id];
@@ -9513,7 +9535,7 @@ $('hCash').addEventListener('pointerdown', e => {
   if (cheat.n >= 3 && now - cheat.first <= 2000){ cheat.n = 0; toggleTestPanel(); }
 });
 $('speedTag').addEventListener('pointerdown', e => e.stopPropagation());
-$('speedTag').addEventListener('click', () => setSpeed(1));   // V21: the speed tag under the HUD goes back to normal speed
+$('speedTag').addEventListener('click', () => { setPaused(false); setSpeed(1); });   // V21: the speed tag under the HUD goes back to normal speed
 const TEST_AMOUNTS = [10, 100, 500, 1000, 10000, 100000];
 function testCash(add){
   S.cash += add; S.peak = Math.max(S.peak || 0, S.cash); cashBumpT = 0.25;
@@ -10039,15 +10061,31 @@ function runJump(){
     return;
   }
   if (LOT_ID !== 'home' && !st.kit && !st.story && !st.letter && S.flags.hints) delete S.flags.hints['tut:arrive'];   // (V23.2: a "just arrived" jump shows the arrival lesson)
+  WORLD.runT = (JUMP_MIN[J.id] || 0)*60;   // V25.1: the run clock starts where a typical run gets to this point
   stop(); save();
   setTimeout(() => showToast('Test', 'Jumped to: ' + J.label, 5), 300);
 }
 let testSig = '', jumpArm = null, jumpQuiet = false;
+// V25.1: the run clock in the test panel: game time since the run started, over every yard (WORLD.runT, seconds; saved
+// with the world). It runs at the game's speed and stops while paused (and during the page change between yards).
+// Saves from before it start from the yards' own clocks added up. Start over and jumps wipe the world, so it restarts.
+function runClock(d){
+  if (simMode) return;
+  if (!(WORLD.runT >= 0)){ let t = 0; for (const k of ['home', ...Object.keys(window.LOTS || {})]) t += k === LOT_ID ? (+S.t || 0) : (+(readLot(k) || {}).t || 0); WORLD.runT = t; }
+  WORLD.runT += d || 0;
+}
+const runClockTxt = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t/60) % 60, s2 = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
+// where a jump sets the run clock, in minutes: the median campaign time of that point from the balance runs
+// (runs/campaign-timing/milestones.csv, "balanced", 6 seeds; the book and its research from the V24 measurements)
+const JUMP_MIN = { new: 0, book: 9.5, helpers: 12.2, letter: 28.6, fare: 28.8, prairie: 29.4, bee: 33.9, honey: 42, goHome: 45.9,
+  homeBee: 46.7, quests: 47.6, letter3: 57.3, crew: 58.7, hollow: 59.2, hDry: 63.9, hLab: 69, shed: 75.2, strike: 78.3, coal: 82,
+  kiln: 84, fireLet: 85.8, fireGo: 86.2, back: 86.8, works: 86.9, ruin: 87.4, smelt: 88.7, final: 118.4, finalGo: 118.8 };
 function toggleTestPanel(force){
   let el = $('testPanel');
   if (!el){
     el = document.createElement('div'); el.id = 'testPanel'; el.hidden = true;
-    el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div><div class="tpm">' +
+    el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div>' +
+      '<div class="tpc" title="Game time since this run started, over every yard. Runs with the game speed, stops while paused."><span>Run time</span><b class="tpcv">0:00</b><button data-t="pause">⏸ Pause</button></div><div class="tpm">' +
       TEST_AMOUNTS.map(a => '<button data-t="cash:' + a + '">+' + (a >= 1000 ? (a/1000).toLocaleString('en-US') + 'k' : a) + '</button>').join('') +
       '</div><div class="tps"><div class="tpsh"><b>Speed</b><span class="tpsv"></span></div>' +
       '<input type="range" min="0" max="4" step="0.005" aria-label="Game speed">' +
@@ -10064,6 +10102,7 @@ function toggleTestPanel(force){
       if (t === 'close') toggleTestPanel(false);
       else if (t.startsWith('cash:')) testCash(+t.slice(5));
       else if (t.startsWith('speed:')) setSpeed(+t.slice(6));
+      else if (t === 'pause') setPaused(!gamePaused);   // V25.1
       else if (t === 'tut'){ toggleTestPanel(false); tutStart(el.querySelector('.tpt select').value, true); }   // V23: plays it again, every step
       else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
       else if (t === 'jump'){
@@ -10094,10 +10133,11 @@ let speedSig = '';
 function updSpeedUi(force){
   const el = $('testPanel');
   const b = $('speedTag');
-  const on = TIME_SCALE !== 1, lag = TIME_SCALE > 4 && speedReal < TIME_SCALE*0.8;
-  if (b){ b.hidden = !on; if (on){ const t = '⏩ ' + speedTxt(TIME_SCALE) + (lag ? ' (~' + speedTxt(speedReal) + ')' : ''); if (b.textContent !== t) b.textContent = t; } }
+  const on = TIME_SCALE !== 1 || gamePaused, lag = !gamePaused && TIME_SCALE > 4 && speedReal < TIME_SCALE*0.8;
+  if (b){ b.hidden = !on; if (on){ const t = gamePaused ? '⏸ Paused' : '⏩ ' + speedTxt(TIME_SCALE) + (lag ? ' (~' + speedTxt(speedReal) + ')' : ''); if (b.textContent !== t) b.textContent = t; } }
   if (!el || el.hidden) return;
-  const sig = TIME_SCALE + '|' + (lag ? Math.round(speedReal) : 0);
+  const sig = TIME_SCALE + '|' + (lag ? Math.round(speedReal) : 0) + '|' + gamePaused;
+  const pb = el.querySelector('[data-t="pause"]'); if (pb){ pb.textContent = gamePaused ? '▶ Resume' : '⏸ Pause'; pb.classList.toggle('on', gamePaused); }
   if (!force && sig === speedSig) return; speedSig = sig;
   el.querySelector('.tpsv').textContent = speedTxt(TIME_SCALE) + (lag ? ' · running at ~' + speedTxt(speedReal) : '');
   const rng = el.querySelector('.tps input[type=range]'), num = el.querySelector('.tps input[type=number]');
@@ -10108,6 +10148,7 @@ function updSpeedUi(force){
 function updTestPanel(){
   updSpeedUi();
   const el = $('testPanel'); if (!el || el.hidden) return;
+  const cv = el.querySelector('.tpcv'), ct = runClockTxt(WORLD.runT || 0); if (cv && cv.textContent !== ct) cv.textContent = ct;   // V25.1
   const top = Math.round($('hud').getBoundingClientRect().bottom + 10) + 'px'; if (el.style.top !== top) el.style.top = top;   // stays under the cash and goal pill
   const n = nextStep(), sig = n ? n.label : '-';
   if (sig === testSig) return; testSig = sig;
@@ -11866,15 +11907,16 @@ let last = 0;
 function frame(ts){
   const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
   // V20: while the ending plays, the yard stands still and ending.js draws everything
-  if (EN && EN.on){ EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
+  if (EN && EN.on){ runClock(dt); EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
   if (endRt && endRt.waitHop){ const r = R[endRt.ri]; if (!r || (r.st !== 'ride' && r.st !== 'hopOut' && truck.st !== 'arrive')){ endRt.waitHop = false; if (r) startEndReturn(r); else setTimeout(() => showEndPopup(false), 1100); } }
   // V21: fast-forward in steps of at most 1/20 s of game time (like the sim), and never more than ~30 ms of work a frame,
   // so even 10,000× stays usable (it then runs as fast as the computer allows; speedReal says how fast that is)
-  if (!travelling){   // (V13: everything stops while the page moves to another lot)
+  if (!travelling && !gamePaused){   // (V13: everything stops while the page moves to another lot; V25.1: or while paused)
     const want = dt*TIME_SCALE, n = TIME_SCALE <= 1 ? 1 : Math.ceil(want/0.05 - 1e-9), h = want/n, t0 = performance.now();
     let done = 0;
     for (let i=0;i<n;i++){ step(h); done += h; if (n > 1 && performance.now() - t0 > 30) break; }
     if (dt > 0) speedReal += (done/dt - speedReal)*Math.min(1, dt*3);
+    runClock(done);   // V25.1: game time, so it follows the speed
   }
   if (camAnim){
     camAnim.t += dt;

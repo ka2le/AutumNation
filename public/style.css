@@ -569,3 +569,8 @@ body.ending #tut{display:none !important}
 @media (prefers-reduced-motion: reduce){ #tut .tspot::after,#tut .ttap{animation:none} #tut .tbub.pop{animation:none} }
 /* V24: how many of the kind this yard has, after a copy's skills */
 .cpn{font-size:11px;color:var(--ink-soft);margin-left:4px}
+/* V25.1: run clock and pause in the test panel */
+#testPanel .tpc{display:flex;align-items:center;gap:8px;margin-bottom:7px;padding:5px 7px;border:1.5px dashed var(--stitch);border-radius:10px;font-size:13px}
+#testPanel .tpc b{font-size:16px;font-variant-numeric:tabular-nums;margin-right:auto}
+#testPanel .tpc button{padding:3px 8px;font-size:12px;border-radius:7px}
+#testPanel .tpc button.on{background:var(--accent);border-color:var(--accent-dk);color:#fff}
