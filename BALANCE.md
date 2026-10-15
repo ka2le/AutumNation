@@ -549,3 +549,47 @@ yard's own again, so the hollow starts with no pickup steps, no Grease / Market 
 the Blower; the $1,000 fare is still its starting cash. Drying is researched first: one Blower, 45 s (two: 22 s), at the
 drying bench. Not re-measured yet: expect the hollow's first minutes to be noticeably slower than V26 (no truck steps,
 no copies). In a greedy built-in sim from $1,000 the drying is worked out ~1 min in and 500 dry leaves sell at ~4 min.
+
+## V29: the smelting run-in, slower and fuller (15 October 2026)
+
+Plan: `BALANCE_PLAN_V29.md` (questionnaire decisions). Aim: from repairing the smelting plant to 2,000 ingots should be a
+little slower, with plant and crew upgrades to buy for most of it, so the last core industrial upgrade lands within about a
+minute of the goal. The goal stays 2,000 ingots until fully maxed, goal-focused throughput has been measured. Trial values,
+**not yet validated by campaigns** (the plan's validation order is still to run).
+
+- **Better alloy (home):** $300 / 3,000 / 6,500 / 9,500 / 14,000 (was 300 / 1,050 / 2,000 / 3,600 / 5,200), same
+  multipliers. At a 5-minute payback, each step wants ≈ $290 / 2,625 / 6,211 / 9,880 / 17,360 of ingot income a minute
+  before it (sold quantities fixed). The main brake on the late income ramp.
+- **Other home plant prices** (moderate, effects unchanged, early steps unchanged): Grade the metal steps 4–6
+  $2,000 / 3,800 / 6,500 (were 1,400 / 2,600 / 4,200; thresholds ≈ $1.8k / 3.5k / 6.1k a minute); Hotter furnace 3
+  $2,400 (1,300); Slag recovery 3 $3,500 (1,900; ≈ $4.9k/min); Ore hopper 3 $900 (600); Ingot pallets 4 $1,500 (1,000).
+  The hollow's kiln ladders (`LOT.UP`) are unchanged and explicitly keep their own prices.
+- **Load & pack, Precision tools:** unlock $600 (700), levels $120 / 200 / 370 / 630 (100 / 170 / 290 / 500). Unlock + one
+  full tier $1,920 (+$160); a second specialist's copied tier $660; two specialists' late tier $2,580.
+- **Copy the blueprints is gone** (`GEN.blueprint` commented out; copied levels always 50%). Shared basket plans stays at
+  $150 and 10%. Old saves that bought it get nothing back (old-saves rule).
+- **Basket:** Wicker hamper $3 / 5 / 8 / 12 (1.80 / 2.70 / 4 / 6), Spring hopper $25 / 40 / 65 / 100 (14 / 20 / 30 / 44);
+  full-price track $259.75 (was $124.25, unlocks unchanged). Shared basket plans now saves $104.35 per fresh copied track
+  ($92.50 on the last tier alone). Industrial carrying is a table by Basket level (`METAL_CARRY`, `INGOT_CARRY`,
+  `COAL_CARRY`), and every hamper and hopper level raises each one:
+  ore/logs 2,2,3,3 | 4,5,6,7 | 8,10,12,14 (top was 7); ingots 1,1,1,2 | 3,4,5,6 | 8,10,12,14 (top 9); coal
+  1,2,3,4 | 6,8,10,12 | 15,19,23,28 (top 19). Leaves unchanged. The Basket row shows metal/logs and, once the plant (or
+  coal) is there, ingots/coal per trip.
+- **Pickup:** 3 + unlock + 3 + unlock + 2: Creaky servo $0.30 / 0.60 / 1.20, Quick servos (unlock $8) $2.50 / 4.50 / 8,
+  **Gyro wrist** (`TECH.wrist`, unlock $20) $16 / 28. Grab times 1.3 / 1.05 / 0.85 / 0.7 | 0.57 / 0.48 / 0.41 | 0.36 / 0.32
+  (same top). Track ≈ $89 with unlocks (was ≈ $34). Kits and dev starts that had Pickup 7 now stop at 6.
+- **Leaf drying fans the stove (hollow):** a Blower drying at the bench fans the fueled stove: its tray dries up to +30%
+  faster (`STOVE_DRAFT`), in proportion to the Blower's Leaf drying above Warm air 1 (1.6× → +3%, 3.5× → +14%, 6.5× →
+  +30%). Only a Blower drying there right now counts, and only the best one (no stacking; with the stove on one of the two
+  spots there's room for one Blower beside it anyway). The stove row shows the speed and the fan bonus.
+- **Hive floors explained:** the tank and store rows say whether this step adds a floor ("+1 floor: 12 → 14 nectar/s") or
+  not ("no floor (next step adds one)"), with the rule in the tooltip. Prices unchanged (no measurement showed a weak step).
+- **First cleanup deal $30** (was $20). The plan compares $30 and $35; $30 is the trial value.
+- **Kept:** bellows, excavating, late leaf sorting, Leaf mould, hollow price ladders, nursery, mulch/clover/seeding,
+  Market stall, Cutting oil, Lucky horseshoe, research.
+- **Checks done** (headless Chromium): fresh home and hollow load with the new tables and prices, hollow overrides
+  intact; Shared basket plans and packing totals match the plan exactly; the "smelt", "honey" and "kiln" jumps render the
+  hauler's Basket row (ore and ingots), the plant card, the hive's floor text and the stove's fan bonus (0 / +3 / +14 /
+  +30% at drying 1 / 1.6 / 3.5 / 6.5×, none when not attending, the best of two only); a 60-min home sim; no page
+  errors. **Still to do:** the plan's validation order (maxed throughput ceiling, isolated basket/blueprint effects,
+  paired-seed campaigns, final upgrade vs goal timing, cleanup $30 vs $35, hollow regression).

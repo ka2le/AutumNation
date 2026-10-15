@@ -911,3 +911,28 @@ With the prairie out of the story, the hollow is the only restart, so it now rea
 - **Arrival toast:** "Tinker and Puff made it. Pick up leaves and get this yard up and running." Writing rule: don't hint at what's coming ("see what the truck says"); say what to do.
 - **Drying research** takes 15 Blower-seconds (`DRY_LAB_NEED`, was 45).
 - Next step at home: Finish the quests → letter → Read → "Get Tinker ready ($300 of upgrades)" → send the crew.
+
+## V29 (Oct 15): balance pass for the smelting run-in (trial values)
+
+From repairing the old works to 2,000 ingots is meant to be a little slower, with plant and crew upgrades to buy for most
+of it. Plan: `BALANCE_PLAN_V29.md`; numbers and checks: BALANCE.md "V29". Not validated by campaigns yet.
+
+- **Home plant prices:** Better alloy $300 / 3,000 / 6,500 / 9,500 / 14,000; Grade the metal 4–6 $2,000 / 3,800 / 6,500;
+  Hotter furnace 3 $2,400; Slag recovery 3 $3,500; Ore hopper 3 $900; Ingot pallets 4 $1,500. Effects unchanged. The
+  hollow's kiln ladders are unchanged (`LOT.UP` overrides).
+- **Precision tools** unlock $600, levels $120 / 200 / 370 / 630.
+- **Copy the blueprints removed** (`GEN.blueprint` commented out, `discFor` no longer reads it; the homeQuests kit no
+  longer buys it). Copied levels cost 50%; Shared basket plans (10% on baskets) stays.
+- **Basket:** hamper $3 / 5 / 8 / 12, hopper $25 / 40 / 65 / 100. `METAL_CARRY`, `INGOT_CARRY`, `COAL_CARRY` (by Basket
+  level) replace `2 + level/2` and `leaves / INGOT_SPACE`; top 14 ore/logs, 14 ingots, 28 coal, and every level of the
+  last two tiers carries more of each. `metalCarryAt(L)` / `ingotCarryAt(L)`. The Basket row shows ore and (with the
+  plant or coal) ingots/coal per trip.
+- **Pickup:** Quick servos is 3 levels ($2.50 / 4.50 / 8), then **Gyro wrist** (`TECH.wrist`, $20, needs servos) with 2
+  ($16 / 28); 0.57 / 0.48 / 0.41 | 0.36 / 0.32 s. The balance player's tech list includes `wrist`. Old saves with Pickup 7
+  keep it (it's now the first Gyro wrist level; buying on needs the unlock).
+- **Stove draft (hollow):** `STOVE_DRAFT` 0.3, `stoveDraftBy()`, `stoveDraft()`, `stoveSpeed()`: the best Blower in state
+  `dry` (drying at the bench right now) speeds the stove's tray by 0–30% with its Leaf drying above 1×. Shown on the
+  bench card's Stove row.
+- **Hive floors:** tank/store rows say "+1 floor: a → b nectar/s" or "no floor (next step adds one)"; tips explain that
+  tank and store steps count together.
+- **Join the cleanup program** $30 (was $20).

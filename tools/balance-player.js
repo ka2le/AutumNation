@@ -107,7 +107,7 @@ const out = Y.sim(SECS, { noBuy: true, probe: () => {
     add(cheapest(all.filter(x => x.id === 'shaker' || x.id === 'blower' || (x.id === 'hup' && ['shake', 'blow'].includes(x.key)) || (x.id === 'tech' && ['pincers', 'turbine', 'jet'].includes(x.key)))), 'leaves scarce', 4);
   } else {
     const leafRobots = S.robots.map((c, j) => j).filter(j => S.robots[j].prio[0][0] === 'leaves');
-    add(cheapest(all.filter(x => (x.id === 'rup' && LEAF_TRACKS.includes(x.key) && leafRobots.includes(x.ri)) || (x.id === 'tech' && ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper'].includes(x.key)) || x.id === 'robot')), 'robots', 4);
+    add(cheapest(all.filter(x => (x.id === 'rup' && LEAF_TRACKS.includes(x.key) && leafRobots.includes(x.ri)) || (x.id === 'tech' && ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper', 'wrist'].includes(x.key)) || x.id === 'robot')), 'robots', 4);
   }
   // packing
   if (L.pack) add(cheapest(all.filter(x => (x.id === 'rup' && x.key === 'pack' && isPacker(S.robots[x.ri])) || (x.id === 'tech' && ['jig', 'precision'].includes(x.key)))), 'packer busy', 3);
