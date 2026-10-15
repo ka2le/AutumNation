@@ -527,3 +527,15 @@ to $7.50). The bagging table comes at Sort 3, and 5 bags bring the book (~9.5 mi
 4 / 8 / 16 / 42 a second per robot, helpers equal to the reader. In the hollow, 300 dry leaves after the fire research
 line up with the stove's first whole coal (~110 s). First-yard balance-player milestones and income are within noise of
 V23.3 (4 runs each).
+
+## V26: bees at home, 1,000-leaf goal (15 October 2026)
+
+The first letter now starts a goal to sell **1,000 leaves**, counting loose leaves and 10 per sold bag from when the
+letter is read. Reaching it reveals the dead bee in the Home Yard; bee research, hive construction and the $100 honey
+goal all happen there, before the three Rainy Hollow quests. The Flower Yard trip is removed from the new-game story.
+
+The initial 2,000-leaf experiment was measured against the exact V25.1 snapshot using six paired seeds for each of two
+strategies (24 complete campaigns). With balanced development and an ingot-first finish, first honey sale was 37.8 →
+43.3 minutes, hollow arrival 54.7 → 47.2, and ending start 96.0 → 81.7. The 2,000-leaf goal took 12.3 minutes after the
+letter. The user selected 1,000 to shorten the delay to bees. Those measurements remain the 2,000-leaf baseline;
+they are not measured timings for the reduced goal. Evidence and frozen sources: `runs/home-bee-timing/report.html`.

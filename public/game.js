@@ -43,8 +43,9 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // somewhere reloads the page: a lot's layout and look (land, trees, veins, flowers, colours) are fixed when the page
 // starts. 'home' is the first yard and is described right here in game.js; every other lot has a file of its own in
 // public/lots/ (loaded before game.js) that says what's different about it.
-const WORLD_KEY = 'leaf-yard-world-v1', HOP_KEY = 'leaf-yard-hop';
-const BASE_KEY = 'leaf-yard-save-v2' + (window.LOCATION ? '-' + window.LOCATION : '');
+const LOC_SUF = window.LOCATION ? '-' + window.LOCATION : '';   // a test copy under public/locationN/ keeps all its storage apart
+const WORLD_KEY = 'leaf-yard-world-v1' + LOC_SUF, HOP_KEY = 'leaf-yard-hop' + LOC_SUF;
+const BASE_KEY = 'leaf-yard-save-v2' + LOC_SUF;
 const lotKey = id => BASE_KEY + (id && id !== 'home' ? '-' + id : '');
 // ?fresh never saves; a trip in a ?fresh game hands everything to the next page once, through sessionStorage
 const HOP = (() => {
@@ -912,7 +913,7 @@ function freshState(){
     bag:{ built: DRY_BENCH, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0, coal: COAL_MAX }, coalStand:0, ingots:0, coalCredit:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
     truckT:28,
-    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0, jars:0, snips:0, blown:0, soaked:0, drySold:0, dried:0,
+    totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0, jars:0, snips:0, blown:0, soaked:0, drySold:0, dried:0, leafSold:0,
       logsSold:0, coal:0, fireDried:0, kilnSold:0, ingotsSold:0 },   // (V17: logs the truck took, coal made, leaves dried over the fire)
     // V17 (FIRE_STORY): the struck tree's fire (L: how much is burning, 0 = out; next: when lightning strikes again, -1 = not
     // waiting; n: strikes so far; camp: logs the robots have set burning beside it; bench: the stove's been tried), and the
@@ -928,7 +929,7 @@ function freshState(){
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
     flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, palletStorage:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
-      hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false,
+      hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false, moreLeaves:false, leafBase:0,   // (V26: the leaves letter read, and leafSold when it was)
       // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
       beeFail:false, antHill:false, dryTold:false, v15:true,   // V15: the hollow's beehive story and drying bench
@@ -1999,6 +2000,9 @@ const LOT_START_CASH = 10;   // what you have when your robot first arrives on a
 const TRIP_CASH = 100;       // V13.5: after the first letter, the first yard has to hold this much; it's packed for the trip and is
                              // what the robot starts the prairie with
 const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
+// V26: the bee story moved into the first yard (no trip to the prairie). The driver's first letter asks for more leaves:
+// sell this many from the moment it's read (bags count 10 each), and the dead bee turns up under the next leaf
+const LEAF_GOAL = 1000;
 const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's honey (jars and gift jars) before the driver offers a ride back (was 30 jars)
 const HOLLOW_CASH = 1000;    // V14: the third beat: hold this much (with a bigger yard and a mine) and the driver writes about the Rainy hollow
 const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this many dry leaves (V17: was 100)
@@ -2026,7 +2030,14 @@ const MILESTONES = [
   // goes to the curb while the money is there.
   { id:'fare', lot:'home', live:true, name:'Travel money', goal:'Have $' + TRIP_CASH + ' to bring to the new yard', prog: () => S.cash/TRIP_CASH,
     hud:{ icon:'coin', cash:true, val: () => S.cash, of: TRIP_CASH, show: () => !!(S.trip && S.trip.to === 'prairie' && S.trip.cash && !S.trip.paid) } },
-  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => (S.story.item || 'book') === 'book' && S.story.done ? Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD) : 0, on: () => postLetter('newLot') },
+  { id:'letter', lot:'home', hidden:true, name:'Word gets around', goal:'Earn $' + LETTER_EARNED + ' or hold $' + LETTER_HELD, prog: () => (S.story.item || 'book') === 'book' && S.story.done ? Math.max((S.totals.cash || 0)/LETTER_EARNED, (S.peak || 0)/LETTER_HELD) : 0, on: () => postLetter('moreLeaves') },
+  // V26: the bee story in the first yard (was on the prairie, V13–V25). The letter asks for more leaves: sell LEAF_GOAL from
+  // when it's read; then the dead bee turns up under the next leaf a robot picks up, the robots work it out by the hive's
+  // plot, the beehive can be built, and $100 of honey sold brings the three quests (group 'hollow')
+  { id:'moreLeaves', lot:'home', name:'More leaves', goal:'Sell ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves', prog: () => S.flags.moreLeaves ? leavesForGoal()/LEAF_GOAL : 0, on: () => startBeeFind(),
+    hud:{ icon:'leaf', val: () => leavesForGoal(), of: LEAF_GOAL, show: () => !!S.flags.moreLeaves } },
+  { id:'honeyHome', lot:'home', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => S.hive.built ? honeyEarned()/HONEY_CASH : 0,
+    hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => hiveKnown() } },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
   // V13.4: these two show as a goal pill under the cash (hud: what it shows; show: when it may show up)
   { id:'bee', lot:'prairie', name:'A small find', goal:'Gather ' + BEE_LEAVES + ' petals', prog: () => (S.totals.leaves || 0)/BEE_LEAVES, on: () => { S.story.armed = true; },
@@ -2077,7 +2088,7 @@ const MILESTONES = [
 ];
 // a group of quests shows all at once while its show() is true; done(): what happens when every one is reached together
 const GOAL_GROUPS = {
-  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone,
+  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone && (S.flags.hollowLetter || (S.miles.honeyHome != null && S.t - S.miles.honeyHome >= GOAL_DONE_HOLD)),   // (V26: once $100 of honey is sold)
     done: () => { if (!S.flags.hollowLetter){ S.flags.hollowLetter = true; postLetter('hollow'); } } },
   // V17 (the Rainy hollow): need: the members that have to be reached (the rest are steps on the way)
   hollowA: { show: () => FIRE_STORY && !S.fire.struck, need: ['dry', 'canned', 'logs'], done: () => { if (!S.fire.struck) strike(); } },
@@ -2114,6 +2125,15 @@ const GOAL_DONE_HOLD = 6;
 // V24: dry leaves sold since the fire was worked out (an older save that had already worked it out counts from now)
 const dryAfterFire = () => { if (!S.flags.fireDone) return 0; if (!(S.fire.dryBase >= 0)) S.fire.dryBase = S.totals.drySold || 0; return Math.max(0, (S.totals.drySold || 0) - S.fire.dryBase); };   // seconds a reached goal stays up (with a tick) before the next one, or none, shows
 const honeyEarned = () => Math.max(0, (S.totals.honeyCash || 0) - goalRt.pending);
+// V26: leaves the truck has taken since the leaves letter was read (a bag counts as BAG_SIZE leaves)
+const leavesForGoal = () => S.flags.moreLeaves ? Math.max(0, (S.totals.leafSold || 0) - (S.flags.leafBase || 0)) : 0;
+// V26: the leaves goal reached: the first yard's find is the dead bee now (its book is done); it turns up under the next
+// leaf a robot picks up, like the book did
+function startBeeFind(){
+  if (S.story.item === 'bee') return;
+  S.flags.helpers = true;   // (blowers and shakers stay known: helpersKnown() looked at the book's research)
+  Object.assign(S.story, { item: 'bee', armed: true, found: false, x: 0, y: 0, prog: 0, eta: null, done: false, opened: false, foundT: -1, doneT: -1, cam: false });
+}
 // what shows right now, top first: [{ m, done }]. A group shows every member (done ones with a tick); a live goal shows
 // while its show() is true, ticked while it's reached; otherwise one goal at a time, ticked for a moment once reached.
 function goalList(){
@@ -2138,7 +2158,7 @@ const FINDS = {
   book: { need: RESEARCH_NEED, crew: 0, title: 'Old picture book', story: 'Two pages salvaged from a wet children’s book. Maybe it can be useful.',
     found: ['Something was hiding under that leaf…', 'A soggy old picture book. New task available: Research'], holding: 'the book' },
   bee:  { need: 2000, crew: 3, title: 'A dead bee', story: 'A dead bee. Maybe it can be useful.',
-    found: ['Something was hiding under that petal…', 'A little dead bee. New task available: Research'], holding: 'the bee' },
+    found: ['Something was hiding under that leaf…', 'A little dead bee. New task available: Research'], holding: 'the bee' },
   // V15: the Rainy hollow's beehive, once its first bee has failed to fly in the rain. It's researched where it stands
   // (atHive): nothing to carry. A blower has to keep the rain off (blower: units a second it adds on its own; without
   // it nothing moves), and the robots only count for half here (robotMul), so even three top researchers take ~1.5 minutes.
@@ -3842,6 +3862,12 @@ const LETTERS = {
     // V13.5: what carries over, in small print
     note: () => 'Robot skills and unlocks, truck upgrades and the general workshop upgrades are shared by every yard. Your other robots can join there as copies, at half price.',
     open: () => openTrip({ to: 'prairie', cash: TRIP_CASH }) },
+  // V26: the first letter now asks for more leaves (the prairie trip is out of the story). Reading it starts the leaves
+  // goal; the letter disappears once its card is closed (vanish)
+  moreLeaves: { at: () => LETTER_AT(), title: 'A letter', sign: 'Trucker', vanish: true,
+    text: 'We really need more leaves!',
+    note: () => 'Goal: sell ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves. Leaves in bags count too.',
+    open: () => { if (!S.flags.moreLeaves){ S.flags.moreLeaves = true; S.flags.leafBase = S.totals.leafSold || 0; } } },
   goHome: { at: () => LETTER_AT(), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
   // V14: the third beat. Once the quests are done (a bigger yard, a mine and $1,000 in hand), the driver writes about a
@@ -3892,7 +3918,7 @@ const guest = { on: false, mode: 'hover', x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0,
 function startDriver(){
   const id = S.post.shift(), L = LETTERS[id]; if (!L) return;
   const p = L.at();
-  if (simMode){ S.letters.push({ id, x: p.x, y: p.y, read: false }); return; }
+  if (simMode){ S.letters.push({ id, x: p.x, y: p.y, read: false }); if (L.vanish) readLetter(S.letters.length - 1); return; }   // (V26: the sim reads a goal letter straight away)
   const sx = truck.x - 92, side = sx < p.x ? -1 : 1;
   driver = { id: -1, driver: true, sty: DRIVER, cfg: DRIVER_CFG, x: sx, y: LANE + 4, face: -1, anim: 0, moving: false, st: 'out', letter: id,
     tx: p.x, ty: p.y, sx: p.x + side*14, sy: p.y + 1, side, timer: 0, blink: 0, blinkT: 1.5, hz: 0, carryL: 0, carryM: 0, carryI: 0 };
@@ -3915,6 +3941,15 @@ function updDriver(dt){
     }
     if (d.timer <= 0) d.st = 'back';
   } else if (moveTo(d, truck.x - 92, LANE + 4, 58, dt)) driver = null;
+}
+// V26: a read letter that only starts a goal (vanish) disappears once its card is closed
+function updLetters(){
+  if (cardOpen && cardOpen.kind === 'letter') return;
+  for (let i = S.letters.length - 1; i >= 0; i--){
+    const l = S.letters[i], L = LETTERS[l.id]; if (!l.read || !L || !L.vanish) continue;
+    S.letters.splice(i, 1);
+    if (!simMode){ flyTo('letter', l.x, l.y - 2, l.x + 10, l.y - 70, 0.6, 30, {}); sparkle(l.x, l.y - 6); sfx('paper'); }
+  }
 }
 // a letter is read for the first time: whatever it starts, starts
 function readLetter(i){ const l = S.letters[i]; if (!l || l.read) return; l.read = true; const L = LETTERS[l.id]; if (L && L.open) L.open(); save(); }
@@ -4632,9 +4667,10 @@ function updTruck(dt){
       let coalCredit = 0;
       if (COAL && T.takeI > 0 && S.coalCredit > 0){ coalCredit = S.coalCredit*ingotPrice(); S.coalCredit = 0; amt += coalCredit; }
       // V13.4: what the honey made, for the prairie's honey goal (checked before it's counted, so the number can fly up to the pill)
-      const honeyGoal = FIRE_STORY ? 'canned' : 'honey', honeyAmt = T.takeH*honeyPrice() + T.takeG*giftJarPrice(), honeyFly = !simMode && honeyAmt > 0 && goalShowing(honeyGoal);
+      const honeyGoal = FIRE_STORY ? 'canned' : LOT_ID === 'home' ? 'honeyHome' : 'honey', honeyAmt = T.takeH*honeyPrice() + T.takeG*giftJarPrice(), honeyFly = !simMode && honeyAmt > 0 && goalShowing(honeyGoal);
       S.totals.honeyCash = (S.totals.honeyCash || 0) + honeyAmt;
       if (DRY_BENCH) S.totals.drySold = (S.totals.drySold || 0) + T.takeB*BAG_SIZE;   // V15: for the hollow's first goal
+      S.totals.leafSold = (S.totals.leafSold || 0) + T.takeL + T.takeB*BAG_SIZE;   // V26: for the first yard's leaves goal
       if (FIRE_STORY){ S.totals.logsSold = (S.totals.logsSold || 0) + T.takeM; S.totals.coalSold = (S.totals.coalSold || 0) + T.takeI; if (S.flags.coalKnown) S.totals.kilnSold = (S.totals.kilnSold || 0) + T.takeI; }   // V17 (V18: and since the kiln; V19.2: since the coal is known)
       if (PLANT_COAL) S.totals.ingotsSold = (S.totals.ingotsSold || 0) + T.takeI;   // V18: iron ingots from the old works
       // balance tests (tools/balance-player.js): during a sim, window.__src adds up what each kind of thing sold for
@@ -5645,7 +5681,7 @@ function step(dt){
   updPlantCoal(dt);   // V18: the old works burn coal
   if (S.plant.built && S.plant.slagAcc >= 1 - 1e-9) settleRecovery();   // V22: recovered output owed while the rack was full
   updTruck(dt);
-  updDriver(dt); updGuest(dt); updBoarding();
+  updDriver(dt); updLetters(); updGuest(dt); updBoarding();
   updParts(dt);
   updMilestones();
   if (bumpBin > 0) bumpBin -= dt;
@@ -8707,11 +8743,11 @@ const TUTS = {
       ];
     }
   },
-  // V25: deadheading, two minutes after the prairie's beehive is up, if no shaker has learnt it: with no shaker, a word
+  // V25: deadheading, two minutes after the beehive is up (V26: the first yard's; was the prairie's), if no shaker has learnt it: with no shaker, a word
   // about what one would do (and the build button, without insisting); with one, Garden shears and its task list
   deadhead: {
     label: 'Deadheading flowers',
-    when: () => LOT_ID === 'prairie' && S.hive.built && S.flags.hiveAt != null && S.t - S.flags.hiveAt >= 120 && !snipLearnt(),
+    when: () => LOT_ID !== 'hollow' && S.hive.built && S.flags.hiveAt != null && S.t - S.flags.hiveAt >= 120 && !snipLearnt(),
     past: () => snipLearnt(),
     steps(){
       const onShed = () => tutCardIs('shed'), has = () => tutShaker() >= 0;
@@ -8760,7 +8796,7 @@ const TUTS = {
     steps(){
       const onCard = () => tutCardIs('book');
       return [
-        { id: 'in', world: () => { const p = objPos('book'); return p ? { x: p.x, y: p.y + 30, r: 50 } : null; }, text: 'Research goes faster with more robots. Tap the book.', act: true, skip: onCard, done: onCard },
+        { id: 'in', world: () => { const p = objPos('book'); return p ? { x: p.x, y: p.y + 30, r: 50 } : null; }, text: () => 'Research goes faster with more robots. Tap ' + (S.story.item === 'bee' ? 'the bee.' : 'the book.'), act: true, skip: onCard, done: onCard },
         ...tutAssignSteps(onCard, 'in', 'add a helper'),
       ];
     }
@@ -9519,7 +9555,7 @@ function updGoalHud(dt){
       el._txt = txt; el.querySelector('.gv').textContent = txt; el.querySelector('.gbar b').style.width = (k*100).toFixed(1) + '%';
       el.setAttribute('aria-label', (named ? 'Quest: ' : 'Goal: ') + goal + (num ? ', ' + num : '') + (g.done ? ', done' : ''));
     }
-    el.classList.toggle('bump', goalRt.bumpT > 0 && (id === 'honey' || id === 'canned' || id === goalRt.doneId));
+    el.classList.toggle('bump', goalRt.bumpT > 0 && (id === 'honey' || id === 'honeyHome' || id === 'canned' || id === goalRt.doneId));
     el.classList.toggle('open', goalRt.tip === id && goalRt.tipT > 0);
   });
 }
@@ -9734,6 +9770,7 @@ function nextStep(){
   if (RUIN && S.flags.ruinKnown && !S.plant.built) return { label: 'Repair the smelting plant', run: () => { S.cash += PLANT_COST; S.peak = Math.max(S.peak, S.cash); buy({ id:'plant', obj:'plant', cost: PLANT_COST }); } };
   if (RUIN && S.plant.built && S.story.item === 'ruin' && S.miles.ingots == null) return { label: 'Sell ' + INGOT_GOAL.toLocaleString('en-US') + ' iron ingots', run: () => { S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, INGOT_GOAL); } };
   if (LOT_ID === 'home' && hiveKnown() && !S.hive.built) return { label: 'Build the beehive', run: () => { S.cash += hiveCost(); S.peak = Math.max(S.peak, S.cash); S.flags.hiveShown = true; buy({ id:'hive', obj:'hive', cost: hiveCost() }); } };
+  if (LOT_ID === 'home' && S.hive.built && S.miles.honeyHome == null && !S.flags.hollowLetter) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };   // V26
   if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter) return { label: 'Finish the quests', run: () => {
     if (S.miles.qYard == null) S.miles.qYard = Math.round(S.t); if (S.miles.qMine == null) S.miles.qMine = Math.round(S.t);
     S.cash = Math.max(S.cash, HOLLOW_CASH); S.peak = Math.max(S.peak, S.cash); } };
@@ -9749,6 +9786,7 @@ function nextStep(){
   }
   if (st.found && !st.done) return { label: 'Finish researching ' + what, run: finishResearch };
   if (LOT_ID === 'home' && S.miles.letter == null) return { label: 'Earn enough for the letter', run: () => { S.totals.cash = Math.max(S.totals.cash || 0, LETTER_EARNED); } };
+  if (LOT_ID === 'home' && S.flags.moreLeaves && S.miles.moreLeaves == null) return { label: 'Sell ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves', run: () => { S.totals.leafSold = Math.max(S.totals.leafSold || 0, (S.flags.leafBase || 0) + LEAF_GOAL); } };   // V26
   if (LOT_ID === 'prairie' && S.miles.honey == null) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };
   return null;
 }
@@ -9756,7 +9794,7 @@ function nextStep(){
 // point: on each lot it passes through, it buys what a player would have by then (JUMP_KITS: what must be bought by
 // that point) and rides the truck on (the real trip code: travel() and arrive()), one quick page load per lot.
 // Tweak the kits to change what each point starts with. Robots are listed in order, the first one is Tinker.
-const JUMP_KEY = 'leaf-yard-jump';
+const JUMP_KEY = 'leaf-yard-jump' + LOC_SUF;
 const JUMP_KITS = {
   // the first yard, ~6 min in: cheap robot upgrades and a few bin sizes
   // (V24: the bagging table built and five bags made: that's what brings the book now)
@@ -9775,13 +9813,18 @@ const JUMP_KITS = {
   prairieHive: { base: 'prairie5', robots: [{}, { speed:4, carry:4, pick:3 }, { speed:3, carry:3, pick:3 }],
             up: { bin:5, leafPrice:4, bagPrice:2, hiveTank:1, hiveStore:1 }, gen: { press:1 }, bag: true, hive: { bees:5 }, story: 'done',
             leaves: 2400, honeyCash: 60, cash: 80 },
-  // the first yard again, ~15 min after the bee came home: the beehive built, a fourth robot, more of everything
-  homeHive: { base: 'home27', tech: ['hubs', 'hopper', 'jig'],
+  // V26: the first yard, the leaves goal done: the dead bee turns up under the next leaf (bee: 'armed')
+  homeBee: { base: 'home27', up: { bin:6, leafPrice:5, bagPrice:4 }, bee: 'armed', cash: 150 },
+  // the first yard, the dead bee worked out (V26: here, not on the prairie): the beehive built, a fourth robot, more of
+  // everything; $60 of the $100 honey money (was: ~15 min after the bee came home)
+  homeHive: { base: 'home27', bee: 'done', honeyCash: 60, tech: ['hubs', 'hopper', 'jig'],
             robots: [{ speed:9, carry:9, pick:7, grab:3, reach:3 }, { speed:8, carry:8, pick:6, grab:3, reach:2, pack:3 }, { speed:6, carry:6, pick:5, grab:2, reach:2 }, { speed:4, carry:4, pick:3 }],
             blowers: [{ speed:4, blow:4 }, { speed:2, blow:2 }], shakers: [{ speed:2, shake:3 }],
             up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:1, market:1 }, hive: { bees:6 }, cash: 250 },
+  // V26: $100 of honey sold: the three quests show
+  homeHoney: { base: 'homeHive', honey: true, cash: 250 },
   // the quests done: the bigger yard and a mine with a robot on it; holding $1,000 brings the hollow letter
-  homeQuests: { base: 'homeHive', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
+  homeQuests: { base: 'homeHoney', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
             robots: [{ drill:3 }, { drill:4, magnet:2 }, {}, {}, { speed:4, carry:4, pick:3 }],
             up: { bin:7, metalBin:2, metalPrice:1, truck:4 }, gen: { blueprint:1 }, hive: { bees:9 }, cash: HOLLOW_CASH + 80 },
   // ~15 min in the Rainy hollow: a saw station on the wood pile, the drying shed, an ant hill, and the blower's umbrella
@@ -9823,6 +9866,7 @@ const JUMP_KITS = {
   homeFinal: { base: 'homeSmelt', ingotsSold: INGOT_GOAL, truckSoon: true, cash: 2500 },
 };
 // the trips a jump makes on its way (a stage: the lot it's on, the kit to buy there, then go: ride on)
+// (V26: the prairie is out of the story; its trips J_PRAIRIE and J_BEE_HOME are kept for reference, not used)
 const J_PRAIRIE = { lot: 'home', kit: 'home27', story: 'done', go: { letter: 'newLot' } };
 const J_BEE_HOME = { lot: 'prairie', kit: 'prairieHive', go: { letter: 'goHome' } };
 const J_HOLLOW = { lot: 'home', kit: 'homeQuests', go: { letter: 'hollow' } };
@@ -9831,33 +9875,30 @@ const JUMPS = [
   { id: 'new',     label: 'First yard: a new game',                    stages: [{ lot: 'home' }] },
   { id: 'book',    label: 'First yard: the old book turns up',         stages: [{ lot: 'home', kit: 'home6', story: 'armed' }] },
   { id: 'helpers', label: 'First yard: book read, blowers and shakers', stages: [{ lot: 'home', kit: 'home12', story: 'done' }] },
-  { id: 'letter',  label: 'First yard: the prairie letter comes',      stages: [{ lot: 'home', kit: 'home27', story: 'done' }] },
-  { id: 'fare',    label: 'First yard: saving $100 for the prairie',   stages: [{ lot: 'home', kit: 'home27', story: 'done', letter: 'newLot', cash: 60 }] },
-  { id: 'prairie', label: 'Prairie: just arrived',                     stages: [J_PRAIRIE, { lot: 'prairie' }] },
-  { id: 'bee',     label: 'Prairie: the dead bee turns up',            stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairie5', story: 'armed' }] },
-  { id: 'honey',   label: 'Prairie: beehive built, honey money',       stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairieHive' }] },
-  { id: 'goHome',  label: 'Prairie: ready to ride home with a bee',    stages: [J_PRAIRIE, { lot: 'prairie', kit: 'prairieHive', letter: 'goHome' }] },
-  { id: 'homeBee', label: 'First yard: home with the bee',             stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home' }] },
-  { id: 'quests',  label: 'First yard: beehive built, the three quests', stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeHive' }] },
-  { id: 'letter3', label: 'First yard: the hollow letter comes',       stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeQuests' }] },
-  { id: 'crew',    label: 'First yard: sending Tinker and a blower',   stages: [J_PRAIRIE, J_BEE_HOME, { lot: 'home', kit: 'homeQuests', letter: 'hollow' }] },
-  { id: 'hollow',  label: 'Rainy hollow: just arrived',                stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow' }] },
-  { id: 'hDry',    label: 'Rainy hollow: dry leaves selling',          stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowDry' }] },
-  { id: 'hLab',    label: 'Rainy hollow: researching the beehive',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowLab' }] },
-  { id: 'shed',    label: 'Rainy hollow: ant hill, log crib and a saw',  stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowLogs' }] },
-  { id: 'strike',  label: 'Rainy hollow: lightning strikes the tree',   stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowStrike' }] },
-  { id: 'coal',    label: 'Rainy hollow: coal and the charcoal kiln',   stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowCoal' }] },
-  { id: 'kiln',    label: 'Rainy hollow: kiln built, selling coal',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln' }] },
-  { id: 'fireLet', label: 'Rainy hollow: 200 coal sold, the smoky letter', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowLetter' }] },
-  { id: 'fireGo',  label: 'Rainy hollow: taking the fire home',         stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln', letter: 'fireHome' }] },
-  { id: 'back',    label: 'First yard: back from the hollow with the fire', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeBack' }] },
-  { id: 'works',   label: 'First yard: researching the old works',     stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeWorks' }] },
-  { id: 'ruin',    label: 'First yard: old works researched, ready to repair', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeRuin' }] },
-  { id: 'smelt',   label: 'First yard: the old works repaired, smelting', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeSmelt' }] },
+  { id: 'letter',  label: 'First yard: the leaves letter comes',       stages: [{ lot: 'home', kit: 'home27', story: 'done' }] },
+  { id: 'leaves',  label: 'First yard: selling ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves', stages: [{ lot: 'home', kit: 'home27', story: 'done', letter: 'moreLeaves' }] },
+  { id: 'bee',     label: 'First yard: the dead bee turns up',         stages: [{ lot: 'home', kit: 'homeBee' }] },
+  { id: 'honey',   label: 'First yard: beehive built, honey money',    stages: [{ lot: 'home', kit: 'homeHive' }] },
+  { id: 'quests',  label: 'First yard: honey sold, the three quests',  stages: [{ lot: 'home', kit: 'homeHoney' }] },
+  { id: 'letter3', label: 'First yard: the hollow letter comes',       stages: [{ lot: 'home', kit: 'homeQuests' }] },
+  { id: 'crew',    label: 'First yard: sending Tinker and a blower',   stages: [{ lot: 'home', kit: 'homeQuests', letter: 'hollow' }] },
+  { id: 'hollow',  label: 'Rainy hollow: just arrived',                stages: [J_HOLLOW, { lot: 'hollow' }] },
+  { id: 'hDry',    label: 'Rainy hollow: dry leaves selling',          stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowDry' }] },
+  { id: 'hLab',    label: 'Rainy hollow: researching the beehive',     stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowLab' }] },
+  { id: 'shed',    label: 'Rainy hollow: ant hill, log crib and a saw',  stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowLogs' }] },
+  { id: 'strike',  label: 'Rainy hollow: lightning strikes the tree',   stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowStrike' }] },
+  { id: 'coal',    label: 'Rainy hollow: coal and the charcoal kiln',   stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowCoal' }] },
+  { id: 'kiln',    label: 'Rainy hollow: kiln built, selling coal',     stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln' }] },
+  { id: 'fireLet', label: 'Rainy hollow: 200 coal sold, the smoky letter', stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowLetter' }] },
+  { id: 'fireGo',  label: 'Rainy hollow: taking the fire home',         stages: [J_HOLLOW, { lot: 'hollow', kit: 'hollowKiln', letter: 'fireHome' }] },
+  { id: 'back',    label: 'First yard: back from the hollow with the fire', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeBack' }] },
+  { id: 'works',   label: 'First yard: researching the old works',     stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeWorks' }] },
+  { id: 'ruin',    label: 'First yard: old works researched, ready to repair', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeRuin' }] },
+  { id: 'smelt',   label: 'First yard: the old works repaired, smelting', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeSmelt' }] },
   // V20: the ending. The last two jump like the others; the scene previews (preview:) play right away without wiping
   // anything, and the yard comes back as it was
-  { id: 'final',   label: 'First yard: 2,000 ingots sold, the final letter comes', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal' }] },
-  { id: 'finalGo', label: 'First yard: final letter read, Tinker off to the truck', stages: [J_PRAIRIE, J_BEE_HOME, J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal', letter: 'final' }] },
+  { id: 'final',   label: 'First yard: 2,000 ingots sold, the final letter comes', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal' }] },
+  { id: 'finalGo', label: 'First yard: final letter read, Tinker off to the truck', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal', letter: 'final' }] },
   { id: 'endAll',     label: 'Ending: the whole ride (preview)',    preview: 'all' },
   { id: 'endFactory', label: 'Ending: robot factory (preview)',     preview: 'factory' },
   { id: 'endBank',    label: 'Ending: bank (preview)',              preview: 'bank' },
@@ -9972,6 +10013,8 @@ function applyKit(name){
     if (K.hive.bees > S.hive.bees){ S.hive.bees = Math.min(MAX_BEES, K.hive.bees); syncBees(); }
   }
   if (K.story) jumpStory(K.story);
+  if (K.bee && LOT_ID === 'home') jumpBee(K.bee);   // V26
+  if (K.honey && LOT_ID === 'home'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honeyHome == null) S.miles.honeyHome = Math.round(S.t) - GOAL_DONE_HOLD; }
   if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
   if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
   if (K.honeyCash) S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, K.honeyCash);
@@ -9990,6 +10033,18 @@ function jumpStory(how){
   if (id === 'bee'){ S.flags.hiveKnown = true; S.flags.hiveShown = true; }
   else S.flags.helpers = true;
 }
+// V26: the first yard's bee story: the book worked out, the leaves letter read and its goal reached, then the dead bee
+// 'armed' (under the next leaf) or 'done' (worked out: the beehive can be built)
+function jumpBee(how){
+  if ((S.story.item || 'book') === 'book' && !S.story.done) jumpStory('done');
+  if (S.miles.letter == null) S.miles.letter = Math.round(S.t);
+  S.post = S.post.filter(x => x !== 'moreLeaves'); S.letters = S.letters.filter(l => l.id !== 'moreLeaves');
+  if (!S.flags.moreLeaves){ S.flags.moreLeaves = true; S.flags.leafBase = S.totals.leafSold || 0; }
+  S.totals.leafSold = Math.max(S.totals.leafSold || 0, (S.flags.leafBase || 0) + LEAF_GOAL);
+  if (S.miles.moreLeaves == null) S.miles.moreLeaves = Math.round(S.t) - GOAL_DONE_HOLD;
+  startBeeFind();
+  if (how === 'done') jumpStory('done');
+}
 // read a letter (it opens its trip)
 function jumpLetter(id){
   const L = LETTERS[id]; if (!L) return;
@@ -9997,7 +10052,7 @@ function jumpLetter(id){
   if (id === 'final'){ S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, INGOT_GOAL); if (S.miles.ingots == null) S.miles.ingots = Math.round(S.t); }   // V20
   if (id === 'fireHome'){ S.totals.kilnSold = Math.max(S.totals.kilnSold || 0, COAL_GOAL); if (S.miles.coalSold == null) S.miles.coalSold = Math.round(S.t); }   // V18
   // the milestone that would post it counts as reached, so it doesn't come again
-  if (id === 'newLot' && S.miles.letter == null) S.miles.letter = Math.round(S.t);
+  if ((id === 'newLot' || id === 'moreLeaves') && S.miles.letter == null) S.miles.letter = Math.round(S.t);
   if (id === 'goHome'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honey == null) S.miles.honey = Math.round(S.t); }
   S.post = S.post.filter(x => x !== id); S.letters = S.letters.filter(l => l.id !== id);
   S.letters.push(Object.assign({ id, read: true }, L.at()));
@@ -10077,8 +10132,8 @@ function runClock(d){
 const runClockTxt = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t/60) % 60, s2 = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
 // where a jump sets the run clock, in minutes: the median campaign time of that point from the balance runs
 // (runs/campaign-timing/milestones.csv, "balanced", 6 seeds; the book and its research from the V24 measurements)
-const JUMP_MIN = { new: 0, book: 9.5, helpers: 12.2, letter: 28.6, fare: 28.8, prairie: 29.4, bee: 33.9, honey: 42, goHome: 45.9,
-  homeBee: 46.7, quests: 47.6, letter3: 57.3, crew: 58.7, hollow: 59.2, hDry: 63.9, hLab: 69, shed: 75.2, strike: 78.3, coal: 82,
+// (V26: leaves, bee, honey and quests are guesses until the single-yard bee story has been measured)
+const JUMP_MIN = { new: 0, book: 9.5, helpers: 12.2, letter: 28.6, leaves: 28.8, bee: 38, honey: 43, quests: 47.6, letter3: 57.3, crew: 58.7, hollow: 59.2, hDry: 63.9, hLab: 69, shed: 75.2, strike: 78.3, coal: 82,
   kiln: 84, fireLet: 85.8, fireGo: 86.2, back: 86.8, works: 86.9, ruin: 87.4, smelt: 88.7, final: 118.4, finalGo: 118.8 };
 function toggleTestPanel(force){
   let el = $('testPanel');
