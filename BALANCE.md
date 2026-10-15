@@ -539,3 +539,13 @@ strategies (24 complete campaigns). With balanced development and an ingot-first
 43.3 minutes, hollow arrival 54.7 → 47.2, and ending start 96.0 → 81.7. The 2,000-leaf goal took 12.3 minutes after the
 letter. The user selected 1,000 to shorten the delay to bees. Those measurements remain the 2,000-leaf baseline;
 they are not measured timings for the reduced goal. Evidence and frozen sources: `runs/home-bee-timing/report.html`.
+
+## V27: the Rainy hollow is a real soft prestige (15 October 2026)
+
+Only the robots that ride along (with their own skill levels) and the robot tier unlocks cross between yards. V24's
+shared identities, half-price copies and cross-yard copied-level discounts are gone; the copied-level discount and Match
+look at this yard's robots only. The truck schedule, the cleanup program and the yard-wide workshop upgrades are each
+yard's own again, so the hollow starts with no pickup steps, no Grease / Market stall / blueprints, and only Tinker and
+the Blower; the $1,000 fare is still its starting cash. Drying is researched first: one Blower, 45 s (two: 22 s), at the
+drying bench. Not re-measured yet: expect the hollow's first minutes to be noticeably slower than V26 (no truck steps,
+no copies). In a greedy built-in sim from $1,000 the drying is worked out ~1 min in and 500 dry leaves sell at ~4 min.

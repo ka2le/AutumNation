@@ -1,7 +1,7 @@
 // AutumNation: the Rainy hollow, the third lot (V14).
 // Once the first yard has a beehive, a bigger yard, a mine and $1,000 in hand, the truck driver writes about a soggy
 // hollow down the road. Tinker and a blower ride over in the back of the truck with the $1,000 and start again here,
-// keeping their own upgrades, every robot unlock, the truck schedule and the cleanup program.
+// keeping only their own upgrades and the robot tier unlocks (V27: the truck schedule, cleanup program and yard-wide upgrades start over).
 //
 // It rains here (all looks: rain, puddles that reflect what stands beside them, mist, warm lights; game.js draws those,
 // LOT.rain), robot ants cut mushrooms instead of bees sipping flowers, and the metal side is wood: wood piles, saws and a
@@ -1478,9 +1478,9 @@ LOTS.hollow = H => {
     ['\\bchunks\\b', 'logs'], ['\\bchunk\\b', 'log'],
     ['\\bdrills\\b', 'saws'], ['\\bdrill\\b', 'saw'], ['\\bDrill\\b', 'Saw'],
     ['Lucky horseshoe', 'Lucky axe'], ['Cutting oil', 'Chain oil'],
-    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Woodpile dryer'], ['Excavating', 'Woodpile drying'], ['excavating upgrades for blowers at a mine shaft', 'woodpile drying upgrades for blowers at a wood shelter'],
+    ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Woodpile dryer'], ['Excavating', 'Woodpile drying'], ['excavating upgrades for Blowers at a mine shaft', 'woodpile drying upgrades for Blowers at a wood shelter'],
     ['excavate a shaft', 'dry the woodpile'], ['excavate here', 'dry the woodpile here'], ['\\bExcavate\\b', 'Dry woodpile'], ['\\bexcavate\\b', 'dry the woodpile'],
-    ['Dirt hose', 'Warm-air hose'], ['Grit cyclone', 'Heat blower'],
+    ['Dirt hose', 'Warm-air hose'], ['Grit cyclone', 'Heat Blower'],
     ['A deeper, richer vein: chunks come', 'A roof over the pile keeps the wood drier: logs come'],
     ['Dig a shaft', 'Build a shelter'], ['\\bDig\\b', 'Dry woodpile'], ['Mine shaft dug!', 'Wood shelter built!'], ['You’ve dug one before', 'You’ve built one before'],
     ['[Mm]ine shafts', m => m[0] === 'M' ? 'Wood shelters' : 'wood shelters'], ['[Mm]ine shaft', m => m[0] === 'M' ? 'Wood shelter' : 'wood shelter'],
@@ -1518,7 +1518,7 @@ LOTS.hollow = H => {
     ['\\+1 floor', '+1 chamber'], ['Bigger honey store', 'More sorting chambers'], ['[Hh]oney store', m => m[0] === 'H' ? 'Sorting chambers' : 'sorting chambers'], ['honey full', 'store full'],
     ['\\btank\\b', 'larder'], ['Fancy honey labels', 'Gourmet labels'], ['Honey labels', 'Gourmet labels'],
     // V15: canned mushrooms, and D.O.P. certification instead of gift wrapping
-    ['Adds the Wrap task: a robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.', 'Adds the Certify task: a robot checks a can of mushrooms and seals it as D.O.P. (protected designation of origin), so it sells for a lot more. Certifying takes almost as long as canning.'],
+    ['Adds the Wrap task: a Robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.', 'Adds the Certify task: a Robot checks a can of mushrooms and seals it as D.O.P. (protected designation of origin), so it sells for a lot more. Certifying takes almost as long as canning.'],
     ['Gift ribbons', 'D.O.P. seals'], ['Gift wrapping at the crate', 'D.O.P. certifying at the crate'], ['Gift wrapping', 'D.O.P. certification'], ['Wrap gift jars', 'Certify D.O.P. cans'], ['Wrapping a gift jar', 'Certifying a can'], ['Wrapping gift jars', 'Certifying cans'],
     ['will wrap gift jars', 'will certify the cans'], ['Keep for wrapping', 'Keep for certifying'], ['so they can be wrapped first', 'so they can be certified first'], ['fills and wraps jars', 'cans and certifies mushrooms'],
     ['gift wrapping', 'D.O.P. certifying'], ['\\bWrappers\\b', 'Certifiers'], ['\\bWrap\\b', 'Certify'], ['\\bwrapping\\b', 'certifying'], ['\\bwrap\\b', 'certify'],
@@ -1531,7 +1531,7 @@ LOTS.hollow = H => {
     ['Quicker wings', 'Springy legs'], ['Long tongues', 'Sharp mandibles'], ['Faster fanning', 'Faster sorting'], ['Better recipe', 'Tight packing'],
     ['Bees fly', 'Ants walk'], ['so more bees fly further out', 'so more ants walk further out'], ['Bees take <b>5 nectar</b> from each flower', 'Ants cut <b>5 mushrooms</b> from each patch'],
     ['Each bee sips from', 'Each ant cuts from'], ['a bee sips them', 'an ant cuts them'], ['Every flower is being sipped', 'Every patch is being cut'], ['nectar a sip', 'mushrooms a cut'],
-    ['bring nectar from the flowers, the hive makes honey, and the truck buys the jars', 'cut mushrooms from the patches, the ant hill sorts them, robots can them, and the truck buys the cans'],
+    ['bring nectar from the flowers, the hive makes honey, and the truck buys the jars', 'cut mushrooms from the patches, the ant hill sorts them, Robots can them, and the truck buys the cans'],
     ['\\bBees\\b', 'Ants'], ['\\bbees\\b', 'ants'], ['\\bBee\\b', 'Ant'], ['\\bbee\\b', 'ant'], ['\\ba ant\\b', 'an ant'], ['\\bA ant\\b', 'An ant'],
     ['\\bhives\\b', 'ant hills'], ['\\bhive\\b', 'ant hill'], ['\\bHive\\b', 'Ant hill'],
     ['[Dd]eadhead spent flowers', m => m[0] === 'D' ? 'Trim cut mushroom patches' : 'trim cut mushroom patches'], ['can deadhead flowers', 'can trim mushroom patches'],
@@ -1543,7 +1543,7 @@ LOTS.hollow = H => {
   // ── a few robots here keep an umbrella on their heads (their looks are otherwise the same everywhere)
   const styles = {
     1: { brolly:'#e2b33a', blurb:'Slim and quick. Rebuilt from a lawnmower and a toaster. Never goes out without its yellow umbrella.' },
-    3: { brolly:'patch',   blurb:'Patched together from three other robots, umbrella included. Rough, but it works.' },
+    3: { brolly:'patch',   blurb:'Patched together from three other Robots, umbrella included. Rough, but it works.' },
     4: { brolly:'#8a5aa0', blurb:'Round, polished, and a little proud of its plum umbrella.' },
     7: { brolly:'leaf',    blurb:'A garden bot gone a bit wild: moss on its belt, and a big leaf held up against the rain.' },
     8: { brolly:'#3f8a7a', blurb:'A copper-plated head, green at the seams, kept dry under a teal umbrella.' },
@@ -1669,7 +1669,7 @@ LOTS.hollow = H => {
       slag: { name: 'Tight stacking', max: 2, costs: [300, 800], vals: [0, 0.2, 0.4] },
       hopper: { name: 'Bigger log stack', max: 2, costs: [50, 150], vals: [16, 30, 50] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
-    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? names[1] + ' already knows Warm air: move Dry leaves into its Do list on its card' : 'Build a blower and turn on Dry leaves on its card') + ', and it will dry them at the drying bench.' },
+    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? 'Put ' + names[1] + ' on Research to work out how, at the drying bench.' : 'Build a Blower and put it on Research to work out how, at the drying bench.') },   // (V27: drying is researched first)
   };
 };
 LOTS.hollow.title = 'the Rainy hollow';   // what the game calls it before it's loaded ("Off to the Rainy hollow…")
