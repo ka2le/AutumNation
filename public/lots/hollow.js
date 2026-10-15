@@ -1,6 +1,7 @@
 // AutumNation: the Rainy hollow, the third lot (V14).
-// Once the first yard has a beehive, a bigger yard, a mine and $1,000 in hand, the truck driver writes about a soggy
-// hollow down the road. Tinker and a blower ride over in the back of the truck with the $1,000 and start again here,
+// Once the first yard has a beehive, a bigger yard, a mine and a well-trained Tinker (V28; was $1,000 in hand), the truck
+// driver writes about a soggy hollow down the road. Tinker and a blower ride over in the back of the truck and start again
+// here from $0 (V28; they used to bring the $1,000),
 // keeping only their own upgrades and the robot tier unlocks (V27: the truck schedule, cleanup program and yard-wide upgrades start over).
 //
 // It rains here (all looks: rain, puddles that reflect what stands beside them, mist, warm lights; game.js draws those,
@@ -1669,7 +1670,8 @@ LOTS.hollow = H => {
       slag: { name: 'Tight stacking', max: 2, costs: [300, 800], vals: [0, 0.2, 0.4] },
       hopper: { name: 'Bigger log stack', max: 2, costs: [50, 150], vals: [16, 30, 50] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
-    arrive: { title: 'Too wet to sell', text: (name, names) => 'These leaves are too wet to sell, we need to dry them. ' + (names && names.length > 1 ? 'Put ' + names[1] + ' on Research to work out how, at the drying bench.' : 'Build a Blower and put it on Research to work out how, at the drying bench.') },   // (V27: drying is researched first)
+    // (V28: a fresh start with nothing; the first truck saying no to the wet leaves opens the drying research)
+    arrive: { title: 'The Rainy hollow', text: (name, names) => (names && names.length > 1 ? name + ' and ' + names[1] : name) + ' made it. Pick up leaves and get this yard up and running.' },
   };
 };
 LOTS.hollow.title = 'the Rainy hollow';   // what the game calls it before it's loaded ("Off to the Rainy hollow…")

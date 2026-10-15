@@ -2005,7 +2005,7 @@ const LETTER_EARNED = 900;   // the truck driver writes about a new lot once the
 const LETTER_HELD = 200;     // or once you've held this much at one time (S.peak), whichever comes first
 // (V13.1: and only once the robots have worked out the old picture book)
 const FIND_ABOVE = -122;     // finds (the book, the bee) only turn up under leaves higher up than the workshop's roof
-const LOT_START_CASH = 10;   // what you have when your robot first arrives on a new lot (V13.5: only if no travel money came along)
+const LOT_START_CASH = 0;    // what you have when your robot first arrives on a new lot (V13.5: only if no travel money came along; V28: $0, was $10)
 const TRIP_CASH = 100;       // V13.5: after the first letter, the first yard has to hold this much; it's packed for the trip and is
                              // what the robot starts the prairie with
 const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
@@ -2013,7 +2013,31 @@ const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead b
 // sell this many from the moment it's read (bags count 10 each), and the dead bee turns up under the next leaf
 const LEAF_GOAL = 1000;
 const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's honey (jars and gift jars) before the driver offers a ride back (was 30 jars)
-const HOLLOW_CASH = 1000;    // V14: the third beat: hold this much (with a bigger yard and a mine) and the driver writes about the Rainy hollow
+// V28: the third beat (the Rainy hollow) no longer asks for $1,000 (the hollow starts at $0, a real restart). Instead Tinker,
+// who goes along, has to be ready: its upgrades have to be worth TINKER_GOAL, every level it has counted at full price
+// (tier unlocks are shared by every Robot, so they don't count). Sized from runs/tinker-readiness: a moderately trained
+// Tinker (Wheels/Basket/Pickup 7, Claw/Reach 3, Speed reading) is ~$220, the balance player's usual one ~$560–680;
+// at a $0 start a light one is ~7 min slower in the hollow, a moderate one ~4, so this sits between moderate and strong.
+const TINKER_GOAL = 300;   // (V28.1: was 400; ~$220 is a moderately trained Tinker)
+// what one level of a track costs at full price, added up for the first lv levels (in the order they're bought)
+function lvWorth(key, lv){ let s = 0, k = 0; for (const g of TRACKS[key].gens) for (const c of g.cost){ if (k++ >= lv) return s; s += c; } return s; }
+const tinkerI = () => S.robots.findIndex((c, j) => styleIdx(j) === 0 && !c.away);
+// (test panel and kits: raise Tinker's gathering skills a level at a time, cheapest first, until it's ready; unlocks as needed)
+function tinkerReady(){
+  const c = S.robots[tinkerI()]; if (!c) return;
+  for (let n = 0; n < 60 && tinkerWorth() < TINKER_GOAL; n++){
+    let best = null, bc = 1e9;
+    for (const k of ['speed', 'carry', 'pick', 'grab', 'reach']){
+      const lv = c.lv[k] | 0, top = TRACKS[k].gens.reduce((a, g) => a + g.cost.length, 0); if (lv >= top) continue;
+      const cost = lvWorth(k, lv + 1) - lvWorth(k, lv); if (cost < bc){ bc = cost; best = k; }
+    }
+    if (!best) break;
+    c.lv[best] = (c.lv[best] | 0) + 1;
+    let k = 0; for (const g of TRACKS[best].gens){ k += g.cost.length; if (g.tech && c.lv[best] > k - g.cost.length) S.tech[g.tech] = true; }
+  }
+  bindIds();
+}
+function tinkerWorth(){ const c = S.robots[tinkerI()]; if (!c) return 0; let s = 0; for (const k in c.lv) if (TRACKS[k]) s += lvWorth(k, c.lv[k] | 0); return s; }
 const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this many dry leaves (V17: was 100)
 const CANNED_CASH = 200;     // V17: the hollow's mushroom goal, once the ant hill is going: $ of canned mushrooms sold
 const LOGS_GOAL = 100;       // V17: logs the truck has taken (the third of the goals that bring the lightning)
@@ -2045,6 +2069,10 @@ const MILESTONES = [
   // plot, the beehive can be built, and $100 of honey sold brings the three quests (group 'hollow')
   { id:'moreLeaves', lot:'home', name:'More leaves', goal:'Sell ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves', prog: () => S.flags.moreLeaves ? leavesForGoal()/LEAF_GOAL : 0, on: () => startBeeFind(),
     hud:{ icon:'leaf', val: () => leavesForGoal(), of: LEAF_GOAL, show: () => !!S.flags.moreLeaves } },
+  // V28.1: after the hollow letter (the bigger yard and a mine bring it): Tinker's upgrades worth TINKER_GOAL, then the
+  // trip opens (was "Save up $1,000" beside the other two quests). Tinker's card shows it in full (questBox)
+  { id:'qTinker', lot:'home', name:'Ready for more', goal:'Get Tinker ready for even more leaf-picking', prog: () => S.flags.tinkerGoal ? tinkerWorth()/TINKER_GOAL : 0, on: () => openHollowTrip(true),
+    hud:{ icon:'robot', cash:true, val: () => tinkerWorth(), of: TINKER_GOAL, show: () => !!S.flags.tinkerGoal && !S.flags.hollowGone } },
   { id:'honeyHome', lot:'home', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => S.hive.built ? honeyEarned()/HONEY_CASH : 0,
     hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => hiveKnown() } },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
@@ -2057,8 +2085,7 @@ const MILESTONES = [
   // done once done (and may be done already); the money is live. All three at the same time bring the next letter.
   { id:'qYard', lot:'home', group:'hollow', name:'More room', goal:'Buy a bigger yard', prog: () => S.land >= 1 ? 1 : 0, hud:{ icon:'land', bool:true } },
   { id:'qMine', lot:'home', group:'hollow', name:'Dig in', goal:'Build a mine', prog: () => S.miners.length ? 1 : 0, hud:{ icon:'vein', bool:true } },
-  { id:'qCash', lot:'home', group:'hollow', live:true, name:'Savings', get goal(){ return S.trip && S.trip.to === 'hollow' ? 'Have $1,000 for the trip' : 'Save up $1,000'; },
-    prog: () => S.cash/HOLLOW_CASH, hud:{ icon:'coin', cash:true, val: () => S.cash, of: HOLLOW_CASH } },  // V15 (the Rainy hollow): its leaves are too wet to sell. A blower learns to dry them at the bench; the first goal is to sell 100
+  // V15 (the Rainy hollow): its leaves are too wet to sell. A blower learns to dry them at the bench; the first goal is to sell 100
   // V17: the hollow's goals all show at once (group 'hollowA'), each done one staying up (ticked) until the lightning:
   // dry leaves; getting bees started (it stays up through the failed flight and the research, and once it's an ant hill it
   // says "sort of bees"), then canned mushrooms in its place; and with those two, a shaker and the log crib, a saw and
@@ -2100,7 +2127,7 @@ const MILESTONES = [
 ];
 // a group of quests shows all at once while its show() is true; done(): what happens when every one is reached together
 const GOAL_GROUPS = {
-  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone && (S.flags.hollowLetter || (S.miles.honeyHome != null && S.t - S.miles.honeyHome >= GOAL_DONE_HOLD)),   // (V26: once $100 of honey is sold)
+  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone && !S.flags.tinkerGoal && (S.flags.hollowLetter ||  (S.miles.honeyHome != null && S.t - S.miles.honeyHome >= GOAL_DONE_HOLD)),   // (V26: once $100 of honey is sold)
     done: () => { if (!S.flags.hollowLetter){ S.flags.hollowLetter = true; postLetter('hollow'); } } },
   // V17 (the Rainy hollow): need: the members that have to be reached (the rest are steps on the way)
   hollowA: { show: () => FIRE_STORY && !S.fire.struck, need: ['dry', 'canned', 'logs'], done: () => { if (!S.fire.struck) strike(); } },
@@ -2460,11 +2487,11 @@ function startDriverCam(){
   camFollow = { drv: true, from: tutFrom || { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
 // V13.2: zoom in on a spot (the dead bee popping out from under a petal), hold a moment, then go back
-function startFindCam(x, y, dur, zmax){
+function startFindCam(x, y, dur, zmax, then){
   if (simMode || (camFollow && !camFollow.watch && !camFollow.tut)) return;   // (V23: a story beat wins over a tutorial's zoom)
   const tutFrom = camFollow && camFollow.tut ? camFollow.from : null;   // (it still goes back to where you had the view)
   camAnim = null; closeCard();
-  camFollow = { spot: { x, y }, dur: dur || 4.6, zmax: !!zmax, from: tutFrom || { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
+  camFollow = { spot: { x, y }, then: then || null, dur: dur || 4.6, zmax: zmax === true, zmul: typeof zmax === 'number' ? zmax : 1.9, from: tutFrom || { z: cam.z, ox: cam.ox, oy: cam.oy }, z0: cam.z, c0: s2w(W/2, H/2), t: 0, hold: 0 };
 }
 function updCamFollow(dt){
   const F = camFollow; if (!F) return;
@@ -2504,10 +2531,14 @@ function updCamFollow(dt){
   }
   if (F.spot){
     F.t += dt; if (F.t > (F.dur || 4.6)){ back(1.8); return; }
-    const zIn = F.zmax ? zoomLimits()[1] : Math.min(zoomLimits()[1], Math.max(F.from.z*1.9, 1.5)), k = ease(clamp(F.t/1.3, 0, 1)), z = lerp(F.z0, zIn, k);
-    const cx = lerp(F.c0.x, F.spot.x, k), cy = lerp(F.c0.y, F.spot.y - 24, k);
+    const zIn = F.zmax ? zoomLimits()[1] : Math.min(zoomLimits()[1], Math.max(F.from.z*(F.zmul || 1.9), 1.5)), k = ease(clamp(F.t/1.3, 0, 1)), z = lerp(F.z0, zIn, k);
+    // (V28: then: after then.t seconds the camera glides on to a second spot, e.g. the truck's words, then the Blower)
+    let tx = F.spot.x, ty = F.spot.y - 24;
+    if (F.then && F.t >= F.then.t){ const p = F.then.get(); if (p){ tx = p.x; ty = p.y - 24; } }
+    F.cx = F.cx == null ? tx : lerp(F.cx, tx, 1 - Math.pow(0.04, dt)); F.cy = F.cy == null ? ty : lerp(F.cy, ty, 1 - Math.pow(0.04, dt));
+    const cx = lerp(F.c0.x, F.cx, k), cy = lerp(F.c0.y, F.cy, k);
     cam.z = z; cam.ox = W/2 - cx*z; cam.oy = H/2 - cy*z;
-    if (F.t < 1.4) camMovedT = performance.now();
+    if (F.t < 1.4 || (F.then && F.t < F.then.t + 2)) camMovedT = performance.now();
     if (cardOpen) placeCard();
     return;
   }
@@ -3882,12 +3913,14 @@ const LETTERS = {
     open: () => { if (!S.flags.moreLeaves){ S.flags.moreLeaves = true; S.flags.leafBase = S.totals.leafSold || 0; } } },
   goHome: { at: () => LETTER_AT(), title: 'Another letter', sign: 'Trucker',
     text: 'Let me know when you and a bee want to go back.', open: () => openTrip({ to: 'home', bee: true }) },
-  // V14: the third beat. Once the quests are done (a bigger yard, a mine and $1,000 in hand), the driver writes about a
-  // rainy hollow down the road: Tinker and a blower go, with the $1,000
+  // V14: the third beat. Once the quests are done (a bigger yard, a mine and Tinker ready), the driver writes about a
+  // rainy hollow down the road: Tinker and a blower go (V28: with no money: the hollow starts at $0)
   hollow: { at: () => LETTER_AT(), title: 'A soggy letter', sign: 'Trucker',
-    text: 'There’s a rainy old hollow down the road, knee-deep in wet leaves. They need help badly. Bring Tinker and your best Blower, and $' + HOLLOW_CASH.toLocaleString('en-US') + ' to get started there.',
-    note: () => 'Only the Robots you send come along, with their own skills, plus every unlock. Everything else starts over there: truck, bin, prices, buildings, workshop upgrades.',
-    open: () => openTrip({ to: 'hollow', cash: HOLLOW_CASH, crew: ['robot', 'blower'], who: 0 }) },
+    text: 'There’s a rainy old hollow down the road, knee-deep in wet leaves. They need help badly. Bring Tinker and your best Blower, and get ready to pick a lot of leaves!',
+    // (V28.1: the small print speaks for the game, not the driver)
+    note: () => 'You bring Tinker and a Blower with all their upgrades, and every unlock. Everything else starts from scratch in the new yard: money, buildings, prices, truck and workshop upgrades. Your first yard waits here as it is.',
+    // V28.1: reading it starts the Tinker goal; the trip opens once that's reached (at once if Tinker is ready already)
+    open: () => { S.flags.tinkerGoal = true; if (tinkerWorth() >= TINKER_GOAL){ if (S.miles.qTinker == null) S.miles.qTinker = Math.round(S.t); openHollowTrip(false); } } },
   // V18: the Rainy hollow's last beat. 200 coal sold from the kiln: take the fire home. Reading it opens the ride home;
   // the robot lights a little branch at the dryer's stove and the blower holds an umbrella over it while they wait
   fireHome: { at: () => LETTER_AT(), title: 'A smoky letter', sign: 'Trucker',
@@ -3899,6 +3932,11 @@ const LETTERS = {
   final: { at: () => LETTER_AT(), title: 'Final letter', sign: 'Trucker', gold: true,
     text: 'I think you want to see this', open: () => openEndingTrip() },
 };
+function openHollowTrip(told){
+  if (S.trip || S.flags.hollowGone) return;
+  openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0 });
+  if (told && !simMode) setTimeout(() => showToast('Tinker is ready!', 'Send Tinker and your best Blower to the Rainy hollow: put Go to new lot in their task lists.', 10), 600);
+}
 const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
 // the truck driver: a robot like yours, with a brown band and a brown cap, and no basket
 const DRIVER = { name:'Driver', body:'#dcd1b8', body2:'#a89c80', head:'#e6dcc6', head2:'#b7ab92', band:'#7a5232', bandW:5, bw:23, bh:22, hw:18, hh:13, tw:26, rust:0, driver:true };
@@ -4366,24 +4404,31 @@ const DRY_TRAY = i => ({ x: BAGGER.x + (i ? 8 : -8), y: BAGGER.y - 31 });   // w
 // the bench and tries warm air on the empty tray (state 'dryLab'); DRY_LAB_NEED seconds of one blower's work (two at once
 // go twice as fast) and drying is known (S.flags.dryKnown): every blower gets Warm air 1, and the ones that researched it
 // get Dry leaves on top of their lists. Before that the Leaf drying skill and the Dry leaves task don't show.
-const DRY_LAB_NEED = 45;
+const DRY_LAB_NEED = 15;   // (V28.1: was 45)
 const dryLabOn = () => DRY_BENCH && !!S.flags.dryLab && !S.flags.dryKnown;
 const dryLabK = () => clamp((S.flags.dryProg || 0)/DRY_LAB_NEED, 0, 1);
 const dryLabRate = () => HB.filter(h => h.kind === 'blower' && h.st === 'dryLab').length;
+// V28: it opens when the first truck won't take the wet leaves (was: as soon as the crew was off the truck). The camera
+// zooms in on what the truck says over the bin, then glides over to the Blower that came along: "New research".
+const DRY_REFUSE_HOLD = 3.6;   // seconds on the truck's words before the camera moves on to the Blower
 function openDryLab(){
   if (!DRY_BENCH || S.flags.dryKnown || S.flags.dryLab) return;
   S.flags.dryLab = true; S.flags.dryProg = S.flags.dryProg || 0;
-  for (const c of S.blowers) if (!taskOn(c, 'research')) putOff(c, 'research');
+  for (const c of S.blowers) if (!c.away && !taskOn(c, 'research')) putOff(c, 'research');
   if (simMode) return;
-  startFindCam(BAGGER.x, BAGGER.y - 34, 4.2);
-  setTimeout(() => { pop(BAGGER.x, BAGGER.y - 96, 'New research: drying leaves', 'note', 18, 0.2, 4); sparkle(BAGGER.x, BAGGER.y - 40); sfx('chime', 'sale'); }, 900);
-}
-// (called every step: opens the drying research once a blower is here and off the truck)
-function updDryLab(){
-  if (!DRY_BENCH || S.flags.dryKnown || S.flags.dryLab) return;
-  if (truck.st === 'arrive' || truck.arriving) return;
-  if (!HB.some(h => h.kind === 'blower' && !['ride', 'hopIn', 'hopOut', 'gone'].includes(h.st))) return;
-  openDryLab();
+  const h = HB.find(q => q.kind === 'blower' && !['ride', 'hopIn', 'hopOut', 'gone'].includes(q.st)), nm = h ? helperStyleOf('blower', h.idx).name : '';
+  // (the Blower stops where it is for a moment, so the camera finds it and the note stands over it; one that's out of
+  // sight behind the workshop or the bin keeps going, and the camera and the note follow it out)
+  const hid = !!h && FRONTS().some(f => h.x > f.x0 - 14 && h.x < f.x1 + 14 && h.y > f.y0 - 24 && h.y < f.y1);
+  if (h && !hid && ['lap', 'go', 'wander', 'rest', 'idle'].includes(h.st)){ h.st = 'rest'; h.timer = DRY_REFUSE_HOLD + 4.6; h.target = null; h.lap = null; }
+  let fix = null; const spotH = () => hid ? { x: h.x, y: h.y - 4 } : fix || (fix = { x: h.x, y: h.y - 4 });   // (where it is when the camera turns to it)
+  startFindCam(BIN.x, BIN.y - 96, h ? DRY_REFUSE_HOLD + 4.4 : 4.6, 2.4, h ? { t: DRY_REFUSE_HOLD, get: spotH } : null);
+  setTimeout(() => {
+    const at = h ? spotH() : { x: BAGGER.x, y: BAGGER.y };
+    const q = pop(at.x, at.y - 54, 'New research: drying leaves', 'note', 17, 0, 4.4); if (q && h){ q.follow = h; q.fdy = -58; }
+    sparkle(at.x, at.y - 30); sfx('chime', 'sale');
+  }, (DRY_REFUSE_HOLD + 1.1)*1000);
+  setTimeout(() => showToast('Too wet to sell', 'The truck won’t take wet leaves. ' + (nm ? 'Put ' + nm + ' on Research to work out how to dry them at the drying bench.' : 'Build a Blower and put it on Research to work out how to dry them at the drying bench.'), 12), (DRY_REFUSE_HOLD + 2.6)*1000);
 }
 function finishDryLab(){
   if (!DRY_BENCH || S.flags.dryKnown) return;
@@ -4780,7 +4825,13 @@ function updTruck(dt){
           // V21: the money is yours as soon as the sale is made, so you can spend it while the numbers fly
           S.cash += amt; S.totals.cash += amt;
         }
-      } else { pop(BIN.x, BIN.y - 104, DRY_BENCH ? 'can’t accept wet leaves, dry them first!' : 'nothing to take today', 'note', 16); T.st = 'leave'; T.v = 10; }
+      } else {
+        // (V28: in the hollow, wet leaves in the bin get a no from the truck; the first no opens the drying research)
+        const wet = DRY_BENCH && S.binLeaves > 0, first = wet && !S.flags.dryLab && !S.flags.dryKnown;
+        pop(BIN.x, BIN.y - 104, wet ? 'can’t accept wet leaves, dry them first!' : 'nothing to take today', 'note', 16, 0, first ? DRY_REFUSE_HOLD + 1.6 : 0);
+        if (first) openDryLab();
+        T.st = 'leave'; T.v = 10;
+      }
       // the clock for the next pickup starts now, so a long payout doesn't push the next truck back
       S.truckT = truckEvery();
       if (T.st === 'leave') sfx('truckOut', sndAt(PARK + 30, LANE).pan);
@@ -4821,7 +4872,7 @@ function puffExhaust(T, dt, k){
 
 // ───────────────────────── particles & popups
 function flyTo(kind, x0, y0, x1, y1, dur, arc, o){ if (simMode) return; parts.push(Object.assign({ k:'fly', kind, x0, y0, x1, y1, dur, arc, t:0, life:dur, rot: rand(0,TAU) }, o)); }
-function pop(x, y, text, kind, size, delay, life){ if (simMode) return; pops.push({ x, y, text: sayT(text), kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'note' ? 2.6 : 1.7) }); }
+function pop(x, y, text, kind, size, delay, life){ if (simMode) return null; const q = { x, y, text: sayT(text), kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'note' ? 2.6 : 1.7) }; pops.push(q); return q; }
 function sparkle(x, y){ if (simMode) return; for (let i=0;i<14;i++){ const a = rand(0,TAU), v = rand(40,110); parts.push({ k:'star', x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - 30, g: 90, life: rand(.5,.9), t:0 }); } }
 function updParts(dt){
   for (const p of parts){
@@ -4837,6 +4888,7 @@ function updParts(dt){
   parts = parts.filter(p => p.t < p.life);
   for (const p of pops){
     p.t += dt;
+    if (p.follow){ p.x = p.follow.x; p.y = p.follow.y + (p.fdy || 0); }   // (V28: a note that stays over a moving Robot)
     if (p.toHud && !p.got && p.t >= p.life){ p.got = true; goalRt.pending = Math.max(0, goalRt.pending - p.v); goalRt.bumpT = 0.22; sfx('chime', 'sale'); }
   }
   pops = pops.filter(p => p.t < p.life);
@@ -5753,7 +5805,7 @@ function step(dt){
   updFlowers(dt); syncBees();
   for (const b of B) updBee(b, dt);
   updHive(dt);
-  updResearch(dt); updDryLab();   // (V27: the hollow's drying research)
+  updResearch(dt);
   updLab(dt);   // V15: the hollow's hive research show (not in the sim)
   updFire(dt); updBenchFire(dt);   // V17: the hollow's fire, and the drying bench's stove
   updPlantCoal(dt);   // V18: the old works burn coal
@@ -8979,7 +9031,7 @@ function tripWho(kind){
   if (kind === 'robot' && S.trip && S.trip.who != null && L[S.trip.who] && !L[S.trip.who].away) return S.trip.who;
   return L.findIndex((c, i) => !c.away && tripFor(c) && (kind !== 'robot' || (R[i] && R[i].st !== 'gone')));
 }
-const TUT_ORDER = ['arrive', 'robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'general', 'mine', 'assign', 'research', 'antlab', 'deadhead', 'trip', 'keep', 'goal', 'camera', 'follow'];
+const TUT_ORDER = ['robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'general', 'mine', 'assign', 'research', 'antlab', 'deadhead', 'trip', 'keep', 'goal', 'camera', 'follow'];
 const tutAllDone = () => { const o = {}; for (const id of TUT_ORDER) o['tut:' + id] = o['tut:k:' + id] = 1; return o; };
 // nothing starts (and a running lesson waits, hidden) while the story camera, a trip, the ending or a drag has the screen
 // V25.1: an open card (an upgrade window, a letter) holds a lesson back until it's closed, and the lesson starts a moment
@@ -9800,6 +9852,7 @@ function nextStep(){
   if (li >= 0) return { label: 'Read the letter', run: () => readLetter(li) };
   if (S.post.length || driver) return { label: 'Bring the letter now', run: callTruck };
   // V15: the Rainy hollow's own beats come before the ride home: 100 dry leaves sold, then the beehive story
+  if (DRY_BENCH && !S.flags.dryKnown && !S.flags.dryLab && truck.st === 'away') return { label: 'The truck says no to the wet leaves', run: () => { S.binLeaves = Math.max(S.binLeaves, BAG_SIZE); S.truckT = Math.min(S.truckT, 0.1); } };   // V28
   if (DRY_BENCH && !S.flags.dryKnown) return { label: 'Finish the drying research', run: () => { S.flags.dryLab = true; finishDryLab(); } };   // V27
   if (DRY_BENCH && S.miles.dry == null) return { label: 'Sell ' + DRY_GOAL + ' dry leaves', run: () => { S.totals.drySold = Math.max(S.totals.drySold || 0, DRY_GOAL); } };
   if (HIVE_STORY && !S.flags.antHill){
@@ -9849,9 +9902,10 @@ function nextStep(){
   if (RUIN && S.plant.built && S.story.item === 'ruin' && S.miles.ingots == null) return { label: 'Sell ' + INGOT_GOAL.toLocaleString('en-US') + ' iron ingots', run: () => { S.totals.ingotsSold = Math.max(S.totals.ingotsSold || 0, INGOT_GOAL); } };
   if (LOT_ID === 'home' && hiveKnown() && !S.hive.built) return { label: 'Build the beehive', run: () => { S.cash += hiveCost(); S.peak = Math.max(S.peak, S.cash); S.flags.hiveShown = true; buy({ id:'hive', obj:'hive', cost: hiveCost() }); } };
   if (LOT_ID === 'home' && S.hive.built && S.miles.honeyHome == null && !S.flags.hollowLetter) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };   // V26
+  if (LOT_ID === 'home' && S.flags.tinkerGoal && S.miles.qTinker == null && !S.flags.hollowGone) return { label: 'Get Tinker ready (' + cash$(TINKER_GOAL) + ' of upgrades)', run: tinkerReady };   // V28.1
   if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter) return { label: 'Finish the quests', run: () => {
     if (S.miles.qYard == null) S.miles.qYard = Math.round(S.t); if (S.miles.qMine == null) S.miles.qMine = Math.round(S.t);
-    S.cash = Math.max(S.cash, HOLLOW_CASH); S.peak = Math.max(S.peak, S.cash); } };
+    } };
   const item = st.item || 'book', what = item === 'bee' ? 'the dead bee' : item === 'hive' ? 'the hive' : item === 'ruin' ? 'the old works' : 'the book';
   if (!st.found){
     const mile = MILESTONES.find(m => m.on && (m.lot || 'home') === LOT_ID && m.goal && S.miles[m.id] == null && (m.id === 'book' || m.id === 'bee'));
@@ -9901,10 +9955,10 @@ const JUMP_KITS = {
             up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:1, market:1 }, hive: { bees:6 }, cash: 250 },
   // V26: $100 of honey sold: the three quests show
   homeHoney: { base: 'homeHive', honey: true, cash: 250 },
-  // the quests done: the bigger yard and a mine with a robot on it; holding $1,000 brings the hollow letter
+  // the quests done: the bigger yard and a mine with a robot on it; Tinker ready (V28: tinker: its upgrades topped up to TINKER_GOAL; was $1,000 held)
   homeQuests: { base: 'homeHoney', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
             robots: [{ drill:3 }, { drill:4, magnet:2 }, {}, {}, { speed:4, carry:4, pick:3 }],
-            up: { bin:7, metalBin:2, metalPrice:1, truck:4 }, gen: { blueprint:1 }, hive: { bees:9 }, cash: HOLLOW_CASH + 80 },
+            up: { bin:7, metalBin:2, metalPrice:1, truck:4 }, gen: { blueprint:1 }, hive: { bees:9 }, cash: 300, tinker: true },
   // ~15 min in the Rainy hollow: a saw station on the wood pile, the drying shed, an ant hill, and the blower's umbrella
   // V15: the hollow a few minutes in: the blower has Warm air and 100 dry leaves are sold
   hollowDry: { blowers: [{ dry:2 }], up: { bin:3, leafPrice:1 }, drySold: DRY_GOAL, cash: 700 },
@@ -10093,6 +10147,7 @@ function applyKit(name){
   }
   if (K.story) jumpStory(K.story);
   if (K.bee && LOT_ID === 'home') jumpBee(K.bee);   // V26
+  if (K.tinker && LOT_ID === 'home') tinkerReady();   // V28
   if (K.honey && LOT_ID === 'home'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honeyHome == null) S.miles.honeyHome = Math.round(S.t) - GOAL_DONE_HOLD; }
   if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
   if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
@@ -10194,7 +10249,6 @@ function runJump(){
     if (!jumpGo(st.go)){ stop(); lotFade(false); }
     return;
   }
-  if (LOT_ID !== 'home' && !st.kit && !st.story && !st.letter && S.flags.hints) delete S.flags.hints['tut:arrive'];   // (V23.2: a "just arrived" jump shows the arrival lesson)
   WORLD.runT = (JUMP_MIN[J.id] || 0)*60;   // V25.1: the run clock starts where a typical run gets to this point
   stop(); save();
   setTimeout(() => showToast('Test', 'Jumped to: ' + J.label, 5), 300);
@@ -11455,6 +11509,16 @@ function liveHTML(kind){
   }
   return '';
 }
+// V28: on Tinker's card, while the hollow quests show: the readiness quest in full, between the name and the eye
+// (the goal pill under the cash only has the numbers; the quest's name shows on hover here and there)
+function questBox(){
+  if (!cardOpen || cardOpen.kind !== 'robot' || LOT_ID !== 'home' || cardOpen.i !== tinkerI() || !S.flags.tinkerGoal || S.flags.hollowGone) return '';
+  const m = MILESTONES.find(q => q.id === 'qTinker'); if (!m) return '';
+  const v = Math.min(TINKER_GOAL, tinkerWorth()), done = reached(m), k = done ? 1 : clamp(v/TINKER_GOAL, 0, 1), nm = styleOf(cardOpen.i).name;
+  const tip = m.goal + '. Every level ' + nm + ' has counts at its full price.';
+  return '<div class="qbox' + (done ? ' done' : '') + '" title="' + attr(tip) + '"><div class="qt">' + (done ? ic('tick') : '') + 'Spend ' + cash$(TINKER_GOAL) + ' on ' + nm + '’s upgrades</div>' +
+    '<div class="qrow"><i class="qbar"><b style="width:' + (k*100).toFixed(1) + '%"></b></i><span class="qn">$' + Math.floor(v).toLocaleString('en-US') + ' / ' + cash$(TINKER_GOAL) + '</span></div></div>';
+}
 // V21.2: the eye by the close button on a robot's, blower's or shaker's card
 function watchBtn(){
   const k = cardOpen.kind; if (!['robot', 'blower', 'shaker'].includes(k)) return '';
@@ -11509,7 +11573,8 @@ function cardScrollRestore(k){
 function renderCard(force){
   if (!cardOpen) return;
   const m = cardModel();
-  const sig = cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
+  const qb = questBox();
+  const sig = qb + cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
   // V25: while the player is scrolling the card (a finger down, or a fling still running) a plain refresh waits, so
   // the list isn't rebuilt under their finger; anything they tapped (force) still redraws at once
   const scrollBusy = !force && (cardTouch || performance.now() - cardScrollT < 380);
@@ -11521,8 +11586,8 @@ function renderCard(force){
     card.classList.toggle('wide', m.tabs ? !!m.tabs.wide : two);
     card.classList.toggle('bots', ['robot', 'blower', 'shaker'].includes(cardOpen.kind));   // (V21: a little wider, for the this robot / all robots lanes)
     const medal = m.head === 'portrait' ? '<canvas id="cardPortrait" width="128" height="128"></canvas>' : m.head ? ic(m.head) : '';
-    card.innerHTML = sayH('<div class="ch">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
-      '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div>' + watchBtn() + '<button class="x" data-act="close" aria-label="Close">' +
+    card.innerHTML = sayH('<div class="ch' + (qb ? ' hasq' : '') + '">' + (medal ? '<div class="medal' + (m.head === 'portrait' ? ' pt' : '') + '">' + medal + '</div>' : '') +
+      '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div>' + qb + watchBtn() + '<button class="x" data-act="close" aria-label="Close">' +
       '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       (m.tabs ? '<div class="tabs" role="tablist"><button role="tab" data-act="tab:up" class="' + (cardTab !== 'tasks' ? 'on' : '') + '">' + ic('wrench') + 'Upgrades</button><button role="tab" data-act="tab:tasks" class="' + (cardTab === 'tasks' ? 'on' : '') + '">' + ic('list') + 'Tasks<span class="peek">' + m.tabs.peek + '</span></button></div>' : '') +
       '<div class="cbody">' + m.top +
@@ -12020,6 +12085,7 @@ function load(data){
     // gets the trip opened now, with the $100 to be taken at the truck
     if (S.flags.fareOpen && !S.trip && S.miles.fare == null && !S.flags.fare && LOT_ID === 'home' && !S.robots.some(c => c.away)) openTrip({ to: 'prairie', cash: TRIP_CASH }, true);
     if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
+    if (S.trip && S.trip.to === 'hollow' && S.trip.cash && !S.trip.paid) delete S.trip.cash;   // (V28: the hollow trip costs nothing now)
   }
   if (src && src.v === 2 && S.bag.built && S.miles.bagTable == null) S.miles.bagTable = 0;   // (V24: an older save that has the table: no tick to show)
   // V24: every robot here is tied to its identity (a save from before gets its roster from what's here). A new lot that
@@ -12199,7 +12265,7 @@ function devTraveller(){
     // V14 (?fresh&lot=hollow): Tinker and a blower, like a crew sent from a first yard with a hive, a meadow and a mine
     Object.assign(c.lv, { speed: 9, carry: 11, pick: 7, grab: 4, reach: 4, drill: 3, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe', 'turbine']) S.tech[k] = true;
     const b = newHelperCfg('blower'); b.home = 0; Object.assign(b.lv, { speed: 6, blow: 4 }); S.blowers = [b];
-    S.cash = S.peak = HOLLOW_CASH;
+    S.cash = S.peak = 0;   // (V28: the hollow starts with nothing, was $1,000)
     if (!FIRE_STORY) openTrip({ to: 'home', crew: ['robot', 'blower'], earned: LOT.tripHome.earned }, true);
   }
   bindIds();
