@@ -448,6 +448,18 @@ of tiny steps that ends in very expensive ones, each nudging one stat that may n
 
 ---
 
+### V37 override (16 October 2026): dearer later Robots, helpers and Market stall
+
+User-requested prices; effects unchanged.
+
+- **Robots** (`ROBOT_COST`): 2nd and 3rd unchanged ($8 / $30); from the 4th the V34 price rises ×1.25 → ×3:
+  $80 / 180 / 300 / 580 / 1,000 / 1,650 / 2,700 (were 65 / 120 / 175 / 290 / 450 / 650 / 900). Unused looks 11/12: $3,600 / 4,800.
+- **Blowers / Shakers** (`BLOWER_COST`, `SHAKER_COST`): the second +50%, the third ×3: blowers $7 / 38 / 150 (were 7 / 25 / 50),
+  Shakers $9 / 45 / 180 (were 9 / 30 / 60). Same in every yard.
+- **Market stall** (home): $1,200 / 3,000 / 6,000 (were 1,200 / 2,600 / 5,000). The hollow's override ($700 / 1,500 / 2,800) is unchanged.
+- Built-in greedy sim (`__leafYard.sim(4200, {priority:true})`, first yard): third Blower 27 → 44 min, third Shaker 31 → 46,
+  Robot 5 38 → 47, Robot 6 47 → 51; Meadow unchanged (~53 min). Not yet measured with the balance player / campaigns.
+
 ## 6. Pitfalls (learned the hard way)
 
 - **`vals` are indexed by level, and level 0 is the starting value.** Better alloy's level 0 is already ×1.45, so the

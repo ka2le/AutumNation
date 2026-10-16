@@ -589,6 +589,7 @@ LOTS.hollow = H => {
     const wob = f.bob > 0 ? Math.sin(f.bob*30)*0.06 : 0;
     c.save(); c.translate(f.x, f.y); c.scale(f.s, f.s);
     if (wild) c.globalAlpha = 0.72;
+    else if (H.gl('clover')) mossUnder(c, f, H.gl('clover'));   // V37: Mossy mulch
     c.drawImage(sp.stem, -sp.sox, -sp.soy, sp.sw, sp.sh);
     if (b > 0.02){
       const k = 0.3 + 0.7*b;
@@ -596,6 +597,70 @@ LOTS.hollow = H => {
       c.drawImage(sp.head, -sp.hw/2*k, -(sp.hh - 2)*k, sp.hw*k, sp.hh*k);
     }
     c.restore();
+  }
+  // V37: the hollow's own yard-wide upgrades show in the yard too. Mossy mulch: a cushion of moss under every mushroom on
+  // your land (bigger and with bits of bark at the second step). Leaf mould deal: a slatted compost bay left of the
+  // drying bench, its heap of leaf mould growing with each step and steaming a little. Spore scattering: an open sack of
+  // spores by the ant hill, a puff of pale spores rising from it now and then.
+  function mossUnder(c, f, L){
+    const { ell } = H, k = L >= 2 ? 1.25 : 1, sd = Math.abs(Math.round(f.x*7 + f.y*13));
+    c.fillStyle = 'rgba(20,28,10,.35)'; ell(c, 0.4, 0.9, 6.6*k, 2.3*k); c.fill();
+    c.fillStyle = '#3f5a26'; ell(c, 0, 0.5, 6.2*k, 2.1*k); c.fill();
+    c.fillStyle = '#5f7f32';
+    for (let i=0;i<5;i++){ const a = (sd % 97)*0.3 + i*1.31, r = (0.35 + ((sd >> i) % 5)*0.12)*5.2*k; ell(c, Math.cos(a)*r, 0.5 + Math.sin(a)*r*0.32, 1.1, 0.55); c.fill(); }
+    if (L >= 2){ c.fillStyle = '#6a4a2e'; for (let i=0;i<3;i++){ const a = (sd % 53)*0.2 + i*2.1; c.fillRect(Math.cos(a)*6.4*k - 0.8, 0.5 + Math.sin(a)*2*k - 0.3, 1.6, 0.6); } }
+  }
+  function drawCompostBay(){
+    const { S, ctx: c, ell, rr, gl, mulberry, reduceMotion, BAGGER } = H;
+    const L = gl('press'); if (!L) return;
+    c.save(); c.translate(BAGGER.x - 49, BAGGER.y + 6);
+    c.fillStyle = 'rgba(20,14,8,.34)'; ell(c, 0, 0.8, 15, 2.6); c.fill();
+    // back wall of slats
+    c.fillStyle = '#4e3524'; rr(c, -12, -15, 24, 13, 1); c.fill();
+    c.strokeStyle = '#3a2618'; c.lineWidth = 0.6; for (let y = -12.5; y < -2; y += 3){ c.beginPath(); c.moveTo(-11.5, y); c.lineTo(11.5, y); c.stroke(); }
+    // the heap of leaf mould: dark, crumbly, a few leaves not yet rotted on top; bigger with every step
+    const hh = 4 + L*2.6, rnd = mulberry(77);
+    c.fillStyle = '#2e2117'; c.beginPath(); c.moveTo(-11, -2); c.quadraticCurveTo(-8, -2 - hh*1.2, 0, -2 - hh); c.quadraticCurveTo(8, -2 - hh*1.15, 11, -2); c.closePath(); c.fill();
+    c.fillStyle = '#4a3423'; for (let i=0;i<9 + L*3;i++){ const x = (rnd() - 0.5)*18, top = -2 - hh*(1 - (x/12)*(x/12)); ell(c, x, top + rnd()*hh*0.8 + 0.6, 1 + rnd(), 0.6 + rnd()*0.4); c.fill(); }
+    for (let i=0;i<2 + L;i++){ const x = (rnd() - 0.5)*14; H.stampLeaf(c, x, -2 - hh*(1 - (x/12)*(x/12)) + 0.8, 2.6, rnd()*6, Math.floor(rnd()*4), 0, 1, 0.7, 0.9); }
+    // two corner posts and a low front board
+    c.fillStyle = '#5e4028'; rr(c, -13, -17, 2.6, 17, 0.8); c.fill(); rr(c, 10.4, -17, 2.6, 17, 0.8); c.fill();
+    c.fillStyle = '#7a5434'; rr(c, -12.5, -4.6, 25, 4.2, 0.8); c.fill();
+    c.fillStyle = 'rgba(255,230,190,.14)'; c.fillRect(-12, -4.3, 24, 0.9);
+    // a little steam from the warm heap
+    if (!reduceMotion) for (let k=0;k<2;k++){
+      const ph = (S.t*0.35 + k*0.5) % 1, a = Math.sin(ph*Math.PI)*0.28;
+      c.strokeStyle = 'rgba(230,226,214,' + a.toFixed(3) + ')'; c.lineWidth = 1.2; c.lineCap = 'round';
+      const x0 = -3 + k*6, y0 = -3 - hh - ph*10;
+      c.beginPath(); c.moveTo(x0, y0 + 4); c.quadraticCurveTo(x0 + 2.4*Math.sin(S.t + k), y0 + 2, x0, y0); c.quadraticCurveTo(x0 - 2*Math.sin(S.t*1.3 + k), y0 - 2, x0 + 0.6, y0 - 4); c.stroke();
+    }
+    c.restore();
+  }
+  function drawSporeSack(){
+    const { S, ctx: c, ell, rr, gl, reduceMotion, HIVE } = H;
+    if (!gl('seeding')) return;
+    c.save(); c.translate(HIVE.x + 52, HIVE.y + 12);
+    c.fillStyle = 'rgba(20,14,8,.34)'; ell(c, 0, 0.8, 9, 2); c.fill();
+    // a burlap sack, rolled open at the top, full of spore dust
+    c.fillStyle = '#9c8458'; c.beginPath(); c.moveTo(-6.5, 0); c.quadraticCurveTo(-8.4, -7, -5.6, -12); c.lineTo(5.6, -12); c.quadraticCurveTo(8.4, -7, 6.5, 0); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(70,52,30,.4)'; c.lineWidth = 0.4; for (let x = -5; x <= 5; x += 1.6){ c.beginPath(); c.moveTo(x, -11.5); c.lineTo(x*1.1, -0.5); c.stroke(); }
+    c.fillStyle = '#b39a6a'; rr(c, -6.4, -13.6, 12.8, 2.6, 1.2); c.fill();
+    c.fillStyle = '#e6dcc4'; ell(c, 0, -13.4, 5.4, 1.4); c.fill();
+    // a red mushroom stamped on the front
+    c.fillStyle = '#efe3c4'; c.fillRect(-0.7, -6, 1.4, 3);
+    c.fillStyle = '#b8452d'; c.beginPath(); c.moveTo(-3.2, -5.6); c.quadraticCurveTo(0, -10, 3.2, -5.6); c.closePath(); c.fill();
+    c.fillStyle = '#efe3c4'; ell(c, -1.2, -7.2, 0.5, 0.4); c.fill(); ell(c, 1, -6.6, 0.45, 0.35); c.fill();
+    // a puff of spores rises now and then
+    if (!reduceMotion){
+      const ph = (S.t*0.28) % 1;
+      if (ph < 0.6){ const k = ph/0.6; for (let i=0;i<7;i++){ const a = (1 - k)*0.7; c.fillStyle = 'rgba(240,234,214,' + a.toFixed(3) + ')'; ell(c, Math.sin(i*2.1 + k*3)*(1.5 + k*5), -14 - k*(10 + i*1.6), 0.7 + k*0.5, 0.7 + k*0.5); c.fill(); } }
+    }
+    c.restore();
+  }
+  function genProps(list){
+    const { S, gl, hiveGrounded, BAGGER, HIVE } = H;
+    if (gl('press')) list.push({ y: BAGGER.y + 6, f: drawCompostBay });
+    if (gl('seeding') && S.hive.built && !hiveGrounded()) list.push({ y: HIVE.y + 12, f: drawSporeSack });
   }
   const drawDeco = (g, f) => drawTinyMush(g, f.x, f.y, f.s, MUSH_DECO[f.ty]);
   const bloomOf = f => f.full ? 1 : H.clamp((f.t/f.regrow - 0.6)/0.4, 0, 1)*0.45;
@@ -1478,7 +1543,7 @@ LOTS.hollow = H => {
     ['Seconds for a chunk of metal', 'Seconds for a log'], ['a chunk of metal', 'a log'], ['[Cc]hunk of metal', m => m[0] === 'C' ? 'Log' : 'log'],
     ['\\bchunks\\b', 'logs'], ['\\bchunk\\b', 'log'],
     ['\\bdrills\\b', 'saws'], ['\\bdrill\\b', 'saw'], ['\\bDrill\\b', 'Saw'],
-    ['Lucky horseshoe', 'Lucky axe'], ['Cutting oil', 'Chain oil'],
+    ['Lucky horseshoe', 'Lucky axe'], ['Mining tools', 'Logging tools'],   // (V37: was Cutting oil → Chain oil)
     ['sucking the dirt out', 'blowing warm air on the pile'], ['every vein worked', 'every pile sawn'], ['will smelt and haul', 'will burn coal and haul it'], ['Extra ingots from the same metal', 'Extra coal from the same logs'], ['haul the ingots to the road', 'haul the coal to the stand by the road'], [' metal into an ingot', ' logs into coal'], ['\\(ingots are worth', '(coal is worth'], ['Excavate shafts', 'Dry the wood piles'], ['Excavator', 'Woodpile dryer'], ['Excavating', 'Woodpile drying'], ['excavating upgrades for Blowers at a mine shaft', 'woodpile drying upgrades for Blowers at a wood shelter'],
     ['excavate a shaft', 'dry the woodpile'], ['excavate here', 'dry the woodpile here'], ['\\bExcavate\\b', 'Dry woodpile'], ['\\bexcavate\\b', 'dry the woodpile'],
     ['Dirt hose', 'Warm-air hose'], ['Grit cyclone', 'Heat Blower'],
@@ -1635,7 +1700,7 @@ LOTS.hollow = H => {
     antSpeed: 0.7,                               // V14.1: ants walk at 70% of a bee's speed (and round things, on their trails)                          // the ants walk under the tree crowns, not over them
     hiveKnown: true,                             // the beehive can be built from the start
     hiveStory: true,                             // V15: it's a plain beehive whose bees can't fly in the rain, until the robots research it into the ant hill
-    art: { flowerSprite, drawFlower, drawDeco, bloomOf, drawJar, drawGiftJar, drawHive, drawBees, drawTub, logEnd, nugget, drawIngot, drawPallet, drawPlant,
+    art: { genProps, flowerSprite, drawFlower, drawDeco, bloomOf, drawJar, drawGiftJar, drawHive, drawBees, drawTub, logEnd, nugget, drawIngot, drawPallet, drawPlant,
       drawShaft, drawMiner, drawSpotGlints, shedExtra, sawArm, robotBrolly, woodUmbrella: drawWoodUmbrella, PAY_COL, payFill, flyHoney, drawBagger, drawLeafBag, drawHiveLab, drawLabBee, drawAnt,
       popCol: { metal: '#e6c89a', ingot: '#f2d8a8' } },
     styles, taskCols,

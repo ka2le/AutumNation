@@ -455,8 +455,10 @@ const GEN = {
   // bulk:     { name:'Bulk robot parts',   max:1, cost:[60],  desc:()=>'New robots cost <b>25%</b> less.' },
   // V29: Copy the blueprints is gone (copied levels stay at 50%; Shared basket plans stays). Old saves keep nothing of it (gl() is 0)
   // blueprint:{ name:'Copy the blueprints', max:1, cost:[500], desc:()=>'Any upgrade another Robot already has costs <b>30%</b> instead of 50%.' },
-  cutting:  { name:'Cutting oil',        max:1, cost:[2000], needs:()=>S.miners.length > 0, desc:()=>'All drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
-  market:   { name:'Market stall',       max:3, cost:[1200, 2600, 5000], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
+  // V37: was Cutting oil (same effect); a pile of tools now lies by every mine
+  cutting:  { name:'Mining tools',       max:1, cost:[2000], needs:()=>S.miners.length > 0, desc:()=>'A proper set of tools at every mine: all drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
+  // V37: the 2nd and 3rd steps cost 3,000 / 6,000 (were 2,600 / 5,000); bunting on the bagging table shows the level
+  market:   { name:'Market stall',       max:3, cost:[1200, 3000, 6000], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
   charm:    { name:'Lucky horseshoe',    max:1, cost:[3000], needs:()=>S.miners.length > 0, desc:()=>'Every Robot gets <b>+8%</b> resource efficiency on top of its own (+8% chance of an extra piece, +4% at a kiln or furnace).' },
 };
 // A lot may add upgrades or change just a local price without losing the shared name, effect or prerequisites.
@@ -477,7 +479,9 @@ const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
 const genBuyable = () => genVisible() && Object.keys(GEN).find(k => genAvail(k) && genCost(k) <= S.cash + 1e-9) || null;
 // V34: robot two stays $8; three and four are investments. The premium tapers for later hires, preserving affordable
 // industrial staffing rather than extending the early doubling forever. Copied-level discounts and Match are unchanged.
-const ROBOT_COST = [0, 8, 30, 65, 120, 175, 290, 450, 650, 900, 1200, 1600];
+// V37: from the fourth Robot on, each one costs a little and then a lot more than in V34 (×1.25 for the 4th rising to ×3
+// for the 10th: was 65 / 120 / 175 / 290 / 450 / 650 / 900); the second and third are unchanged
+const ROBOT_COST = [0, 8, 30, 80, 180, 300, 580, 1000, 1650, 2700, 3600, 4800];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 // V32.1: mining and sawing come clearly after the hive/ant hill in both yards and lead into the smelting/charcoal endgame
 const MINER_COST = 500;        // (V32: home 200, hollow 100)
@@ -485,8 +489,9 @@ const METAL_SLOT_COST = 450;   // the metal tub / log crib (V32: hollow 160)
 // helper robots: up to three of each (V16; four in V7, five in V6.1), on every lot. The second costs about twice the
 // first, the third more. Blowing prices stay as in V30; V34 only raises the later shaking steps.
 const HELPER_MAX = 3;
-const BLOWER_COST = [7, 25, 50];
-const SHAKER_COST = [9, 30, 60];
+// V37: the second of each kind costs 50% more and the third three times as much (were 25 / 50 and 30 / 60)
+const BLOWER_COST = [7, 38, 150];
+const SHAKER_COST = [9, 45, 180];
 const OLD_HELPER5 = { blower: 4500, shaker: 5000 };   // what a fifth helper cost before V7 (refunded on load)
 const DISCOUNT = 0.5;
 // V7 kept Load & pack at full price for levels another robot already has; V24 drops that, so it follows the same copied-level
@@ -7125,6 +7130,7 @@ function drawShed(){
   for (const [lx, ly, ci] of [[-20,-66,2],[12,-74,0],[30,-62,3],[-6,-84,4]]) drawLeaf(c, lx, ly, 4, lx*0.1, ci, 1, 1, 0.8, 1, 0);
   c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3);
   if (ART.shedExtra) ART.shedExtra(c);   // V14: moss and drips in the rain
+  drawWallCharm(c);   // V37: the Lucky horseshoe (Lucky axe) on the wall
   c.restore();
   drawEye();   // V33: the Efficiency Overview camera on the roof
 }
@@ -7140,6 +7146,141 @@ function drawPumpkins(){
     c.strokeStyle = '#5b4a26'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(0, -s*1.5); c.quadraticCurveTo(1, -s*1.8, 3, -s*1.85); c.stroke();
     c.restore();
   }
+}
+
+// ───────────────────────── V37: the yard-wide upgrades leave a mark in the yard
+// Every workshop upgrade bought shows as a little prop: Grease every axle is an oil can by the workshop door (left of
+// it), Shared basket plans a pile of old baskets left of the workshop (the three kinds the Robots carry), the Lucky
+// horseshoe hangs on the workshop wall and glimmers (the hollow's Lucky axe the same), the Market stall strings bunting
+// over the bagging table / drying bench (more flags with every step), and Mining tools leave a pile of tools by every mine
+// (every saw in the hollow). A lot adds its own with ART.genProps (the hollow's compost bay and spore sack).
+const GENMARK = { oil: { dx: -26, dy: 6 }, basket: { dx: -50, dy: 12 }, tools: { dx: 40, dy: 14 } };
+// a four-pointed glint (used by the horseshoe, the axe and the bunting's gold)
+function glint(c, x, y, s, a){
+  if (s <= 0.05 || a <= 0.02) return;
+  c.save(); c.globalAlpha *= a; c.translate(x, y);
+  c.fillStyle = 'rgba(255,240,190,.35)'; ell(c, 0, 0, s*1.1, s*1.1); c.fill();
+  c.fillStyle = '#fffbe8'; c.beginPath(); c.moveTo(0, -s*1.6); c.lineTo(s*0.22, -s*0.22); c.lineTo(s*1.6, 0); c.lineTo(s*0.22, s*0.22); c.lineTo(0, s*1.6); c.lineTo(-s*0.22, s*0.22); c.lineTo(-s*1.6, 0); c.lineTo(-s*0.22, -s*0.22); c.closePath(); c.fill();
+  c.restore();
+}
+// Grease every axle: a red pump oil can on the ground left of the door, a drop now and then falling from its spout
+function drawOilCan(){
+  if (!gl('oil')) return;
+  const c = ctx; c.save(); c.translate(SHED.x + GENMARK.oil.dx, SHED.y + GENMARK.oil.dy);
+  c.fillStyle = 'rgba(35,25,10,.32)'; ell(c, 0.5, 0.6, 6.4, 1.8); c.fill();
+  // a little oil puddle under the spout tip, with a sheen
+  c.fillStyle = 'rgba(28,22,14,.5)'; ell(c, -11.5, 1.4, 3.4, 1.1); c.fill();
+  c.fillStyle = 'rgba(190,200,230,.25)'; ell(c, -12.3, 1.1, 1.3, 0.35); c.fill();
+  // the spout, long and thin, from the top of the can out to the left
+  c.strokeStyle = '#6c7378'; c.lineWidth = 1.1; c.lineCap = 'round'; c.beginPath(); c.moveTo(-1.5, -11); c.lineTo(-11.5, -16.5); c.stroke();
+  c.strokeStyle = '#a7afb3'; c.lineWidth = 0.4; c.beginPath(); c.moveTo(-2, -11.5); c.lineTo(-10.8, -16.4); c.stroke();
+  // the body: a squat red can with a darker foot band and a domed top
+  c.fillStyle = '#a3362a'; rr(c, -5.2, -9.5, 10.4, 9.5, 1.6); c.fill();
+  c.fillStyle = '#c4452f'; rr(c, -5.2, -9.5, 9, 8, 1.6); c.fill();
+  c.fillStyle = 'rgba(255,220,200,.3)'; c.fillRect(-3.8, -8.4, 1.3, 6.4);
+  c.fillStyle = '#7e2a20'; c.fillRect(-5.2, -2.2, 10.4, 1.4);
+  c.fillStyle = '#b13d2e'; ell(c, 0, -9.5, 5.2, 1.9); c.fill();
+  c.fillStyle = '#d9b55a'; rr(c, -1.8, -12, 3.6, 2.6, 0.8); c.fill();   // brass collar
+  // the thumb pump on the side
+  c.fillStyle = '#6c7378'; rr(c, 4.6, -8.4, 2.2, 1.4, 0.5); c.fill(); c.fillStyle = '#8f979b'; c.fillRect(6.1, -9.8, 1, 2.8);
+  // a drop that grows at the tip, falls and lands in the puddle
+  const ph = (S.t*0.3 + 0.4) % 1;
+  if (ph < 0.75){ const k = ph/0.75; c.fillStyle = 'rgba(40,32,20,.85)'; ell(c, -11.6, -16 + k*0.6, 0.45 + k*0.45, 0.5 + k*0.6); c.fill(); }
+  else { const k = (ph - 0.75)/0.25, y = -15 + k*k*16; if (y < 0.8){ c.fillStyle = 'rgba(40,32,20,.85)'; ell(c, -11.6, y, 0.8, 1.1); c.fill(); } }
+  c.restore();
+}
+// Shared basket plans: the three kinds of basket the Robots carry (wicker hamper, tin pail, a sprung steel hopper on
+// top), piled up left of the workshop like the pumpkins on the right, a couple of leaves still in them
+function drawBasketPile(){
+  if (!gl('basket')) return;
+  const c = ctx; c.save(); c.translate(SHED.x + GENMARK.basket.dx, SHED.y + GENMARK.basket.dy); c.scale(1.25, 1.25);
+  c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 0, 0.8, 15, 2.6); c.fill();
+  drawBasket(c, 1, -13, -8, 12, 8, false); drawBasket(c, 0, 1.5, -7, 10, 7, false);
+  stampLeaf(c, -9, -8.6, 3.2, 0.6, 1, 0, 1, 0.85, 1); stampLeaf(c, 4.5, -7.6, 2.8, -0.9, 3, 1, 1, 0.85, 1);
+  drawBasket(c, 1, -13, -8, 12, 8, true); drawBasket(c, 0, 1.5, -7, 10, 7, true);
+  // the hopper sits on top, a little tipped, bouncing on its coil spring now and then
+  const bob = reduceMotion ? 0 : Math.max(0, Math.sin(S.t*1.7))*Math.max(0, Math.sin(S.t*0.37))*0.9;
+  c.save(); c.translate(-1, -11 - bob); c.rotate(-0.12);
+  drawBasket(c, 2, -6, -8, 12, 6.5, false); stampLeaf(c, -1, -9, 3, 2.2, 0, 0, 1, 0.85, 1); drawBasket(c, 2, -6, -8, 12, 6.5, true);
+  c.restore();
+  stampLeaf(c, 11.5, 0.2, 3, 1.1, 2, 0, 1, 0.72, 1);   // one that fell out
+  c.restore();
+}
+// Lucky horseshoe (the hollow's Lucky axe): on a nail on the workshop wall, right of the door, with a glint that runs
+// over it now and then. Called from drawShed, in the shed's own coordinates.
+function drawWallCharm(c){
+  if (!gl('charm')) return;
+  const axe = LOT_ID === 'hollow';
+  c.save(); c.translate(29, -38);
+  c.fillStyle = '#3a2e28'; ell(c, 0, -8.6, 0.8, 0.8); c.fill();   // the nail
+  if (axe){
+    // a small hatchet hung by its handle, head up
+    c.strokeStyle = 'rgba(40,20,12,.35)'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(1, 9); c.lineTo(1, -6); c.stroke();
+    c.strokeStyle = '#8a5a2e'; c.lineWidth = 1.8; c.beginPath(); c.moveTo(0, 8); c.lineTo(0, -7); c.stroke();
+    c.strokeStyle = '#6e4521'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-0.4, 6); c.lineTo(-0.4, 2); c.stroke();
+    c.fillStyle = '#7d868c'; c.beginPath(); c.moveTo(-1, -8); c.lineTo(5, -10); c.quadraticCurveTo(6.4, -6.5, 5, -3); c.lineTo(-1, -4.6); c.closePath(); c.fill();
+    c.fillStyle = '#c9d1d5'; c.beginPath(); c.moveTo(4.4, -9.6); c.quadraticCurveTo(5.8, -6.5, 4.4, -3.4); c.lineTo(5, -3); c.quadraticCurveTo(6.4, -6.5, 5, -10); c.closePath(); c.fill();
+    const ph = (S.t*0.22 + 0.15) % 1; if (ph < 0.2){ const k = ph/0.2; glint(c, 5.2, -9.6 + k*6.4, 2.6*Math.sin(k*Math.PI), 1); }
+  } else {
+    // a horseshoe hung points up (so the luck doesn't run out), on a loop of twine
+    c.strokeStyle = '#a08a62'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-4.2, -3.4); c.lineTo(0, -8.6); c.lineTo(4.2, -3.4); c.stroke();
+    const shoe = (col, w, ox, oy) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'butt'; c.beginPath(); c.moveTo(-4.2 + ox, -3.6 + oy); c.lineTo(-4.4 + ox, 0.6 + oy); c.arc(ox, 0.6 + oy, 4.4, Math.PI, 0, true); c.lineTo(4.2 + ox, -3.6 + oy); c.stroke(); };
+    shoe('rgba(40,20,12,.32)', 2.6, 0.8, 0.9);
+    shoe('#a8822e', 2.6, 0, 0); shoe('#d9b55a', 1.3, -0.25, -0.25);
+    c.fillStyle = '#6e5420'; for (const [hx, hy] of [[-4.3, -1.6], [4.3, -1.6], [-3.4, 3.6], [3.4, 3.6]]){ ell(c, hx, hy, 0.38, 0.38); c.fill(); }
+    // the glint runs round the shoe from one point to the other
+    const ph = (S.t*0.22 + 0.15) % 1;
+    if (ph < 0.22){ const k = ph/0.22; const gx = k < 0.15 ? -4.3 : k > 0.85 ? 4.3 : Math.cos(Math.PI - (k - 0.15)/0.7*Math.PI)*4.4, gy = k < 0.15 ? -3.6 + k/0.15*4.2 : k > 0.85 ? 0.6 - (k - 0.85)/0.15*4.2 : 0.6 + Math.sin((k - 0.15)/0.7*Math.PI)*4.4; glint(c, gx, gy, 2.4*Math.sin(k*Math.PI), 1); }
+  }
+  c.restore();
+}
+// Market stall: a string of bunting over the bagging table (the drying bench in the hollow) on two little poles; more
+// and brighter flags with every step, gold ones and gold knobs on the poles at the top. In the table's own coordinates.
+const BUNTING_COL = [[], ['#c4452f', '#efe2c6'], ['#c4452f', '#efe2c6', '#5f8f88'], ['#c4452f', '#efe2c6', '#5f8f88', '#d9b55a']];
+function drawMarketBand(c){
+  const L = gl('market'); if (!L) return;
+  const P = 34, top = -57, y0 = -54, sag = 5, n = 3 + 2*L, cols = BUNTING_COL[Math.min(L, 3)];
+  for (const sx of [-1, 1]){
+    c.fillStyle = '#5e4028'; rr(c, sx*P - 0.9, top, 1.8, -24 - top, 0.6); c.fill();
+    c.fillStyle = L >= 3 ? '#d9b55a' : '#7a5434'; ell(c, sx*P, top - 0.6, 1.5, 1.5); c.fill();
+  }
+  c.strokeStyle = '#efe2c6'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-P, y0); c.quadraticCurveTo(0, y0 + 2*sag, P, y0); c.stroke();
+  const w = 2*P/n*0.78;
+  for (let i=0;i<n;i++){
+    const t = (i + 0.5)/n, x = -P + 2*P*t, y = y0 + 2*t*(1 - t)*2*sag, col = cols[i % cols.length];
+    const fl = reduceMotion ? 0 : Math.sin(S.t*2.6 + i*1.3)*0.14 + wind*0.0012;
+    c.save(); c.translate(x, y); c.rotate(fl);
+    c.fillStyle = shade(col, 0.8); c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2, 0); c.lineTo(0.3, 6.2); c.closePath(); c.fill();
+    c.fillStyle = col; c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2 - 0.6, 0); c.lineTo(0, 5.8); c.closePath(); c.fill();
+    if (col === '#d9b55a'){ const ph = (S.t*0.5 + i*0.37) % 1; if (ph < 0.12) glint(c, 0, 2, 1.6*Math.sin(ph/0.12*Math.PI), 1); }
+    c.restore();
+  }
+}
+// Mining tools: a little pile of tools beside every mine (every saw in the hollow): a red toolbox, a pickaxe (an axe in
+// the hollow) lying across it, a shovel stuck in the ground and a spanner
+function drawMineTools(i){
+  if (!gl('cutting')) return;
+  const p = SPOTS[i], c = ctx, axe = LOT_ID === 'hollow';
+  c.save(); c.translate(p.x + GENMARK.tools.dx, p.y + GENMARK.tools.dy);
+  c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 1, 0.8, 14, 2.6); c.fill();
+  // the shovel, stuck in the ground behind, leaning back
+  c.strokeStyle = '#8a5a2e'; c.lineWidth = 1.4; c.lineCap = 'round'; c.beginPath(); c.moveTo(8.5, -3); c.lineTo(12.5, -21); c.stroke();
+  c.strokeStyle = '#6e4521'; c.lineWidth = 1; c.beginPath(); c.moveTo(11.2, -22); c.lineTo(14, -21.2); c.stroke();
+  c.fillStyle = '#7d868c'; c.beginPath(); c.moveTo(6.2, -6); c.lineTo(10.6, -5); c.lineTo(9.6, 0.4); c.quadraticCurveTo(7, 1.4, 5.6, -0.6); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(7, -5.4, 0.9, 4.4);
+  // the toolbox, lid shut, a handle on top
+  c.fillStyle = '#8f3424'; rr(c, -8, -6.5, 13, 6.5, 1); c.fill();
+  c.fillStyle = '#b8452d'; rr(c, -8, -6.5, 13, 2.6, 1); c.fill();
+  c.fillStyle = '#d9b55a'; c.fillRect(-2.2, -4.4, 1.6, 1.4);
+  c.strokeStyle = '#4a423b'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-4.4, -6.5); c.lineTo(-4.4, -8.2); c.lineTo(1.4, -8.2); c.lineTo(1.4, -6.5); c.stroke();
+  // the pickaxe (or axe) lying across in front
+  c.strokeStyle = '#8a5a2e'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(-13, 1.6); c.lineTo(3, -1.6); c.stroke();
+  if (axe){ c.fillStyle = '#7d868c'; c.beginPath(); c.moveTo(1.4, -1.6); c.lineTo(3.4, -5); c.quadraticCurveTo(6.4, -2.4, 5.6, 1.6); c.lineTo(3.2, 0); c.closePath(); c.fill(); c.fillStyle = '#c9d1d5'; c.beginPath(); c.moveTo(3.4, -5); c.quadraticCurveTo(6.4, -2.4, 5.6, 1.6); c.lineTo(5, 1.2); c.quadraticCurveTo(5.6, -2, 3, -4.4); c.closePath(); c.fill(); }
+  else { c.strokeStyle = '#5a6266'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(0.6, -5.6); c.quadraticCurveTo(3.6, -2.6, 4.2, 2.6); c.stroke(); c.strokeStyle = '#a7afb3'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(1.2, -5); c.quadraticCurveTo(3.6, -2.6, 3.9, 1.6); c.stroke(); }
+  // a spanner on the ground
+  c.strokeStyle = '#7d868c'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(-10, 3.6); c.lineTo(-3.5, 4.4); c.stroke();
+  c.fillStyle = '#7d868c'; ell(c, -10.6, 3.5, 1.6, 1.1); c.fill(); c.fillStyle = '#3d3a33'; ell(c, -11.4, 3.4, 0.7, 0.5); c.fill();
+  c.restore();
 }
 
 function drawSpotGlints(){
@@ -7276,7 +7417,7 @@ function drawPlot(c, w, h, label, appearT, sx){
 function drawBagger(){
   if (!baggerShown()) return;
   if (dryLabOn()) timers.push({ open: ['lab', 'dry'], x: BAGGER.x, y: BAGGER.y - 78, t: dryLabRate() ? mmss((DRY_LAB_NEED - (S.flags.dryProg || 0))/dryLabRate()) : (S.flags.dryProg ? mmss(DRY_LAB_NEED - S.flags.dryProg) : '?'), k: dryLabK(), on: dryLabRate() > 0 });   // V27
-  if (ART.drawBagger) return ART.drawBagger();   // V15: the hollow's drying bench
+  if (ART.drawBagger){ ART.drawBagger(); if (gl('market')){ ctx.save(); ctx.translate(BAGGER.x, BAGGER.y); drawMarketBand(ctx); ctx.restore(); } return; }   // V15: the hollow's drying bench (V37: with the Market stall's bunting)
   const c = ctx;
   c.save(); c.translate(BAGGER.x, BAGGER.y);
   if (!S.bag.built){ drawPlot(c, 56, 22, 'bagging table', plantRt.bagShownT); c.restore(); return; }
@@ -7313,6 +7454,7 @@ function drawBagger(){
   // a small painted sign on the front edge
   c.fillStyle = '#efe2c6'; rr(c, -9, -25.5, 18, 6, 1.5); c.fill();
   c.font = '800 4.6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#7c3a1c'; c.fillText('BAGS', 0, -22.3);
+  drawMarketBand(c);   // V37
   c.restore();
 }
 // the bags waiting for the truck sit in the bin with the loose leaves; a tag on the bin's side counts them
@@ -10078,7 +10220,10 @@ function draw(){
     { y: BIN.y, f: drawBin }, { y: SIGN.y, f: drawSign }, { y: SHED.y, f: drawShed }, { y: SHED.y + 4, f: drawPumpkins },
     { y: salePos().y, f: drawSaleSign }, { y: HIVE.y, f: drawHive }, { y: CRATE.y, f: drawHoneyCrate },
     { y: BAGGER.y, f: drawBagger }, { y: PALLET.y, f: drawPallet }, { y: PLANT.y, f: drawPlant },
+    { y: SHED.y + GENMARK.oil.dy, f: drawOilCan }, { y: SHED.y + GENMARK.basket.dy, f: drawBasketPile },   // V37
   ];
+  if (gl('cutting')) for (const i of S.miners) list.push({ y: SPOTS[i].y + GENMARK.tools.dy, f: () => drawMineTools(i) });   // V37
+  if (ART.genProps) ART.genProps(list);   // V37: a lot's own yard-wide upgrades
   if (RUIN) list.push({ y: BUNKER.y, f: drawBunker }, { y: COAL_STAND.y, f: drawCoalStand });   // V18
   for (const i of S.miners) list.push({ y: SPOTS[i].y, f: () => drawMiner(i) });
   for (const r of R) if (r.st !== 'ride' && r.st !== 'gone') list.push({ y: r.y, f: () => drawRobot(r) });
@@ -11397,6 +11542,7 @@ const ICON = {
   vein:   '<path d="M-4.5,-.5 L-1.5,-3.5 L3.5,-2 L4.5,2.5 L1,5 L-3.5,4Z" fill="#8f979b"/><path d="M-1.5,-3.5 L3.5,-2 L1,1Z" fill="#c3cbd0"/><path d="M-3.6,-5.6 V-2.4 M-5.2,-4 H-2" stroke="#f2c230" stroke-width=".9" stroke-linecap="round"/>',
   shaft:  '<path d="M-4,5 L0,-3.6 L4,5" stroke="#6e4a30" stroke-width="1.1" fill="none"/><path d="M-2.6,2 H2.6" stroke="#6e4a30" stroke-width=".8"/><circle cy="-3.4" r="2" fill="#fbf3e2" stroke="#4a423b" stroke-width="1"/><rect x="-5.2" y="3.8" width="10.4" height="1.6" rx=".4" fill="#3a2a1e"/>',
   note:   '<path d="M-1.2,3 V-4 L4,-5 V2" stroke="#4a3226" stroke-width="1.1" fill="none"/><ellipse cx="-2.6" cy="3.2" rx="1.8" ry="1.3" fill="#4a3226"/><ellipse cx="2.6" cy="2.2" rx="1.8" ry="1.3" fill="#4a3226"/>',
+  tools:  '<path d="M4.4,4.4 L-1,-1" stroke="#7d868c" stroke-width="1.7" stroke-linecap="round"/><path d="M-1.2,-4.8 A3,3 0 1 1 -4.8,-1.2 L-3,-.8 L-.8,-3Z" fill="#7d868c"/><path d="M-4.4,4.4 L2.4,-2.4" stroke="#8a5a2e" stroke-width="1.5" stroke-linecap="round"/><path d="M-.6,-5.4 Q3.8,-3.8 5.4,.6" stroke="#4e5559" stroke-width="1.7" fill="none" stroke-linecap="round"/>',   // V37: Mining tools
   wrench: '<path d="M-4.4,4.4 L1,-1" stroke="#7d868c" stroke-width="2" stroke-linecap="round"/><path d="M1.2,-4.8 A3,3 0 1 0 4.8,-1.2 L3,-.8 L.8,-3Z" fill="#7d868c"/>',
   list:   '<path d="M-1.6,-3.4 H5 M-1.6,0 H5 M-1.6,3.4 H5" stroke="#7c5d47" stroke-width="1.3" stroke-linecap="round"/><circle cx="-4.2" cy="-3.4" r="1.1" fill="#d4672a"/><circle cx="-4.2" cy="0" r="1.1" fill="#d4672a"/><circle cx="-4.2" cy="3.4" r="1.1" fill="#d4672a"/>',
   cleanup:'<circle r="5.2" fill="#6f8a3a"/><circle r="4" fill="none" stroke="#c9dca0" stroke-width=".6" stroke-dasharray="1 1"/><path d="M0,-3 C2,-2 2,1.6 0,2.6 C-2,1.6 -2,-2 0,-3Z" fill="#f6ead4"/>',
@@ -11986,7 +12132,7 @@ card.addEventListener('input', e => {
 // ── what each card shows
 const HIVE_SHORT = { wings:'+25% bee speed', third:'3 flowers a trip', tongue:'5 nectar a sip', fan:'+50% honey making', get recipe(){ return jarNectarAt(true) + ' nectar a jar'; }, nursery:'Bees 40% cheaper' };
 const HIVE_ICON = { wings:'wings', third:'three', tongue:'tongue', fan:'fan', recipe:'recipe', nursery:'nursery' };
-const GEN_ICON = { oil:'oil', basket:'basket', blueprint:'blueprint', cutting:'drop', market:'market', charm:'horseshoe' };
+const GEN_ICON = { oil:'oil', basket:'basket', blueprint:'blueprint', cutting:'tools', market:'market', charm:'horseshoe' };
 const GEN_SHORT = { oil: () => '+' + Math.round(OIL_BONUS*100) + '% speed, every Robot', basket: () => 'Copied baskets cost 10%',
   blueprint: () => 'Copied levels cost 30%', cutting: () => '+' + Math.round(CUT_BONUS*100) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% resource efficiency' };
 if (LOT.GEN_ICON) Object.assign(GEN_ICON, LOT.GEN_ICON);
@@ -13384,7 +13530,7 @@ function start(data){
     hiveShown, hiveFloors, hiveTopZ, honeyCap, tankCap, tankFull, beeSip, hiveRt, plantRt, STN, stoker, minerWorkers, palletCap, plantShown,
     hopperCap, metalPerIngot, metalCap, tubRoom, keepMetal,
     BAGGER, BIN, BAG_SIZE, bagCap, dryTrays, drawLeafBag, hiveGrounded, HV_BEE, HV_LIFT: HV.lift || 0, LAB_WIN, hexPath, drawBeeBrass, drawPrism, prismFace, LAB_DOME, NEEDLE_COL, labBlower,
-    palletShown, benchLit, BENCH_LOGS, flameAt, KILN_COAL });   // (V17)
+    palletShown, benchLit, BENCH_LOGS, flameAt, KILN_COAL, glint, stampLeaf, SHED });   // (V17; V37: glint, stampLeaf, SHED)
   for (const [k, f] of Object.entries({ RACK_CAP: rackCap, S: () => S, ctx: () => ctx, R: () => R, HB: () => HB, B: () => B, simMode: () => simMode, wind: () => wind,
     parts: () => parts, bubbles: () => bubbles, RAIN: () => RAIN, truck: () => truck, px: () => DPR*cam.z })) Object.defineProperty(LH, k, { get: f, enumerable: true });
   LH_READY = true;

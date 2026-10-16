@@ -12,7 +12,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   const home=await fresh();
   const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,robotCosts:ROBOT_COST.slice(0,ROBOT_MAX),discount:DISCOUNT,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
   eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
-  eq(data.robotCosts,[0,8,30,65,120,175,290,450,650,900]);eq(data.discount,.5);
+  eq(data.robotCosts,[0,8,30,80,180,300,580,1000,1650,2700]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
   eq(await home.evaluate(()=>__leafYard.dev('INGOT_GOAL')),1000);
   eq(data.tracks.speed.vals.slice(0,8),[1,1.14,1.28,1.42,1.62,1.82,2.02,2.22]);
@@ -26,7 +26,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.up.bin.costs,[.4,.8,1.5,4,30,100,260,650]);eq(data.up.truck.costs,[2,8,50,140,260,700,1800]);
   eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,7500]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
-  eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,2600,5000]);
+  eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,3000,6000]);
   eq(data.up.cleanup.costs,[1000,2200,4000]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
   eq(data.up.metalPrice.costs,[300,600,1100,3500,7000,13000]);
   const expected={speed:3.3,carry:38,pick:.32,grab:12,reach:125,pack:4.6,drill:1.35,magnet:.72,study:10.5,blow:6.4,shake:38,dig:.95,stoke:1,dry:6.5};
