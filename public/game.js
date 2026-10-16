@@ -12822,6 +12822,7 @@ function hardReset(){
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
   delete WORLD.arrive; delete WORLD.ids; delete WORLD.tech; delete WORLD.gen; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;   // (V24: the shared robots too)
+  IDL = {}; WORLD.runT = 0;   // Clear the runtime roster before bindIds can merge old skills into the new robot.
   S = freshState(); bindIds(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }

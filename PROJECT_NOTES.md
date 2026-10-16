@@ -24,6 +24,8 @@ The game is a browser-only canvas experience. One robot gathers falling leaves i
 
 There is no frontend build step or package installation requirement in the current setup.
 
+**Start over reset fix (2026-10-16):** `hardReset()` clears the runtime identity roster (`IDL`) before binding the fresh state, so Tinker's old skills cannot be merged back into the new robot. It also restarts `WORLD.runT`. `node tools/check-reset.js` covers the actual reset buttons, repeated resets, retraining, save/reload, resetting from the hollow, and `?fresh`, in an isolated browser.
+
 ## Run locally
 
 From this folder, run `npm start` or `node server.js --no-open`. The default address is `http://localhost:8080`; if that port is already in use, the Node server tries the next available port up to 8099. The server prints the selected address. `start.bat` also opens the game in a browser.
