@@ -95,7 +95,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .hd{flex:1;min-width:0}
 /* V28: Tinker's readiness quest, in the robot card's header between the name and the eye */
 .ch.hasq .hd{flex:0 1 auto}
-.qbox{flex:1 1 auto;max-width:300px;min-width:0;margin:0 auto;padding:4px 11px 6px;border:1.5px dashed var(--kraft);border-radius:10px;background:rgba(255,250,238,.65);font-size:13px;font-weight:700;color:var(--ink);line-height:1.25;cursor:help}
+.qbox{flex:1 1 auto;max-width:300px;min-width:0;margin:0 auto;padding:4px 11px;border:1.5px dashed var(--kraft);border-radius:10px;background:rgba(255,250,238,.65);font-size:13px;font-weight:700;color:var(--ink);line-height:1.25;cursor:help}
 .qbox .qt{display:flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qbox .qt .ic{width:15px;height:15px;flex:none}
 .qbox .qrow{display:flex;align-items:center;gap:8px;margin-top:4px}
@@ -104,6 +104,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .qbox .qn{font-size:12.5px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
 .qbox.done{background:#eef3d6;border:1.5px solid #8ea65a}
 .qbox.done .qbar b{background:#6f9a3a}
+.qbox .qrow{margin-top:0}
+.qbox .qrow>.ic{width:17px;height:17px;flex:none}
+.qbox.inrow{margin:2px 0 0;max-width:260px;padding:3px 9px}
 .ct{font-family:var(--font-hand);font-weight:700;font-size:31px;line-height:.9;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 /* V19.3: arrows either side of a robot's name step through every robot, blower and shaker; the name opens a picker */
 .navn{display:inline-flex;align-items:center;gap:2px;min-width:0}
@@ -127,6 +130,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .asgb.on svg:not(.ic){transform:rotate(180deg)}
 .asgb.on,.asgb:hover{background:#fbe9c9}
 .asgb:active{transform:translateY(1px);box-shadow:0 .5px 0 #cdb58f}
+.asgb.one{padding:2px 9px 2px 3px;gap:6px}
+.asgb.one img{width:22px;height:22px;border-radius:50%;flex:none;background:radial-gradient(circle at 50% 70%,#8fa04e,#6c7a37 70%,#5d6a2e);box-shadow:0 0 0 1.5px #c9a24a}
+.asgb.one.set{background:rgba(205,181,143,.35);box-shadow:none;cursor:default}
+.asgb.one.set .ic{width:14px;height:14px}
 .pick.apk{left:auto;right:40px;min-width:210px}
 .pick.apk .pk{display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;font-size:12px}
 .pick.apk .pk .ic{width:14px;height:14px}
