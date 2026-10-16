@@ -1659,8 +1659,8 @@ LOTS.hollow = H => {
     trackTips: { dig: 'Faster sawing at a shelter while it dries the woodpile there', stoke: 'Faster charcoal burning while it works the kiln bellows' },
     GEN, GEN_ICON, GEN_SHORT, genSection: { title: 'Rain and mushrooms', keys: ['press', 'seeding', 'clover'] },
     ICON, antICON: ANT_ICON, antPhrases: ANT_PHRASES,
-    // story: the crew can ride home whenever you like (for now), and the first yard made this meanwhile
-    tripHome: { earned: 2000 },
+    // story: the crew rides home without a cash bonus
+    tripHome: { earned: 0 },
     // V16: making mushrooms worth more shouldn't explode in price: Gourmet labels climb slowly to ~$900 (were $90 … 2,800,
     // the first yard's honey labels, which keep their prices), and the D.O.P. seals stay under that too (were $700 / 1,500)
     // V17: the charcoal kiln has fewer, cheaper upgrades than the smelting plant: a hotter kiln, briquettes (coal worth more),

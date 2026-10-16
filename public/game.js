@@ -4050,7 +4050,7 @@ const RIDE = { dx: 34, y: LANE - 56 };    // where it stands in the back of the 
 // V14: with two aboard, the robot stands at the front of the bed and the blower behind it
 function rideSpot(o){ const rs = truck.riders, n = rs.length, k = Math.max(0, rs.indexOf(o)); return { x: truck.x + (n > 1 ? [20, 50][k] || 50 : RIDE.dx), y: RIDE.y + (o.kind ? 2 : 0) }; }
 const HOME_EARNED = 200;                  // what the first yard made while you were away (on the prairie)
-const HOLLOW_HOME_EARNED = 2000;          // V14: and while Tinker and the blower were at the Rainy hollow
+const HOLLOW_HOME_EARNED = 0;             // returning from the Rainy hollow grants no cash bonus
 // dev (?fresh&lot=prairie): about what the robot you'd send has when the letter comes ($900 earned in the first yard)
 const DEV_TRAVELLER = { lv:{ speed:7, carry:10, pick:6, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
 const HIVE_DEAL = 60;                     // the beehive back home, once a bee has come along
@@ -4259,7 +4259,7 @@ function arrive(a, wasNew){
     if (DRY_BENCH && kind === 'blower' && S.flags.dryKnown){ if (!(b.lv && b.lv.dry > 0)){ cfg.lv.dry = Math.max(1, cfg.lv.dry); putOff(cfg, 'bag'); } else if (!taskOn(cfg, 'bag')) putTop(cfg, 'bag'); }
     out.push({ kind, i });
   }
-  const earned = a.earned || HOME_EARNED;
+  const earned = a.fire ? HOLLOW_HOME_EARNED : (a.earned ?? HOME_EARNED);
   if (home){
     S.cash += earned; S.totals.cash += earned;
     if (a.fire && RUIN && !S.plant.built) S.flags.ember = Math.max(S.flags.ember | 0, 1);   // V18: the flame from the hollow
@@ -4289,8 +4289,8 @@ function arriveScene(A){
   if (A.home){
     setTimeout(() => {
       if (jumpQuiet) return;   // (a test jump went on to set this yard up: the welcome no longer fits)
-      pop(BIN.x, BIN.y - 110, '+' + cash2(A.earned) + ' earned while you were away', 'cash', 20, 0, 4);
-      showToast('Back home!', 'The yard kept going without you and made ' + money(A.earned) + '.' + (A.bee ? ' The bee is looking for a home: build it a beehive.' : '') + (A.fire ? ' ' + names[0] + ' brought the fire from the hollow: it’s taking it up to the old works.' : ''), 11);
+      if (A.earned > 0) pop(BIN.x, BIN.y - 110, '+' + cash2(A.earned) + ' earned while you were away', 'cash', 20, 0, 4);
+      showToast('Back home!', (A.earned > 0 ? 'The yard kept going without you and made ' + money(A.earned) + '.' : 'The crew is back in the home yard.') + (A.bee ? ' The bee is looking for a home: build it a beehive.' : '') + (A.fire ? ' ' + names[0] + ' brought the fire from the hollow: it’s taking it up to the old works.' : ''), 11);
     }, 1800);
   } else if (LOT.arrive) setTimeout(() => { if (!jumpQuiet) showToast(LOT.arrive.title, LOT.arrive.text(names[0], names), 12); }, 1500);
 }
