@@ -300,20 +300,21 @@ const BAG_TIME = 4, JAR_TIME = 2.5, WRAP_TIME = 2.6, SMELT_TIME = COAL ? 27 : 13
 const TRACKS = {
   speed: { label:'Wheels', gens:[
       { name:'Old wheels', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'treads', name:'Rubber treads', n:4, cost:[2, 3, 4.5, 6.5] },
-      { tech:'hubs', name:'Ball-bearing hubs', n:4, cost:[15, 22, 32, 46] } ],
+      { tech:'treads', name:'Rubber treads', n:4, cost:[3, 4.5, 7, 10] },
+      { tech:'hubs', name:'Ball-bearing hubs', n:4, cost:[24, 35, 51, 74] } ],
     vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.48,2.74,3.0,3.3], show:v=>v.toFixed(2)+'× speed' },
   carry: { label:'Basket', gens:[
       { name:'Tin basket', n:3, cost:[0.25, 0.5, 1] },
-      { tech:'hamper', name:'Wicker hamper', n:4, cost:[3, 5, 8, 12] },          // (V29: were 1.80 / 2.70 / 4 / 6)
-      { tech:'hopper', name:'Spring hopper', n:4, cost:[25, 40, 65, 100] } ],   // (V29: were 14 / 20 / 30 / 44; every level now carries more metal, ingots and coal too)
+      { tech:'hamper', name:'Wicker hamper', n:4, cost:[3.75, 6.25, 10, 15] },
+      { tech:'hopper', name:'Spring hopper', n:4, cost:[31, 50, 81, 125] } ],   // V30: about 25% dearer; capacities and copied-basket discount unchanged
     vals:[3,5,7,9, 12,15,18,21, 25,29,33,38], show:v=>v+' leaves' },
   pick: { label:'Pickup', gens:[
       { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
       { tech:'servos', name:'Quick servos', n:3, cost:[2.5, 4.5, 8] },
-      { tech:'wrist', name:'Gyro wrist', n:2, cost:[16, 28] } ],
-    // V29: 3 + unlock + 3 + unlock + 2 (was 3 + 4 with the last at $11): the same 0.32 s top, finishing nearer when the hubs are bought
-    vals:[1.3,1.05,0.85,0.7, 0.57,0.48,0.41, 0.36,0.32], show:v=>v.toFixed(2)+'s a grab' },
+      { tech:'wrist', name:'Gyro wrist', n:3, cost:[10, 16, 24] },
+      { tech:'fineWrist', name:'Fine control', n:3, cost:[36, 54, 80] } ],
+    // V30: four three-step tiers, smaller early gains and a dearer finish; the same 0.32 s maximum
+    vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.54,0.49,0.44, 0.40,0.36,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
       { tech:'claw', name:'Claw rake', n:5, cost:[3, 9, 28, 62, 125] } ],   // small steps first, then big ones worth saving for
@@ -336,14 +337,13 @@ const TRACKS = {
       { tech:'horseshoe', name:'Master’s touch', n:3, cost:[150, 300, 600] } ],   // (V22: was 450 / 800 / 1,300; the unlock stays $400)
     vals:[0, .1, .2, .3, .44, .58, .72], show:v=>v ? Math.round(v*100)+'% chance of an extra piece' : 'no extra pieces' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
-  // V13.7: 8 levels instead of 11 (2 + 3 + 3) over the same range, and a gentler price climb (~75× first to last, was ~190×)
-  // V16: helper skills are cheap all the way to the top and climb slowly (~12× first to last; the whole track ~$350, was ~$2,100)
-  // V19: fewer, bigger steps (2 levels a tier, was 2 + 3 + 3): the same 1 → 5.8×, and each tier ends where it did
+  // V30: four one-step tiers with no research gates. $132 total (was $275 with unlocks), top power 6.4× (was 5.8×).
   blow: { label:'Leaf blowing', gens:[
-      { name:'Desk fan', n:2, cost:[6, 10] },
-      { tech:'turbine', name:'Leaf turbine', n:2, cost:[20, 34] },
-      { tech:'jet', name:'Jet nozzle', n:2, cost:[45, 70] } ],
-    vals:[1, 1.35, 1.75, 2.5, 3.4, 4.5, 5.8], show:v=>v.toFixed(2)+'× blow power' },
+      { name:'Desk fan', n:1, cost:[6] },
+      { name:'Leaf turbine', n:1, cost:[18] },
+      { name:'Jet nozzle', n:1, cost:[38] },
+      { name:'Wide jet', n:1, cost:[70] } ],
+    vals:[1, 1.75, 2.8, 4.3, 6.4], show:v=>v.toFixed(2)+'× blow power' },
   // V19: 3 levels, one unlock, 3 more (was 2 + 3 + 3 with two unlocks): the same 6 → 38 leaves
   shake: { label:'Tree shaking', gens:[
       { name:'Gentle wiggle', n:3, cost:[5, 9, 18] },
@@ -395,25 +395,24 @@ const TRACKS = {
     vals:[0, 1, 1.6, 2.45, 3.5, 4.8, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
 };
 
-const TRACK_ORDER = ['speed','carry','pick','grab','reach','drill','magnet','pack','study'];
+const TRACK_ORDER = ['speed','carry','pick','grab','reach','pack','drill','magnet','study'];
 // which tracks each kind of robot has. Wheels are shared by every kind, so copied-level discounts work across all of them.
 const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', ...(DRY_BENCH ? ['dry'] : []), 'blow', 'dig', 'stoke', ...(WET_WOOD ? ['brolly'] : [])], shaker: ['speed', 'shake', 'snip'] };
 const TECH = {
   // V21: the first unlock on each of the three basic skills costs twice what it did (3 / 3.50 / 4): a little hill to
   // climb before the next levels, which cost what they did
-  treads:  { name:'Rubber treads',     track:'speed', cost:6,   desc:'Four new wheel upgrades for every Robot.' },
+  treads:  { name:'Rubber treads',     track:'speed', cost:10,  desc:'Four new wheel upgrades for every Robot.' },
   hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Four new basket upgrades.' },
   servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Three faster pickup upgrades.' },
   claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Five claw upgrades, up to 12 leaves.' },
   arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Five reach upgrades. Pairs well with the claw rake.' },
-  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:45,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
+  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:72,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
   hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Basket upgrades 8 to 11.' },
-  wrist:   { name:'Gyro wrist',        track:'pick',  cost:20,  needs:'servos', desc:'The last two pickup upgrades.' },   // V29
+  wrist:   { name:'Gyro wrist',        track:'pick',  cost:20,  needs:'servos', desc:'Three faster pickup upgrades.' },
+  fineWrist:{ name:'Fine control',     track:'pick',  cost:45,  needs:'wrist', desc:'The final three pickup upgrades, reaching 0.32 seconds a grab.' },
   diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
   // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
   horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
-  turbine: { name:'Leaf turbine',      track:'blow',  cost:30,  needsKind:'blowers', desc:'Two stronger leaf blowing upgrades: a wider, stronger breeze.' },
-  jet:     { name:'Jet nozzle',        track:'blow',  cost:60, needs:'turbine', desc:'The last two leaf blowing upgrades.' },
   // V19: one shaking unlock (was Hydraulic pincers $28 and Rumble claws $55)
   pincers: { name:'Hydraulic pincers', track:'shake', cost:40,  needsKind:'shakers', desc:'Three stronger tree shaking upgrades: more leaves from every tree and bush.' },
   jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc: KEEP + 'Four faster Load & pack upgrades: bagging, jars and cans, gift wrapping, and loading furnaces and kilns.' },
@@ -2031,7 +2030,7 @@ const TRIP_CASH = 100;       // V13.5: after the first letter, the first yard ha
 const BEE_LEAVES = 300;      // petals gathered on the prairie before the dead bee turns up (about 5 minutes for the robot you bring)
 // V26: the bee story moved into the first yard (no trip to the prairie). The driver's first letter asks for more leaves:
 // sell this many from the moment it's read (bags count 10 each), and the dead bee turns up under the next leaf
-const LEAF_GOAL = 1000;
+const LEAF_GOAL = 300;
 const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's honey (jars and gift jars) before the driver offers a ride back (was 30 jars)
 // V28: the third beat (the Rainy hollow) no longer asks for $1,000 (the hollow starts at $0, a real restart). Instead Tinker,
 // who goes along, has to be ready: its upgrades have to be worth TINKER_GOAL, every level it has counted at full price
@@ -5171,7 +5170,7 @@ function drawFlowers(V){
 const HIVE_COST = 120;
 const MAX_BEES = 40;   // V19.1: was 60
 // Six one-off hive upgrades, all at one fixed price, so the order is up to you and buying one never makes the others
-// dearer. V7: $180 each (was $80), so it takes a while before you start on them. V22: $120 each.
+// dearer. V30: $150 each (V22: $120).
 // V22: a jar takes 18 nectar (Better recipe 12); the hollow's ants need 12 mushrooms a can (Tight packing 6)
 const jarNectarAt = recipe => ANTS ? (recipe ? 6 : 12) : (recipe ? 12 : 18);
 const HIVE_UP = {
@@ -5182,7 +5181,7 @@ const HIVE_UP = {
   recipe:  { name:'Better recipe',            get desc(){ return 'A jar of honey takes <b>' + jarNectarAt(true) + ' nectar</b> instead of ' + jarNectarAt(false) + '.'; } },
   nursery: { name:'Bee nursery',              desc:'New bees cost <b>40%</b> less.' },
 };
-const HIVE_UP_COST = 120;
+const HIVE_UP_COST = 150;
 const hiveUpCost = () => HIVE_UP_COST;
 // V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
 // prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.
@@ -9962,7 +9961,7 @@ const JUMP_KITS = {
   home12: { tech: ['treads', 'hamper', 'servos'], robots: [{ speed:5, carry:5, pick:5, study:1 }, { speed:3, carry:3, pick:2 }],
             up: { bin:4, leafPrice:3, truck:1 }, bag: true, cash: 10, earned: 150 },
   // ~27 min: three robots with claws, a blower and a shaker, the cleanup program; earned enough for the first letter
-  home27: { base: 'home12', tech: ['claw', 'arm', 'turbine'],
+  home27: { base: 'home12', tech: ['claw', 'arm'],
             robots: [{ speed:7, carry:7, pick:6, grab:2, reach:2 }, { speed:6, carry:6, pick:5, grab:2, reach:1 }, { speed:4, carry:4, pick:3, grab:1 }],
             blowers: [{ speed:2, blow:3 }], shakers: [{ speed:1, shake:2 }],
             up: { bin:5, leafPrice:5, bagPrice:3, truck:2, cleanup:1 }, gen: { oil:1, basket:1 }, cash: 120, earned: LETTER_EARNED },
@@ -10009,7 +10008,7 @@ const JUMP_KITS = {
   // maxed) with Smelt as their only task; a hauler (fast, big basket) that gathers leaves on the side; three miners, two
   // in the Meadow vein's shaft and one at the cottage vein; a bagger and honey packer that also refuels the furnace.
   // The second blower works the bellows, fully trained.
-  homeBack: { tech: ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper', 'diamond', 'horseshoe', 'jig', 'precision', 'turbine', 'forge'],
+  homeBack: { tech: ['treads', 'hamper', 'servos', 'claw', 'arm', 'hubs', 'hopper', 'diamond', 'horseshoe', 'jig', 'precision', 'forge'],
             robots: [{}, { speed:8, carry:8, pick:4, drill:7, pack:11 }, { speed:8, carry:8, pick:4, drill:7, pack:11 },
               { speed:11, carry:11, pick:6, grab:4, reach:4 },
               { speed:8, carry:8, pick:4, drill:7, magnet:6 }, { speed:8, carry:8, pick:4, drill:7, magnet:6 }, { speed:7, carry:7, pick:4, drill:5, magnet:3 },
@@ -11060,7 +11059,7 @@ function cardModel(){
       // two columns: movement, carrying and grabbing on the left, machines, packing and research on the right
       // (V21.2: Claw and Reach moved to the left with the other gathering skills; the right column was crowded)
       for (const t of TRACK_ORDER) if (rowShown(t)) (['speed','carry','pick','grab','reach'].includes(t) ? rows : rows2).push(robotRow(i, t));
-      if (!rows2.length && rows.length > 2) rows2.push(...rows.splice(rows.length - Math.floor(rows.length/2)));
+      // Gathering skills keep their left-column positions as new skills become visible.
     } else for (const t of BOT_TRACKS[k]) if (trackVisible(t)) rows.push(robotRow(i, t, k));
     if (!(tp && cardTab === 'tasks')){ if (rows.length) rows.unshift(botHead(k)); if (rows2.length) rows2.unshift(botHead(k)); }   // V21
     // keep the card the same width on both tabs
@@ -12299,7 +12298,7 @@ function devTraveller(){
   S.flags.helpers = true; S.flags.research = true;
   if (LOT.tripHome){
     // V14 (?fresh&lot=hollow): Tinker and a blower, like a crew sent from a first yard with a hive, a meadow and a mine
-    Object.assign(c.lv, { speed: 9, carry: 11, pick: 6, grab: 4, reach: 4, drill: 3, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe', 'turbine']) S.tech[k] = true;
+    Object.assign(c.lv, { speed: 9, carry: 11, pick: 6, grab: 4, reach: 4, drill: 3, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe']) S.tech[k] = true;
     const b = newHelperCfg('blower'); b.home = 0; Object.assign(b.lv, { speed: 6, blow: 4 }); S.blowers = [b];
     S.cash = S.peak = 0;   // (V28: the hollow starts with nothing, was $1,000)
     if (!FIRE_STORY) openTrip({ to: 'home', crew: ['robot', 'blower'], earned: LOT.tripHome.earned }, true);

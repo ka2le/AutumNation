@@ -936,3 +936,45 @@ of it. Plan: `BALANCE_PLAN_V29.md`; numbers and checks: BALANCE.md "V29". Not va
 - **Hive floors:** tank/store rows say "+1 floor: a → b nectar/s" or "no floor (next step adds one)"; tips explain that
   tank and store steps count together.
 - **Join the cleanup program** $30 (was $20).
+
+## V30 (Oct 16): combined gathering and early-bee playtest
+
+User-selected combination after the V29 follow-up experiments. Implemented in `public/game.js`; exact ladders are in
+BALANCE.md section 5's V30 override. Wheels use the dearer-price candidate with unchanged speed effects; researched
+basket training is about 25% dearer with unchanged capacities; Pickup uses the softer four-by-three-step candidate
+and the new `fineWrist` unlock ($45), retaining the .32s maximum. Basic wheels and baskets retain their entry prices.
+Home's leaf-sales letter goal is 300. The six shared hive/ant upgrades cost $150 each.
+
+Leaf blowing now has four one-step generations with **no unlocks**: Desk fan / Leaf turbine / Jet nozzle / Wide jet,
+$6 / 18 / 38 / 70, power 1.75 / 2.8 / 4.3 / 6.4× from a 1× base. $132 total versus $275 including research in V29.
+`TECH.turbine` and `TECH.jet` are removed, as are their references in the jump kits and dev traveller. Existing generic
+load/bind clamps safely cap old level-5/6 blowers at the new maximum; there are no refunds or special migrations.
+
+Robot skill cards keep Wheels, Basket, Pickup, Claw and Reach on the left as new skills appear. The old balancing
+fallback moved Pickup between columns; it is removed. Load & pack precedes Operate machinery and Resource efficiency
+on the right. `tools/balance-player.js` recognizes Fine control and no longer seeks obsolete blower unlocks.
+
+Validation: 85 home functional assertions, explicit 299/300 goal boundary with a nonzero sold-leaf baseline, old V29
+save loading, hollow prices/drying/zero-cash arrival, syntax and PWA checks passed. The PWA test had a pre-existing
+hardcoded v8 cache expectation despite sw.js already using v9; it now reads VERSION from the worker's VM context.
+24 complete paid campaigns compared frozen V29 with V30, six paired seeds per original/expansion-aware buyer. All
+completed the three visits and ending without browser errors. Original buyer: bee found 37.44 → 33.49 minutes,
+home departure 47.99 → 49.65, hollow 31.56 → 34.28, whole campaign 99.93 → 105.25. Expansion-aware: bee found
+35.67 → 33.45, departure 43.79 → 43.24, hollow 32.68 → 41.18, campaign 99.43 → 109.81. Earlier phases share the
+same six seeds, not twelve independent early-game seeds.
+
+The early-expansion arrival now has Wheels 7 / Basket 9 / Pickup 10 / Claw 3 / Reach 3, typically versus V29 Wheels
+11 / Basket 9–10 / Pickup 8 / Claw 3–4 / Reach 4. The unchanged $300 Tinker-readiness check counts price paid, so
+dearer training permits departure with fewer physical skills. This plausibly contributes to the longer zero-cash
+hollow; no single-cause attribution or new readiness adjustment was made. The final factory-to-goal gap remains
+about 7–8 minutes, so the industrial pacing target is still unresolved.
+
+36 retained focused forks: six first-hive crews per version with paid hive-only spending (all six upgrades 2.85 →
+4.63 minutes after building), plus 24 fixed minute-30 meadow/one-gatherer comparisons with first blower untrained/maxed.
+Max training adds $5.90 → $7.61/min for $275 → $132 (cost/mean gain 46.60 → 17.34 minutes). The combination helps
+the blower investment, but these are frozen-crew estimates and do not establish five-minute payback. An earlier
+first-hive single-gatherer diagnostic stalled in seek for one seed in BOTH versions; retained separately in
+`forks-firstHive-superseded.json` / `debug-firstHive.json`, not silently discarded from the minute-30 scenario.
+
+Local source hashes, policies, per-seed results, scripts and the full report: `runs/v30-combined/`. Runs remain
+Git-ignored. This is a playtest configuration; baskets, wheels and hive changes are shared with the hollow.

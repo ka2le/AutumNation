@@ -297,6 +297,34 @@ Re-measure everything that stacks with it. A multiplier on a compounding source 
 
 ## 5. Current balance (V9, Oct 11)
 
+### V30 trial override (16 October 2026)
+
+The historical tables below describe V9. Current V30 combines these requested first-home changes; detailed evidence is
+in `runs/v30-combined/report.html` (local, Git-ignored) and the V30 entry in `PROJECT_NOTES.md`.
+
+- **Wheels:** basic prices/effects unchanged. Rubber treads $3/4.50/7/10, hubs $24/35/51/74; unlocks $10/$72. All speed
+  effects unchanged; full-price training plus unlocks $292.60 (V29 $184.10).
+- **Basket:** basic prices and all carrying capacities unchanged. Hamper $3.75/6.25/10/15, hopper $31/50/81/125,
+  about +25%; unlocks still $7/$40. Full-price training $323.75 (V29 $259.75). Shared basket plans still gives 10% copying.
+- **Pickup:** four three-step tiers. Costs $0.30/0.60/1.20 | $2.50/4.50/8 | $10/16/24 | $36/54/80; unlocks $8/$20/$45.
+  Grab times 1.30 (base), 1.12/.98/.86 | .76/.67/.60 | .54/.49/.44 | .40/.36/.32 seconds. Same final effect;
+  smaller early improvements. Full-price track plus unlocks $310.10 (V29 $89.10).
+- **Bees:** the home letter asks for 300 leaves sold after reading (V29 1,000). Six one-off hive upgrades $150 each
+  (V29 $120); this shared constant also applies to the hollow's ant upgrades. Sale values unchanged.
+- **Leaf blowing:** four one-step tiers, no research unlocks. Prices $6/$18/$38/$70; power 1 (base), 1.75/2.8/4.3/6.4×.
+  Full-price progression $132 (V29 $275 including unlocks); maximum power +10.3%. Excavating, bellows and drying unchanged.
+
+24 full paid campaigns (six paired seeds, original and expansion-aware buyers) completed home → zero-cash hollow →
+home → ending without browser exceptions. Bee discovery moved 2.2–4.0 minutes earlier. The original buyer's home visit
+lengthened 1.65 minutes, the expansion-aware buyer's changed −0.55 (uncertain). Hollow lengthened 2.72 and 8.50 minutes
+respectively; repriced training satisfies the dollar-based Tinker-readiness goal at different skill levels. The final
+factory purchase still precedes the ingot goal by roughly 7–8 minutes. These are combined effects, not isolated causes.
+
+Paid hive-only forks from each version's actual first-hive crew completed all six upgrades in 2.85 → 4.63 minutes after
+building. Fixed V29 minute-30 crews on a meadow with one gatherer and one bagger gained $5.90/min from maxing the first
+blower in V29 versus $7.61/min in the combined trial; package cost/mean gain 46.60 → 17.34 minutes. This is an improvement,
+not a demonstrated five-minute payback. Before/after fork sources include each version's pickup curve.
+
 Measured with the payback player, 6 runs, 10 robots, 4 + 4 helpers, 3 veins.
 
 ### Income a minute

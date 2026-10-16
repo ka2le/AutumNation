@@ -24,7 +24,8 @@ async function main() {
     match: async (request) => { cachedRequests.push(request); return cacheHit; },
     put: async () => {},
   };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'), {
+  let currentCache;
+  const workerContext = vm.createContext({
     URL, Response,
     self: {
       location: { origin: start.origin },
@@ -33,12 +34,14 @@ async function main() {
       clients: { claim: async () => {} },
     },
     caches: {
-      keys: async () => ['autumnation-v1', 'autumnation-v7', 'autumnation-v8', 'other-app-v1'],
+      keys: async () => ['autumnation-v1', 'autumnation-v7', currentCache, 'other-app-v1'],
       delete: async (key) => { deleted.push(key); },
       open: async (key) => { opened.push(key); return ownCache; },
     },
     fetch: async () => { throw new Error('Offline'); },
   });
+  vm.runInContext(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'), workerContext);
+  currentCache = vm.runInContext('VERSION', workerContext);
   let activation;
   handlers.activate({ waitUntil: (promise) => { activation = promise; } });
   await activation;
@@ -53,7 +56,7 @@ async function main() {
   assert.equal(request('https://example.com/game.js'), undefined);
   cacheHit = new Response('cached game');
   assert.equal(await (await request(new URL('game.js', start).href)).text(), 'cached game');
-  assert.deepEqual(opened, ['autumnation-v8']);
+  assert.deepEqual(opened, [currentCache]);
   cachedRequests.length = 0;
   cacheHit = undefined;
   await request(new URL('offline-route', start).href, 'navigate');
