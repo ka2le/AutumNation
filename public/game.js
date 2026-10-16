@@ -143,7 +143,7 @@ const RAINY = !!LOT.rain, WET_WOOD = !!LOT.wetWood;
 // start and worked by blowers (warm air) instead of robots, and the truck only buys dry leaves (DRY_BENCH). And the hive
 // starts out as a plain beehive whose bees can't fly in the rain; the robots research it into an ant hill (HIVE_STORY).
 const DRY_BENCH = !!LOT.dryBench, HIVE_STORY = !!LOT.hiveStory;
-// V31: in the first yard deadheading has to be worked out first, by a Shaker (see SNIP_JARS)
+// V31: in the first yard deadheading has to be worked out first, by a Shaker (V39: opened by $100 of honey sold, honeyHome)
 const SNIP_LAB = LOT_ID === 'home';
 // V17 (the Rainy hollow): once its first goals are done, lightning sets the tree in the middle of the yard on fire. The
 // robots research the fire (a robot, a blower and a shaker), which teaches them to burn logs under the drying bench; the
@@ -2097,12 +2097,12 @@ function tinkerReady(){
   bindIds();
 }
 function tinkerWorth(){ const c = S.robots[tinkerI()]; if (!c) return 0; let s = 0; for (const k in c.lv) if (TRACKS[k]) s += lvWorth(k, c.lv[k] | 0); return s; }
-// V31: deadheading is worked out, not just bought. Once the first yard's truck has bought SNIP_JARS jars of honey (a
-// hidden milestone; gift jars count), a research question mark goes up over the beehive and Research opens for Shakers
+// V31: deadheading is worked out, not just bought. Once the first yard has sold $100 of honey (V39: the honeyHome goal;
+// V31–V38: 50 jars), a research question mark goes up over the beehive and Research opens for Shakers
 // (only them). A Shaker on it acts out the research (see updSnipLab: led by a bee to a flower, cutting it, bringing it
 // to the hive, puzzling), SNIP_LAB_RATE research a second each (up to three Shakers); at SNIP_LAB_NEED it's worked out:
 // V35: every Shaker then gets Garden shears free, with Deadhead flowers on its Do list. Other yards keep deadheading as it was.
-const SNIP_JARS = 50, SNIP_LAB_NEED = 333, SNIP_LAB_RATE = 4;   // (V35: a third of the old 1,000: one Shaker ~1:23, two ~42 s, three ~28 s)
+const SNIP_LAB_NEED = 333, SNIP_LAB_RATE = 4;   // (V35: a third of the old 1,000: one Shaker ~1:23, two ~42 s, three ~28 s)
 const snipKnown = () => !SNIP_LAB || !!S.flags.snipKnown;
 const snipLabOn = () => SNIP_LAB && !!S.flags.snipLab && !S.flags.snipKnown;
 const snipLabK = () => clamp((S.flags.snipProg || 0)/SNIP_LAB_NEED, 0, 1);
@@ -2124,10 +2124,11 @@ const INGOT_GOAL = 1000;     // V34.1: shorten the completed-factory wait (was 2
 const MILESTONES = [
   // V24: two early goals in the first yard: save up for and build the bagging table, then make BOOK_BAGS bags; the old
   // picture book turns up under a leaf after that (V12–V23: once $60 was earned or $36 held, hidden)
-  { id:'bagTable', lot:'home', name:'A bagging table', goal:'Build the bagging table', prog: () => S.bag.built ? 1 : 0,
-    hud:{ icon:'bagger', cash:true, val: () => S.bag.built ? BAGGER_COST : S.cash, of: BAGGER_COST, show: () => baggerShown() } },
-  { id:'book', lot:'home', name:'Bags of leaves', goal:'Make ' + BOOK_BAGS + ' bags of leaves', prog: () => (S.totals.bags || 0)/BOOK_BAGS,
-    hud:{ icon:'bag', val: () => S.totals.bags || 0, of: BOOK_BAGS, show: () => S.bag.built }, on: () => { S.story.armed = true; } },
+  // V39: both hidden again (no pills); rename hidHud back to hud to show them
+  { id:'bagTable', lot:'home', hidden:true, name:'A bagging table', goal:'Build the bagging table', prog: () => S.bag.built ? 1 : 0,
+    hidHud:{ icon:'bagger', cash:true, val: () => S.bag.built ? BAGGER_COST : S.cash, of: BAGGER_COST, show: () => baggerShown() } },
+  { id:'book', lot:'home', hidden:true, name:'Bags of leaves', goal:'Make ' + BOOK_BAGS + ' bags of leaves', prog: () => (S.totals.bags || 0)/BOOK_BAGS,
+    hidHud:{ icon:'bag', val: () => S.totals.bags || 0, of: BOOK_BAGS, show: () => S.bag.built }, on: () => { S.story.armed = true; } },
   // V13: word gets around: the truck driver brings a letter about another lot that needs cleaning up
   // V14: the travel money is a live goal: it's reached while you hold $100 and not any more if you spend it, and it only
   // comes out of the cash when the robot climbs into the truck (S.trip.cash, see board()). Until then the robot only
@@ -2144,7 +2145,7 @@ const MILESTONES = [
   // trip opens (was "Save up $1,000" beside the other two quests). Tinker's card shows it in full (questBox)
   { id:'qTinker', lot:'home', name:'Ready for more', goal:'Get Tinker ready for even more leaf-picking', prog: () => S.flags.tinkerGoal ? tinkerWorth()/TINKER_GOAL : 0, on: () => tinkerIsReady(),
     hud:{ icon:'robot', cash:true, val: () => tinkerWorth(), of: TINKER_GOAL, show: () => !!S.flags.tinkerGoal && !S.flags.hollowGone } },
-  { id:'honeyHome', lot:'home', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => S.hive.built ? honeyEarned()/HONEY_CASH : 0,
+  { id:'honeyHome', lot:'home', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => S.hive.built ? honeyEarned()/HONEY_CASH : 0, on: () => openSnipLab(),   // V39: opens the spent-flower research
     hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => hiveKnown() } },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
   // V13.4: these two show as a goal pill under the cash (hud: what it shows; show: when it may show up)
@@ -2156,12 +2157,10 @@ const MILESTONES = [
   // done once done (and may be done already); the money is live. All three at the same time bring the next letter.
   { id:'qYard', lot:'home', group:'hollow', name:'More room', goal:'Buy a bigger yard', prog: () => S.land >= 1 ? 1 : 0, hud:{ icon:'land', bool:true } },
   { id:'qMine', lot:'home', group:'hollow', name:'Dig in', goal:'Build a mine', prog: () => S.miners.length ? 1 : 0, hud:{ icon:'vein', bool:true } },
-  // V31: 50 jars sold opens the spent-flower research (was a hidden milestone). V38: it's a quest pill in the 'hollow' group,
-  // and once reached the research itself takes its place (snipR, a % pill); the soggy letter needs that done too
-  { id:'snipLab', lot:'home', group:'hollow', name:'Spent flowers', goal:'Sell ' + SNIP_JARS + ' jars of honey', prog: () => S.flags.snipKnown ? 1 : S.hive.built && !hiveGrounded() ? (S.totals.jarsSold || 0)/SNIP_JARS : 0, on: () => openSnipLab(),
-    hud:{ icon:'jar', val: () => S.flags.snipKnown ? SNIP_JARS : Math.floor(S.totals.jarsSold || 0), of: SNIP_JARS } },
-  { id:'snipR', lot:'home', group:'hollow', after:'snipLab', name:'Deadheading', goal:'Research the spent flowers', prog: () => S.flags.snipKnown ? 1 : 0,
-    hud:{ icon:'flower', pct:true, val: () => S.flags.snipKnown ? 1 : snipLabK(), of: 1 } },
+  // V39: the spent-flower research, one pill after the $100 of honey (which opens it; V38 had a 50-jar quest for that).
+  // Done, the bigger yard and the mine follow (group 'hollow'), and those two bring the soggy letter
+  { id:'snipR', lot:'home', name:'Deadheading', goal:'Research the spent flowers', prog: () => S.flags.snipLab && S.flags.snipKnown ? 1 : 0,
+    hud:{ icon:'flower', pct:true, val: () => S.flags.snipKnown ? 1 : snipLabK(), of: 1, show: () => !!S.flags.snipLab && !S.flags.hollowLetter } },
   // V15 (the Rainy hollow): its leaves are too wet to sell. A blower learns to dry them at the bench; the first goal is to sell 100
   // V17: the hollow's goals all show at once (group 'hollowA'), each done one staying up (ticked) until the lightning:
   // dry leaves; getting bees started (it stays up through the failed flight and the research, and once it's an ant hill it
@@ -2204,7 +2203,7 @@ const MILESTONES = [
 ];
 // a group of quests shows all at once while its show() is true; done(): what happens when every one is reached together
 const GOAL_GROUPS = {
-  hollow: { need: ['qYard', 'qMine', 'snipR'], show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone && !S.flags.tinkerGoal && (S.flags.hollowLetter ||  (S.miles.honeyHome != null && S.t - S.miles.honeyHome >= GOAL_DONE_HOLD)),   // (V26: once $100 of honey is sold)
+  hollow: { show: () => LOT_ID === 'home' && S.hive.built && !S.flags.hollowGone && !S.flags.tinkerGoal && (S.flags.hollowLetter ||  (S.miles.snipR != null && S.t - S.miles.snipR >= GOAL_DONE_HOLD)),   // (V26: once $100 of honey is sold; V39: once the spent flowers are worked out)
     done: () => { if (!S.flags.hollowLetter){ S.flags.hollowLetter = true; postLetter('hollow'); } } },
   // V17 (the Rainy hollow): need: the members that have to be reached (the rest are steps on the way)
   hollowA: { show: () => FIRE_STORY && !S.fire.struck, need: ['dry', 'canned', 'logs'], done: () => { if (!S.fire.struck) strike(); } },
@@ -4596,7 +4595,7 @@ function openDryLab(){
   }, (DRY_REFUSE_HOLD + 1.1)*1000);
   setTimeout(() => showToast('Too wet to sell', 'The truck won’t take wet leaves. ' + (S.blowers.some(c => !c.away) ? 'Tap the drying bench to research drying.' : 'Build a Blower to research drying.'), 9), (DRY_REFUSE_HOLD + 2.6)*1000);
 }
-// V31: the spent-flower research (see SNIP_JARS). Opens with the hidden milestone: Research goes into every Shaker's Off pile
+// V31: the spent-flower research. Opens with $100 of honey sold (V39; was 50 jars, a hidden milestone): Research goes into every Shaker's Off pile
 function openSnipLab(){
   if (!SNIP_LAB || S.flags.snipKnown || S.flags.snipLab) return;
   S.flags.snipLab = true; S.flags.snipProg = S.flags.snipProg || 0;
@@ -11049,11 +11048,9 @@ function nextStep(){
   if (LOT_ID === 'home' && hiveKnown() && !S.hive.built) return { label: 'Build the beehive', run: () => { S.cash += hiveCost(); S.peak = Math.max(S.peak, S.cash); S.flags.hiveShown = true; buy({ id:'hive', obj:'hive', cost: hiveCost() }); } };
   if (LOT_ID === 'home' && S.hive.built && S.miles.honeyHome == null && !S.flags.hollowLetter) return { label: 'Earn $' + HONEY_CASH + ' from honey', run: () => { S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); } };   // V26
   if (LOT_ID === 'home' && S.flags.tinkerGoal && S.miles.qTinker == null && !S.flags.hollowGone) return { label: 'Get Tinker ready (' + cash$(TINKER_GOAL) + ' of upgrades)', run: tinkerReady };   // V28.1
-  if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter && S.miles.snipLab == null) return { label: 'Sell ' + SNIP_JARS + ' jars of honey', run: () => { S.totals.jarsSold = Math.max(S.totals.jarsSold || 0, SNIP_JARS); } };   // V38
-  if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter && snipLabOn()) return { label: 'Finish researching the spent flowers', run: finishSnipLab };   // V38
+  if (LOT_ID === 'home' && !S.flags.hollowLetter && snipLabOn()) return { label: 'Finish researching the spent flowers', run: finishSnipLab };   // V38
   if (GOAL_GROUPS.hollow.show() && !S.flags.hollowLetter) return { label: 'Finish the quests', run: () => {
     if (S.miles.qYard == null) S.miles.qYard = Math.round(S.t); if (S.miles.qMine == null) S.miles.qMine = Math.round(S.t);
-    S.totals.jarsSold = Math.max(S.totals.jarsSold || 0, SNIP_JARS); openSnipLab(); finishSnipLab();   // V38: the spent-flower quests too
     } };
   const item = st.item || 'book', what = item === 'bee' ? 'the dead bee' : item === 'hive' ? 'the hive' : item === 'ruin' ? 'the old works' : 'the book';
   if (!st.found){
@@ -11103,9 +11100,9 @@ const JUMP_KITS = {
             blowers: [{ speed:4, blow:4 }, { speed:2, blow:2 }], shakers: [{ speed:2, shake:3 }],
             up: { bin:6, leafPrice:5, bagPrice:5, truck:3, hiveTank:1, hiveStore:2, honeyPrice:1 }, gen: { oil:1, market:1 }, hive: { bees:6 }, cash: 250 },
   // V26: $100 of honey sold: the three quests show
-  homeHoney: { base: 'homeHive', honey: true, cash: 250 },
+  homeHoney: { base: 'homeHive', honey: true, snip: true, cash: 250 },   // (V39: with the spent flowers worked out)
   // the quests done: the bigger yard and a mine with a robot on it; Tinker ready (V28: tinker: its upgrades topped up to TINKER_GOAL; was $1,000 held)
-  homeQuests: { base: 'homeHoney', land: 1, metalSlot: true, miners: [0], tech: ['diamond'], snip: true,
+  homeQuests: { base: 'homeHoney', land: 1, metalSlot: true, miners: [0], tech: ['diamond'],
             robots: [{ drill:3 }, { drill:4, magnet:2 }, {}, {}, { speed:4, carry:4, pick:3 }],
             up: { bin:7, metalBin:2, metalPrice:1, truck:4 }, hive: { bees:9 }, cash: 300, tinker: true },
   // ~15 min in the Rainy hollow: a saw station on the wood pile, the drying shed, an ant hill, and the blower's umbrella
@@ -11160,7 +11157,7 @@ const JUMPS = [
   { id: 'leaves',  label: 'First yard: selling ' + LEAF_GOAL.toLocaleString('en-US') + ' leaves', stages: [{ lot: 'home', kit: 'home27', story: 'done', letter: 'moreLeaves' }] },
   { id: 'bee',     label: 'First yard: the dead bee turns up',         stages: [{ lot: 'home', kit: 'homeBee' }] },
   { id: 'honey',   label: 'First yard: beehive built, honey money',    stages: [{ lot: 'home', kit: 'homeHive' }] },
-  { id: 'quests',  label: 'First yard: honey sold, the three quests',  stages: [{ lot: 'home', kit: 'homeHoney' }] },
+  { id: 'quests',  label: 'First yard: spent flowers worked out, the quests',  stages: [{ lot: 'home', kit: 'homeHoney' }] },
   { id: 'letter3', label: 'First yard: the hollow letter comes',       stages: [{ lot: 'home', kit: 'homeQuests' }] },
   { id: 'crew',    label: 'First yard: sending Tinker and a Blower',   stages: [{ lot: 'home', kit: 'homeQuests', letter: 'hollow' }] },
   { id: 'hollow',  label: 'Rainy hollow: just arrived',                stages: [J_HOLLOW, { lot: 'hollow' }] },
@@ -11299,7 +11296,8 @@ function applyKit(name){
   if (K.bee && LOT_ID === 'home') jumpBee(K.bee);   // V26
   if (K.tinker && LOT_ID === 'home') tinkerReady();   // V28
   if (SNIP_LAB && S.shakers.some(c => c.lv && c.lv.snip > 0)){ S.flags.snipKnown = true; S.flags.snipLab = true; }   // V31: a kit with Garden shears has worked out deadheading
-  if (SNIP_LAB && K.snip && !S.flags.snipKnown){ S.totals.jarsSold = Math.max(S.totals.jarsSold || 0, SNIP_JARS); S.flags.snipLab = true; S.flags.snipKnown = true; S.flags.snipProg = SNIP_LAB_NEED; S.flags.snipAt = S.t; S.shakers.forEach(c => { if (!c.away) grantShears(c, true); }); }   // V38: the spent flowers worked out (the hollow letter needs it)
+  if (SNIP_LAB && K.snip && S.miles.snipR == null) S.miles.snipR = Math.round(S.t) - GOAL_DONE_HOLD;   // V39: the quests show straight away
+  if (SNIP_LAB && K.snip && !S.flags.snipKnown){ S.flags.snipLab = true; S.flags.snipKnown = true; S.flags.snipProg = SNIP_LAB_NEED; S.flags.snipAt = S.t; S.shakers.forEach(c => { if (!c.away) grantShears(c, true); }); }   // V38: the spent flowers worked out (the hollow letter needs it)
   if (K.honey && LOT_ID === 'home'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honeyHome == null) S.miles.honeyHome = Math.round(S.t) - GOAL_DONE_HOLD; }
   if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
   if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
@@ -13349,6 +13347,8 @@ function load(data){
     if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
     if (S.trip && S.trip.to === 'hollow' && S.trip.cash && !S.trip.paid) delete S.trip.cash;   // (V28: the hollow trip costs nothing now)
     if (SNIP_LAB && S.shakers.some(c => c.lv && c.lv.snip > 0)){ S.flags.snipKnown = true; S.flags.snipLab = true; }   // V31
+    if (SNIP_LAB && S.flags.snipKnown && S.miles.snipR == null) S.miles.snipR = Math.round(S.t) - GOAL_DONE_HOLD;   // V39: no ticked pill on load
+    if (SNIP_LAB && S.miles.honeyHome != null && !S.flags.snipLab && !S.flags.hollowLetter) S.flags.snipLab = true, S.flags.snipProg = S.flags.snipProg || 0;   // V39: $100 of honey sold before this: the research is open
     if (SNIP_LAB && S.flags.snipKnown) for (const c of S.shakers) if (!c.away && !(c.lv.snip > 0)) grantShears(c, true);   // V35: deadheading known: every Shaker has the shears
     if (LOT_ID === 'home' && S.flags.tinkerGoal && !S.trip && !S.flags.hollowGone && !S.robots.some(c => c.away)) openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0, tinker: true }, true);   // V31
   }
