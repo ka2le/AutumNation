@@ -26,6 +26,8 @@ There is no frontend build step or package installation requirement in the curre
 
 **Start over reset fix (2026-10-16):** `hardReset()` clears the runtime identity roster (`IDL`) before binding the fresh state, so Tinker's old skills cannot be merged back into the new robot. It also restarts `WORLD.runT`. `node tools/check-reset.js` covers the actual reset buttons, repeated resets, retraining, save/reload, resetting from the hollow, and `?fresh`, in an isolated browser.
 
+**Replay the ending (2026-10-16):** The golden final letter stays after the tour. Tinker returns with Ride along in Don't and resumes his other tasks. Assign him through the letter or move Ride along to the top of his task list to see the tour and ending again. Repeat tours are excluded from automatic crew assignment. Completed saves regain the letter and optional trip on load. `node tools/check-ending-replay.js` checks the first tour, repeated tours through both entry points, and save/reload.
+
 ## Run locally
 
 From this folder, run `npm start` or `node server.js --no-open`. The default address is `http://localhost:8080`; if that port is already in use, the Node server tries the next available port up to 8099. The server prints the selected address. `start.bat` also opens the game in a browser.

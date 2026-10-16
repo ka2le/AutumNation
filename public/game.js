@@ -4033,7 +4033,7 @@ const LETTERS = {
   // V20: the final letter once INGOT_GOAL iron ingots are sold back home. Golden and shiny, delivered like any other. Reading it sends
   // Tinker to the curb; it rides off with the driver and the ending plays (public/ending.js, ENDING.md)
   final: { at: () => LETTER_AT(), title: 'Final letter', sign: 'Trucker', gold: true,
-    text: 'I think you want to see this', open: () => openEndingTrip() },
+    get text(){ return S.flags.ending >= 3 ? 'Want to see it again?' : 'I think you want to see this'; }, open: () => openEndingTrip() },
 };
 function openHollowTrip(quiet){
   if (S.trip || S.flags.hollowGone) return;
@@ -4131,6 +4131,7 @@ function openTrip(t, quiet){
 // V36: a trip, or a new Robot or helper while a trip is open: a kind with exactly one who could go gets it on top of its list
 function autoTripCrew(){
   if (!S.trip) return;
+  if (S.trip.to === 'ending' && S.flags.ending >= 3) return;   // repeat tours only start when the player assigns one
   for (const kind of tripKinds()){
     if (tripHolder(kind)) continue;
     const list = cfgsOf(kind), cand = list.filter(tripFor);
@@ -10856,19 +10857,20 @@ function testCash(add){
 // S.flags.ending: 1 the letter is read (Tinker heads for the curb), 2 the ending is playing, 3 seen (Continue pressed).
 let EN = null, endRt = null;
 function openEndingTrip(){
+  const replay = S.flags.ending >= 3;
   S.flags.ending = Math.max(S.flags.ending | 0, 1);
   const who = Math.max(0, S.robots.findIndex(c => !c.away));   // Tinker (the first robot that's home)
   openTrip({ to: 'ending', who }, true);
   const c = S.robots[who];
-  if (c){ taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged('robot', who); }
-  if (!simMode) setTimeout(() => showToast('The final letter', styleOf(who).name + ' heads for the curb.', 7), 400);
+  if (c){ if (replay) putOff(c, 'travel'); else putTop(c, 'travel'); taskListChanged('robot', who); }
+  if (!replay && !simMode) setTimeout(() => showToast('The final letter', styleOf(who).name + ' heads for the curb.', 7), 400);
 }
 // the truck camera has followed the truck out of the yard: cut to the ending
 function beginEnding(){
   const T = truck, r = T.riders.find(o => !o.kind) || R[0], i = r ? r.id : 0, c = S.robots[i];
   T.riders = []; T.st = 'away'; T.fill = 0; S.truckT = Math.max(S.truckT, 6);
   if (c){ taskRemove(c, 'travel'); c.off.push('travel'); }
-  S.trip = null; S.flags.ending = 2; S.flags.endBot = i; S.letters = S.letters.filter(l => !l.read);
+  S.trip = null; S.flags.ending = 2; S.flags.endBot = i; S.letters = S.letters.filter(l => l.id === 'final' || !l.read);
   endRt = { ri: i, from: camFollow && camFollow.from };
   if (r){ r.st = 'ride'; r.moving = false; }
   save();
@@ -10887,7 +10889,9 @@ function playEnding(o){
 // the ending is over (the screen is black): back in the yard, the truck brings Tinker home and it hops off
 function endingHome(){
   document.body.classList.remove('ending'); if ($('endBlock')) $('endBlock').hidden = true;
-  S.flags.ending = 3; S.flags.endPop = 1; save();   // (seen; the popup still to come, even after a reload)
+  S.flags.ending = 3; S.flags.endPop = 1;
+  openEndingTrip();   // keep the letter and an optional ride in Don't when Tinker returns
+  save();   // (seen; the popup still to come, even after a reload)
   endRt = endRt || { ri: S.flags.endBot | 0 };
   if (endRt.from) Object.assign(cam, endRt.from); else Object.assign(cam, camTarget(S.land));
   buildGround(cam);
@@ -13575,6 +13579,10 @@ function start(data){
   // V20: the ending (public/ending.js). A reload while it played starts it again from the ride out; ?ending=factory
   // (or bank, storage, all) previews a scene
   EN = window.ENDING ? window.ENDING(makeEndingHelpers()) : null;
+  if (LOT_ID === 'home' && S.flags.ending >= 3){
+    if (!S.letters.some(l => l.id === 'final')) S.letters.push({ id: 'final', ...LETTER_AT(), read: true });
+    if (!S.trip) openEndingTrip();
+  }
   if (RUIN && S.miles.ingots != null && (S.totals.ingotsSold || 0) < INGOT_GOAL && !S.flags.ending) delete S.miles.ingots;   // recheck unfinished saves against the current goal
   if (EN && LOT_ID === 'home' && S.flags.ending === 2){ const i = S.flags.endBot | 0, r = R[i]; truck.st = 'away'; if (r){ r.st = 'ride'; } endRt = { ri: i }; playEnding({ robot: i, onDone: endingHome }); }
   else if (EN && PARAMS.get('ending')) setTimeout(() => previewEnding(PARAMS.get('ending')), 300);
