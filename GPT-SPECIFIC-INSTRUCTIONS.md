@@ -18,3 +18,13 @@ Repository: https://github.com/ka2le/AutumNation
 Live game: https://ka2le.github.io/AutumNation/
 
 For GPT's own requested project changes, complete the appropriate commit, push, and deployment verification as part of the work. A Claude-specific note saying that the user must push does not apply to GPT.
+
+## Preferred clickable questionnaires
+
+The user prefers the inline form created with the **visualize:visualize** skill, rather than the built-in asynchronous question tool (which did not appear in this Codex chat).
+
+- Create an inline HTML questionnaire through that skill, with radio options and a **Type your own answer** option and text field for every question, plus optional overall notes.
+- The explicit **Send answers to chat** button calls `window.openai.sendFollowUpMessage({ prompt, title })` with the selected answers and custom text. Selection alone must never submit or authorize an action.
+- Restore choices from `window.openai.widgetState` and persist meaningful edits through `window.openai.setWidgetState({ modelContent, privateContent })`. Support either a synchronous or promise return. Preserve a copyable answer fallback if sending is unavailable.
+- Working reference in this chat: `C:/Users/kallek/.codex/visualizations/2026/10/16/01a143d3-68d3-7772-b677-6de62e864625/rebalance-questionnaire.html`.
+- The user can request this as: **"Use the visualize skill to make a clickable questionnaire with a custom-answer option per question."** Read the installed skill before creating or updating a form.

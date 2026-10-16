@@ -1553,6 +1553,11 @@ LOTS.hollow = H => {
 
   // ── rain-themed versions of the prairie's flower upgrades (a "Rain and mushrooms" section in the workshop)
   const GEN = {
+    // V32: a short local economy cannot repay the home yard's long-term prices. Basket plans stays cheap in both.
+    oil:      { cost:[700] },
+    cutting:  { cost:[900] },
+    market:   { cost:[700, 1500, 2800] },
+    charm:    { cost:[1500] },
     press:    { name:'Leaf mould deal',  max:3, cost:[250, 700, 1500], desc:l=>'The compost yard pays <b>'+(15*(l+1))+'%</b> more for dry leaves.' },
     // V19.3: one step that sows two tiers of extra patches (+80%; was 3 steps of +40%)
     seeding:  { name:'Spore scattering', max:1, tiers:2, cost:[1200], needs:()=>H.S.hive.built && !H.hiveGrounded(), desc:()=>'Sow <b>80%</b> more mushroom patches for the ants on all your land.' },
@@ -1617,7 +1622,7 @@ LOTS.hollow = H => {
     plantOpen: false,
     rain: true,           // rain, puddles, mist and warm lights (game.js)
     wetWood: false,
-    fireStory: true, fireTree: 12, plantCost: 400,
+    fireStory: true, fireTree: 12, plantCost: 1200,   // V32.1: was 400
     dryBench: true,       // V15: the leaves are too wet to sell: the bagging table is a drying bench (from the start), worked by blowers
     LEAFC, FOLIAGE, TREE_FAMS, leafSheen: true, leafFall: { vy: [34, 54], sw: [9, 20] },
     FLOWER_TYPES, FLOWER_N: [22, 30, 95], decoN: [110, 150, 320], decoTypes: MUSH_DECO.length,
@@ -1662,13 +1667,14 @@ LOTS.hollow = H => {
     // tight stacking (more coal from the same logs) and a bigger log stack
     // V19: Sort the logs has 3 bigger steps for much less (was the first yard's 6 steps to $16.50 for $40 … 6,000): a log goes
     // $4.80 → 6.50 → 9 → 12 for $50 / 250 / 1,000, so $9 costs $300 (was ~$520 for $9.20) and the top is lower
-    UP: { pallet: { name: 'Bigger coal pallets', costs: [400, 550, 750, 1000], vals: [32, 56, 92, 140, 200], show: v => v + ' coal per pallet' },
+    UP: { cleanup: { costs: [150, 700, 1500] },
+      pallet: { name: 'Bigger coal pallets', costs: [480, 660, 900, 1200], vals: [32, 56, 92, 140, 200], show: v => v + ' coal per pallet' },
       honeyPrice: { costs: [80, 130, 190, 270, 420, 650] }, giftPrice: { costs: [400, 800] },
-      metalPrice: { max: 3, gaps: [], costs: [50, 250, 1000], vals: [4.8, 6.5, 9, 12] },
-      smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [250, 700], vals: [1, 1.35, 1.8] },
-      ingotGrade: { name: 'Briquettes', max: 3, costs: [200, 500, 950], vals: [1, 1.25, 1.5, 1.8] },
-      slag: { name: 'Tight stacking', max: 2, costs: [300, 800], vals: [0, 0.2, 0.4] },
-      hopper: { name: 'Bigger log stack', max: 2, costs: [50, 150], vals: [16, 30, 50] } },
+      metalPrice: { max: 3, gaps: [], costs: [300, 600, 1100], vals: [4.8, 6.5, 9, 12] },
+      smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [300, 840], vals: [1, 1.35, 1.8] },
+      ingotGrade: { name: 'Briquettes', max: 3, costs: [240, 600, 1140], vals: [1, 1.25, 1.5, 1.8] },
+      slag: { name: 'Tight stacking', max: 2, costs: [360, 960], vals: [0, 0.2, 0.4] },
+      hopper: { name: 'Bigger log stack', max: 2, costs: [60, 180], vals: [16, 30, 50] } },
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
     // (V28: a fresh start with nothing; the first truck saying no to the wet leaves opens the drying research)
     arrive: { title: 'The Rainy hollow', text: (name, names) => (names && names.length > 1 ? name + ' and ' + names[1] : name) + ' made it. Pick up leaves and get this yard up and running.' },

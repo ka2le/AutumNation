@@ -30,7 +30,8 @@ async function checks(page,lot){
   S.metalSlot=true;S.lv.metalBin=0;
   for(let l=0;l<F.UP.metalBin.max;l++){const before=S.cash,offer=F.offers().find(o=>o.id==='up'&&o.key==='metalBin');ok(Y.buy(offer),'buy raw storage tier '+(l+1));ok(close(before-S.cash,F.UP.metalBin.costs[l]),'raw storage purchase charge '+(l+1));ok(F.rackCap()===rack[4]&&F.palletCap()===pallet[4],'raw storage does not change finished capacity '+(l+1));}
   const rawCost=F.UP.metalBin.costs.reduce((n,v)=>n+v,0),finishedCost=F.UP.pallet.costs.reduce((n,v)=>n+v,0);
-  ok(rawCost===1575&&finishedCost===2700&&rawCost+finishedCost<=6455,'both max tracks cost 4275, below old 6455');
+  const expectedFinished=lot==='hollow'?3240:3840;   // V32.1 prices
+  ok(rawCost===3075&&finishedCost===expectedFinished,'raw/finished storage prices match V32.1');
   // Batch reservations must use the new capacity immediately, even with simultaneous operators.
   Y.dev('S.robots=[newRobotCfg(),newRobotCfg()];syncRobots();S.lv.slag=UP.slag.max;S.gen.charm=1;for(const c of S.robots)c.lv.magnet=6;for(const r of R)r.st="idle";');
   for(let l=0;l<5;l++){
@@ -67,7 +68,7 @@ async function conservation(page){
     S.bench.fire=false;S.fire.bench=false;S.flags.coalKnown=true;S.flags.fireDone=true;
     initial=S.plant.rack+S.plant.slagAcc+S.ingots;
     Y.dev('S.robots=Array.from({length:8},()=>newRobotCfg());');
-    S.robots.forEach((c,i)=>{Object.assign(c.lv,{speed:11,carry:11,drill:7,magnet:6,pack:11});c.prio=i<2?[['smelt']]:i<4?(i===2?[['refuel'],['haul']]:[['haul']]):[['mine']];c.off=[];if(i>=4)c.miner=i<6?0:1;});
+    S.robots.forEach((c,i)=>{for(const k of ['speed','carry','drill','magnet','pack'])c.lv[k]=Y.dev('trackMax('+JSON.stringify(k)+')');c.prio=i<2?[['smelt']]:i<4?(i===2?[['refuel'],['haul']]:[['haul']]):[['mine']];c.off=[];if(i>=4)c.miner=i<6?0:1;});
    },probe:()=>{
     const S=Y.state();max=Math.max(max,S.plant.rack);sold=window.__src.nI;
     final=S.plant.rack+S.plant.slagAcc+S.ingots+Y.robots().reduce((n,r)=>n+(r.carryI||0),0)+Y.dev('truck.st==="load"?truck.takeI:0');

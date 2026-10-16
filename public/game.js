@@ -223,27 +223,28 @@ const UP = {
   // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
   // V19.1: three more steps (6 → 8.7×, +13–14% each like the others), and the ladder climbs evenly ($11 → 440, +$40–70 a
   // step; steps 6–10 were $130 / 170 / 210 / 240 / 280, now $95 / 135 / 175 / 215 / 255)
-  bagPrice:   { obj:'bagger', name:'Better bags', max:13, gaps:[{n:5}, {n:5}], costs:[11, 19, 28, 38, 60, 95, 135, 175, 215, 255, 310, 370, 440], vals:[1.5, 1.8, 2.1, 2.45, 2.8, 3.2, 3.65, 4.15, 4.7, 5.3, 6.0, 6.8, 7.7, 8.7], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
+  // V32: keep the first three purchases; later pairs become one investment at about 30% above their combined cost.
+  bagPrice:   { obj:'bagger', name:'Better bags', max:8, gaps:[{n:3}, {n:3}], costs:[11, 19, 28, 127, 299, 507, 735, 1053], vals:[1.5, 1.8, 2.1, 2.45, 3.2, 4.15, 5.3, 6.8, 8.7], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
-  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[40, 76, 380, 2000, 3800, 6500],   // (V29: steps 4–6 were 1,400 / 2,600 / 4,200)
+  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[300, 600, 1100, 3500, 7000, 13000],   // V32.1: metal comes after the hive, so the first grades are dearer (were 40 / 76 / 380). V32: later sale values are investments; physical furnace upgrades retain their prices.
                 vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
   // Raw metal and logs have their own storage; finished-goods pallets use the separate pallet track.
-  metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[30, 55, 90, 160, 220, 280, 340, 400],
+  metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[200, 250, 300, 350, 400, 450, 525, 600],   // V32.1: was 30 … 400
                  vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 28, 90, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
   // the top deal brings a leaf to about $1.20. Each tier is a big jump that costs a lot at the time you can first afford it.
-  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[30, 300, 400],   // (V29: the first deal was $20)
+  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[1000, 2200, 4000],   // V32: the hollow has a gentler local ladder.
                
                 vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
 
-  hiveTank:   { obj:'hive', name:'Bigger nectar tank', max:4, costs:[60, 190, 520, 1400], vals:[70, 140, 270, 470, 800], val:l=>UP.hiveTank.vals[l], show:v=>v+' nectar' },
-  hiveStore:  { obj:'hive', name:'Bigger honey store', max:6, costs:[40, 110, 280, 600, 1200, 2400], vals:[6, 12, 20, 32, 50, 80, 120], val:l=>UP.hiveStore.vals[l], show:v=>v+' jars' },
+  hiveTank:   { obj:'hive', name:'Bigger nectar tank', max:4, costs:[75, 240, 650, 1750], vals:[70, 140, 270, 470, 800], val:l=>UP.hiveTank.vals[l], show:v=>v+' nectar' },
+  hiveStore:  { obj:'hive', name:'Bigger honey store', max:6, costs:[50, 140, 350, 750, 1500, 3000], vals:[6, 12, 20, 32, 50, 80, 120], val:l=>UP.hiveStore.vals[l], show:v=>v+' jars' },
   // V8: a little more to start with and four more label steps for the late game. V9: the late steps are much cheaper
   // (honey is capped by flowers and packers, so its income can't keep up with ×3 prices)
   // V19.1: the top of every price ladder comes down a bit and climbs more evenly (Grade the metal above, labels, alloy, slag,
@@ -254,19 +255,19 @@ const UP = {
   // about what the old top ribbon gave) and the ribbons are cheaper
   giftPrice:  { obj:'hive', name:'Gift jar ribbons', max:2, costs:[700, 1500], vals:[2.6, 3.1, 3.7], val:l=>UP.giftPrice.vals[l], show:v=>money(val('honeyPrice')*v*sellMul())+' a gift jar' },
   // the smelting plant
-  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[240, 720, 2400],   // (V29: the last was 1,300)
+  smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[290, 860, 2880],   // V32.1: +20% (were 240 / 720 / 2,400)
                 vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
   // V29: Better alloy is the main brake on the late ingot income: same multipliers and the same $300 first step, steps 2–5 were
   // 1,050 / 2,000 / 3,600 / 5,200. At a 5-minute payback each step wants about $2.6k / 6.2k / 9.9k / 17.4k of ingot income a minute
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[300, 3000, 6500, 9500, 14000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[360, 6000, 14000, 23000, 36000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
-  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[270, 800, 3500],   // (V29: the last was 1,900)
+  slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[325, 960, 4200],   // V32.1: +20% (were 270 / 800 / 3,500)
                 vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
   // V22.4: the ingot pallet has its own size track on the plant card (was half the metal tub); the same 100 at the top
-  pallet:     { obj:'plant', name:'Bigger ingot pallets', max:4, costs:[400, 550, 750, 1500],   // (V29: the last was 1,000; the hollow's coal pallets keep theirs)
+  pallet:     { obj:'plant', name:'Bigger ingot pallets', max:4, costs:[480, 660, 900, 1800],   // V32.1: +20%. (V29: the last was 1,000; the hollow's coal pallets keep theirs)
                 vals:[16, 28, 46, 70, 100], val:l=>UP.pallet.vals[l], show:v=>v+' ingots per pallet' },
-  hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[50, 190, 900],   // (V29: the last was 600)
+  hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[60, 230, 1080],   // V32.1: +20% (were 50 / 190 / 900)
                 vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
 };
 // V16: a lot can reprice upgrades (the Rainy hollow's mushroom labels and D.O.P. seals): LOT.UP = { key: { costs } }
@@ -293,8 +294,8 @@ const BAG_SIZE = 10;            // leaves in a bag
 const BAGGER_COST = 18;         // the bagging table: a bit more than the next sorting step would have been
 const BAG_SORT = 3;             // V24: the bagging table shows after 3 Sort leaves steps, before the old picture book (V19.1–V23: 5)
 const HONEY_PACK_COST = 550;    // Gift wrapping: opens the Wrap task at the crate (V11: was 800)
-const PLANT_COST = LOT.plantCost || 500;   // the smelting plant (V7: was 300; V17: the hollow's charcoal kiln is cheaper)
-const SHAFT_COST = 350;         // turning a miner into a mine shaft (a copied one costs half)
+const PLANT_COST = LOT.plantCost || 1200;   // V32.1: something to save for (was 500)   // the smelting plant (V7: was 300; V17: the hollow's charcoal kiln is cheaper)
+const SHAFT_COST = 600;         // V32.1: was 350. Turning a miner into a mine shaft (a copied one costs half)
 // seconds per bag / honey jar / gift wrap / ingot at packing speed 1 (V7: jars 2.2 → 3, smelting 10 → 13.5; V11: wrapping a
 // gift jar is its own step, 2.6 s, was 1.6 s on top of the jar)
 const BAG_TIME = 4, JAR_TIME = 2.5, WRAP_TIME = 2.6, SMELT_TIME = COAL ? 27 : 13.5;   // (V22: the kiln's batch is twice as long)
@@ -303,28 +304,28 @@ const TRACKS = {
   speed: { label:'Wheels', gens:[
       { name:'Old wheels', n:3, cost:[0.3, 0.6, 1.2] },
       { tech:'treads', name:'Rubber treads', n:4, cost:[3, 4.5, 7, 10] },
-      { tech:'hubs', name:'Ball-bearing hubs', n:4, cost:[24, 35, 51, 74] } ],
-    vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.48,2.74,3.0,3.3], show:v=>v.toFixed(2)+'× speed' },
+      { tech:'hubs', name:'Ball-bearing hubs', n:2, cost:[77, 163] } ],
+    vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.74,3.3], show:v=>v.toFixed(2)+'× speed' },
   carry: { label:'Basket', gens:[
       { name:'Tin basket', n:3, cost:[0.25, 0.5, 1] },
       { tech:'hamper', name:'Wicker hamper', n:4, cost:[3.75, 6.25, 10, 15] },
-      { tech:'hopper', name:'Spring hopper', n:4, cost:[31, 50, 81, 125] } ],   // V30: about 25% dearer; capacities and copied-basket discount unchanged
-    vals:[3,5,7,9, 12,15,18,21, 25,29,33,38], show:v=>v+' leaves' },
+      { tech:'hopper', name:'Spring hopper', n:2, cost:[105, 268] } ],   // V32: final pairs combined; first researched tier and copied-basket discount unchanged.
+    vals:[3,5,7,9, 12,15,18,21, 29,38], show:v=>v+' leaves' },
   pick: { label:'Pickup', gens:[
       { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
       { tech:'servos', name:'Quick servos', n:3, cost:[2.5, 4.5, 8] },
-      { tech:'wrist', name:'Gyro wrist', n:3, cost:[10, 16, 24] },
-      { tech:'fineWrist', name:'Fine control', n:3, cost:[36, 54, 80] } ],
-    // V30: four three-step tiers, smaller early gains and a dearer finish; the same 0.32 s maximum
-    vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.54,0.49,0.44, 0.40,0.36,0.32], show:v=>v.toFixed(2)+'s a grab' },
+      { tech:'wrist', name:'Gyro wrist', n:1, cost:[65] },
+      { tech:'fineWrist', name:'Fine control', n:1, cost:[221] } ],
+    // V32: basic and Quick servos unchanged; each later researched tier is one larger investment.
+    vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.44,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
-      { tech:'claw', name:'Claw rake', n:5, cost:[3, 9, 28, 62, 125] } ],   // small steps first, then big ones worth saving for
-    vals:[1,2,3,5,8,12], show:v=>v === 1 ? '1 leaf a grab' : v+' leaves a grab' },
+      { tech:'claw', name:'Claw rake', n:4, cost:[3, 9, 28, 243] } ],   // V32: first three skills unchanged; combine the last two at +30% cost.
+    vals:[1,2,3,5,12], show:v=>v === 1 ? '1 leaf a grab' : v+' leaves a grab' },
   reach: { label:'Reach', gens:[
       { name:'Stubby arm', n:0, cost:[] },
-      { tech:'arm', name:'Telescoping arm', n:5, cost:[2.5, 8, 24, 55, 111] } ],
-    vals:[20,30,44,64,92,125], show:v=>v+' cm reach' },
+      { tech:'arm', name:'Telescoping arm', n:4, cost:[2.5, 8, 24, 216] } ],
+    vals:[20,30,44,64,125], show:v=>v+' cm reach' },
   // V19: one skill in every yard (was Drill here and Saw in the Rainy hollow): how well a robot runs the machines. It sets
   // how fast it mines metal or saws logs, and (with Load & pack) how fast it smelts ingots or burns charcoal
   drill: { label:'Operate machinery', gens:[
@@ -360,9 +361,9 @@ const TRACKS = {
   // V19: Load & pack (was Packing): loading kilns and furnaces as well as packing bags, jars and cans
   pack: { label:'Load & pack', gens:[
       { name:'Clumsy hands', n:3, cost:[3, 6, 11], needsPack:true },
-      { tech:'jig', name:'Packing jig', n:4, cost:[22, 36, 56, 85] },
-      { tech:'precision', name:'Precision tools', n:4, cost:[120, 200, 370, 630] } ],   // (V29: were 100 / 170 / 290 / 500, the unlock $600, was $700)
-    vals:[0.6, 0.72, 0.84, 0.96, 1.12, 1.3, 1.5, 1.75, 2.3, 2.95, 3.7, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
+      { tech:'jig', name:'Packing jig', n:2, cost:[75, 183] },
+      { tech:'precision', name:'Precision tools', n:2, cost:[416, 1300] } ],   // V32: paired later skills at +30%; basic packing and maximum output preserved.
+    vals:[0.6, 0.72, 0.84, 0.96, 1.3, 1.75, 2.95, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
   // V12: how quickly a robot works through the old picture book (the Research task). V24: every robot on the research adds
   // its full share, RESEARCH_UNIT units a second × its Research level (helpers used to add a quarter of the reader's share)
   study: { label:'Research', gens:[
@@ -398,6 +399,19 @@ const TRACKS = {
 };
 
 const TRACK_ORDER = ['speed','carry','pick','grab','reach','pack','drill','magnet','study'];
+// V32: old purchased levels map to retained effect endpoints. No refunds or lost maximum skills.
+const INVESTMENT_LEVELS = {
+  speed:[0,1,2,3,4,5,6,7,9,11], carry:[0,1,2,3,4,5,6,7,9,11],
+  pick:[0,1,2,3,4,5,6,9,12], grab:[0,1,2,3,5], reach:[0,1,2,3,5],
+  pack:[0,1,2,3,5,7,9,11], bagPrice:[0,1,2,3,5,7,9,11,13],
+};
+function investmentLevel(key, old){
+  const endpoints = INVESTMENT_LEVELS[key];
+  if (!endpoints) return old;
+  let level = 0; for (let i=1;i<endpoints.length;i++) if (endpoints[i] <= (old | 0)) level = i;
+  return level;
+}
+function investmentSkills(lv){ const out = Object.assign({}, lv); for (const k in out) out[k] = investmentLevel(k, out[k]); return out; }
 // which tracks each kind of robot has. Wheels are shared by every kind, so copied-level discounts work across all of them.
 const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', ...(DRY_BENCH ? ['dry'] : []), 'blow', 'dig', 'stoke', ...(WET_WOOD ? ['brolly'] : [])], shaker: ['speed', 'shake', 'snip'] };
 const TECH = {
@@ -406,19 +420,19 @@ const TECH = {
   treads:  { name:'Rubber treads',     track:'speed', cost:10,  desc:'Four new wheel upgrades for every Robot.' },
   hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Four new basket upgrades.' },
   servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Three faster pickup upgrades.' },
-  claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Five claw upgrades, up to 12 leaves.' },
-  arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Five reach upgrades. Pairs well with the claw rake.' },
-  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:72,  needs:'treads', desc:'Wheel upgrades 8 to 11.' },
-  hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Basket upgrades 8 to 11.' },
-  wrist:   { name:'Gyro wrist',        track:'pick',  cost:20,  needs:'servos', desc:'Three faster pickup upgrades.' },
-  fineWrist:{ name:'Fine control',     track:'pick',  cost:45,  needs:'wrist', desc:'The final three pickup upgrades, reaching 0.32 seconds a grab.' },
+  claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Four claw upgrades, up to 12 leaves.' },
+  arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Four reach upgrades. Pairs well with the claw rake.' },
+  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:72,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
+  hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
+  wrist:   { name:'Gyro wrist',        track:'pick',  cost:20,  needs:'servos', desc:'A faster pickup upgrade: 0.44 seconds a grab.' },
+  fineWrist:{ name:'Fine control',     track:'pick',  cost:45,  needs:'wrist', desc:'The final pickup upgrade: 0.32 seconds a grab.' },
   diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
   // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
   horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
   // V19: one shaking unlock (was Hydraulic pincers $28 and Rumble claws $55)
   pincers: { name:'Hydraulic pincers', track:'shake', cost:40,  needsKind:'shakers', desc:'Three stronger tree shaking upgrades: more leaves from every tree and bush.' },
-  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc: KEEP + 'Four faster Load & pack upgrades: bagging, jars and cans, gift wrapping, and loading furnaces and kilns.' },
-  precision:{ name:'Precision tools',  track:'pack',  cost:600, needs:'jig', desc:'Load & pack upgrades 8 to 11.' },
+  jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc: KEEP + 'Two faster Load & pack upgrades: bagging, jars and cans, gift wrapping, and loading furnaces and kilns.' },
+  precision:{ name:'Precision tools',  track:'pack',  cost:600, needs:'jig', desc:'Two advanced Load & pack upgrades, up to 4.60× speed.' },
   cyclone: { name:'Grit cyclone',      track:'dig',   cost:90, needsShaft:true, desc:'Two stronger excavating upgrades for Blowers at a mine shaft.' },
   forge:   { name:'Forge blast',       track:'stoke', cost:120, needsPlantBlower:true, desc:'Two stronger bellows upgrades for Blowers at the smelting plant.' },
   kiln:    { name:'Hot-air stove',     track:'dry',   cost:40,  needsDryBlower:true, desc:'Two faster leaf drying upgrades for Blowers at the drying bench.' },
@@ -432,18 +446,19 @@ const GEN = {
   // V21: Grease, Shared basket plans and Copy the blueprints are for a bigger crew now (were $30 / $35 / $150): Grease
   // measured +$21/min with 4 robots at ~30 min but +$112/min with 10 at ~50 min; the plans save 40% (or 20%) of every
   // copied level, so they only pay with several robots upgrading
-  oil:      { name:'Grease every axle',  max:1, cost:[240],  desc:()=>'All Robots drive <b>'+Math.round(OIL_BONUS*100)+'%</b> faster.' },
+  oil:      { name:'Grease every axle',  max:1, cost:[1500],  desc:()=>'All Robots drive <b>'+Math.round(OIL_BONUS*100)+'%</b> faster.' },
   basket:   { name:'Shared basket plans', max:1, cost:[150],  desc:()=>'Basket upgrades another Robot already has cost <b>10%</b> instead of 50%.' },
   // Parked for now to keep the list short; good ideas to bring back later. Their effects switch off while commented out.
   // servo:    { name:'Oil the servos',     max:2, cost:[45, 240], desc:l=>'Every grab is <b>'+(15*(l+1))+'%</b> quicker'+(l ? ' (now '+(15*l)+'%)' : '')+'.' },
   // bulk:     { name:'Bulk robot parts',   max:1, cost:[60],  desc:()=>'New robots cost <b>25%</b> less.' },
   // V29: Copy the blueprints is gone (copied levels stay at 50%; Shared basket plans stays). Old saves keep nothing of it (gl() is 0)
   // blueprint:{ name:'Copy the blueprints', max:1, cost:[500], desc:()=>'Any upgrade another Robot already has costs <b>30%</b> instead of 50%.' },
-  cutting:  { name:'Cutting oil',        max:1, cost:[400], needs:()=>S.miners.length > 0, desc:()=>'All drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
-  market:   { name:'Market stall',       max:3, cost:[140, 600, 1800], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
-  charm:    { name:'Lucky horseshoe',    max:1, cost:[950], needs:()=>S.miners.length > 0, desc:()=>'Every Robot gets <b>+8%</b> resource efficiency on top of its own (+8% chance of an extra piece, +4% at a kiln or furnace).' },
+  cutting:  { name:'Cutting oil',        max:1, cost:[2000], needs:()=>S.miners.length > 0, desc:()=>'All drills run <b>'+Math.round(CUT_BONUS*100)+'%</b> faster.' },
+  market:   { name:'Market stall',       max:3, cost:[1200, 2600, 5000], desc:l=>'The truck pays <b>'+(10*(l+1))+'%</b> more for everything.' },
+  charm:    { name:'Lucky horseshoe',    max:1, cost:[3000], needs:()=>S.miners.length > 0, desc:()=>'Every Robot gets <b>+8%</b> resource efficiency on top of its own (+8% chance of an extra piece, +4% at a kiln or furnace).' },
 };
-if (LOT.GEN) Object.assign(GEN, LOT.GEN);   // a lot's own yard-wide upgrades (the prairie's flower upgrades)
+// A lot may add upgrades or change just a local price without losing the shared name, effect or prerequisites.
+if (LOT.GEN) for (const k in LOT.GEN){ if (GEN[k]) Object.assign(GEN[k], LOT.GEN[k]); else GEN[k] = LOT.GEN[k]; }
 const GEN_UNLOCK = 10;
 const gl = k => (GEN[k] && S.gen && Math.min(S.gen[k] || 0, GEN[k].max)) || 0;   // parked (commented-out) upgrades count as 0 (V19.3: levels above the top count as the top)
 // V19.3: how many tiers of extra flowers are sown (a lot's seeding step can sow more than one tier: GEN.seeding.tiers)
@@ -463,8 +478,9 @@ const genBuyable = () => genVisible() && Object.keys(GEN).find(k => genAvail(k) 
 // cost half of its own price, so a fifth here is often a copy)
 const ROBOT_COST = [0, 8, 15, 30, 95, 140, 240, 380, 560, 800, 1100, 1500];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
-const MINER_COST = 100;   // every miner costs the same; far veins are already worth less
-const METAL_SLOT_COST = 160;
+// V32.1: mining and sawing come clearly after the hive/ant hill in both yards and lead into the smelting/charcoal endgame
+const MINER_COST = 500;        // (V32: home 200, hollow 100)
+const METAL_SLOT_COST = 450;   // the metal tub / log crib (V32: hollow 160)
 // helper robots: up to three of each (V16; four in V7, five in V6.1), on every lot. The second costs about twice the
 // first, the third more. Their skills are cheap all the way up (V16), so a full set of three is affordable to max out.
 const HELPER_MAX = 3;
@@ -564,11 +580,11 @@ const keepJars = () => S.hive.packing ? Math.round(clamp(S.keep.jars || 0, 0, 1)
 const truckEvery = () => val('truck');
 const rv = (ri, k) => TRACKS[k].vals[S.robots[ri].lv[k]];
 const leafCap = ri => rv(ri, 'carry');
-// V29: what a basket carries of the industrial goods, by Basket level (0–11). Every hamper and hopper level carries more of each
+// V32: industrial carrying follows the retained Basket endpoints (0–9). Maximum capacities are unchanged.
 // (was metal 2 + level/2, up to 7; ingots a quarter and coal half of the leaves, up to 9 and 19). Leaves are unchanged
-const METAL_CARRY = [2, 2, 3, 3, 4, 5, 6, 7, 8, 10, 12, 14];
-const INGOT_CARRY = [1, 1, 1, 2, 3, 4, 5, 6, 8, 10, 12, 14];
-const COAL_CARRY  = [1, 2, 3, 4, 6, 8, 10, 12, 15, 19, 23, 28];
+const METAL_CARRY = [2, 2, 3, 3, 4, 5, 6, 7, 10, 14];
+const INGOT_CARRY = [1, 1, 1, 2, 3, 4, 5, 6, 10, 14];
+const COAL_CARRY  = [1, 2, 3, 4, 6, 8, 10, 12, 19, 28];
 const carryAt = (tab, L) => tab[clamp(L | 0, 0, tab.length - 1)];
 const metalCarryAt = L => carryAt(METAL_CARRY, L);
 const ingotCarryAt = L => carryAt(COAL ? COAL_CARRY : INGOT_CARRY, L);
@@ -958,8 +974,8 @@ function freshState(){
     // waiting; n: strikes so far; camp: logs the robots have set burning beside it; bench: the stove's been tried), and the
     // drying bench's stove (fire: they know how; logs in it, burn: how far through the log in the fire it is; coal in its ash pan)
     // (V17.1: down: branches the shaker has shaken down so far, lit: which of them are burning, a bit each)
-    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false, down:0, lit:0, dryBase:-1 },   // (V24 dryBase: dry leaves sold when the fire was worked out)
-    bench:{ fire:false, logs:0, burn:0, coal:0, ashAcc:0 },
+    fire:{ struck:false, L:0, next:-1, n:0, camp:0, bench:false, down:0, lit:0, dryBase:-1, doneT:-1 },   // (V32 doneT: when the fire research finished) (V24 dryBase: dry leaves sold when the fire was worked out)
+    bench:{ fire:false, logs:0, burn:0, coal:0, ashAcc:0, first:0 },   // (V32 first: the log from the fire research: 0 not in yet, 1 in the stove, 2 burnt)
     // V12: hidden milestones (id -> game second it was reached) and the story of what the robots find (V13: item says
     // what it is: the old picture book in the first yard, a dead bee on the prairie)
     miles:{},
@@ -967,13 +983,14 @@ function freshState(){
       flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
+    eye:{ built:false, pay:0, at:-1, told:false },   // V33: the Efficiency Overview camera (pay: what the last truck paid, for "cheap")
     flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, palletStorage:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
       hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false, moreLeaves:false, leafBase:0,   // (V26: the leaves letter read, and leafSold when it was)
       // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
       beeFail:false, antHill:false, dryTold:false, v15:true,   // V15: the hollow's beehive story and drying bench
       fireDone:false, coalKnown:false, coalFound:false,
-      fireTrip:false, ember:0, ruinKnown:false, coalV22:true }   // V18: taking the fire home; at home the flame by the old works (1 carried, 2 set down) and its research   // V17: the hollow's fire and coal
+      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true }   // V32: compact late skills; new saves already use the new indices.
   };
 }
 let S = freshState();
@@ -1516,7 +1533,8 @@ function chooseTask(who, cfg, work){
   return null;
 }
 function noteTask(who, t){ if (t && t !== who.lastTask){ who.lastTask = t; who.streak = 0; } }
-function unitDone(who, t){ if (who.lastTask === t) who.streak = (who.streak || 0) + 1; else { who.lastTask = t; who.streak = 1; } }
+function unitDone(who, t){ if (!simMode) EYE.done[t] = S.t;   // (V33: the Efficiency Overview notes when each job last got done)
+  if (who.lastTask === t) who.streak = (who.streak || 0) + 1; else { who.lastTask = t; who.streak = 1; } }
 // Some things jump the queue for anyone who has the task anywhere in Do: when the bin is full (or its own basket is),
 // a robot with Bag leaves bags; when the metal tub is full (or it's holding enough metal and the hopper is full), a
 // robot with Smelt ingots smelts. So a robot that gathers and bags bags its own leaves before picking new ones.
@@ -2048,7 +2066,7 @@ const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's 
 // (tier unlocks are shared by every Robot, so they don't count). Sized from runs/tinker-readiness: a moderately trained
 // Tinker (Wheels/Basket/Pickup 7, Claw/Reach 3, Speed reading) is ~$220, the balance player's usual one ~$560–680;
 // at a $0 start a light one is ~7 min slower in the hollow, a moderate one ~4, so this sits between moderate and strong.
-const TINKER_GOAL = 300;   // (V28.1: was 400; ~$220 is a moderately trained Tinker)
+const TINKER_GOAL = 600;   // V32: a money goal recalibrated for larger late skill purchases (was $300).
 // what one level of a track costs at full price, added up for the first lv levels (in the order they're bought)
 function lvWorth(key, lv){ let s = 0, k = 0; for (const g of TRACKS[key].gens) for (const c of g.cost){ if (k++ >= lv) return s; s += c; } return s; }
 const tinkerI = () => S.robots.findIndex((c, j) => styleIdx(j) === 0 && !c.away);
@@ -3421,7 +3439,7 @@ function updFireHelper(h, dt){
     else if (h.fs === 'lift'){ if (h.modeT <= 0){ h.fs = 'walk'; h.holding = 'log'; S.fire.camp = Math.max(0, S.fire.camp - 1); } }
     else if (h.fs === 'walk'){ if (moveTo(h, B.x, B.y, sp*0.6, dt)){ h.fs = 'put'; h.modeT = 1.2; h.face = 1; } }
     else if (h.fs === 'put'){
-      if (h.modeT <= 0.6 && h.holding){ h.holding = null; S.fire.bench = true; fireRt.benchCall = false; if (!simMode){ sparkle(BAGGER.x - 2, BAGGER.y - 14); pop(BAGGER.x, BAGGER.y - 70, 'the stove is lit!', 'note', 16); const a = sndAt(BAGGER.x, BAGGER.y); sfx('crackle', a.pan, a.vol); } }
+      if (h.modeT <= 0.6 && h.holding){ h.holding = null; S.fire.bench = true; fireRt.benchCall = false; benchFirstLog(); if (!simMode){ sparkle(BAGGER.x - 2, BAGGER.y - 14); pop(BAGGER.x, BAGGER.y - 70, 'the stove is lit!', 'note', 16); const a = sndAt(BAGGER.x, BAGGER.y); sfx('crackle', a.pan, a.vol); } }
       if (h.modeT <= 0){ h.fs = 'home'; }
     } else if (moveTo(h, home.x, home.y, sp, dt)){ h.fm = 'watch'; h.modeT = rand(3, 6); }
   }
@@ -3464,7 +3482,7 @@ function stoveDraftBy(){ let best = null, bv = 1; for (const h of HB) if (h.kind
 const stoveDraft = () => { const h = stoveDraftBy(); return h ? STOVE_DRAFT*clamp((hv(h, 'dry') - 1)/(BENCH_SPEED - 1), 0, 1) : 0; };
 const stoveSpeed = () => BENCH_SPEED*(1 + stoveDraft());
 const benchRt = { on: false, p: 0, i: 0 };
-const benchLit = () => FIRE_STORY && ((S.bench.fire && S.bench.logs > 0) || (S.fire.bench && !S.flags.fireDone && fireOn()));
+const benchLit = () => FIRE_STORY && ((S.bench.logs > 0) || (S.fire.bench && !S.flags.fireDone && fireOn()));
 // room in the stove that nobody is already bringing logs for
 function fuelRoom(r){
   let n = BENCH_LOGS - S.bench.logs;
@@ -3533,25 +3551,44 @@ function finishRuin(){
 // coal in the dryer's ash pan nobody is on the way to fetch (only hauled once the coal stand is there)
 const ashLeft = r => COAL && S.flags.coalKnown ? S.bench.coal - R.reduce((n, q) => n + (q !== r && q.st === 'toAsh' ? ingotCarry(q.id) : 0), 0) : 0;
 const haulSrc = r => (S.plant.built && S.plant.rack > claimedRack(r)) || ashLeft(r) > 0;
+// V32: the log the Shaker puts in the stove during the fire research is the stove's first: it burns like any other, whether or not
+// the stove has been "opened" yet, and it always leaves a whole lump of coal (the usual half-lump rate would leave the first coal
+// waiting for a second log that nobody may ever bring, e.g. when the player has dropped the leaves). Saves from before this
+// (fire worked out, no coal yet, nothing in the stove) get that log when they load.
+function benchFirstLog(){
+  if (!FIRE_STORY || S.bench.first || S.flags.coalFound || S.flags.coalKnown) return;
+  S.bench.first = 1; S.bench.logs = Math.min(BENCH_LOGS, Math.max(S.bench.logs, 0) + 1); if (S.bench.logs === 1) S.bench.burn = 0;
+}
+// V32: the find doesn't hang on the dry-leaves goal for ever: with no leaves being sold (the player has gone over to logs and ants)
+// the coal still turns up this long after the fire was worked out
+const COAL_FIND_WAIT = 150;
 function updBenchFire(dt){
-  if (!FIRE_STORY || !S.bench.fire) return;
+  if (!FIRE_STORY) return;
+  if (S.flags.fireDone){
+    if (!(S.fire.doneT >= 0)) S.fire.doneT = S.t;
+    if (S.fire.bench && !S.bench.first) benchFirstLog();
+  }
+  if (!S.bench.fire && S.bench.logs <= 0) return;
   const B = benchRt;
-  if (S.bench.logs > 0){
+  if (S.bench.logs > 0){   // (V32: the stove burns whatever is in it, leaves to dry or not)
     S.bench.burn += dt/LOG_BURN;
     if (S.bench.burn >= 1){
       // a log has burnt down: one less in the stove, and a lump of coal in the ash pan
       S.bench.burn -= 1; S.bench.logs = Math.max(0, S.bench.logs - 1);
       // V22: each log leaves half a (new, double-value) lump of coal: the ash builds up until a whole lump is there
-      S.bench.ashAcc = (S.bench.ashAcc || 0) + BENCH_ASH_PER_LOG;
+      // (V32: the first log, the one from the research, leaves a whole lump)
+      const ash = S.bench.first === 1 ? 1 : BENCH_ASH_PER_LOG; if (S.bench.first === 1) S.bench.first = 2;
+      S.bench.ashAcc = (S.bench.ashAcc || 0) + ash;
       if (S.bench.ashAcc >= 1 - 1e-9){
-        if (S.bench.coal < BENCH_COAL_MAX){ S.bench.ashAcc -= 1; S.bench.coal++; S.totals.coal = (S.totals.coal || 0) + 1; if (!simMode) pop(BAGGER.x - 2, BAGGER.y - 40, '+1 coal', 'ingot', 13); }
+        if (S.bench.coal < BENCH_COAL_MAX){ S.bench.ashAcc -= 1; S.bench.coal++; S.totals.coal = (S.totals.coal || 0) + 1; if (!simMode && S.flags.fireDone) pop(BAGGER.x - 2, BAGGER.y - 40, '+1 coal', 'ingot', 13); }
         else S.bench.ashAcc = Math.min(S.bench.ashAcc, 1);   // (a full pan: the ash waits, it doesn't pile up)
       }
     }
   } else S.bench.burn = 0;
   // V24: the first whole lump of coal (two logs' ash) pops out as the find, once the dry-leaves goal after the fire is reached
   // (it waits in the ash pan until then); V17–V23 found it under the first burnt log
-  if (!S.flags.coalFound && !S.flags.coalKnown && S.bench.coal >= 1 && S.miles.dryFire != null) coalFind();
+  if (!S.flags.coalFound && !S.flags.coalKnown && S.flags.fireDone && S.bench.coal >= 1 && (S.miles.dryFire != null || S.t - S.fire.doneT >= COAL_FIND_WAIT)) coalFind();
+  if (!S.bench.fire) return;   // (the stove only dries leaves once the fire research is done)
   if (!B.on){
     if (S.bench.logs <= 0 || dryRoom() <= 0 || dryLeaves() < BAG_SIZE) return;
     const i = STN.bag.indexOf(null); if (i < 0) return;
@@ -3605,7 +3642,7 @@ function finishCoal(from){
   setTimeout(() => showToast('Charcoal!', 'Build a charcoal kiln to turn logs into charcoal.', 9), 600);
 }
 function finishFire(){
-  S.flags.fireDone = true; S.fire.next = -1; S.bench.fire = true; S.fire.bench = true; S.fire.dryBase = S.totals.drySold || 0;
+  S.flags.fireDone = true; S.fire.next = -1; S.bench.fire = true; S.fire.bench = true; S.fire.dryBase = S.totals.drySold || 0; S.fire.doneT = S.t; benchFirstLog();
   for (const h of HB) if (h.st === 'fire'){ endHelperFire(h); h.st = 'idle'; unitDone(h, 'research'); }
   for (const q of R){ if (q.fx) endFireDo(q); q.ouch = 0; q.lean = 0; }
   fireRt.campUnlit = -1; fireRt.benchCall = false;
@@ -4162,7 +4199,7 @@ function travel(quick){
   const crew = T.riders.map(o => { const kind = o.kind || 'robot', i = kind === 'robot' ? o.id : o.idx; return { kind, i, cfg: cfgsOf(kind)[i] }; }).filter(q => q.cfg);
   if (!crew.length){ T.riders = []; return; }
   travelling = true;
-  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, earned: trip.earned || 0,
+  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, earned: trip.earned || 0, skillVersion:32,
     crew: crew.map(q => ({ kind: q.kind, bot: JSON.parse(JSON.stringify(q.cfg)), sty: q.kind === 'robot' ? styleIdx(q.i) : helperStyleIdx(q.kind, q.i), home: q.cfg.home != null ? q.cfg.home : q.i })),
     tech: Object.assign({}, S.tech), helpers: helpersKnown(), seen: Object.assign({}, S.seen),
     fire: !!trip.fire, fare: trip.to !== 'home' ? (trip.paid || S.flags.fare || 0) : 0, hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
@@ -4208,6 +4245,7 @@ function arrive(a, wasNew){
     let localCopy = !home && i >= 0 && !!list[i] && !list[i].away;   // (V24: a copy of it already works here)
     if (!(i >= 0 && list[i])){ i = list.length; list.push(fresh()); localCopy = false; }
     const b = q.bot || {}, cfg = list[i];
+    if (a.skillVersion !== 32 && b.lv) b.lv = investmentSkills(b.lv);
     cfg.lv = Object.assign(fresh().lv, cfg.lv || {}, b.lv || {});   // (bindIds ties it to the identity's levels; levels only go up)
     // (V24: task lists stay local: a copy that was already working here keeps its own)
     if (!localCopy){ cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); }
@@ -4269,6 +4307,7 @@ const SHAKE_COOLDOWN = 5, SHAKE_OWN_CD = 15, SNIP_COOLDOWN = 15;
 const ownCD = (h, o) => !!(h.own && h.own[o.type + o.i] > S.t);   // this shaker shook it too recently
 const shakeCD = { tree: TREES.map(() => 0), bush: BUSHES.map(() => 0), flower: [] };
 const bushShake = BUSHES.map(() => 0);
+const shakeLast = {};   // V32.1: when each tree ('tree3') or bush ('bush0') was last shaken (S.t)
 function newHelper(kind, idx){
   return { kind, idx, x: SHED.x + 34 + rand(-6, 6), y: SHED.y + 14, st:'idle', face:1, anim: Math.random()*5, moving:false, timer:0,
     tx:0, ty:0, dir:{ x:0, y:-1 }, blowT:0, quiet:0, target:null, blinkT: rand(1, 4), blink:0, puffT:0, dropped:false,
@@ -4393,6 +4432,25 @@ function blowLeaves(h, dt){
   }
   return n;
 }
+// V32.1: which way a gliding leaf heads so it goes round a trunk, bush or building rather than into it. It looks a
+// short way ahead along the line to the bin; if that is blocked it turns, a step at a time, to the side that is clear
+// first, and keeps to that side for a moment so it follows the edge round instead of dithering.
+const GLIDE_LOOK = [9, 18];
+function glideClear(x, y, ux, uy){ for (const d of GLIDE_LOOK) if (!landingOK(x + ux*d, y + uy*d)) return false; return true; }
+function glideAround(l, ux, uy, dt){
+  l.skirtT = Math.max(0, (l.skirtT || 0) - dt);
+  if (glideClear(l.x, l.y, ux, uy)){ if (!l.skirtT) l.skirt = 0; return { x: ux, y: uy }; }
+  const turn = (a, sd) => { const c = Math.cos(a*sd), s = Math.sin(a*sd); return { x: ux*c - uy*s, y: ux*s + uy*c }; };
+  const sides = l.skirt ? [l.skirt, -l.skirt] : [1, -1];
+  let best = null;
+  for (let a = 0.35; a <= 2.1 && !best; a += 0.35){
+    for (const sd of sides){ const d = turn(a, sd); if (glideClear(l.x, l.y, d.x, d.y)){ best = { d, sd }; break; } }
+    if (best && l.skirt && best.sd !== l.skirt && l.skirtT > 0) best = null;   // keep going round the way it started
+  }
+  if (!best) for (const sd of sides){ const d = turn(2.1, sd); best = { d, sd }; break; }
+  l.skirt = best.sd; l.skirtT = 0.5;
+  return best.d;
+}
 function blowAir(h, dt){
   // soft air: faint curling wind lines and a few bits of grass, not a jet
   h.puffT -= dt;
@@ -4426,7 +4484,10 @@ function shakeTarget(h){
   for (const o of shakeables()){
     if (shakeCD[o.type][o.i] > 0 || ownCD(h, o)) continue;
     if (HB.some(q => q !== h && q.target && q.target.type === o.type && q.target.i === o.i)) continue;
-    const d = Math.hypot(o.x - h.x, o.y - h.y), worth = o.type === 'tree' ? treeYieldMul(TREES[o.i]) : BUSH_YIELD, sc = worth/(d/sp + 2);
+    // (V32.1: a tree or bush nobody has shaken for a while counts for more, up to 6× after 2.5 minutes, so the small
+    // trees and bushes on the cottage plot still get their turn once the big Meadow and orchard trees are in reach)
+    const wait = S.t - (shakeLast[o.type + o.i] ?? -1e9), fresh = 1 + clamp(wait, 0, 150)/30;
+    const d = Math.hypot(o.x - h.x, o.y - h.y), worth = o.type === 'tree' ? treeYieldMul(TREES[o.i]) : BUSH_YIELD, sc = worth*fresh/(d/sp + 2);
     if (sc > bs){ bs = sc; best = o; }
   }
   return best;
@@ -4704,7 +4765,7 @@ function updHelper(h, dt){
         else if (h.kind === 'blower' && h.task === 'stoke'){ h.st = 'stoke'; h.digT = DIG_STINT; h.face = -1; h.puffT = 0; }
         else if (h.kind === 'blower'){ h.st = 'lap'; h.pi = 1; h.puffT = 0; }
         else if (h.target.type === 'flower'){ h.st = 'snip'; h.timer = SNIP_TIME; h.dropped = false; }
-        else { h.st = 'shake'; h.timer = h.target.type === 'tree' ? 1.7 : 1.2; h.dropped = false; shakeCD[h.target.type][h.target.i] = SHAKE_COOLDOWN; (h.own || (h.own = {}))[h.target.type + h.target.i] = S.t + SHAKE_OWN_CD; }
+        else { h.st = 'shake'; h.timer = h.target.type === 'tree' ? 1.7 : 1.2; h.dropped = false; shakeCD[h.target.type][h.target.i] = SHAKE_COOLDOWN; shakeLast[h.target.type + h.target.i] = S.t; (h.own || (h.own = {}))[h.target.type + h.target.i] = S.t + SHAKE_OWN_CD; }
       }
       break;
     }
@@ -4922,7 +4983,7 @@ function updTruck(dt){
       if (S.lv.cleanup && nL){ S.cleanN = (S.cleanN || 0) + nL; while (S.cleanN >= 100){ S.cleanN -= 100; bonus += cleanupBonus(); } amt += bonus; if (simMode && window.__src) window.__src.clean += bonus; }
       if (bonus && !simMode) setTimeout(() => sfx('chime', 'sale'), 500);
       if (any > 0){
-        S.totals.trucks++;
+        S.totals.trucks++; S.eye.pay = amt;   // (V33: what "cheap" means to the Efficiency Overview)
         if (simMode){ S.cash += amt; S.totals.cash += amt; T.st = 'leave'; T.v = 10; }
         else {
           // What each thing made pops up over the place it came from (orange leaves at the bin, grey metal at the tub and
@@ -5073,14 +5134,24 @@ function updLeaves(dt){
           if (bd < 48){ l.glide = 0; l.glideD = 0; }
           else if (l.glideD > 0){
             const v = l.glideV*Math.min(1, 0.35 + l.glideD/40), k = 1 - Math.pow(0.02, dt);
-            l.kx += (tx/bd*v - l.kx)*k; l.ky += (ty/bd*v - l.ky)*k; fr = 1;
+            // (V32.1: a trunk, bush or building in the way: the air carries the leaf round it instead of pinning it there)
+            const dir = glideAround(l, tx/bd, ty/bd, dt);
+            l.kx += (dir.x*v - l.kx)*k; l.ky += (dir.y*v - l.ky)*k; fr = 1;
             l.glideD -= Math.hypot(l.kx, l.ky)*dt;
           } else fr = 0.15;
         }
         const d = Math.pow(fr, dt); l.kx *= d; l.ky *= d; if (Math.abs(l.kx)+Math.abs(l.ky) < (l.glide ? 4 : 1) && !(l.glideD > 0)){ l.kx = l.ky = 0; l.glide = 0; l.glideV = 0; }
         l.x = clamp(l.x, O.x0 + 8, O.x1 - 8); l.y = clamp(l.y, O.y0 + 6, O.y1 - 4);
         // a kicked or blown leaf stops at the bin, the shed, a bush or a trunk instead of sliding under it
-        if (!landingOK(l.x, l.y) && landingOK(px, py)){ l.x = px; l.y = py; l.kx *= -0.15; l.ky *= -0.15; l.glideD = 0; }
+        // (V32.1: a gliding leaf slides along the edge instead and only gives up if it stays stuck for a while)
+        if (!landingOK(l.x, l.y) && landingOK(px, py)){
+          if (l.glide && l.glideD > 0 && (l.stuckT || 0) < 1.2){
+            l.stuckT = (l.stuckT || 0) + dt;
+            if (landingOK(l.x, py)){ l.y = py; l.ky *= -0.2; }
+            else if (landingOK(px, l.y)){ l.x = px; l.kx *= -0.2; }
+            else { l.x = px; l.y = py; l.kx *= -0.15; l.ky *= -0.15; l.skirt = -(l.skirt || 1); }
+          } else { l.x = px; l.y = py; l.kx *= -0.15; l.ky *= -0.15; l.glideD = 0; l.stuckT = 0; }
+        } else if (l.stuckT) l.stuckT = Math.max(0, l.stuckT - dt*0.5);
       }
     } else if (l.st === 'fade'){
       l.t += dt; l.a = clamp(1 - (l.t - 2.5)/1.5, 0, 1); if (l.a <= 0) l.st = 'gone';
@@ -5274,7 +5345,7 @@ const HIVE_UP = {
   recipe:  { name:'Better recipe',            get desc(){ return 'A jar of honey takes <b>' + jarNectarAt(true) + ' nectar</b> instead of ' + jarNectarAt(false) + '.'; } },
   nursery: { name:'Bee nursery',              desc:'New bees cost <b>40%</b> less.' },
 };
-const HIVE_UP_COST = 150;
+const HIVE_UP_COST = 180;   // V32: a modest shared bee/ant increase; worker population prices are unchanged.
 const hiveUpCost = () => HIVE_UP_COST;
 // V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
 // prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.
@@ -5942,6 +6013,8 @@ function step(dt){
     S.flags.genTold = true;
     if (!simMode){ pop(SHED.x, SHED.y - 130, 'Workshop upgrades ready', 'note', 18, 0.2); sparkle(SHED.x, SHED.y - 60); }
   }
+  // V33: the Efficiency Overview can be built
+  if (!S.eye.told && eyeBuyable()){ S.eye.told = true; if (!simMode){ pop(SHED.x, SHED.y - 130, 'New: Efficiency Overview', 'note', 18, 0.3); sparkle(SHED.x + EYE_AT.x, SHED.y - 90); sfx('chime', 'sale'); } }
   // the beehive plot shows up once you've held a quarter of its price
   if (!S.flags.hiveShown && hiveKnown() && seenPrice(hiveCost())){
     S.flags.hiveShown = true; hiveRt.shownT = S.t;
@@ -6009,6 +6082,7 @@ function offers(all){
   }
   for (const id in TECH) if (techAvailable(id)){ const tk = TECH[id].track, kind = tk === 'blow' || tk === 'dig' || tk === 'stoke' || tk === 'dry' ? 'blower' : tk === 'shake' ? 'shaker' : 'robot'; o.push({ id:'tech', key:id, obj: kind + '0', cost: TECH[id].cost }); }
   if (genVisible()) for (const k in GEN) if (genAvail(k)) o.push({ id:'gen', key:k, obj:'shed', cost: genCost(k) });
+  if (!all && eyeBuyable()) o.push({ id:'eye', obj:'shed', cost: EYE_COST });   // V33 (not for the built-in sim's greedy buyer)
   if (copyShown('robot')) o.push({ id:'copy', kind:'robot', sty:nextCopy('robot'), obj:'shed', cost: copyCost('robot', nextCopy('robot')) });   // V24
   else if (S.robots.length < ROBOT_MAX && newIdOK('robot')) o.push({ id:'robot', obj:'shed', cost: newRobotCost() });
   if (S.metalSlot) SPOTS.forEach((p, i) => { if (p.land <= S.land && !S.miners.includes(i)) o.push({ id:'miner', arg:i, obj:'spot'+i, cost: MINER_COST }); });
@@ -6109,6 +6183,11 @@ function buy(o){
     S.gen[o.key] = gl(o.key) + 1;
     pop(SHED.x, SHED.y - 112, GEN[o.key].name + '!', 'note', 17); sparkle(SHED.x, SHED.y - 60);
     if (o.key === 'seeding'){ let k = 0; for (const f of FLOWERS) if (f.tier > 0 && f.tier <= sownTier() && f.land <= S.land && k++ % 3 === 0) sparkle(f.x, f.y - 8); }
+  } else if (o.id === 'eye'){
+    // V33: the Efficiency Overview camera goes up on the workshop roof
+    if (S.eye.built){ S.cash += o.cost; return false; }
+    S.eye.built = true; S.eye.at = S.t; eyeBoot();
+    if (!simMode){ pop(SHED.x + EYE_AT.x, SHED.y - 128, 'Efficiency Overview installed!', 'note', 18, 0.3); sparkle(SHED.x + EYE_AT.x, SHED.y - 96); setTimeout(() => showToast('Efficiency Overview', 'The camera on the workshop roof watches the yard. Its ring fills up the more it finds stuck: tap it to see what and why.', 10), 2400); }
   } else if (o.id === 'hive'){
     S.hive.built = true; S.flags.hiveShown = true; S.flags.hiveAt = S.t; hiveRt.builtT = S.t; if (!hiveGrounded()) openTasks(['jar']);   // (V15: the hollow's jars wait for the ant hill)
     // V13: the bee that came home with your robot moves in
@@ -6828,6 +6907,7 @@ function drawShed(){
   c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3);
   if (ART.shedExtra) ART.shedExtra(c);   // V14: moss and drips in the rain
   c.restore();
+  drawEye();   // V33: the Efficiency Overview camera on the roof
 }
 
 function drawPumpkins(){
@@ -9778,6 +9858,7 @@ function draw(){
   if (driver && driver.y >= LANE - 26) drawRobot(driver);   // the driver on the road side of the truck
   for (const l of leaves){ if (l.st === 'fall' && l.x > V.x0 && l.x < V.x1 && l.y > V.y0 && l.y < V.y1){ const fx = Math.cos(l.ph); drawLeaf(c, l.x, l.y, l.s, l.rot, l.ci, l.sh, Math.abs(fx) < 0.15 ? 0.15*Math.sign(fx || 1) : fx, 1, 1, fx < 0 ? 0.18 : 0); } }
   drawParts();
+  drawEyeFx();   // V33
   if (!LOT.antsOnGround) drawBees(V);
   if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -9790,6 +9871,450 @@ function draw(){
   drawMarkers();
   drawHints();
   drawPops();
+}
+
+// ───────────────────────── V33: Efficiency Overview (a webcam eye on the workshop roof)
+// Bought in the workshop for EYE_COST like any other upgrade (V33.1: no other requirements; it shows once you've held a
+// quarter of its price). Each yard buys its own. A little webcam on a telescoping arm with one hinge then sits on the workshop roof's right slope and keeps
+// an eye on the yard (eyeScan, twice a game second):
+//   Stuck (counts a lot): unread letters, research nobody is doing (and who's missing), Robots / Blowers / Shakers that
+//   can't do any of their tasks, Robots waiting at a full bin, tub or pallet, buildings standing still because something is
+//   missing (bagging table, drying bench and stove, honey crate, gift wrapping, smelting plant / kiln, mines), and skills
+//   nobody uses (deadheading, excavating, bellows, refuelling). A task that only sits below a task that always has work
+//   (Gather leaves, mining or sawing, smelting) on every list counts as nobody doing it (eyeCover says which).
+//   Cheap upgrades (counts a little): a robot doing a job without the upgrades for it that cost no more than the last
+//   truck paid ("cheap"; a tenth of that is "really cheap"), for its main job (what it spent most time on lately).
+// What it finds fills the ring round its eye (EYE.score 0–100): green, yellow from 30, orange from 60, red from 85. Every
+// step up blinks the ring and sends pulses of light in the new colour into the yard for ~2 s. It looks at what it found.
+// Tapping the camera (or Open on the workshop row) opens the overview card: what is stuck and why, as short as possible,
+// with pictures, and a button that opens the card of the thing in question.
+const EYE_COST = 300;
+const EYE_FX_T = 3.2;                        // seconds of glow after a step up
+const EYE_AT = { x: 27, y: -77 };            // its foot, bolted to the workshop roof's right slope (from SHED)
+const EYE_SLOPE = Math.atan2(38, 54);        // the roof's pitch
+const EYE_K = 1.2;                           // how much bigger it's drawn than eyeGeo's numbers
+const EYE_LV = [0, 1, 30, 60, 85];           // score where each level starts: calm, green, yellow, orange, red
+const EYE_COL = ['#7fc7a4', '#86d65a', '#f4cf3a', '#f28a2a', '#ea4128'];
+const EYE_WORD = ['All clear', 'A little', 'Some things stuck', 'A lot stuck', 'Badly stuck'];
+const EYE_GRACE = { idle: 12, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
+// which skills help with which job (for the cheap-upgrade list)
+const EYE_TRACKS = {
+  robot: { leaves:['speed', 'carry', 'pick', 'grab', 'reach'], mine:['drill', 'magnet', 'carry'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill'],
+    haul:['carry', 'speed'], fuel:['carry', 'speed'], refuel:['speed'], research:['study'] },
+  blower: { blow:['blow', 'speed'], bag:['dry'], dig:['dig'], stoke:['stoke'] },
+  shaker: { shake:['shake', 'speed', 'snip'], snip:['snip'] },
+};
+// runtime: when each task last finished a unit of work (unitDone), how long each condition has held (since), time spent on
+// each job lately per robot (acc), what the last scan found (issues: stuck, lo: cheap upgrades), the score and level
+const EYE = { t: -1, scanT: 0, done: {}, since: {}, acc: {}, issues: [], lo: [], hiW: 0, loW: 0, score: 0, lvl: 0, want: 0, wantT: 0 };
+// runtime, real time: the camera's own motion (swing of the hinge, the arm sliding out, where it looks), the blink, the
+// light pulses, and where its head was last drawn (for tapping it)
+const eyeRt = { rt: 0, fill: 0, fx: [], flashT: 0, lid: 0, blinkT: 2, blink: -1, boot: -1, swing: 0, sv: 0, ext: 3.5, yaw: 0, pitch: 0, look: null, lookT: 0,
+  hx: 0, hy: 0, zoom: 0, lvl: 0, quiet: 2, ledT: 0 };
+const eyeBots = () => [S.robots, S.blowers, S.shakers].reduce((n, L) => n + L.filter(c => !c.away).length, 0);
+const eyeHive = () => S.hive.built && !hiveGrounded();
+// (V33.1: a regular workshop upgrade: no requirements, shown once you've held a quarter of its price like the others)
+const eyeShown = () => !S.eye.built && seenPrice(EYE_COST);
+const eyeBuyable = eyeShown;
+const eyeA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')'; };
+// how long (game seconds) a condition has held; it starts counting the first scan it's true and stops when it isn't
+function eyeHeld(key, cond){ if (!cond){ delete EYE.since[key]; return 0; } if (EYE.since[key] == null) EYE.since[key] = S.t; return S.t - EYE.since[key]; }
+const eyeLast = t => EYE.done[t] != null && EYE.done[t] <= S.t ? S.t - EYE.done[t] : Infinity;
+const eyeName = (kind, i) => kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
+const eyeWho = (kind, i) => kind === 'robot' ? R[i] : HB.find(h => h.kind === kind && h.idx === i);
+const eyeChip = t => '<span class="chip mini" style="--tc:' + TASKS[t].col + '">' + ic(t) + TASKS[t].short + '</span>';
+const eyeThumbs = list => '<span class="eyths' + (list.length > 1 ? ' n' + Math.min(3, list.length) : '') + '">' + list.slice(0, 3).map(([kind, i]) => '<img src="' + kindThumb(kind, i) + '" alt="">').join('') + '</span>';
+// is there any work for task x for this robot / helper right now? (Blowers: leaves to blow, without planning a lap)
+const eyeWork = (kind, who, x) => kind === 'robot' ? taskWork(who, x) : x === 'blow' ? hasLeaves() : helperWork(who, x) != null;
+// does anyone get round to task t? { ok } when somebody has it in Do with nothing busy above it; otherwise why not, as
+// pictures: "Bag leaves off on every Robot" / "Bag leaves below Gather leaves" (the first task above it that has work)
+function eyeCover(t, kind){
+  kind = kind || TASKS[t].kind;
+  const L = cfgsOf(kind).map((c, i) => [c, i]).filter(([c]) => !c.away);
+  if (!L.length) return { none: true, txt: 'needs a ' + KN(kind) };
+  const on = L.filter(([c]) => taskOn(c, t));
+  if (!on.length) return { none: true, txt: eyeChip(t) + ' off on every ' + KN(kind) };
+  let above = null;
+  for (const [c, i] of on){
+    const who = eyeWho(kind, i); if (!who) continue;
+    const at = c.prio.findIndex(r => r.includes(t));
+    let blocked = null;
+    for (let k = 0; k < at && !blocked; k++) for (const x of c.prio[k]) if (x !== t && taskOpen(x, c) && eyeWork(kind, who, x)){ blocked = x; break; }
+    if (!blocked) return { ok: true };
+    above = above || blocked;
+  }
+  return { buried: above, txt: eyeChip(t) + ' below ' + eyeChip(above) };
+}
+// a robot's main job: what it has spent most time on lately (EYE.acc), or the first task on its list that has work
+function eyeMain(kind, i){
+  const a = EYE.acc[kind + i]; let best = null, bv = 0.5;
+  if (a) for (const t in a) if (a[t] > bv){ bv = a[t]; best = t; }
+  if (best) return best;
+  const c = cfgsOf(kind)[i], who = eyeWho(kind, i);
+  for (const row of c.prio) for (const t of row) if (taskOpen(t, c) && who && eyeWork(kind, who, t)) return t;
+  return null;
+}
+// what level L of skill k would cost this one (copied levels at the copied price, like the card's buttons)
+function eyeLvCost(kind, cfg, k, L){
+  const ge = genAt(k, L); if (!ge) return null;
+  const f = ge.g.cost[ge.idx], disc = !NO_DISCOUNT.includes(k) && peersFor(k).some(c => c !== cfg && c.lv[k] > L);
+  return disc ? niceCost(f*discFor(k)) : f;
+}
+const EYE_RES_ICON = { book:'book', bee:'deadbee', hive:'bee', fire:'firetree', coal:'coal', ruin:'ruin' };
+function eyeScan(){
+  const hi = [], lo = [];
+  const G = EYE_GRACE;
+  // ── letters nobody has read
+  S.letters.forEach((l, i) => { if (!l.read) hi.push({ key:'let' + i, w:40, icon: ic('letter'), what: 'A letter', why: 'unread · it’s on the curb', go:['letter', i], at:{ x: l.x, y: l.y } }); });
+  // ── research nobody is doing (and who's missing)
+  if (researchOpen()){
+    const F = FIND(), lightning = F.atFire && !fireOn();
+    if (eyeHeld('res', !lightning && researchRate() <= 0) > G.research){
+      let why;
+      if (F.atFire) why = 'missing ' + (fireWaitFor() || 'researchers');
+      else if (F.atHive && !labBlower() && R.some(labOnTask)) why = 'missing ' + ic('blow') + ' Blower researcher';
+      else { const cv = eyeCover('research', 'robot'); why = cv.ok ? 'nobody on it yet' : cv.buried ? cv.txt : 'missing ' + ic('robot') + ' Robot researcher'; if (F.atHive && !labBlower()) why += ' and ' + ic('blow') + ' Blower'; }
+      const p = objPos('book');
+      hi.push({ key:'res' + S.story.item, w:40, icon: ic(EYE_RES_ICON[S.story.item] || 'research'), what: 'Research: ' + F.title.toLowerCase(), why, go:['book'], at: p ? { x: p.x, y: p.y + 20 } : null });
+    }
+  } else eyeHeld('res', false);
+  if (eyeHeld('dlab', dryLabOn() && dryLabRate() <= 0) > G.research) hi.push({ key:'dlab', w:40, icon: ic('research'), what:'Research: drying leaves', why:'missing ' + ic('blow') + ' Blower researcher' + (S.blowers.some(c => !c.away) ? '' : ' (build one)'), go:['bagger'], at: BAGGER });
+  if (eyeHeld('slab', snipLabOn() && snipLabRate() <= 0) > G.research) hi.push({ key:'slab', w:40, icon: ic('flower'), what:'Research: spent flowers', why:'missing ' + ic('crab') + ' Shaker researcher' + (S.shakers.some(c => !c.away) ? '' : ' (build one)'), go:['hive'], at: HIVE });
+  // ── robots with nothing they can do, and robots stuck waiting at something full
+  const idle = {}, wait = { bin: [], metal: [], pallet: [] };
+  for (const kind of ['robot', 'blower', 'shaker']) cfgsOf(kind).forEach((c, i) => {
+    const who = eyeWho(kind, i); if (!who || c.away || who.st === 'gone') return;
+    if (kind === 'robot'){
+      const w = who.st === 'wait' || who.st === 'waitI';
+      if (eyeHeld('w' + i, w) > G.wait) wait[who.st === 'waitI' ? 'pallet' : who.at === 'metal' ? 'metal' : 'bin'].push(i);
+    }
+    if (eyeHeld('i' + kind + i, !!idleOf(c)) > G.idle){
+      const none = !c.prio.some(row => row.some(t => taskOpen(t, c))), w = idleWaitFirst(c);
+      const why = none ? 'nothing it can do is on its list' : w ? 'waiting for ' + w : 'none of its tasks has work';
+      (idle[why] = idle[why] || []).push([kind, i]);
+    }
+  });
+  for (const why in idle){
+    const L = idle[why], robots = L.filter(q => q[0] === 'robot').length;
+    hi.push({ key:'idle:' + why + L.map(q => q[0] + q[1]).join(), w: robots*14 + (L.length - robots)*7 + 6, icon: eyeThumbs(L), what: L.length > 2 ? L.length + ' idle: ' + L.slice(0, 2).map(q => eyeName(q[0], q[1])).join(', ') + '…' : L.map(q => eyeName(q[0], q[1])).join(' & ') + ' idle',
+      why, go: [L[0][0], L[0][1]], at: eyeWho(L[0][0], L[0][1]) });
+  }
+  const waitRow = (k, icon, what, verb, go, at) => { const L = wait[k]; if (L.length) hi.push({ key:'wait' + k, w: 10 + 5*L.length, icon: ic(icon), what, why: eyeThumbs(L.map(i => ['robot', i])) + ' ' + L.length + ' ' + (L.length > 1 ? 'Robots' : 'Robot') + ' ' + verb, go, at }); };
+  waitRow('bin', 'bin', 'Bin full', 'waiting to tip leaves', ['bin'], { x: BIN.x, y: BIN.y - 30 });
+  waitRow('metal', 'tub', S.plant.built && hopperRoom() <= 0 && tubRoom() <= 0 ? 'Tub and hopper full' : 'Metal tub full', 'waiting to tip metal', ['bin'], { x: TUB.x, y: TUB.y - 30 });
+  waitRow('pallet', 'pallet', COAL ? 'Coal pallet full' : 'Ingot pallet full', 'waiting to unload', ['plant'], { x: PALLET.x, y: PALLET.y - 20 });
+  // ── buildings standing still because something is missing
+  const cover = (t, kind) => { const cv = eyeCover(t, kind); return cv.ok ? '' : cv.txt; };
+  if (S.bag.built && !DRY_BENCH){
+    const work = S.binLeaves >= BAG_SIZE && bagRoom() > 0;
+    if (eyeHeld('bag', work && eyeLast('bag') > 3) > G.station) hi.push({ key:'bag', w:25, icon: ic('bag'), what:'Bagging table idle', why: cover('bag') || 'every bagger is busy elsewhere', go:['bagger'], at: BAGGER });
+    if (eyeHeld('bagfull', S.bag.bags >= bagCap() && S.binLeaves >= BAG_SIZE) > G.slow) hi.push({ key:'bagfull', w:10, icon: ic('bag'), what:'Bag shelf full', why:'bags wait for the truck · ' + ic('truck') + ' more pickups', go:['sign'], at: BIN });
+  }
+  if (DRY_BENCH && S.bag.built && S.flags.dryKnown){
+    const work = dryLeaves() >= BAG_SIZE && dryRoom() > 0;
+    if (eyeHeld('dry', work && eyeLast('bag') > 3 && !benchRt.on) > G.station) hi.push({ key:'dry', w:25, icon: ic('bag'), what:'Drying bench idle', why: cover('bag', 'blower') || 'every dryer is busy elsewhere', go:['bagger'], at: BAGGER });
+  }
+  if (FIRE_STORY && S.bench.fire && taskOpen('fuel')){
+    if (eyeHeld('stove', S.bench.logs <= 0 && dryLeaves() >= BAG_SIZE) > G.station) hi.push({ key:'stove', w:15, icon: ic('fuel'), what:'Dryer stove out of logs', why: S.binMetal <= 0 ? 'no logs in the log crib' : cover('fuel') || 'the fuellers are busy', go:['bagger'], at: BAGGER });
+  }
+  if (eyeHive()){
+    if (eyeHeld('nobee', S.hive.bees <= 0) > 5) hi.push({ key:'nobee', w:25, icon: ic('bee'), what:'Beehive empty', why:'no bees yet · buy one at the hive', go:['hive'], at: HIVE });
+    const jarWork = plainJars() >= 1 && !crateFull();
+    if (eyeHeld('jar', jarWork && eyeLast('jar') > 3) > G.station) hi.push({ key:'jar', w:25, icon: ic('jar'), what:'Honey waiting for jars', why: cover('jar') || 'the fillers are busy elsewhere', go:['hive'], at: CRATE });
+    if (S.hive.packing && eyeHeld('wrap', S.hive.jars >= 1 && eyeLast('wrap') > 3) > G.slow) hi.push({ key:'wrap', w:15, icon: ic('wrap'), what:'Nobody wraps gift jars', why: cover('wrap') || 'the wrappers are busy elsewhere', go:['hive'], at: CRATE });
+    if (eyeHeld('tank', tankFull() && B.some(b => b.st === 'queue')) > G.slow) hi.push({ key:'tank', w:10, icon: ic('nectar'), what:'Nectar tank full', why: ic('bee') + ' bees queue at the door · ' + (S.hive.honey >= honeyCap() - 1e-6 ? 'the honey store is full too' : 'a bigger tank'), go:['hive'], at: HIVE });
+    // deadheading learnt but nobody doing it
+    if (snipKnown() && S.shakers.some(c => !c.away && c.lv.snip > 0) && eyeHeld('snip', !eyeCover('snip', 'shaker').ok) > G.skill) hi.push({ key:'snip', w:15, icon: ic('snip'), what:'Nobody deadheads', why: cover('snip', 'shaker'), go:['hive'], at: HIVE });
+  }
+  if (S.plant.built){
+    const what = COAL ? 'Charcoal kiln idle' : 'Smelting plant idle';
+    let why = '', w = 25;
+    if (eyeHeld('plant', eyeLast('smelt') > 6 && !R.some(r => r.st === 'smelt')) > G.slow){
+      if (PLANT_COAL && S.plant.coal <= 0) why = ic('coal') + ' out of coal · ' + (S.coalStand <= 0 ? 'the coal stand is empty' : cover('refuel') || 'nobody refuelled it');
+      else if (S.plant.rack >= rackCap()) why = ic('ingot') + ' rack full · ' + (palletRoom() <= 0 ? 'the pallet is full too' : cover('haul') || 'the haulers are busy');
+      else if (S.plant.ore + S.binMetal < metalPerIngot()) why = ic('ore') + ' no ' + (COAL ? 'logs' : 'ore') + ' · ' + (S.miners.length ? (cover('mine') || 'mine more') : 'build a miner');
+      else why = cover('smelt') || 'the smelters are busy elsewhere';
+      hi.push({ key:'plant', w, icon: ic('flame'), what, why, go:['plant'], at:{ x: PLANT.x, y: PLANT.y - 40 } });
+    }
+    if (PLANT_COAL && eyeHeld('refuel', !S.robots.some(c => !c.away && taskOn(c, 'refuel'))) > 5 && !hi.some(o => o.key === 'plant')) hi.push({ key:'refuel', w:20, icon: ic('coal'), what:'Nobody refuels the furnace', why: eyeChip('refuel') + ' off on every Robot · it runs out', go:['plant'], at: BUNKER });
+    if (S.blowers.some(c => !c.away && c.lv.stoke > 0) && eyeLast('smelt') < 60 && eyeHeld('stoke', !eyeCover('stoke', 'blower').ok) > G.skill) hi.push({ key:'stoke', w:10, icon: ic('stoke'), what:'Nobody works the bellows', why: cover('stoke', 'blower'), go:['plant'], at: STOKE_SPOT });
+  }
+  if (palletShown()){
+    const work = palletRoom() > 0 && ((S.plant.built && S.plant.rack > 0) || (COAL && S.flags.coalKnown && S.bench.coal > 0));
+    if (!hi.some(o => o.key === 'plant') && eyeHeld('haul', work && eyeLast('haul') > 3) > G.slow) hi.push({ key:'haul', w:20, icon: ic('haul'), what: COAL ? 'Coal not hauled' : 'Ingots not hauled', why: cover('haul') || 'the haulers are busy elsewhere', go:['plant'], at: PALLET });
+  }
+  for (const sp of S.miners){
+    const mining = R.some(r => S.robots[r.id] && S.robots[r.id].miner === sp && (r.st === 'mine' || r.st === 'toMine' || r.task === 'mine'));
+    if (eyeHeld('mn' + sp, !mining) > G.mine) hi.push({ key:'mn' + sp, w:15, icon: ic('vein'), what: 'Miner idle', why: metalRoom() <= 0 ? ic('tub') + ' the tub is full' : cover('mine') || 'every miner is at another mine', go:['spot', sp], at: SPOTS[sp] });
+  }
+  if (S.shafts.length && S.blowers.some(c => !c.away && c.lv.dig > 0) && eyeHeld('dig', R.some(r => r.st === 'mine') && !eyeCover('dig', 'blower').ok) > G.skill) hi.push({ key:'dig', w:10, icon: ic('dig'), what:'Nobody excavates', why: cover('dig', 'blower'), go:['spot', S.shafts[0]], at: SPOTS[S.shafts[0]] });
+  // ── less important: cheap upgrades for what each one actually does
+  const pay = Math.max(10, S.eye.pay || 0), tiny = pay*0.1;
+  for (const kind of ['robot', 'blower', 'shaker']) cfgsOf(kind).forEach((c, i) => {
+    if (c.away || !eyeWho(kind, i)) return;
+    const t = eyeMain(kind, i), ks = (t && EYE_TRACKS[kind][t]) || [];
+    let n = 0, cost = 0, small = 0; const parts = [];
+    for (const k of ks){
+      if (!trackVisible(k)) continue;
+      const cap = Math.min(trackCap(k), trackMax(k)); let L = c.lv[k], m = 0;
+      while (L < cap){ const p = eyeLvCost(kind, c, k, L); if (p == null || p > pay) break; cost += p; m++; if (p <= tiny) small++; L++; }
+      if (m){ n += m; parts.push([k, m]); }
+    }
+    if (n >= 2 || small >= 1) lo.push({ key:'up' + kind + i, w: small ? 6 : 4, cost, small, icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i) + ' · ' + eyeChip(t),
+      why: parts.map(([k, m]) => '<span class="eyup" title="' + attr(TRACKS[k].label) + ': ' + m + ' cheap level' + (m > 1 ? 's' : '') + '">' + ic(TRACK_ICON[k]) + '<b>+' + m + '</b></span>').join(' ') + ' <b>' + cash$(cost) + '</b>' + (small ? ' <span class="eycheap" title="Some of these cost less than a tenth of the last truck’s pay">really cheap</span>' : ''),
+      go:[kind, i], at: eyeWho(kind, i) });
+  });
+  hi.sort((a, b) => b.w - a.w); lo.sort((a, b) => a.cost - b.cost);
+  EYE.issues = hi; EYE.lo = lo;
+  EYE.hiW = hi.reduce((n, o) => n + o.w, 0); EYE.loW = Math.min(20, lo.reduce((n, o) => n + o.w, 0));
+  EYE.score = Math.min(100, EYE.hiW + EYE.loW);
+  // the level follows the score: up as soon as it has been over the line a moment, down only once it has been well
+  // under it for a while (so it doesn't flicker)
+  let want = 0; for (let k = EYE_LV.length - 1; k > 0; k--) if (EYE.score >= EYE_LV[k]){ want = k; break; }
+  if (want > EYE.lvl){ if (EYE.want !== want){ EYE.want = want; EYE.wantT = S.t; } if (S.t - EYE.wantT >= 0.8 || EYE.t < 0) EYE.lvl = want; }
+  else if (want < EYE.lvl){ const low = EYE.score < EYE_LV[EYE.lvl] - 4; if (EYE.want !== want || !low){ EYE.want = low ? want : EYE.lvl; EYE.wantT = S.t; } else if (S.t - EYE.wantT >= 3) EYE.lvl = want; }
+  else EYE.want = want;
+}
+// every frame: what each robot is busy with (for its main job), a scan twice a game second, and the camera's own motion
+function updEye(dt){
+  if (!S.eye.built || simMode) return;
+  const gdt = EYE.t < 0 ? 0 : clamp(S.t - EYE.t, 0, 5), keep = Math.exp(-gdt/150);
+  EYE.t = S.t;
+  if (gdt > 0){
+    const note = (key, t) => { const a = EYE.acc[key] || (EYE.acc[key] = {}); for (const k in a) a[k] *= keep; if (t) a[t] = (a[t] || 0) + gdt; };
+    for (const r of R) if (S.robots[r.id] && !S.robots[r.id].away) note('robot' + r.id, r.task && r.task !== 'travel' ? r.task : null);
+    for (const h of HB) if (helperCfg(h) && !helperCfg(h).away) note(h.kind + h.idx, h.task && h.task !== 'travel' ? h.task : null);
+  }
+  if (S.t >= EYE.scanT){ EYE.scanT = S.t + 0.5; const first = EYE.lvl0 == null; eyeScan(); if (first){ EYE.lvl0 = EYE.lvl; eyeRt.lvl = EYE.lvl; } }
+  updEyeAnim(dt);
+}
+function eyeBoot(){
+  EYE.since = {}; EYE.done = {}; EYE.acc = {}; EYE.issues = []; EYE.lo = []; EYE.score = 0; EYE.lvl = 0; EYE.t = -1; EYE.scanT = 0; EYE.lvl0 = 0;
+  Object.assign(eyeRt, { boot: 0, lid: 1, fill: 0, lvl: 0, quiet: eyeRt.rt + 2.4, fx: [], flashT: 0, swing: 0, sv: 0, ext: 0 });
+}
+function updEyeAnim(dt){
+  const E = eyeRt; E.rt += dt;
+  if (E.boot >= 0){ E.boot += dt; if (E.boot > 2.4) E.boot = -1; }
+  const booting = E.boot >= 0;
+  E.fill += (EYE.score/100 - E.fill)*Math.min(1, dt*2.2);
+  // a step up: the ring blinks in the new colour and pulses of light go out into the yard
+  if (E.lvl !== EYE.lvl){
+    const up = EYE.lvl > E.lvl; E.lvl = EYE.lvl;
+    if (up && E.rt > E.quiet && !booting){
+      E.flashT = EYE_FX_T; E.zoom = 1; E.blink = 0; E.blinkT = 0.5;
+      E.fx.push({ t: 0, col: EYE_COL[E.lvl], lvl: E.lvl });
+      const a = sndAt(SHED.x, SHED.y); sfx('beep', 3, E.lvl >= 3 ? 'hmm' : 'ok', a.pan, a.vol*0.8);
+      // it looks straight at the worst thing it found
+      const top = EYE.issues.find(o => o.at); if (top){ E.look = top.at; E.lookT = 3.5; }
+    }
+  }
+  if (E.flashT > 0) E.flashT -= dt;
+  for (const f of E.fx) f.t += dt;
+  E.fx = E.fx.filter(f => f.t < EYE_FX_T);
+  E.zoom = Math.max(0, E.zoom - dt*0.7);
+  // where it looks: mostly at what it found (the worst few, in turn), now and then at a Robot, or straight out at you
+  if ((E.lookT -= dt) <= 0){
+    const found = EYE.issues.filter(o => o.at).slice(0, 3), roll = Math.random();
+    if (found.length && roll < 0.7) E.look = found[Math.floor(Math.random()*found.length)].at;
+    else if (roll < 0.85 && R.length){ const r = R[Math.floor(Math.random()*R.length)]; E.look = r && r.st !== 'gone' && r.st !== 'ride' ? r : null; }
+    else E.look = null;
+    E.lookT = rand(2.6, 5.5);
+  }
+  // (V33.2: whenever the camera is following something, a story zoom, the driver, a find, a trip, focus and follow, the eye
+  // watches it too: it looks where the middle of the screen is)
+  if (camFollow && W && H){ const m = s2w(W/2, H/2); E.look = { x: m.x, y: m.y }; E.lookT = Math.max(E.lookT, 1.2); }
+  const L = E.look && isFinite(E.look.x) && isFinite(E.look.y) ? E.look : null, dx = L ? L.x - E.hx : 0, dy = L ? L.y - E.hy : 40;
+  const yawT = clamp(dx/200, -1, 1)*0.9, pitchT = clamp(dy/220, -1, 1);
+  E.yaw += (yawT - E.yaw)*Math.min(1, dt*3.2); E.pitch += (pitchT - E.pitch)*Math.min(1, dt*3.2);
+  // the hinge swings the head a little toward where it's looking, with a bit of give (a spring)
+  const swingT = booting ? 0 : clamp(dx/320, -1, 1)*0.34 + (reduceMotion ? 0 : Math.sin(E.rt*0.43)*0.05);
+  E.sv += ((swingT - E.swing)*16 - E.sv*4.2)*Math.min(dt, 0.05); E.swing += E.sv*Math.min(dt, 0.05)*1;
+  // the arm slides in and out a little, further out when there's a lot to look at (or it has just found something)
+  const extT = booting ? 0 : 3.4 + (reduceMotion ? 0 : Math.sin(E.rt*0.7)*1.4) + (EYE.lvl >= 3 ? 2.2 : 0) + (E.flashT > 0 ? 1.8 : 0);
+  E.ext += (extT - E.ext)*Math.min(1, dt*2.4);
+  // blinking: the lid opens at the end of the boot, then now and then (a quick double blink when it finds something)
+  if (booting) E.lid = E.boot < 1.5 ? 1 : clamp(1 - (E.boot - 1.5)/0.5, 0, 1);
+  else {
+    if (E.blink >= 0){ E.blink += dt; E.lid = E.blink < 0.09 ? E.blink/0.09 : E.blink < 0.2 ? 1 - (E.blink - 0.09)/0.11 : 0; if (E.blink >= 0.2){ E.blink = -1; E.lid = 0; } }
+    if ((E.blinkT -= dt) <= 0){ E.blink = 0; E.blinkT = E.flashT > 1.2 ? 0.32 : rand(2.8, 6.5); }
+  }
+}
+// the arm's geometry this frame: foot on the roof, the hinge on top of the lower tube, the sleeve and the inner tube that
+// slides out of it, and the head (world units)
+function eyeGeo(){
+  const E = eyeRt, be = E.boot >= 0 ? ease(clamp(E.boot/1.4, 0, 1)) : 1;
+  const fx = SHED.x + EYE_AT.x, fy = SHED.y + EYE_AT.y;
+  const cx = fx, cy = fy - 3.2;                                    // the swivel collar on the foot
+  const hx = cx - 0.8, hy = cy - 4 - 11*be;                         // the hinge, on top of the lower tube
+  const a = E.swing*be, sl = Math.sin(a), cl = Math.cos(a);
+  const sleeve = 7.5, ext = Math.max(0, E.ext)*be, out = sleeve + ext + 1.5;
+  return { fx, fy, cx, cy, hx, hy, a, sl, cl, sleeve, ext, sx: hx + sl*sleeve, sy: hy - cl*sleeve, tx: hx + sl*out, ty: hy - cl*out, ex: hx + sl*(out + 10), ey: hy - cl*(out + 10), be };
+}
+const eyeTube = (c, x0, y0, x1, y1, w, dark, mid, lite) => {
+  c.lineCap = 'round';
+  c.strokeStyle = dark; c.lineWidth = w + 1.2; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  c.strokeStyle = mid; c.lineWidth = w; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, ox = -dy/d*w*0.22, oy = dx/d*w*0.22;
+  c.strokeStyle = lite; c.lineWidth = w*0.28; c.beginPath(); c.moveTo(x0 - ox, y0 - oy); c.lineTo(x1 - ox, y1 - oy); c.stroke();
+};
+function drawEye(){
+  if (!S.eye.built) return;
+  const c = ctx, E = eyeRt, G = eyeGeo(), lv = E.lvl, col = EYE_COL[lv];
+  E.hx = G.fx + (G.ex - G.fx)*EYE_K; E.hy = G.fy + (G.ey - G.fy)*EYE_K;
+  // (V33.2: after a step up the eye's glow swells and eases with the light in the yard, no on/off blinking: 0..1)
+  const flash = E.flashT > 0 ? (() => { const q = 1 - E.flashT/EYE_FX_T; return Math.pow(Math.sin(q*Math.PI), 0.8)*(0.6 + 0.4*Math.cos(q*Math.PI*6 - Math.PI)); })() : 0;
+  c.save(); c.translate(G.fx, G.fy); c.scale(EYE_K, EYE_K); c.translate(-G.fx, -G.fy);   // (drawn a little bigger than its numbers)
+  // the foot: a bracket bolted to the roof, along its slope
+  c.save(); c.translate(G.fx, G.fy); c.rotate(EYE_SLOPE);
+  c.fillStyle = 'rgba(20,12,8,.35)'; rr(c, -8, -0.4, 16, 3.4, 1.2); c.fill();
+  c.fillStyle = '#4a403b'; rr(c, -7.5, -2.6, 15, 3.6, 1.2); c.fill();
+  c.fillStyle = '#a19a8f'; for (const bx of [-5.2, 5.2]){ ell(c, bx, -0.8, 0.85, 0.85); c.fill(); }
+  c.restore();
+  // the swivel collar it turns on
+  c.fillStyle = '#3a322e'; ell(c, G.cx, G.cy + 1.2, 4.3, 1.9); c.fill();
+  c.fillStyle = '#6b625a'; rr(c, G.cx - 3.4, G.cy - 2.2, 6.8, 3.4, 1); c.fill();
+  c.fillStyle = '#8f877d'; ell(c, G.cx, G.cy - 2.2, 3.4, 1.3); c.fill();
+  // a cable from the head down to the roof, sagging a little
+  c.strokeStyle = '#2c2522'; c.lineWidth = 0.8; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(G.tx + G.cl*2.2, G.ty + G.sl*2.2); c.quadraticCurveTo(G.hx + 4.2 + G.sl*3, G.hy + 1 - G.cl*2, G.hx + 2.6, G.hy + 3.5); c.quadraticCurveTo(G.cx + 3.2, (G.hy + G.cy)/2 + 2, G.cx + 3.6, G.cy + 0.5); c.stroke();
+  // the lower tube, the hinge knuckle, then the sleeve (teal band, like the Robots) and the chrome inner tube sliding out
+  eyeTube(c, G.cx, G.cy - 1.5, G.hx, G.hy, 3.2, '#5a4f45', '#cfc3a6', 'rgba(255,250,235,.55)');
+  eyeTube(c, G.tx, G.ty, G.sx, G.sy, 2.1, '#5c6468', '#c9d2d6', 'rgba(255,255,255,.75)');
+  eyeTube(c, G.sx, G.sy, G.hx + G.sl*1.2, G.hy - G.cl*1.2, 3.5, '#3f5e5a', '#5f8f88', 'rgba(220,245,240,.45)');
+  c.fillStyle = '#3d3632'; ell(c, G.hx, G.hy, 3.5, 3.5); c.fill();
+  c.fillStyle = '#8a8178'; ell(c, G.hx, G.hy, 2.5, 2.5); c.fill();
+  c.fillStyle = '#d9d2c4'; ell(c, G.hx - 0.4, G.hy - 0.4, 0.9, 0.9); c.fill();
+  // the yoke: a fork from the tube's end round the bottom of the head, holding it at its sides
+  c.save(); c.translate(G.ex, G.ey); c.rotate(G.a*0.45);
+  c.strokeStyle = '#3d3632'; c.lineWidth = 2.6; c.lineCap = 'round'; c.beginPath(); c.arc(0, 0.6, 10.6, 0.08*Math.PI, 0.92*Math.PI); c.stroke();
+  c.strokeStyle = '#7a7068'; c.lineWidth = 1.1; c.beginPath(); c.arc(0, 0.6, 10.6, 0.15*Math.PI, 0.6*Math.PI); c.stroke();
+  for (const sx of [-1, 1]){ c.fillStyle = '#3d3632'; ell(c, sx*10.3, 2.2, 1.9, 1.9); c.fill(); c.fillStyle = '#b5ab9c'; ell(c, sx*10.3, 2.2, 0.8, 0.8); c.fill(); }
+  c.restore();
+  drawEyeHead(c, G.ex, G.ey, G.a*0.45, flash);
+  c.restore();
+}
+function drawEyeHead(c, x, y, tilt, flash){
+  const E = eyeRt, lv = E.lvl, col = EYE_COL[lv], yaw = E.yaw, pitch = E.pitch, ay = Math.abs(yaw);
+  const pulse = 0.5 + 0.5*Math.sin(E.rt*(lv >= 3 ? 5 : 2.2));
+  c.save(); c.translate(x, y); c.rotate(tilt);
+  // its glow, stronger the more it has found
+  if (lv > 0 || flash > 0){
+    c.globalCompositeOperation = 'lighter';
+    const R0 = 15 + lv*3 + flash*10 + pulse*3, g = c.createRadialGradient(0, 0, 3, 0, 0, R0);
+    g.addColorStop(0, eyeA(col, (0.16 + lv*0.05 + flash*0.35)*(0.75 + pulse*0.25))); g.addColorStop(1, eyeA(col, 0));
+    c.fillStyle = g; ell(c, 0, 0, R0, R0); c.fill();
+    c.globalCompositeOperation = 'source-over';
+  }
+  // the shell: a cream enamel ball like the Robots' heads, a teal band round it, and a little hood over the lens
+  const sh = c.createRadialGradient(-3, -4, 1, 0, 0, 10.5);
+  sh.addColorStop(0, '#fbf3e0'); sh.addColorStop(0.6, '#ddd0b1'); sh.addColorStop(1, '#a8987a');
+  c.fillStyle = 'rgba(30,20,10,.25)'; ell(c, 0.8, 1.2, 9.6, 9.2); c.fill();
+  c.fillStyle = sh; ell(c, 0, 0, 9.4, 9); c.fill();
+  c.strokeStyle = '#6e624c'; c.lineWidth = 0.7; ell(c, 0, 0, 9.4, 9); c.stroke();
+  // the band turns with it
+  c.save(); ell(c, 0, 0, 9.4, 9); c.clip();
+  c.strokeStyle = '#5f8f88'; c.lineWidth = 2.2; c.beginPath(); c.ellipse(-yaw*6.5, 0.5, 9.4*(0.35 + 0.65*(1 - ay*0.4)), 9.6, 0, -Math.PI/2, Math.PI/2, yaw > 0); c.stroke();
+  c.restore();
+  // the faceplate (it turns toward where it looks), the progress ring on it, the lens and the slit pupil
+  const fx = yaw*3.4, fy = pitch*1.3, fk = 1 - ay*0.3, fr = 6.9;
+  // the hood: a peak over the faceplate that tips down (a frown) when there's a lot stuck
+  c.save(); c.translate(fx*0.8, -5.9 + fy*0.4); c.rotate(yaw*0.15 + (lv >= 3 ? 0.04 : 0));
+  c.fillStyle = '#4a403b'; c.beginPath(); c.moveTo(-7.4*fk, 1.2); c.quadraticCurveTo(0, -3.4 + (lv >= 3 ? 1.6 : 0), 7.4*fk, 1.2); c.quadraticCurveTo(0, -0.2 + (lv >= 3 ? 1.2 : 0), -7.4*fk, 1.2); c.fill();
+  c.restore();
+  c.fillStyle = '#2a2321'; ell(c, fx, fy, fr*fk, fr); c.fill();
+  c.strokeStyle = '#8a7f72'; c.lineWidth = 0.6; ell(c, fx, fy, fr*fk, fr); c.stroke();
+  // the ring: a faint track, and the part that's full in the level's colour (its glow swells softly after a step up)
+  const rr0 = 5.6;
+  c.lineWidth = 1.35; c.strokeStyle = 'rgba(255,240,215,.13)'; c.beginPath(); c.ellipse(fx, fy, rr0*fk, rr0, 0, 0, TAU); c.stroke();
+  const fill = clamp(E.fill, 0, 1);
+  if (fill > 0.004){
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = eyeA(col, 0.35 + flash*0.4); c.lineWidth = 2.8 + flash*1.6; c.beginPath(); c.ellipse(fx, fy, rr0*fk, rr0, 0, -Math.PI/2, -Math.PI/2 + TAU*Math.max(0.02, fill)); c.stroke();
+    c.globalCompositeOperation = 'source-over';
+    c.strokeStyle = col; c.lineWidth = 1.35; c.beginPath(); c.ellipse(fx, fy, rr0*fk, rr0, 0, -Math.PI/2, -Math.PI/2 + TAU*Math.max(0.02, fill)); c.stroke();
+  }
+  // the lens: glass with the iris glowing in the level's colour (calm teal when there's nothing), a slit pupil that narrows
+  // as it finds more (a little Sauron), and a glint
+  const lx = fx + yaw*0.9, ly = fy + pitch*0.9, lr = 4.1*(1 + E.zoom*0.08), lk = fk;
+  const ic0 = lv ? col : EYE_COL[0], gl = c.createRadialGradient(lx, ly, 0.3, lx, ly, lr);
+  gl.addColorStop(0, eyeA(ic0, 0.95)); gl.addColorStop(0.55, eyeA(ic0, lv ? 0.75 : 0.45)); gl.addColorStop(1, '#120c0b');
+  c.fillStyle = gl; ell(c, lx, ly, lr*lk, lr); c.fill();
+  const pw = (lv >= 4 ? 0.55 : lv >= 3 ? 0.8 : lv >= 2 ? 1.15 : 1.6)*(1 - E.zoom*0.35)*lk, ph = 3.1;
+  c.fillStyle = '#0a0605'; ell(c, lx + yaw*0.5, ly + pitch*0.4, pw, ph); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.85)'; ell(c, lx - 1.6*lk, ly - 1.7, 0.95, 0.7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.35)'; ell(c, lx + 1.5*lk, ly + 1.6, 0.5, 0.4); c.fill();
+  // the lid: a shutter in the shell's colour that closes over the faceplate from the top
+  if (E.lid > 0.01){
+    c.save(); ell(c, fx, fy, fr*fk + 0.4, fr + 0.4); c.clip();
+    const lh = (fr*2 + 1)*E.lid;
+    c.fillStyle = '#d3c6a6'; c.fillRect(fx - fr - 1, fy - fr - 0.5, fr*2 + 2, lh);
+    c.strokeStyle = '#8c7d60'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(fx - fr - 1, fy - fr - 0.5 + lh); c.lineTo(fx + fr + 1, fy - fr - 0.5 + lh); c.stroke();
+    c.restore();
+  }
+  // the little "recording" light: slow green, or a quick red blink when a lot is stuck
+  const ledOn = lv >= 3 ? Math.sin(E.rt*7) > 0 : Math.sin(E.rt*2) > -0.2;
+  c.fillStyle = ledOn ? (lv >= 3 ? '#ff4a2e' : '#7fe08a') : '#4a3a34'; ell(c, 6.3 - yaw*1.5, -5.6, 0.95, 0.95); c.fill();
+  if (ledOn){ c.globalCompositeOperation = 'lighter'; c.fillStyle = lv >= 3 ? 'rgba(255,74,46,.35)' : 'rgba(127,224,138,.25)'; ell(c, 6.3 - yaw*1.5, -5.6, 2.4, 2.4); c.fill(); c.globalCompositeOperation = 'source-over'; }
+  c.restore();
+}
+// the light it sends into the yard when it steps up a level: rings going out from the camera, and a wave of light over
+// the ground round the workshop
+function drawEyeFx(){
+  if (!S.eye.built || !eyeRt.fx.length) return;
+  // (V33.1: like a lamp dimmed up and down a few times: soft glow round the camera and over the yard, no rings or lines)
+  const c = ctx, E = eyeRt;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const f of E.fx){
+    // (V33.2: a smooth swell: it fades in, breathes up and down three times round a steady glow, and fades out)
+    const q = clamp(f.t/EYE_FX_T, 0, 1), env = Math.pow(Math.sin(q*Math.PI), 0.8), k = env*(0.62 + 0.38*Math.cos(q*Math.PI*6 - Math.PI))*(reduceMotion ? 0.6 : 1);
+    if (k < 0.01) continue;
+    const r1 = 60 + 30*k, g = c.createRadialGradient(E.hx, E.hy, 4, E.hx, E.hy, r1);
+    g.addColorStop(0, eyeA(f.col, 0.42*k)); g.addColorStop(0.35, eyeA(f.col, 0.16*k)); g.addColorStop(1, eyeA(f.col, 0));
+    c.fillStyle = g; ell(c, E.hx, E.hy, r1, r1); c.fill();
+    // the yard round the workshop catches the light
+    const gx = SHED.x + 20, gy = SHED.y - 10, r2 = 170 + 50*k, h = c.createRadialGradient(gx, gy, 10, gx, gy, r2);
+    h.addColorStop(0, eyeA(f.col, 0.2*k)); h.addColorStop(1, eyeA(f.col, 0));
+    c.save(); c.translate(gx, gy); c.scale(1, 0.5); c.translate(-gx, -gy); c.fillStyle = h; ell(c, gx, gy, r2, r2); c.fill(); c.restore();
+  }
+  c.restore();
+}
+// is (x, y) on the camera? (its head, or the arm)
+const eyeHit = (x, y) => S.eye.built && (Math.hypot(x - eyeRt.hx, y - eyeRt.hy) < 15 || (Math.abs(x - (SHED.x + EYE_AT.x)) < 9 && y < SHED.y + EYE_AT.y + 2 && y > eyeRt.hy));
+// ── the overview card
+const eyeRing = (k, col, sz) => { const C = 2*Math.PI*4.4, f = clamp(k, 0, 1); return '<svg class="ic eyering"' + (sz ? ' style="width:' + sz + 'px;height:' + sz + 'px"' : '') + ' viewBox="-6 -6 12 12" aria-hidden="true"><circle r="5.6" fill="#2a2321"/><circle r="4.4" fill="none" stroke="rgba(255,240,215,.18)" stroke-width="1.5"/>' +
+  (f > 0.003 ? '<circle r="4.4" fill="none" stroke="' + col + '" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="' + (C*f).toFixed(2) + ' 99" transform="rotate(-90)"/>' : '') + '<ellipse rx="1" ry="2.1" fill="' + col + '"/></svg>'; };
+const eyeSummary = () => EYE.issues.length || EYE.lo.length ? (EYE.issues.length ? '<b class="warnc">' + EYE.issues.length + ' stuck</b>' : '<b>nothing stuck</b>') + (EYE.lo.length ? ' · ' + EYE.lo.length + ' with cheap upgrades' : '') : '<b>all clear</b>';
+function eyeRow(o, lo){
+  return { sig: 'ey' + o.key + o.what + o.why, html: row({ cls: 'eyerow' + (lo ? ' lo' : ''), icon: o.icon, name: o.what, val: o.why,
+    btn: o.go ? '<button class="buy ghost eyego" data-act="eyego:' + o.key + '" title="Show it" aria-label="Show it"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-6.6,0 Q0,-6.2 6.6,0 Q0,6.2 -6.6,0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle r="2.5" fill="currentColor"/></svg></button>' : '' }) };
+}
+function eyeCardRows(rows, rows2){
+  rows.push({ sig:'eyS', html:'<div class="sect" title="Things standing still, and why">Stuck</div>' });
+  if (!EYE.issues.length) rows.push({ sig:'eyS0', html: row({ icon: ic('tick'), name:'Nothing stuck', val:'<span class="none">everything that can work is working</span>' }) });
+  for (const o of EYE.issues.slice(0, 14)) rows.push(eyeRow(o, false));
+  rows2.push({ sig:'eyL', html:'<div class="sect" title="Upgrades for what each one does that cost no more than the last truck paid (' + cash$(Math.max(10, S.eye.pay || 0)) + ')">Cheap upgrades</div>' });
+  if (!EYE.lo.length) rows2.push({ sig:'eyL0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">upgrades under ' + cash$(Math.max(10, S.eye.pay || 0)) + ' are all bought</span>' }) });
+  for (const o of EYE.lo.slice(0, 10)) rows2.push(eyeRow(o, true));
+}
+// the workshop's row: build it (once there are enough robots and a working beehive), then a way to open it
+function eyeShedRow(){
+  const tip = 'A webcam on the workshop roof that watches the yard: what is stuck and why (letters, research, idle Robots, buildings standing still, skills nobody uses) and which Robots lack cheap upgrades for their job. The more it finds, the further its ring fills: green, yellow, orange, red. Tap the camera to look.';
+  if (S.eye.built) return { sig:'eyeB' + EYE.lvl + EYE.issues.length + EYE.lo.length, html: row({ icon: eyeRing(eyeRt.fill, EYE_COL[EYE.lvl]), name:'Efficiency Overview', tip, val: eyeSummary(), btn:'<button class="buy ghost" data-act="eye">Open</button>' }) };
+  if (!eyeShown()) return null;
+  return buyRow('Efficiency Overview', 'watches the yard: what’s stuck and why', 'eye', EYE_COST, '', ic('eye'), tip);
+}
+// "show it": open the card of the thing, glide the camera over if it's off screen, and the eye looks at it
+function eyeGo(key){
+  const o = EYE.issues.find(q => q.key === key) || EYE.lo.find(q => q.key === key); if (!o) return;
+  if (o.at){ eyeRt.look = o.at; eyeRt.lookT = 4; }
+  const [kind, i] = o.go || [];
+  if (o.at){
+    const s = w2s(o.at.x, o.at.y);
+    if (s.x < 40 || s.x > W - 40 || s.y < 40 || s.y > H - 40){ camFollow = null; userCam = true; $('recenter').hidden = false; camAnim = { from: { z: cam.z, ox: cam.ox, oy: cam.oy }, to: { z: cam.z, ox: W/2 - o.at.x*cam.z, oy: H/2 - (o.at.y - 30)*cam.z }, t: 0, dur: 0.9 }; camMovedT = performance.now(); }
+  }
+  if (kind === 'letter' && !S.letters[i]) return;
+  if ((kind === 'robot' && !R[i]) || ((kind === 'blower' || kind === 'shaker') && !HB.find(h => h.kind === kind && h.idx === i))) return;
+  if (kind) setTimeout(() => openCard(kind, i), o.at ? 120 : 0);
 }
 
 // ───────────────────────── HUD (cash only) + secret test money
@@ -10210,14 +10735,15 @@ function applyKit(name){
   if (K.base) applyKit(K.base);
   const free = o => buy(Object.assign({ cost: 0 }, o));
   for (const k of (K.tech || [])) S.tech[k] = true;
-  for (const k in (K.up || {})) if (UP[k]) S.lv[k] = Math.max(S.lv[k] | 0, Math.min(UP[k].max, K.up[k]));
+  for (const k in (K.up || {})) if (UP[k]) S.lv[k] = Math.max(S.lv[k] | 0, Math.min(UP[k].max, investmentLevel(k, K.up[k])));
   for (const k in (K.gen || {})) if (GEN[k]) S.gen[k] = Math.max(gl(k), Math.min(GEN[k].max, K.gen[k]));
   if (K.gen || K.tech) S.flags.general = S.flags.research = true;
   if (DRY_BENCH && (K.blowers || []).some(b => b && b.dry)){ S.flags.dryLab = S.flags.dryKnown = true; S.flags.dryProg = DRY_LAB_NEED; }   // V27: drying worked out
   while (K.land && S.land < K.land && S.land + 1 < AREAS.length) free({ id: 'land' });
   if (K.bag && !S.bag.built) free({ id: 'bagger' });
   if (K.metalSlot && !S.metalSlot) free({ id: 'metalSlot' });
-  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(lv[k], trackMax(k)) : lv[k]); };
+  // Kits describe the original effect endpoints, so intermediate scenes retain their intended abilities.
+  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(investmentLevel(k, lv[k]), trackMax(k)) : lv[k]); };
   // (V24: like a player would, a kit builds copies of the robots it already has elsewhere before making new ones)
   const another = kind => { const cp = copyable(kind); return cp.length ? free({ id: 'copy', kind, sty: cp[0] }) : free({ id: kind }); };
   (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX){ if (!another('robot')) break; } if (S.robots[i]) levels(S.robots[i], lv); });
@@ -10599,6 +11125,8 @@ ICON.firetree = '<path d="M-.8,5 V-.4 L-3.2,-3.6 M-.4,1 L2.6,-2.2" stroke="#3a24
 const ic = (n, cls) => '<svg class="ic' + (cls ? ' ' + cls : '') + '" viewBox="-6 -6 12 12" aria-hidden="true">' + (ICON[n] || '') + '</svg>';
 // an item with a little coin on it: "what this sells for"
 const icp = n => '<svg class="ic" viewBox="-6 -6 12 12" aria-hidden="true">' + ICON[n] + '<g transform="translate(3,3.2) scale(.5)">' + ICON.coin + '</g></svg>';
+// V33: the Efficiency Overview camera: a little webcam eye on a hinged arm
+ICON.eye = '<path d="M-3.6,5.6 H3.2" stroke="#4a403b" stroke-width="1.3" stroke-linecap="round"/><path d="M-.4,5.2 V2.4 L1.8,-.4" stroke="#5f8f88" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="-.4" cy="2.4" r=".9" fill="#4a403b"/><circle cx="1.4" cy="-2.2" r="3.9" fill="#e7dcc3" stroke="#6e624c" stroke-width=".6"/><circle cx="1.4" cy="-2.2" r="2.75" fill="#2a2321"/><path d="M1.4,-4.15 A1.95,1.95 0 1 1 -.43,-1.53" fill="none" stroke="#f28a2a" stroke-width=".8" stroke-linecap="round"/><ellipse cx="1.4" cy="-2.2" rx=".55" ry="1.25" fill="#f4cf3a"/>';
 ICON.all = '<g transform="translate(-2.3,1) scale(.72)">' + ICON.robot + '</g><g transform="translate(2.4,-.6) scale(.72)">' + ICON.robot + '</g>';
 
 // ── numbers: short prices on buttons ("1,100", "9.9k"), and money with cents only where cents matter
@@ -11144,7 +11672,7 @@ const GEN_SHORT = { oil: () => '+' + Math.round(OIL_BONUS*100) + '% speed, every
   blueprint: () => 'Copied levels cost 30%', cutting: () => '+' + Math.round(CUT_BONUS*100) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% resource efficiency' };
 if (LOT.GEN_ICON) Object.assign(GEN_ICON, LOT.GEN_ICON);
 if (LOT.GEN_SHORT) Object.assign(GEN_SHORT, LOT.GEN_SHORT);
-const HEAD_ICON = { letter:'letter', book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
+const HEAD_ICON = { eye:'eye', letter:'letter', book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
 // V25: who works the bagging table / drying bench (and the hollow's stove), for the combined bin card
 function bagCrewRows(){
   const rows = [];
@@ -11252,6 +11780,7 @@ function cardModel(){
         rows.push(buyRow('Build ' + stl.name, m ? 'you have <b>' + m + '</b>/' + HELPER_MAX : kind === 'blower' ? 'a Blower: pushes leaves to the bin' : 'a Shaker: more leaves from trees', kind, newHelperCost(kind), '', kic, (kind === 'blower' ? 'A Blower: blows far-off leaves toward the bin. ' : 'A Shaker: shakes trees and bushes so more leaves come down. ') + stl.blurb));
       } else if (m >= HELPER_MAX) rows.push(buyRow(kind === 'blower' ? 'Blowers' : 'Shakers', 'all <b>' + HELPER_MAX + '</b> built', kind, 0, 'done', kic));
     }
+    { const er = eyeShedRow(); if (er) rows.push(er); }   // V33
     if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
     if (genVisible()){
       // V13: a lot's own upgrades (the prairie's flower upgrades) get a section of their own, always shown when available
@@ -11270,6 +11799,10 @@ function cardModel(){
       if (chips.length) rows2.push({ sig:'gown' + chips.map(q => q + gl(q)).join(), html:'<div class="gdone">' + chips.map(q => '<span class="dchip" title="' + GEN[q].name + (GEN[q].max > 1 ? ' ' + gl(q) + '/' + GEN[q].max : '') + '">' + ic(GEN_ICON[q]) + (gl(q) >= GEN[q].max ? ic('check', 'ck') : '<b>' + gl(q) + '</b>') + '</span>').join('') + '</div>' });
     }
     foot = '<div class="foot">' + (resetArm ? '<button class="link danger" data-act="reset2">Yes, wipe my yard</button>' : '<button class="link" data-act="reset1">Start over</button>') + '</div>';
+  } else if (k === 'eye'){
+    // V33: the Efficiency Overview
+    title = 'Efficiency Overview'; live = 'eye';
+    eyeCardRows(rows, rows2);
   } else if (k === 'hive'){
     const H = S.hive;
     title = 'Beehive';
@@ -11680,6 +12213,7 @@ function liveHTML(kind){
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
     + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a Robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
   if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves' : 'Bags') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
+  if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + EYE_WORD[EYE.lvl] + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '');   // V33
   if (kind === 'truck'){
     let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
     if (S.lv.cleanup) h += meter('cleanup', S.cleanN | 0, 100, 'Leaves toward the next cleanup bonus', 'green');
@@ -11831,6 +12365,7 @@ function cardAnchor(){
   else if (k === 'bin'){ p = { x: BIN.x + 10, y: BIN.y - 62 }; below = 70; }
   else if (k === 'sign'){ p = { x: SIGN.x, y: SIGN.y - 76 }; below = 80; }
   else if (k === 'shed'){ p = { x: SHED.x + 30, y: SHED.y - 100 }; below = 104; }
+  else if (k === 'eye'){ p = { x: eyeRt.hx, y: eyeRt.hy }; below = 24; }   // V33
   else if (k === 'sale'){ const s = salePos(); p = { x: s.x, y: s.y - 78 }; below = 80; }
   else if (k === 'hive'){ const z = S.hive.built ? hiveTopZ() + 24 : 52; p = { x: HIVE.x + 10, y: HIVE.y - z - 20 }; below = z + 30; }
   else if (k === 'spot'){ const s = SPOTS[cardOpen.i]; p = { x: s.x, y: s.y - (S.shafts.includes(cardOpen.i) ? 100 : 74) }; below = 84; }
@@ -11901,6 +12436,8 @@ card.addEventListener('click', e => {
   }
   else if (act.startsWith('tech:')){ const id = act.slice(5); if (techAvailable(id)) buy({ id:'tech', key:id, obj:cardOpen.obj, cost:TECH[id].cost }); }
   else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
+  else if (act === 'eye'){ if (S.eye.built){ openCard('eye'); return; } if (eyeBuyable()) buy({ id:'eye', obj:'shed', cost:EYE_COST }); }   // V33
+  else if (act.startsWith('eyego:')){ eyeGo(act.slice(6)); return; }
   else if (act === 'metalSlot') buy({ id:'metalSlot', obj:'bin', cost:METAL_SLOT_COST });
   else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
@@ -11929,6 +12466,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
 const FRONTS = () => [{ x0: BIN.x - 40, x1: S.metalSlot ? TUB.x + 17 : BIN.x + 40, y0: BIN.y - 54, y1: BIN.y }, { x0: SHED.x - 54, x1: SHED.x + 54, y0: SHED.y - 96, y1: SHED.y }];
 const hiddenBehind = (r, x, y) => FRONTS().some(f => r.y < f.y1 && x > f.x0 && x < f.x1 && y > f.y0 && y < f.y1);
 function hit(x, y){
+  if (eyeHit(x, y)) return ['eye'];   // V33: the camera on the workshop roof
   for (let i = S.letters.length - 1; i >= 0; i--){ const l = S.letters[i]; if (Math.abs(x - l.x) < 13 && y > l.y - 14 && y < l.y + 6) return ['letter', i]; }
   if (researchOpen()){
     const h = bookRt.held ? bookHolder() : null, b = bookPos();
@@ -12101,6 +12639,11 @@ function load(data){
     S.tech = Object.assign({}, src.tech || {});
     S.gen = Object.assign({}, src.gen || {});
     S.seen = Object.assign({}, src.seen || {});
+    if (!(src.flags && src.flags.investmentV32)){
+      for (const list of [S.robots, S.blowers, S.shakers]) for (const c of list) if (c.lv) c.lv = investmentSkills(c.lv);
+      S.lv.bagPrice = investmentLevel('bagPrice', S.lv.bagPrice);
+    }
+    S.flags.investmentV32 = true;
     // V7: per-robot arrow keys became one key per track
     for (const k in S.seen){ const m = /^(?:rup:\d+|hup:[a-z]+\d+):(\w+)$/.exec(k); if (m) S.seen['trk:' + m[1]] = 1; }
     if (!src.seen){
@@ -12317,6 +12860,7 @@ function frame(ts){
   updEndReturn(dt);   // V21: Tinker's first leaves back home
   updGround();   // V16.1: a new ground is painted a little each frame when the view needs one
   updHud(dt);
+  updEye(dt);   // V33: the Efficiency Overview
   if (SND){ SND.update(dt, wind); if (RAINY && SND.rain) SND.rain(dt, RAIN.k); ambientChatter(dt); }
   if (cardOpen){ renderCard(false); if ((seenT -= dt) <= 0){ seenT = 0.25; markSeen(); } }
   updHints(dt);
@@ -12425,6 +12969,7 @@ window.__leafYard = {
   dev: code => eval(code),   // reads/changes the game's own variables (headless tests only)
   fire: cmd => FIRE_STORY ? (cmd === 'out' ? fireOut() : cmd === 'strike' ? strike() : S.fire) : null,   // V17: for tests
   ants: () => (ANTS ? antGrid() : null),   // V14.1: the ants' grid and trails (for tests)   // V14.1: the test panel's Jump to
+  eye: () => ({ score: EYE.score, lvl: EYE.lvl, shown: eyeShown(), buyable: eyeBuyable(), built: S.eye.built, pay: S.eye.pay, hi: EYE.issues.map(o => ({ key: o.key, w: o.w, what: o.what.replace(/<[^>]+>/g, ''), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })), lo: EYE.lo.map(o => ({ key: o.key, w: o.w, cost: o.cost, what: o.what.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })) }),   // V33: for tests
   robots: () => R,
   helpers: () => HB,
   bees: () => B,
