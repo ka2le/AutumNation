@@ -265,11 +265,12 @@ const UP = {
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
   slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[325, 960, 4200],   // V32.1: +20% (were 270 / 800 / 3,500)
                 vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
-  // V22.4: the ingot pallet has its own size track on the plant card (was half the metal tub); the same 100 at the top
-  pallet:     { obj:'plant', name:'Bigger ingot pallets', max:4, costs:[480, 660, 900, 1800],   // V32.1: +20%. (V29: the last was 1,000; the hollow's coal pallets keep theirs)
-                vals:[16, 28, 46, 70, 100], val:l=>UP.pallet.vals[l], show:v=>v+' ingots per pallet' },
-  hopper:     { obj:'plant', name:'Bigger ore hopper', max:3, costs:[60, 230, 1080],   // V32.1: +20% (were 50 / 190 / 900)
-                vals:[24, 40, 64, 100], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
+  // The final tier holds 200 on both the furnace rack and selling pallet, for about 30% more than the previous tier.
+  pallet:     { obj:'plant', name:'Bigger ingot pallets', max:5, costs:[480, 660, 900, 1800, 2300],
+                vals:[16, 28, 46, 70, 100, 200], val:l=>UP.pallet.vals[l], show:v=>v+' ingots per pallet' },
+  // The final hopper tier doubles storage to 200 ore for about 10% more than the previous tier.
+  hopper:     { obj:'plant', name:'Bigger ore hopper', max:4, costs:[60, 230, 1080, 1200],
+                vals:[24, 40, 64, 100, 200], val:l=>UP.hopper.vals[l], show:v=>v+' ore' },
 };
 // V16: a lot can reprice upgrades (the Rainy hollow's mushroom labels and D.O.P. seals): LOT.UP = { key: { costs } }
 if (LOT.UP) for (const k in LOT.UP) if (UP[k]) Object.assign(UP[k], LOT.UP[k]);

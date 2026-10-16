@@ -1733,7 +1733,7 @@ LOTS.hollow = H => {
     // V19: Sort the logs has 3 bigger steps for much less (was the first yard's 6 steps to $16.50 for $40 … 6,000): a log goes
     // $4.80 → 6.50 → 9 → 12 for $50 / 250 / 1,000, so $9 costs $300 (was ~$520 for $9.20) and the top is lower
     UP: { cleanup: { costs: [150, 700, 1500] },
-      pallet: { name: 'Bigger coal pallets', costs: [480, 660, 900, 1200], vals: [32, 56, 92, 140, 200], show: v => v + ' coal per pallet' },
+      pallet: { name: 'Bigger coal pallets', max: 4, costs: [480, 660, 900, 1200], vals: [32, 56, 92, 140, 200], show: v => v + ' coal per pallet' },
       honeyPrice: { costs: [80, 130, 190, 270, 420, 650] }, giftPrice: { costs: [400, 800] },
       metalPrice: { max: 3, gaps: [], costs: [300, 600, 1100], vals: [4.8, 6.5, 9, 12] },
       smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [300, 840], vals: [1, 1.35, 1.8] },

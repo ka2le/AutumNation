@@ -20,21 +20,29 @@ async function checks(page,lot){
    Y.open('plant');ok(Y.dev('cardModel().rows.some(r=>r.sig.startsWith("pallet"))'),'coal upgrade visible before kiln construction');
    S.plant.built=true;
   }
-  const pallet=lot==='hollow'?[32,56,92,140,200]:[16,28,46,70,100],rack=pallet;
+  const pallet=lot==='hollow'?[32,56,92,140,200]:[16,28,46,70,100,200],rack=pallet;
   for(let l=0;l<pallet.length;l++){
    ok(F.palletCap()===pallet[l]&&F.rackCap()===rack[l],'pallet/rack tier '+l);
    const html=Y.dev('upRow("pallet").html');ok(html.includes(lot==='hollow'?'Kiln shelf:':'Furnace rack:')&&html.includes('same number'),'upgrade row explains equal capacity at tier '+l);
    ok(Y.dev('LH.RACK_CAP')===rack[l],'lot renderer sees current capacity at tier '+l);
-   if(l<4){const offer=F.offers().find(o=>o.id==='up'&&o.key==='pallet'),before=S.cash;ok(!!offer&&Y.buy(offer),'buy pallet tier '+(l+1));ok(close(before-S.cash,F.UP.pallet.costs[l]),'pallet purchase charge '+(l+1));}
+   if(l<F.UP.pallet.max){const offer=F.offers().find(o=>o.id==='up'&&o.key==='pallet'),before=S.cash;ok(!!offer&&Y.buy(offer),'buy pallet tier '+(l+1));ok(close(before-S.cash,F.UP.pallet.costs[l]),'pallet purchase charge '+(l+1));}
   }
+  const hopper=lot==='hollow'?[16,30,50]:[24,40,64,100,200];
+  S.lv.hopper=0;
+  for(let l=0;l<hopper.length;l++){
+   ok(F.hopperCap()===hopper[l],'hopper tier '+l);
+   if(l<F.UP.hopper.max){const offer=F.offers().find(o=>o.id==='up'&&o.key==='hopper'),before=S.cash;ok(!!offer&&Y.buy(offer),'buy hopper tier '+(l+1));ok(close(before-S.cash,F.UP.hopper.costs[l]),'hopper purchase charge '+(l+1));}
+  }
+  ok(!F.offers().some(o=>o.id==='up'&&(o.key==='pallet'||o.key==='hopper')),'storage upgrades stop at final tier');
+  if(lot!=='hollow'){ok(F.UP.pallet.costs.at(-1)===2300,'final pallet costs $2300');ok(F.UP.hopper.costs.at(-1)===1200,'final hopper costs $1200');}
   S.metalSlot=true;S.lv.metalBin=0;
-  for(let l=0;l<F.UP.metalBin.max;l++){const before=S.cash,offer=F.offers().find(o=>o.id==='up'&&o.key==='metalBin');ok(Y.buy(offer),'buy raw storage tier '+(l+1));ok(close(before-S.cash,F.UP.metalBin.costs[l]),'raw storage purchase charge '+(l+1));ok(F.rackCap()===rack[4]&&F.palletCap()===pallet[4],'raw storage does not change finished capacity '+(l+1));}
+  for(let l=0;l<F.UP.metalBin.max;l++){const before=S.cash,offer=F.offers().find(o=>o.id==='up'&&o.key==='metalBin');ok(Y.buy(offer),'buy raw storage tier '+(l+1));ok(close(before-S.cash,F.UP.metalBin.costs[l]),'raw storage purchase charge '+(l+1));ok(F.rackCap()===rack.at(-1)&&F.palletCap()===pallet.at(-1),'raw storage does not change finished capacity '+(l+1));}
   const rawCost=F.UP.metalBin.costs.reduce((n,v)=>n+v,0),finishedCost=F.UP.pallet.costs.reduce((n,v)=>n+v,0);
-  const expectedFinished=lot==='hollow'?3240:3840;   // V32.1 prices
-  ok(rawCost===3075&&finishedCost===expectedFinished,'raw/finished storage prices match V32.1');
+  const expectedFinished=lot==='hollow'?3240:6140;   // V32.1 prices
+  ok(rawCost===3075&&finishedCost===expectedFinished,'raw/finished storage prices match all tiers');
   // Batch reservations must use the new capacity immediately, even with simultaneous operators.
   Y.dev('S.robots=[newRobotCfg(),newRobotCfg()];syncRobots();S.lv.slag=UP.slag.max;S.gen.charm=1;for(const c of S.robots)c.lv.magnet=6;for(const r of R)r.st="idle";');
-  for(let l=0;l<5;l++){
+  for(let l=0;l<pallet.length;l++){
    S.lv.pallet=l;
    const result=Y.dev('(()=>{const a=R[0],b=R[1];a.st="smelt";a.resv=smeltReserve(a.id);b.st="idle";S.plant.slagAcc=.5;S.plant.rack=rackCap()-a.resv-smeltReserve(b.id);const fits=rackHasRoom(b);S.plant.rack++;return {fits,overflow:rackHasRoom(b)};})()');
    ok(result.fits&&!result.overflow,'simultaneous reservations respect rack tier '+l);
@@ -44,7 +52,7 @@ async function checks(page,lot){
   const offer=F.offers().find(o=>o.id==='up'&&o.key==='pallet');ok(Y.buy(offer),'upgrade full rack');Y.dev('settleRecovery()');
   ok(S.plant.rack===rack[0]+2&&close(S.plant.slagAcc,.5),'new room accepts retained recovery');
   // Keep earned over-cap inventory and large upgraded racks on reload.
-  for(const [level,stock]of [[0,rack[0]+2],[4,rack[4]-3]]){S=Y.state();S.lv.pallet=level;S.plant.rack=stock;const saved=JSON.stringify(S);Y.dev('load({S:'+saved+'})');ok(Y.state().plant.rack===stock,'reload preserves rack stock '+stock);ok(F.rackCap()===rack[level],'reload restores dynamic capacity '+level);}
+  for(const [level,stock]of [[0,rack[0]+2],[4,rack[4]-3],[F.UP.pallet.max,rack.at(-1)-3]]){S=Y.state();S.lv.pallet=level;S.plant.rack=stock;const saved=JSON.stringify(S);Y.dev('load({S:'+saved+'})');ok(Y.state().plant.rack===stock,'reload preserves rack stock '+stock);ok(F.rackCap()===rack[level],'reload restores dynamic capacity '+level);ok(F.hopperCap()===hopper.at(-1),'reload restores final hopper capacity');}
   {
    const old=lot==='hollow'?[24,24,36,54,80,90,110,125,200]:[6,6,9,14,20,30,45,68,100];
    for(let l=0;l<old.length;l++){S=Y.state();S.lv.metalBin=l;S.lv.pallet=0;S.ingots=old[l];S.plant.rack=24;const src=JSON.parse(JSON.stringify(S));delete src.flags.palletStorage;Y.dev('load({S:'+JSON.stringify(src)+'})');ok(F.palletCap()>=old[l]&&Y.state().ingots===old[l]&&Y.state().plant.rack===24,'legacy '+lot+' storage preserved at raw tier '+l);const level=Y.state().lv.pallet;Y.dev('load({S:'+JSON.stringify(Y.state())+'})');ok(Y.state().lv.pallet===level,'storage migration is idempotent '+lot+' '+l);}
@@ -57,7 +65,7 @@ async function checks(page,lot){
 async function conservation(page){
  return page.evaluate(()=>{
   const Y=window.__leafYard,F=Y.fn(),results=[];
-  for(const level of [0,1,4]){
+  for(const level of [...new Set([0,1,4,F.UP.pallet.max])]){
    let expected=0,initial=0,final=0,sold=0,batches=0,max=0;
    window.__src={leaf:0,bag:0,metal:0,ingot:0,jar:0,gift:0,clean:0,nL:0,nM:0,nI:0,nJ:0};
    const original=Y.dev('finishWork');
