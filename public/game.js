@@ -2110,7 +2110,7 @@ const COAL_GOAL = 100;       // V18: coal sold once the charcoal kiln is built: 
 // bagging table comes first: an early goal of its own (save up and build it, then make the bags), and the first time a
 // robot has two tasks to choose from (the task lesson's first example) is always Bag leaves
 const BOOK_BAGS = 5;
-const INGOT_GOAL = 2000;     // V18: iron ingots sold from the old works back home, once it's repaired (V20: was 1,000; reaching it brings the final letter)
+const INGOT_GOAL = 1000;     // V34.1: shorten the completed-factory wait (was 2,000); reaching it brings the final letter.
 const MILESTONES = [
   // V24: two early goals in the first yard: save up for and build the bagging table, then make BOOK_BAGS bags; the old
   // picture book turns up under a leaf after that (V12–V23: once $60 was earned or $36 held, hidden)
@@ -4016,7 +4016,7 @@ const LETTERS = {
     text: 'Fire that keeps going in the rain, and coal to feed it! Back home, up in the corner of your bigger yard, there’s that old works nobody has got going in years. With a fire and some coal you might just bring it back to life. Take a flame home with you, and keep it dry on the way.',
     note: () => 'From now on the truck brings a load of coal with every pickup back home, free of charge.',
     open: () => { S.flags.fireTrip = true; if (S.trip && S.trip.to === 'home') S.trip.fire = true; else openTrip({ to: 'home', crew: ['robot', 'blower'], earned: HOLLOW_HOME_EARNED, fire: true }); } },
-  // V20: the final letter (2,000 iron ingots sold back home). Golden and shiny, delivered like any other. Reading it sends
+  // V20: the final letter once INGOT_GOAL iron ingots are sold back home. Golden and shiny, delivered like any other. Reading it sends
   // Tinker to the curb; it rides off with the driver and the ending plays (public/ending.js, ENDING.md)
   final: { at: () => LETTER_AT(), title: 'Final letter', sign: 'Trucker', gold: true,
     text: 'I think you want to see this', open: () => openEndingTrip() },
@@ -10389,7 +10389,7 @@ function testCash(add){
   save();
 }
 // ───────────────────────── V20: the ending (see ENDING.md; the scenes themselves are in public/ending.js)
-// 2,000 iron ingots sold → the golden final letter → Tinker rides off with the driver → the truck camera → cut to the
+// INGOT_GOAL iron ingots sold → the golden final letter → Tinker rides off with the driver → the truck camera → cut to the
 // ending's own scenes (factory, bank, storage) → back in the yard, Tinker hops off → "Great work!" → Continue.
 // S.flags.ending: 1 the letter is read (Tinker heads for the curb), 2 the ending is playing, 3 seen (Continue pressed).
 let EN = null, endRt = null;
@@ -10674,7 +10674,7 @@ const JUMP_KITS = {
   homeRuin: { base: 'homeWorks', works: 'known', cash: PLANT_COST + 100 },
   // V18: the old works worked out and repaired, the coal bunker full
   homeSmelt: { base: 'homeWorks', works: 'repaired', up: { metalBin:3 }, cash: 400 },
-  // V20: 2,000 iron ingots sold: the final letter is posted and the driver brings it with the next pickup (soon)
+  // V20: INGOT_GOAL iron ingots sold: the final letter is posted and the driver brings it with the next pickup (soon)
   homeFinal: { base: 'homeSmelt', ingotsSold: INGOT_GOAL, truckSoon: true, cash: 2500 },
 };
 // the trips a jump makes on its way (a stage: the lot it's on, the kit to buy there, then go: ride on)
@@ -10709,7 +10709,7 @@ const JUMPS = [
   { id: 'smelt',   label: 'First yard: the old works repaired, smelting', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeSmelt' }] },
   // V20: the ending. The last two jump like the others; the scene previews (preview:) play right away without wiping
   // anything, and the yard comes back as it was
-  { id: 'final',   label: 'First yard: 2,000 ingots sold, the final letter comes', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal' }] },
+  { id: 'final',   label: 'First yard: ' + INGOT_GOAL.toLocaleString('en-US') + ' ingots sold, the final letter comes', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal' }] },
   { id: 'finalGo', label: 'First yard: final letter read, Tinker off to the truck', stages: [J_HOLLOW, J_BACK, { lot: 'home', kit: 'homeFinal', letter: 'final' }] },
   { id: 'endAll',     label: 'Ending: the whole ride (preview)',    preview: 'all' },
   { id: 'endFactory', label: 'Ending: robot factory (preview)',     preview: 'factory' },
@@ -13037,7 +13037,7 @@ function start(data){
   // V20: the ending (public/ending.js). A reload while it played starts it again from the ride out; ?ending=factory
   // (or bank, storage, all) previews a scene
   EN = window.ENDING ? window.ENDING(makeEndingHelpers()) : null;
-  if (RUIN && S.miles.ingots != null && (S.totals.ingotsSold || 0) < INGOT_GOAL && !S.flags.ending) delete S.miles.ingots;   // (a V18 save that sold 1,000: the goal is 2,000 now)
+  if (RUIN && S.miles.ingots != null && (S.totals.ingotsSold || 0) < INGOT_GOAL && !S.flags.ending) delete S.miles.ingots;   // recheck unfinished saves against the current goal
   if (EN && LOT_ID === 'home' && S.flags.ending === 2){ const i = S.flags.endBot | 0, r = R[i]; truck.st = 'away'; if (r){ r.st = 'ride'; } endRt = { ri: i }; playEnding({ robot: i, onDone: endingHome }); }
   else if (EN && PARAMS.get('ending')) setTimeout(() => previewEnding(PARAMS.get('ending')), 300);
   else if (S.flags.endPop) setTimeout(() => showEndPopup(false), 1200);

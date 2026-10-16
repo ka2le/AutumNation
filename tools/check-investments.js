@@ -14,6 +14,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
   eq(data.robotCosts,[0,8,30,65,120,175,290,450,650,900]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
+  eq(await home.evaluate(()=>__leafYard.dev('INGOT_GOAL')),1000);
   eq(data.tracks.speed.vals.slice(0,8),[1,1.14,1.28,1.42,1.62,1.82,2.02,2.22]);
   eq(data.tracks.carry.vals.slice(0,8),[3,5,7,9,12,15,18,21]);
   eq(data.tracks.pick.vals.slice(0,7),[1.3,1.12,.98,.86,.76,.67,.60]);
@@ -63,6 +64,19 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
    return{first,second:Y.state()};
   });
   eq(migration.first.robots[0].lv,{speed:9,carry:9,pick:8,grab:4,reach:4,drill:0,magnet:0,pack:7,study:0});eq(migration.first.lv.bagPrice,8);eq(migration.first.flags.investmentV32,true);eq(migration.first.cash,123);eq(migration.first.robots,migration.second.robots);await legacy.close();
+  const ending=await fresh();
+  const goal=await ending.evaluate(()=>{
+   const Y=__leafYard;
+   Y.dev('simMode=true;S=freshState();bindIds();S.story.item="ruin";S.story.found=S.story.done=S.flags.ruinKnown=S.plant.built=true;S.totals.ingotsSold=999;updMilestones();');
+   const below={reached:Y.state().miles.ingots!=null,posted:Y.state().post.includes('final')};
+   Y.dev('S.totals.ingotsSold=1000;updMilestones();updMilestones();');
+   const at={reached:Y.state().miles.ingots!=null,letters:Y.state().post.filter(id=>id==='final').length};
+   const text=Y.dev('MILESTONES.find(m=>m.id==="ingots").goal'),hud=Y.dev('MILESTONES.find(m=>m.id==="ingots").hud.of'),jump=Y.dev('JUMPS.find(j=>j.id==="final").label');
+   // A player already past the reduced goal must retain sold progress and receive the final letter.
+   Y.dev('S.totals.ingotsSold=1250;delete S.miles.ingots;S.post=[];S.letters=[];load({S:JSON.parse(JSON.stringify(S))});simMode=true;updMilestones();');
+   return{below,at,text,hud,jump,reload:{sold:Y.state().totals.ingotsSold,reached:Y.state().miles.ingots!=null,letters:Y.state().post.filter(id=>id==='final').length}};
+  });
+  eq(goal.below,{reached:false,posted:false});eq(goal.at,{reached:true,letters:1});eq(goal.text,'Sell 1,000 iron ingots');eq(goal.hud,1000);eq(goal.jump,'First yard: 1,000 ingots sold, the final letter comes');eq(goal.reload,{sold:1250,reached:true,letters:1});await ending.close();
   for(const version of [null,32]){
    const page=await fresh('hollow');const result=await page.evaluate(version=>{
     const Y=__leafYard,lv=version===32?{speed:9,carry:9,pick:8,grab:4,reach:4,pack:7}:{speed:11,carry:11,pick:12,grab:5,reach:5,pack:11};

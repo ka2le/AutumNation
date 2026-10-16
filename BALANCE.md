@@ -20,6 +20,10 @@ development and industrial prices are unchanged in this pass. Do not slow them f
 
 See `tools/balance/v34-midgame.md` for the selected prices, paired campaign evidence and remaining ending risk.
 
+**V34.1:** the final sold-ingot goal is now **1,000** (was 2,000). Twelve paired campaigns retain identical earlier
+progression and shorten the return-home phase from 31.2 to 25.3 minutes on average. The gap between the last
+physical furnace purchase and the unit goal falls from 7.2 to 1.7 minutes. The last alloy upgrade is optional.
+
 Contents: 1 Goals · 2 Core ideas and formulas · 3 Methods and tools · 4 Pricing something new · 5 Current balance (V9)
 · 6 Pitfalls · 7 History of balance passes · 8 Pending balance work
 

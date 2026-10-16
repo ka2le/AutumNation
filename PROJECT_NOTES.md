@@ -1041,6 +1041,12 @@ All in one block in `public/game.js` ("V33: Efficiency Overview", just before th
 - **Readiness remains money:** $750 reprices the prior $600 benchmark; paired incoming physical builds are checked rather than assuming dollars imply capability. Already attained readiness remains attained. There is no new save conversion for this price-only pass.
 - **Validation/evidence:** `tools/check-investments.js` checks protected basics, real paid hires, discounts/Match, final effects, unchanged blowing/bees, local prices and save/travel compatibility. `tools/balance/v34-midgame.md` records the paid campaign comparison and limits. Detailed experiments are under Git-ignored `runs/v34-midgame/`.
 
+### V34.1 (Oct 16): finish at 1,000 sold ingots
+
+- `INGOT_GOAL` is 1,000 rather than 2,000. Milestone text, HUD, toast, final letter trigger and kits already use it; the test-jump label now does too. Existing sold counts are retained, including saves between 1,000 and 2,000. No save migration or economy/production changes.
+- Twelve paired goal-only campaigns shorten the ending phase 31.2 → 25.3 minutes, total 147.8 → 141.8, and the last physical furnace purchase-to-goal gap 7.2 → 1.7. Earlier phases/purchases match exactly. Final alloy becomes largely optional (bought in 1/12 runs).
+- Economy checks cover 999/1,000 thresholds, exactly one final letter, displayed goal and jump label, and reloading a 1,250-ingot save. Detailed goal-only evidence is under Git-ignored `runs/v34-ingot-goal/`.
+
 ### V33.2 (Oct 16): a smooth glow, and the eye watches what the camera follows
 - **Smoother level-up light** (`EYE_FX_T` 3.2 s): the glow round the camera, over the yard and on the eye's ring fades in, swells up and down three times round a steady glow and fades out (a sine envelope with a gentle oscillation on top). The ring no longer blinks on and off.
 - **It watches the story camera:** whenever `camFollow` is on (the driver walking over with a letter, a find turning up, the story camera on a robot, trips, the truck camera, focus and follow), the eye looks at the middle of the screen, so it turns to follow along; afterwards it goes back to looking at what it found.

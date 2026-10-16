@@ -1,5 +1,20 @@
 # V34: midgame investment prices
 
+## V34.1 update: 1,000-ingot ending goal
+
+The current final goal is **1,000 sold ingots**, down from 2,000. The V34 price-pass comparisons below retain the
+old 2,000 goal and are historical evidence for that pass. Goal text, HUD, final letter and test jumps use the same
+`INGOT_GOAL`; existing sold progress is preserved and saves already past 1,000 can reach the new goal.
+
+Twelve paired goal-only campaigns (six seeds, two buyers) have identical earlier stages and purchases up to the
+new goal. Return home to ending falls from **31.20 to 25.25 minutes**, total time from **147.77 to 141.82**, and the
+last physical furnace purchase-to-goal gap from **7.18 to 1.70**. Savings range from 5.63 to 6.42 minutes.
+Physical furnace tracks are all maxed in 11/12 runs; the final alloy step is bought in only 1/12, versus 10/12
+before. It is now largely optional. Buyers retain their previous decisions until the final trip; these are not
+optimal-player forecasts. The finale animation is excluded from finish time.
+
+Evidence: Git-ignored `runs/v34-ingot-goal/summary.json`, `report.md`, source snapshots and all twelve campaigns.
+
 The target is the cost of adding useful capacity. Cheap training on another robot is intentional: copied levels
 remain 50%, Shared basket plans remains $150 and reduces copied baskets to 10%, and Match keeps its existing
 behaviour. V34 changes prices, with no additional skill consolidation, capacity changes or output changes.
