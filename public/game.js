@@ -239,7 +239,7 @@ const UP = {
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
   // the top deal brings a leaf to about $1.20. Each tier is a big jump that costs a lot at the time you can first afford it.
-  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[1000, 2200, 4000],   // V32: the hollow has a gentler local ladder.
+  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[400, 2200, 4000],   // V32: the hollow has a gentler local ladder.
                
                 vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
@@ -7234,27 +7234,32 @@ function drawWallCharm(c){
   }
   c.restore();
 }
-// Market stall: a string of bunting over the bagging table (the drying bench in the hollow) on two little poles; more
-// and brighter flags with every step, gold ones and gold knobs on the poles at the top. In the table's own coordinates.
+// Market stall: a garland of bunting strung along the front edge of the bagging table's top (the drying bench in the
+// hollow), tacked at each corner and sagging only a little so it never hides the bags; more and brighter flags with every
+// step, gold ones and gold tacks at the top. half: half the top's width, y0: where it's tacked, gap: a bare stretch of
+// string left in the middle (for the BAGS sign). In the table's own coordinates.
 const BUNTING_COL = [[], ['#c4452f', '#efe2c6'], ['#c4452f', '#efe2c6', '#5f8f88'], ['#c4452f', '#efe2c6', '#5f8f88', '#d9b55a']];
-function drawMarketBand(c){
+function drawMarketBand(c, half = 29, y0 = -24.5, gap = 0){
   const L = gl('market'); if (!L) return;
-  const P = 34, top = -57, y0 = -54, sag = 5, n = 3 + 2*L, cols = BUNTING_COL[Math.min(L, 3)];
-  for (const sx of [-1, 1]){
-    c.fillStyle = '#5e4028'; rr(c, sx*P - 0.9, top, 1.8, -24 - top, 0.6); c.fill();
-    c.fillStyle = L >= 3 ? '#d9b55a' : '#7a5434'; ell(c, sx*P, top - 0.6, 1.5, 1.5); c.fill();
-  }
+  const P = half, sag = 1.6, cols = BUNTING_COL[Math.min(L, 3)], fh = 4.6;
+  const sagAt = x => { const t = (x + P)/(2*P); return y0 + 4*sag*t*(1 - t); };
   c.strokeStyle = '#efe2c6'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-P, y0); c.quadraticCurveTo(0, y0 + 2*sag, P, y0); c.stroke();
-  const w = 2*P/n*0.78;
-  for (let i=0;i<n;i++){
-    const t = (i + 0.5)/n, x = -P + 2*P*t, y = y0 + 2*t*(1 - t)*2*sag, col = cols[i % cols.length];
-    const fl = reduceMotion ? 0 : Math.sin(S.t*2.6 + i*1.3)*0.14 + wind*0.0012;
+  // the flags: evenly along the whole string, or along each side of the gap
+  const xs = [];
+  if (gap){ const k = 2 + L, len = P - gap; for (const sx of [-1, 1]) for (let i=0;i<k;i++) xs.push(sx*(gap + len*(i + 0.5)/k)); xs.sort((p, q) => p - q); }
+  else { const n = 3 + 2*L; for (let i=0;i<n;i++) xs.push(-P + 2*P*(i + 0.5)/n); }
+  const w = (gap ? (P - gap)/(2 + L) : 2*P/(3 + 2*L))*0.8;
+  xs.forEach((x, i) => {
+    const y = sagAt(x), col = cols[i % cols.length];
+    const fl = reduceMotion ? 0 : Math.sin(S.t*2.6 + i*1.3)*0.12 + wind*0.001;
     c.save(); c.translate(x, y); c.rotate(fl);
-    c.fillStyle = shade(col, 0.8); c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2, 0); c.lineTo(0.3, 6.2); c.closePath(); c.fill();
-    c.fillStyle = col; c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2 - 0.6, 0); c.lineTo(0, 5.8); c.closePath(); c.fill();
-    if (col === '#d9b55a'){ const ph = (S.t*0.5 + i*0.37) % 1; if (ph < 0.12) glint(c, 0, 2, 1.6*Math.sin(ph/0.12*Math.PI), 1); }
+    c.fillStyle = shade(col, 0.8); c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2, 0); c.lineTo(0.3, fh + 0.4); c.closePath(); c.fill();
+    c.fillStyle = col; c.beginPath(); c.moveTo(-w/2, 0); c.lineTo(w/2 - 0.5, 0); c.lineTo(0, fh); c.closePath(); c.fill();
+    if (col === '#d9b55a'){ const ph = (S.t*0.5 + i*0.37) % 1; if (ph < 0.12) glint(c, 0, 1.6, 1.4*Math.sin(ph/0.12*Math.PI), 1); }
     c.restore();
-  }
+  });
+  // a tack at each corner holding the string
+  c.fillStyle = L >= 3 ? '#d9b55a' : '#5e4028'; for (const sx of [-1, 1]){ ell(c, sx*P, y0, 1.1, 1.1); c.fill(); }
 }
 // Mining tools: a little pile of tools beside every mine (every saw in the hollow): a red toolbox, a pickaxe (an axe in
 // the hollow) lying across it, a shovel stuck in the ground and a spanner
@@ -7417,7 +7422,7 @@ function drawPlot(c, w, h, label, appearT, sx){
 function drawBagger(){
   if (!baggerShown()) return;
   if (dryLabOn()) timers.push({ open: ['lab', 'dry'], x: BAGGER.x, y: BAGGER.y - 78, t: dryLabRate() ? mmss((DRY_LAB_NEED - (S.flags.dryProg || 0))/dryLabRate()) : (S.flags.dryProg ? mmss(DRY_LAB_NEED - S.flags.dryProg) : '?'), k: dryLabK(), on: dryLabRate() > 0 });   // V27
-  if (ART.drawBagger){ ART.drawBagger(); if (gl('market')){ ctx.save(); ctx.translate(BAGGER.x, BAGGER.y); drawMarketBand(ctx); ctx.restore(); } return; }   // V15: the hollow's drying bench (V37: with the Market stall's bunting)
+  if (ART.drawBagger){ ART.drawBagger(); if (gl('market')){ ctx.save(); ctx.translate(BAGGER.x, BAGGER.y); drawMarketBand(ctx, 31, -23.6); ctx.restore(); } return; }   // V15: the hollow's drying bench (V37: with the Market stall's bunting)
   const c = ctx;
   c.save(); c.translate(BAGGER.x, BAGGER.y);
   if (!S.bag.built){ drawPlot(c, 56, 22, 'bagging table', plantRt.bagShownT); c.restore(); return; }
@@ -7451,10 +7456,10 @@ function drawBagger(){
     }
     c.fillStyle = 'rgba(255,245,225,.3)'; c.fillRect(bx - 5, -42, 1.2, 11);
   }
+  drawMarketBand(c, 29, -24.6, 10.5);   // V37 (V38: strung along the table's front edge, behind the sign)
   // a small painted sign on the front edge
   c.fillStyle = '#efe2c6'; rr(c, -9, -25.5, 18, 6, 1.5); c.fill();
   c.font = '800 4.6px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#7c3a1c'; c.fillText('BAGS', 0, -22.3);
-  drawMarketBand(c);   // V37
   c.restore();
 }
 // the bags waiting for the truck sit in the bin with the loose leaves; a tag on the bin's side counts them
@@ -10735,12 +10740,13 @@ function eyeCardRows(rows, rows2){
   if (!EYE.issues.length) rows.push({ sig:'eyS0', html: row({ icon: ic('tick'), name:'Nothing stuck', val:'<span class="none">everything that can work is working</span>' }) });
   for (const o of EYE.issues.slice(0, 14)) rows.push(eyeRow(o, false));
   const lim = cash$(S.cash*EYE_CHEAP), bots = EYE.lo.filter(o => !o.bld), blds = EYE.lo.filter(o => o.bld);
-  rows2.push({ sig:'eyL', html:'<div class="sect" title="Skills for what each one mostly does, each level under ' + Math.round(EYE_CHEAP*100) + '% of the cash you have (' + lim + ')">Cheap upgrades</div>' });
+  // (V33.4: building and yard-wide upgrades sit in the left column, under Stuck)
+  rows.push({ sig:'eyB', html:'<div class="sect" title="Upgrades that help whatever the yard does (prices, pickups, yard-wide, hive), and bigger storage once it has been full, under ' + Math.round(EYE_CHEAP*100) + '% of your cash (' + lim + ')">Cheap building upgrades</div>' });
+  if (!blds.length) rows.push({ sig:'eyB0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">no building or yard-wide upgrade under ' + lim + '</span>' }) });
+  for (const o of blds.slice(0, 8)) rows.push(eyeRow(o, true));
+  rows2.push({ sig:'eyL', html:'<div class="sect" title="Skills for what each one mostly does, each level under ' + Math.round(EYE_CHEAP*100) + '% of the cash you have (' + lim + ')">Cheap robot upgrades</div>' });
   if (!bots.length) rows2.push({ sig:'eyL0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">no skill under ' + lim + ' left for their jobs</span>' }) });
   for (const o of bots.slice(0, 10)) rows2.push(eyeRow(o, true));
-  rows2.push({ sig:'eyB', html:'<div class="sect" title="Upgrades that help whatever the yard does (prices, pickups, yard-wide, hive), and bigger storage once it has been full, under ' + Math.round(EYE_CHEAP*100) + '% of your cash (' + lim + ')">Buildings &amp; yard</div>' });
-  if (!blds.length) rows2.push({ sig:'eyB0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">no building or yard-wide upgrade under ' + lim + '</span>' }) });
-  for (const o of blds.slice(0, 8)) rows2.push(eyeRow(o, true));
   if (EYE.showIgn){
     rows2.push({ sig:'eyI', html:'<div class="sect" title="What you chose to ignore. Un-ignore to see it here again when it’s cheap">Ignored</div>' });
     const L = eyeIgn().map(k => [k, eyeIgnLabel(k)]).filter(q => q[1]);

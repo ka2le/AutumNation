@@ -27,7 +27,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,7500]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
   eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,3000,6000]);
-  eq(data.up.cleanup.costs,[1000,2200,4000]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
+  eq(data.up.cleanup.costs,[400,2200,4000]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
   eq(data.up.metalPrice.costs,[300,600,1100,3500,7000,13000]);
   const expected={speed:3.3,carry:38,pick:.32,grab:12,reach:125,pack:4.6,drill:1.35,magnet:.72,study:10.5,blow:6.4,shake:38,dig:.95,stoke:1,dry:6.5};
   for(const[k,v]of Object.entries(expected))eq(data.tracks[k].vals.at(-1),v);
