@@ -143,6 +143,8 @@ const RAINY = !!LOT.rain, WET_WOOD = !!LOT.wetWood;
 // start and worked by blowers (warm air) instead of robots, and the truck only buys dry leaves (DRY_BENCH). And the hive
 // starts out as a plain beehive whose bees can't fly in the rain; the robots research it into an ant hill (HIVE_STORY).
 const DRY_BENCH = !!LOT.dryBench, HIVE_STORY = !!LOT.hiveStory;
+// V31: in the first yard deadheading has to be worked out first, by a Shaker (see SNIP_JARS)
+const SNIP_LAB = LOT_ID === 'home';
 // V17 (the Rainy hollow): once its first goals are done, lightning sets the tree in the middle of the yard on fire. The
 // robots research the fire (a robot, a blower and a shaker), which teaches them to burn logs under the drying bench; the
 // burnt logs leave charcoal, and researching that opens a coal stand by the road and a charcoal kiln (the smelting
@@ -578,7 +580,7 @@ function trackCap(k){
   return n;
 }
 const trackMax = k => TRACKS[k].vals.length - 1;
-function trackVisible(k){ if (k === 'dry') return DRY_BENCH && S.bag.built && !!S.flags.dryKnown; if (k === 'study') return researchOpen(); if (k === 'snip') return S.hive.built && !hiveGrounded(); if (k === 'pack') return packOpen(); if (k === 'dig') return S.shafts.length > 0; if (k === 'stoke') return S.plant.built; if (k === 'brolly') return WET_WOOD && S.plant.built; if (k === 'grab') return !!S.tech.claw; if (k === 'reach') return !!S.tech.arm; if (k === 'drill' || k === 'magnet') return S.metalSlot; return true; }
+function trackVisible(k){ if (k === 'dry') return DRY_BENCH && S.bag.built && !!S.flags.dryKnown; if (k === 'study') return researchOpen(); if (k === 'snip') return S.hive.built && !hiveGrounded() && snipKnown(); if (k === 'pack') return packOpen(); if (k === 'dig') return S.shafts.length > 0; if (k === 'stoke') return S.plant.built; if (k === 'brolly') return WET_WOOD && S.plant.built; if (k === 'grab') return !!S.tech.claw; if (k === 'reach') return !!S.tech.arm; if (k === 'drill' || k === 'magnet') return S.metalSlot; return true; }
 function genAt(k, level){ let acc = 0; const gens = TRACKS[k].gens; for (let gi=0; gi<gens.length; gi++){ const g = gens[gi]; if (level < acc + g.n) return { gi, g, idx: level - acc }; acc += g.n; } return null; }
 function genNameAt(k, level){ let acc = 0, name = TRACKS[k].gens[0].name; for (const g of TRACKS[k].gens){ if (g.n > 0 && level > acc) name = g.name; acc += g.n; } return name; }
 // robots of every kind: 'robot' (the regular yard bots), 'blower' and 'shaker'
@@ -746,7 +748,7 @@ if (LOT.tasks) for (const k in LOT.tasks) if (TASKS[k]) Object.assign(TASKS[k], 
 if (LOT.trackLabels) for (const k in LOT.trackLabels) if (TRACKS[k]) TRACKS[k].label = LOT.trackLabels[k];
 const KIND_TASKS = { robot:['leaves','mine', ...(DRY_BENCH ? [] : ['bag']),'jar','wrap', ...(FIRE_STORY ? ['fuel'] : []), ...(PLANT_COAL ? ['refuel'] : []),'smelt','haul','research','travel'],
   blower:[...(DRY_BENCH ? ['bag'] : []), 'blow','dig','stoke', ...(WET_WOOD ? ['brolly'] : []), ...(HIVE_STORY ? ['research'] : []), 'travel'],
-  shaker:['shake','snip', ...(FIRE_STORY ? ['research'] : [])] };   // (V17: a shaker can hold a burning branch: the fire research needs one)
+  shaker:['shake','snip', ...(FIRE_STORY || SNIP_LAB ? ['research'] : [])] };   // (V31: and the spent-flower research in the first yard)   // (V17: a shaker can hold a burning branch: the fire research needs one)
 // is the task there at all yet (its building bought, the skill learned)?
 function taskOpen(t, cfg){
   switch (t){
@@ -761,8 +763,8 @@ function taskOpen(t, cfg){
     case 'dig': return !!(cfg && cfg.lv.dig > 0) && S.shafts.length > 0;
     case 'stoke': return !!(cfg && cfg.lv.stoke > 0) && S.plant.built;
     case 'brolly': return WET_WOOD && !!(cfg && cfg.lv.brolly > 0) && S.plant.built;
-    case 'snip': return !!(cfg && cfg.lv.snip > 0) && S.hive.built && !hiveGrounded();
-    case 'research': { const k = cfg && kindOfCfg(cfg); return k === 'blower' ? (researchOpen() && !!FIND().blower) || dryLabOn() : k === 'shaker' ? researchOpen() && !!FIND().shaker : S.story.found; }
+    case 'snip': return !!(cfg && cfg.lv.snip > 0) && S.hive.built && !hiveGrounded() && snipKnown();
+    case 'research': { const k = cfg && kindOfCfg(cfg); return k === 'blower' ? (researchOpen() && !!FIND().blower) || dryLabOn() : k === 'shaker' ? (researchOpen() && !!FIND().shaker) || snipLabOn() : S.story.found; }
     case 'travel': { if (!tripFor(cfg)) return false; const h = tripHolder(kindOfCfg(cfg)); return !h || h === cfg; }
   }
   return true;
@@ -782,6 +784,14 @@ function tripFor(cfg){
 }
 const tripHolder = (kind = 'robot') => (cfgsOf(kind) || []).find(c => tripFor(c) && taskOn(c, 'travel')) || null;
 const tripCashOK = () => !S.trip || !S.trip.cash || !!S.trip.paid || S.cash >= S.trip.cash;
+// V31: the hollow trip opens as soon as the soggy letter is read (so who goes can be assigned straight away), but the crew
+// only heads for the curb once Tinker is ready (its upgrades worth TINKER_GOAL; S.trip.tinker). Until then the letter,
+// the trip chips and the Assign rows say Tinker's upgrades are what it's waiting for.
+const tripTinkerOK = () => !S.trip || !S.trip.tinker || S.miles.qTinker != null || tinkerWorth() >= TINKER_GOAL;
+const tripGoOK = () => tripCashOK() && tripTinkerOK();
+const tinkerWaitTxt = () => '$' + Math.floor(Math.min(TINKER_GOAL, tinkerWorth())).toLocaleString('en-US') + ' / $' + TINKER_GOAL.toLocaleString('en-US');
+// on a trip chip: what the crew waits for while Tinker isn't ready (Tinker's own chip says "more upgrades")
+const tinkerWait = cfg => S.trip && cfg && taskOn(cfg, 'travel') && !tripTinkerOK() ? (S.robots.indexOf(cfg) === tinkerI() ? 'more upgrades (' : 'Tinker’s upgrades (') + tinkerWaitTxt() + ')' : '';
 // V14.1: a crew member waiting at the curb for the rest of the crew: who it's waiting for ('the blower', 'Tinker'), or ''
 function crewWaitFor(cfg){
   if (!S.trip || tripKinds().length < 2 || !cfg || !taskOn(cfg, 'travel')) return '';
@@ -852,9 +862,10 @@ function idleWaitFirst(cfg){
   for (const row of cfg.prio) for (const t of row){ const w = idleWait(t, cfg); if (w) return w; }
   return '';
 }
-const taskWaitText = (t, cfg) => (t === 'travel' ? crewWaitFor(cfg) : labWaitFor(t, cfg) || fireTaskWait(t, cfg)) || idleWait(t, cfg);
-const taskShort = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research' : 'Researching') : TASKS[t].short) + (w ? ' - waiting for ' + w : ''); };
-const taskName = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research the fire' : 'Researching') : TASKS[t].name) + (w ? ' - waiting for ' + w : ''); };
+const taskWaitText = (t, cfg) => (t === 'travel' ? tinkerWait(cfg) || crewWaitFor(cfg) : labWaitFor(t, cfg) || fireTaskWait(t, cfg)) || idleWait(t, cfg);
+const resLbl = (t, cfg, key) => t === 'research' && snipLabOn() && cfg && kindOfCfg(cfg) === 'shaker' ? 'Research' : TASKS[t][key];   // V31
+const taskShort = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research' : 'Researching') : resLbl(t, cfg, 'short')) + (w ? ' - waiting for ' + w : ''); };
+const taskName = (t, cfg) => { const w = taskWaitText(t, cfg); return (t === 'research' && w ? (w === 'lightning' ? 'Research the fire' : 'Researching') : resLbl(t, cfg, 'name')) + (w ? ' - waiting for ' + w : ''); };
 function tasksFix(cfg, kind){
   // every task of this kind appears exactly once, in Do or in Don't; rows hold at most two
   const all = KIND_TASKS[kind], seen = new Set();
@@ -1486,7 +1497,7 @@ function taskWork(r, t){
     case 'fuel': return fuelWork(r);   // V17
     case 'refuel': return refuelWork(r);   // V18
     case 'research': return researchOpen() && researchRoom(r) && (!FIND().atFire || fireOn());   // (V17: the fire only while it burns)
-    case 'travel': return tripFor(S.robots[r.id]) && tripCashOK();
+    case 'travel': return tripFor(S.robots[r.id]) && tripGoOK();
   }
   return false;
 }
@@ -1510,7 +1521,7 @@ function unitDone(who, t){ if (who.lastTask === t) who.streak = (who.streak || 0
 // a robot with Bag leaves bags; when the metal tub is full (or it's holding enough metal and the hopper is full), a
 // robot with Smelt ingots smelts. So a robot that gathers and bags bags its own leaves before picking new ones.
 function urgentTask(r, cfg){
-  if (S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg) && tripCashOK()) return 'travel';   // V13: in Do at all means: go (V14: once the money is there)
+  if (S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg) && tripGoOK()) return 'travel';   // V13: in Do at all means: go (V14: once the money is there)
   if (S.bag.built && taskOn(cfg, 'bag') && (binRoom() <= 0 || r.carryL >= Math.min(BAG_SIZE, leafCap(r.id))) && taskWork(r, 'bag')) return 'bag';
   if (S.hive.built && taskOn(cfg, 'jar') && S.hive.honey >= honeyCap() - 1e-6 && taskWork(r, 'jar')) return 'jar';
   if (PLANT_COAL && S.plant.built && taskOn(cfg, 'refuel') && S.plant.coal <= COAL_LOW && taskWork(r, 'refuel')) return 'refuel';   // V18
@@ -2057,6 +2068,18 @@ function tinkerReady(){
   bindIds();
 }
 function tinkerWorth(){ const c = S.robots[tinkerI()]; if (!c) return 0; let s = 0; for (const k in c.lv) if (TRACKS[k]) s += lvWorth(k, c.lv[k] | 0); return s; }
+// V31: deadheading is worked out, not just bought. Once the first yard's truck has bought SNIP_JARS jars of honey (a
+// hidden milestone; gift jars count), a research question mark goes up over the beehive and Research opens for Shakers
+// (only them). A Shaker on it stands by a flower near the hive, trying its claws on the spent heads, SNIP_LAB_RATE
+// research a second each (up to three Shakers); at SNIP_LAB_NEED it's worked out and only then do Garden shears and the
+// Deadhead flowers task show. Other yards keep deadheading as it was.
+const SNIP_JARS = 50, SNIP_LAB_NEED = 1000, SNIP_LAB_RATE = 4;   // (one Shaker ~4:10, two ~2:05, three ~1:23)
+const snipKnown = () => !SNIP_LAB || !!S.flags.snipKnown;
+const snipLabOn = () => SNIP_LAB && !!S.flags.snipLab && !S.flags.snipKnown;
+const snipLabK = () => clamp((S.flags.snipProg || 0)/SNIP_LAB_NEED, 0, 1);
+const snipLabers = () => HB.filter(h => h.kind === 'shaker' && h.st === 'snipLab');
+const snipLabRate = () => snipLabers().length*SNIP_LAB_RATE;
+const snipNeedShaker = () => !S.shakers.some(c => !c.away && taskReached(c, 'research'));
 const DRY_GOAL = 500;        // V15: the Rainy hollow's first goal: sell this many dry leaves (V17: was 100)
 const CANNED_CASH = 200;     // V17: the hollow's mushroom goal, once the ant hill is going: $ of canned mushrooms sold
 const LOGS_GOAL = 100;       // V17: logs the truck has taken (the third of the goals that bring the lightning)
@@ -2090,8 +2113,9 @@ const MILESTONES = [
     hud:{ icon:'leaf', val: () => leavesForGoal(), of: LEAF_GOAL, show: () => !!S.flags.moreLeaves } },
   // V28.1: after the hollow letter (the bigger yard and a mine bring it): Tinker's upgrades worth TINKER_GOAL, then the
   // trip opens (was "Save up $1,000" beside the other two quests). Tinker's card shows it in full (questBox)
-  { id:'qTinker', lot:'home', name:'Ready for more', goal:'Get Tinker ready for even more leaf-picking', prog: () => S.flags.tinkerGoal ? tinkerWorth()/TINKER_GOAL : 0, on: () => openHollowTrip(true),
+  { id:'qTinker', lot:'home', name:'Ready for more', goal:'Get Tinker ready for even more leaf-picking', prog: () => S.flags.tinkerGoal ? tinkerWorth()/TINKER_GOAL : 0, on: () => tinkerIsReady(),
     hud:{ icon:'robot', cash:true, val: () => tinkerWorth(), of: TINKER_GOAL, show: () => !!S.flags.tinkerGoal && !S.flags.hollowGone } },
+  { id:'snipLab', lot:'home', hidden:true, name:'Spent flowers', goal:'Sell ' + SNIP_JARS + ' jars of honey', prog: () => S.hive.built && !hiveGrounded() ? (S.totals.jarsSold || 0)/SNIP_JARS : 0, on: () => openSnipLab() },   // V31
   { id:'honeyHome', lot:'home', name:'Sweet success', goal:'Earn $' + HONEY_CASH + ' selling honey', prog: () => S.hive.built ? honeyEarned()/HONEY_CASH : 0,
     hud:{ icon:'jar', cash:true, val: () => honeyEarned(), of: HONEY_CASH, show: () => hiveKnown() } },
   // on the prairie: a dead bee under a petal, and once the new hive is going, a ride back home for the robot and a bee
@@ -3946,7 +3970,8 @@ const LETTERS = {
     // (V28.1: the small print speaks for the game, not the driver)
     note: () => 'You bring Tinker and a Blower with all their upgrades, and every unlock. Everything else starts from scratch in the new yard: money, buildings, prices, truck and workshop upgrades. Your first yard waits here as it is.',
     // V28.1: reading it starts the Tinker goal; the trip opens once that's reached (at once if Tinker is ready already)
-    open: () => { S.flags.tinkerGoal = true; if (tinkerWorth() >= TINKER_GOAL){ if (S.miles.qTinker == null) S.miles.qTinker = Math.round(S.t); openHollowTrip(false); } } },
+    // (V31: and opens the trip straight away, so Tinker and a Blower can be assigned; they set off once Tinker is ready)
+    open: () => { S.flags.tinkerGoal = true; if (tinkerWorth() >= TINKER_GOAL && S.miles.qTinker == null) S.miles.qTinker = Math.round(S.t); openHollowTrip(); } },
   // V18: the Rainy hollow's last beat. 200 coal sold from the kiln: take the fire home. Reading it opens the ride home;
   // the robot lights a little branch at the dryer's stove and the blower holds an umbrella over it while they wait
   fireHome: { at: () => LETTER_AT(), title: 'A smoky letter', sign: 'Trucker',
@@ -3958,10 +3983,16 @@ const LETTERS = {
   final: { at: () => LETTER_AT(), title: 'Final letter', sign: 'Trucker', gold: true,
     text: 'I think you want to see this', open: () => openEndingTrip() },
 };
-function openHollowTrip(told){
+function openHollowTrip(quiet){
   if (S.trip || S.flags.hollowGone) return;
-  openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0 });
-  if (told && !simMode) setTimeout(() => showToast('Tinker is ready!', 'Send Tinker and your best Blower to the Rainy hollow: put Go to new lot in their task lists.', 10), 600);
+  openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0, tinker: true }, quiet);
+}
+// V31: Tinker's upgrades reached TINKER_GOAL (the trip is already open since the letter): the crew can go
+function tinkerIsReady(){
+  openHollowTrip(true);   // (a save from before V31 that read the letter and was still waiting: the trip opens now)
+  if (simMode || !S.trip || S.trip.to !== 'hollow') return;
+  const set = tripKinds().every(k => tripHolder(k));
+  setTimeout(() => showToast('Tinker is ready!', set ? 'Tinker and the Blower head for the curb and ride to the Rainy hollow with the next pickup.' : 'Send Tinker and your best Blower to the Rainy hollow: put Go to new lot in their task lists (or use Assign on the letter).', 10), 600);
 }
 const lotTitle = id => id === 'home' ? 'your first yard' : (window.LOTS && window.LOTS[id] && window.LOTS[id].title) || 'a new lot';
 // the truck driver: a robot like yours, with a brown band and a brown cap, and no basket
@@ -4033,14 +4064,15 @@ function readLetter(i){ const l = S.letters[i]; if (!l || l.read) return; l.read
 // t: { to, bee, cash (travel money, taken at the truck), crew (kinds that go), who (only this robot), earned (the bonus back home) }
 function openTrip(t, quiet){
   S.trip = { to: t.to, bee: !!t.bee };
-  for (const k of ['cash', 'crew', 'who', 'earned', 'fire']) if (t[k] != null) S.trip[k] = t[k];
+  for (const k of ['cash', 'crew', 'who', 'earned', 'fire', 'tinker']) if (t[k] != null) S.trip[k] = t[k];
   for (const kind of tripKinds()) for (const c of cfgsOf(kind)) if (tripFor(c) && !taskOn(c, 'travel')){ taskRemove(c, 'travel'); c.off.push('travel'); }
   if (simMode || quiet) return;
   const who = S.robots.findIndex(tripFor), name = who >= 0 ? styleOf(who).name : 'a Robot', crew = tripKinds().length > 1;
   const money = t.cash ? ' The ' + cash2(t.cash).replace('.00', '') + ' only comes out of your cash when they climb into the truck.' : '';
+  const ready = t.tinker && !tripTinkerOK() ? ' They set off once Tinker’s upgrades are worth $' + TINKER_GOAL + ' (now ' + tinkerWaitTxt().split(' / ')[0] + ').' : '';   // V31
   if (t.to === 'home' && t.fire) setTimeout(() => showToast('Take the fire home', 'New task: Go back to original lot. Drag it into ' + name + '’s Do list and into the Blower’s: ' + name + ' lights a little branch at the dryer’s stove, the Blower holds an umbrella over it, and they ride home with the next pickup.', 13), 400);
   else if (t.to === 'home') setTimeout(() => showToast('A ride home', 'New task: Go back to original lot. Drag it into ' + name + '’s Do list: it waits at the curb and rides back with the next pickup, and a bee comes along.', 12), 400);
-  else if (crew) setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into ' + name + '’s Do list and into one Blower’s: they wait at the curb and ride along with the next pickup.' + money, 13), 400);
+  else if (crew) setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into ' + name + '’s Do list and into one Blower’s: they wait at the curb and ride along with the next pickup.' + money + ready, 13), 400);
   else setTimeout(() => showToast('A new lot!', 'New task: Go to new lot. Drag it into your best Robot’s Do list: it waits at the curb and rides along with the next pickup.' + money, 12), 400);
 }
 // the runtime robot or helper of a config
@@ -4059,7 +4091,7 @@ function updBoarding(){
   // V20: the final ride: once the robot waits at the curb, the driver comes round soon
   if (S.trip && S.trip.to === 'ending' && T.st === 'away' && !simMode){ const c = tripHolder(), o = c && R[S.robots.indexOf(c)]; if (o && o.st === 'curb') S.truckT = Math.min(S.truckT, 2.5); }
   if (simMode || T.st !== 'load' || T.riders.length || driver || !S.trip) return;
-  const crew = crewAtCurb(); if (!crew || !tripCashOK()) return;
+  const crew = crewAtCurb(); if (!crew || !tripGoOK()) return;
   if (S.trip.cash && !S.trip.paid){
     S.cash -= S.trip.cash; S.trip.paid = S.trip.cash;
     const hc = $('hCash').getBoundingClientRect(), p = s2w(hc.left + 150, hc.bottom + 75); pop(p.x, p.y, cash2(S.trip.cash).replace('.00', '') + ' packed for the trip', 'note', 18, 0, 3);
@@ -4099,7 +4131,7 @@ function updHop(o, dt){
 }
 // the truck waits while the driver is out, while someone hops in or out, or while the crew at the curb is about to
 const truckBusy = () => !!driver || R.some(q => q.st === 'hopIn' || q.st === 'hopOut' || q.st === 'toBoard') || HB.some(q => q.st === 'hopIn' || q.st === 'hopOut' || q.st === 'toBoard') ||
-  (!truck.riders.length && !!crewAtCurb() && tripCashOK()) || (guest.on && guest.mode === 'toTruck');
+  (!truck.riders.length && !!crewAtCurb() && tripGoOK()) || (guest.on && guest.mode === 'toTruck');
 // a bee from the hive comes along for the ride home (one bee less in this hive, if it has more than one)
 function beeAboard(){
   let from = { x: HIVE.x, y: HIVE.y, z: 30 };
@@ -4456,6 +4488,61 @@ function openDryLab(){
   }, (DRY_REFUSE_HOLD + 1.1)*1000);
   setTimeout(() => showToast('Too wet to sell', 'The truck won’t take wet leaves. ' + (nm ? 'Put ' + nm + ' on Research to work out how to dry them at the drying bench.' : 'Build a Blower and put it on Research to work out how to dry them at the drying bench.'), 12), (DRY_REFUSE_HOLD + 2.6)*1000);
 }
+// V31: the spent-flower research (see SNIP_JARS). Opens with the hidden milestone: Research goes into every Shaker's Off pile
+function openSnipLab(){
+  if (!SNIP_LAB || S.flags.snipKnown || S.flags.snipLab) return;
+  S.flags.snipLab = true; S.flags.snipProg = S.flags.snipProg || 0;
+  for (const c of S.shakers) if (!c.away && !taskOn(c, 'research')) putOff(c, 'research');
+  if (simMode) return;
+  const y = HIVE.y - hiveTopZ();
+  startFindCam(HIVE.x, y + 10, 4.6, 2.2);
+  setTimeout(() => { pop(HIVE.x, y - 70, 'New research: spent flowers', 'note', 17, 0, 4.4); sparkle(HIVE.x, y - 40); sfx('chime', 'sale'); }, 1100);
+  setTimeout(() => showToast('Spent flowers', 'The flowers around the hive are full of spent heads. Only a Shaker can work out what to do about them: ' + (S.shakers.length ? 'tap the hive and Assign a Shaker to Research.' : 'build a Shaker in the workshop, then tap the hive and Assign it to Research.'), 12), 2200);
+  save();
+}
+// where a Shaker researching stands: beside one of the three flowers nearest the hive (one each), facing it
+function snipLabSpot(h){
+  const fs = FLOWERS.map((f, i) => ({ f, i })).filter(o => flowerOn(o.f)).sort((a, b) => Math.hypot(a.f.x - HIVE.x, a.f.y - HIVE.y) - Math.hypot(b.f.x - HIVE.x, b.f.y - HIVE.y));
+  const pick = [];
+  for (const o of fs){ if (pick.every(q => Math.hypot(q.f.x - o.f.x, q.f.y - o.f.y) > 34)) pick.push(o); if (pick.length >= 3) break; }
+  const o = pick[(h.idx | 0) % Math.max(1, pick.length)];
+  return o ? { x: o.f.x - 15, y: o.f.y + 3, fi: o.i } : { x: HIVE.x - 56, y: HIVE.y - 30, fi: -1 };
+}
+// state 'snipLab': it looks the flower over, then tries its claws on the spent head (a few dry bits fly), and again
+function updSnipLab(h, dt){
+  if (!snipLabOn()){ h.st = 'idle'; h.target = null; return; }
+  S.flags.snipProg = Math.min(SNIP_LAB_NEED, (S.flags.snipProg || 0) + SNIP_LAB_RATE*dt);
+  const f = h.slab >= 0 ? FLOWERS[h.slab] : null;
+  h.modeT -= dt;
+  if (h.modeT <= 0){
+    if (h.lm === 'snip' || !f){ h.lm = 'look'; h.target = null; h.modeT = rand(1.4, 2.6); }
+    else { h.lm = 'snip'; h.target = { type: 'flower', i: h.slab }; h.modeT = rand(1, 1.5); h.snipT = 0.45; }
+  }
+  if (h.lm === 'snip' && f && !simMode && (h.snipT -= dt) <= 0){
+    h.snipT = 99; const hy = f.y - flowerHead(f);
+    for (let k=0;k<3;k++) parts.push({ k:'petal', x: f.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-22, 22), vy: rand(-32, -8), g: 90, life: rand(.5, .9), t: 0, col: '#8a7a4a' });
+  }
+  h.timer -= dt;
+  if (h.timer <= 0){ h.timer = 1.5; const t = chooseTask(h, helperCfg(h), x => helperWork(h, x) != null); if (t !== 'research'){ h.st = 'idle'; h.target = null; unitDone(h, 'research'); return; } }
+  if (S.flags.snipProg >= SNIP_LAB_NEED - 1e-9) finishSnipLab();
+}
+function finishSnipLab(){
+  if (!SNIP_LAB || S.flags.snipKnown) return;
+  S.flags.snipLab = true; S.flags.snipKnown = true; S.flags.snipProg = SNIP_LAB_NEED; S.flags.snipAt = S.t;
+  const who = [];
+  S.shakers.forEach((c, i) => {
+    const h = HB.find(q => q.kind === 'shaker' && q.idx === i);
+    if (h && (h.st === 'snipLab' || (h.st === 'go' && h.task === 'research'))){ h.st = 'idle'; h.target = null; unitDone(h, 'research'); }
+    if (taskOn(c, 'research')){ who.push(helperStyleOf('shaker', i).name); putOff(c, 'research'); taskListChanged('shaker', i); }
+  });
+  if (simMode) return;
+  const y = HIVE.y - hiveTopZ();
+  startFindCam(HIVE.x, y + 10, 4.2, 2.2);
+  sparkle(HIVE.x, y - 30); sfx('chime', 'sale');
+  pop(HIVE.x, y - 70, 'New: Garden shears', 'note', 19, 0.4, 4);
+  setTimeout(() => showToast('Deadheading!', 'Snip off a spent flower and it blooms again sooner: more nectar for the bees. Teach a Shaker Garden shears on its card, then it can Deadhead flowers.', 11), 700);
+  save();
+}
 function finishDryLab(){
   if (!DRY_BENCH || S.flags.dryKnown) return;
   S.flags.dryLab = true; S.flags.dryKnown = true; S.flags.dryProg = DRY_LAB_NEED; S.flags.dryTold = true;
@@ -4518,14 +4605,15 @@ function higherWork(h, t){
 function helperWork(h, t){
   if (t === 'bag') return h.kind === 'blower' ? dryWork(h) : null;              // V15: drying leaves at the bench
   if (t === 'research' && h.kind === 'blower' && dryLabOn()) return stationFree('bag', hKey(h)) >= 0 ? 1 : null;   // V27: working out drying at the bench
+  if (t === 'research' && h.kind === 'shaker' && snipLabOn()) return 1;   // V31: the spent flowers by the hive
   if (t === 'research') return FIND().atFire ? fireHelperWork(h) : h.kind === 'blower' ? labWork(h) : null;   // V15: keeping the rain off the hive research (V17: or at the fire)
   if (t === 'blow') return h.kind === 'blower' ? blowLap(h) : null;
   if (t === 'dig') return h.kind === 'blower' ? digTarget(h) : null;
   if (t === 'stoke') return h.kind === 'blower' && S.plant.built && R.some(r => r.st === 'smelt' || (r.st === 'toStation' && r.task === 'smelt')) && !HB.some(q => q !== h && q.kind === 'blower' && (q.st === 'stoke' || (q.st === 'go' && q.task === 'stoke'))) ? 1 : null;
   if (t === 'shake') return h.kind === 'shaker' ? shakeTarget(h) : null;
-  if (t === 'snip') return h.kind === 'shaker' && S.hive.built ? snipTarget(h) : null;
+  if (t === 'snip') return h.kind === 'shaker' && S.hive.built && snipKnown() ? snipTarget(h) : null;
   if (t === 'brolly') return h.kind === 'blower' && WET_WOOD ? brollyTarget(h) : null;
-  if (t === 'travel') return tripFor(helperCfg(h)) && tripCashOK() ? 1 : null;   // V14: a blower going along on a trip
+  if (t === 'travel') return tripFor(helperCfg(h)) && tripGoOK() ? 1 : null;   // V14: a blower going along on a trip
   return null;
 }
 function helperDecide(h){
@@ -4538,6 +4626,7 @@ function helperDecide(h){
   if (t === 'travel'){ h.target = null; h.lap = null; h.dig = null; h.st = 'toCurb'; return; }
   if (t === 'bag'){ claimStation('bag', hKey(h)); const i = Math.max(0, STN.bag.indexOf(100 + h.idx)), P = DRY_SPOTS[i]; h.dryI = i; h.tx = P.x; h.ty = P.y; h.st = 'go'; return; }
   if (t === 'research' && h.kind === 'blower' && dryLabOn()){ claimStation('bag', hKey(h)); const i = Math.max(0, STN.bag.indexOf(100 + h.idx)), P = DRY_SPOTS[i]; h.dryI = i; h.tx = P.x; h.ty = P.y; h.target = null; h.st = 'go'; return; }   // V27
+  if (t === 'research' && h.kind === 'shaker' && snipLabOn()){ const p = snipLabSpot(h); h.slab = p.fi; h.tx = p.x; h.ty = p.y; h.target = null; h.st = 'go'; return; }   // V31
   if (t === 'research'){ const p = FIND().atFire ? fireSpot(h) : labSpot(); h.tx = p.x; h.ty = p.y; h.target = null; h.st = 'go'; return; }
   if (t !== 'dig') h.dig = null;
   if (!t){ h.target = null; h.lap = null; helperWander(h, h.kind === 'blower' ? 60 : 50, h.kind === 'blower' ? 40 : 30); return; }
@@ -4589,7 +4678,7 @@ function updHelper(h, dt){
   h.moving = false; h.anim += dt;
   h.blinkT -= dt; if (h.blinkT < 0){ h.blink = 0.14; h.blinkT = rand(2, 5); } if (h.blink > 0) h.blink -= dt;
   // V14: a trip in its Do list (with the money there) pulls it off whatever it's doing
-  if (S.trip && ['lap', 'dig', 'stoke', 'brolly', 'wander', 'rest', 'go', 'lab', 'dryLab', 'fire'].includes(h.st) && (h.tlook = (h.tlook || 0) - dt) <= 0){
+  if (S.trip && ['lap', 'dig', 'stoke', 'brolly', 'wander', 'rest', 'go', 'lab', 'dryLab', 'snipLab', 'fire'].includes(h.st) && (h.tlook = (h.tlook || 0) - dt) <= 0){
     h.tlook = 0.5; const c = helperCfg(h);
     if (c && taskOn(c, 'travel') && taskOpen('travel', c) && helperWork(h, 'travel') != null){ h.target = null; h.lap = null; h.st = 'idle'; }
   }
@@ -4601,11 +4690,13 @@ function updHelper(h, dt){
       if (h.kind === 'shaker' && !res && h.target && (shakeCD[h.target.type][h.target.i] > 0 || (h.target.type !== 'flower' && ownCD(h, h.target)) || (h.target.type === 'flower' && FLOWERS[h.target.i].full))){ h.target = null; h.st = 'idle'; break; }
       if (h.kind === 'blower' && h.task === 'dig' && (h.dig == null || !S.shafts.includes(h.dig))){ h.st = 'idle'; break; }
       const dlab = res && h.kind === 'blower' && dryLabOn();   // (V27: the drying research at the bench)
-      if (res && !dlab && (!researchOpen() || (FIND().atFire && !fireOn()))){ h.st = 'idle'; break; }
+      const slab = res && h.kind === 'shaker' && snipLabOn();   // (V31: the spent flowers by the hive)
+      if (res && !dlab && !slab && (!researchOpen() || (FIND().atFire && !fireOn()))){ h.st = 'idle'; break; }
       const to = h.kind === 'shaker' && !res ? h.target : { x: h.tx, y: h.ty };
       if (!to){ h.st = 'idle'; break; }
       if (moveTo(h, to.x, to.y, sp, dt)){
         if (h.kind === 'blower' && h.task === 'bag'){ if (!beginDry(h)){ releaseStations(hKey(h)); h.st = 'idle'; } }
+        else if (slab){ h.st = 'snipLab'; h.lm = 'look'; h.modeT = rand(0.5, 1); h.timer = 1.5; h.target = null; }
         else if (dlab){ h.st = 'dryLab'; h.face = DRY_SPOTS[h.dryI | 0].face; h.workP = 0; h.puffT = 0; h.timer = 1.5; }
         else if (res && FIND().atFire){ h.st = 'fire'; h.face = fireSpot(h).face; h.puffT = 0; h.timer = 1.5; h.fm = null; h.modeT = 0; }   // V17
         else if (h.kind === 'blower' && h.task === 'research'){ h.st = 'lab'; h.face = labSpot().face; h.puffT = 0; h.timer = 1.5; }
@@ -4725,6 +4816,7 @@ function updHelper(h, dt){
       if (S.flags.dryProg >= DRY_LAB_NEED - 1e-9) finishDryLab();
       break;
     }
+    case 'snipLab': updSnipLab(h, dt); break;   // V31
     case 'lab': updLabBlower(h, dt); break;   // V15: keeping the rain off the hive research
     case 'fire': updFireHelper(h, dt); break;   // V17: at the fire
     case 'wander': if (moveTo(h, h.tx, h.ty, sp*0.4, dt)){ h.st = 'rest'; h.timer = rand(1.2, 2.6); } break;
@@ -4820,6 +4912,7 @@ function updTruck(dt){
       S.totals.honeyCash = (S.totals.honeyCash || 0) + honeyAmt;
       if (DRY_BENCH) S.totals.drySold = (S.totals.drySold || 0) + T.takeB*BAG_SIZE;   // V15: for the hollow's first goal
       S.totals.leafSold = (S.totals.leafSold || 0) + T.takeL + T.takeB*BAG_SIZE;   // V26: for the first yard's leaves goal
+      S.totals.jarsSold = (S.totals.jarsSold || 0) + T.takeH + T.takeG;   // V31: for the spent-flower research
       if (FIRE_STORY){ S.totals.logsSold = (S.totals.logsSold || 0) + T.takeM; S.totals.coalSold = (S.totals.coalSold || 0) + T.takeI; if (S.flags.coalKnown) S.totals.kilnSold = (S.totals.kilnSold || 0) + T.takeI; }   // V17 (V18: and since the kiln; V19.2: since the coal is known)
       if (PLANT_COAL) S.totals.ingotsSold = (S.totals.ingotsSold || 0) + T.takeI;   // V18: iron ingots from the old works
       // balance tests (tools/balance-player.js): during a sim, window.__src adds up what each kind of thing sold for
@@ -5652,6 +5745,7 @@ function drawHive(){
     if (on){ c.fillStyle = 'rgba(255,179,71,.3)'; ell(c, tx, ty, 4.2, 4.2); c.fill(); }
   }
   c.restore();
+  if (snipLabOn() && (snipLabRate() > 0 || S.flags.snipProg > 0)){ const rate = snipLabRate(), left = SNIP_LAB_NEED - (S.flags.snipProg || 0); timers.push({ x: HIVE.x, y: HIVE.y - hiveTopZ() - 44, t: rate ? mmss(left/rate) : '?', k: snipLabK(), on: rate > 0 }); }   // V31
   if (HIVE_STORY) drawHiveLab();   // V15: the umbrella, the pine needles and the portholes the robots add while they research it
   if (grow >= 1 && !hiveGrounded()){
     if (H.honey >= honeyCap() - 1e-6) bubbles.push({ x: HIVE.x, y: HIVE.y + top - 34, t: 'honey full' });
@@ -8228,7 +8322,7 @@ function crabClaw(c, x, y, side, cs, open, ang, st){
 }
 function drawShaker(h){
   const c = ctx, st = helperStyle(h), bw = st.bw, bh = st.bh;
-  const snipping = h.st === 'snip' && h.target, shaking = (h.st === 'shake' && h.target) || (h.st === 'fire' && h.fireShake), bush = shaking && !!h.target && h.target.type === 'bush';   // (V17.1: or shaking the burning tree)
+  const snipping = (h.st === 'snip' || (h.st === 'snipLab' && h.lm === 'snip')) && h.target, shaking = (h.st === 'shake' && h.target) || (h.st === 'fire' && h.fireShake), bush = shaking && !!h.target && h.target.type === 'bush';   // (V17.1: or shaking the burning tree)
   c.save(); c.translate(h.x, h.y);
   c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, bw*0.85, 4.5); c.fill();
   const jig = shaking ? Math.sin(h.anim*38)*1.3 : 0, bob = h.moving ? -Math.abs(Math.sin(h.anim*14))*1 : Math.sin(h.anim*2 + h.idx)*0.3;
@@ -8575,6 +8669,16 @@ function drawMarkers(){
   // robot or helper that's on its way somewhere in the truck
   if ((camFollow && camFollow.truck) || (endRt && (endRt.waitHop || endRt.ret))) return;
   const away = o => ['toBoard', 'hopIn', 'ride', 'hopOut', 'gone'].includes(o.st);
+  // V31: a research question mark over the beehive while nobody works out the spent flowers
+  if (snipLabOn() && !snipLabRate()){
+    const s = w2s(HIVE.x, HIVE.y - hiveTopZ() - (S.flags.snipProg > 0 ? 72 : 52)), ts = textScale(), y = s.y + Math.sin(S.t*3)*2.5;
+    c.save(); c.translate(s.x, y); c.scale(ts, ts);
+    c.fillStyle = 'rgba(120,150,210,.3)'; ell(c, 0, 0, 17, 17); c.fill();
+    c.fillStyle = '#f6ead4'; ell(c, 0, 0, 12, 12); c.fill();
+    c.strokeStyle = '#4d6a9c'; c.lineWidth = 2.2; ell(c, 0, 0, 12, 12); c.stroke();
+    c.fillStyle = '#4d6a9c'; c.font = '800 17px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('?', 0, 1.5);
+    c.restore();
+  }
   for (const k in groups){
     if (!groups[k]) continue;
     if (k.startsWith('robot')){ const r = R[+k.slice(5)]; if (r && away(r)) continue; }
@@ -8901,7 +9005,7 @@ const TUTS = {
   // about what one would do (and the build button, without insisting); with one, Garden shears and its task list
   deadhead: {
     label: 'Deadheading flowers',
-    when: () => LOT_ID !== 'hollow' && S.hive.built && S.flags.hiveAt != null && S.t - S.flags.hiveAt >= 120 && !snipLearnt(),
+    when: () => LOT_ID !== 'hollow' && S.hive.built && snipKnown() && (SNIP_LAB ? S.flags.snipAt != null && S.t - S.flags.snipAt >= 8 : S.flags.hiveAt != null && S.t - S.flags.hiveAt >= 120) && !snipLearnt(),   // (V31: in the first yard, just after the spent-flower research)
     past: () => snipLearnt(),
     steps(){
       const onShed = () => tutCardIs('shed'), has = () => tutShaker() >= 0;
@@ -8972,6 +9076,28 @@ const TUTS = {
         { id: 'b', dom: btn('blower'), text: 'It needs a Blower too. Tap Assign here.', act: true, need: onCard, back: 'in', skip: () => !labNeedBlower() || open('blower')(), done: () => !labNeedBlower() || open('blower')() },
         { dom: () => tutQ('.pick.apk'), text: 'Pick a Blower.', act: true, need: () => onCard() && !!tutQ('.pick.apk'), back: 'b', skip: () => !labNeedBlower(), done: () => !labNeedBlower() },
       ];
+    }
+  },
+  // V31: the spent-flower research has stood a little while with no Shaker that will get to it: build one if there's
+  // none, then tap the hive and Assign a Shaker to Research
+  sniplab: {
+    label: 'Research: spent flowers',
+    when: () => snipLabOn() && TUT.snipT >= 20 && snipNeedShaker(),
+    past: () => false,
+    end: () => !snipLabOn() || !snipNeedShaker(),
+    delay: 0.5,
+    steps(){
+      const onHive = () => tutCardIs('hive'), onShed = () => tutCardIs('shed'), has = () => S.shakers.some(c => !c.away);
+      const open = () => !!tutQ('.asgb.on[data-act*="shaker-research"]'), btn = () => tutQ('.asgb[data-act*="shaker-research"]');
+      const out = [];
+      if (!has()) out.push(
+        { id: 'shed', world: tutAtObj('shed'), text: 'Only a Shaker can research the spent flowers. Tap the workshop to build one.', act: true, skip: () => onShed() || has(), done: onShed },
+        { dom: () => tutQ('[data-act="shaker"]') || tutQ('[data-act^="copy:shaker"]'), text: 'Build a Shaker.', act: true, need: () => onShed() || has(), back: 'shed', skip: has, done: has });
+      out.push(
+        { id: 'in', world: () => ({ x: HIVE.x, y: HIVE.y - 30, r: 60 }), text: 'The question mark is a research only a Shaker can do. Tap the hive.', act: true, skip: onHive, done: onHive },
+        { id: 'a', dom: btn, text: 'Tap Assign to put a Shaker on it.', act: true, need: onHive, back: 'in', skip: () => !snipNeedShaker() || open(), done: () => !snipNeedShaker() || open() },
+        { dom: () => tutQ('.pick.apk'), text: 'Pick a Shaker.', act: true, need: () => onHive() && !!tutQ('.pick.apk'), back: 'a', skip: () => !snipNeedShaker(), done: () => !snipNeedShaker() });
+      return out;
     }
   },
   // a trip opens (a letter): drag Go to new lot into the Do list of whoever can go (robot, then a blower on crew trips)
@@ -9057,7 +9183,7 @@ function tripWho(kind){
   if (kind === 'robot' && S.trip && S.trip.who != null && L[S.trip.who] && !L[S.trip.who].away) return S.trip.who;
   return L.findIndex((c, i) => !c.away && tripFor(c) && (kind !== 'robot' || (R[i] && R[i].st !== 'gone')));
 }
-const TUT_ORDER = ['robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'general', 'mine', 'assign', 'research', 'antlab', 'deadhead', 'trip', 'keep', 'goal', 'camera', 'follow'];
+const TUT_ORDER = ['robots', 'tasks', 'unlock', 'bin', 'truck', 'shops', 'general', 'mine', 'assign', 'research', 'antlab', 'sniplab', 'deadhead', 'trip', 'keep', 'goal', 'camera', 'follow'];
 const tutAllDone = () => { const o = {}; for (const id of TUT_ORDER) o['tut:' + id] = o['tut:k:' + id] = 1; return o; };
 // nothing starts (and a running lesson waits, hidden) while the story camera, a trip, the ending or a drag has the screen
 // V25.1: an open card (an upgrade window, a letter) holds a lesson back until it's closed, and the lesson starts a moment
@@ -9191,6 +9317,7 @@ function updTut(dt){
   if (!hintDone('tut:truck') && S.lv.truck === 0 && !tutUsed('truck') && S.cash + 1e-9 >= upCost('truck')) TUT.truckT += gdt;
   // V25: how long the hollow's hive research has stood without the robot or the blower it needs
   if (hiveLabOn() && (labNeedRobot() || labNeedBlower())) TUT.labT = (TUT.labT || 0) + gdt; else TUT.labT = 0;
+  if (snipLabOn() && snipNeedShaker()) TUT.snipT = (TUT.snipT || 0) + gdt; else TUT.snipT = 0;   // V31
   if (S.hive.built && S.flags.hiveAt == null) S.flags.hiveAt = S.t;   // (V25: saves from before: count from now)
   if (tutCardUp()) TUT.winT = performance.now();   // (V25.1: when a card was last open)
   if (!tutPref && TUT.on && !TUT.on.forced) tutStop(false);
@@ -9919,6 +10046,7 @@ function nextStep(){
       const names = send.map(([kind, i]) => kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name);
       return { label: 'Send ' + names.join(' and ') + ' on the trip', run: () => { for (const [kind, i] of send){ const c = cfgsOf(kind)[i]; taskRemove(c, 'travel'); c.prio.unshift(['travel']); taskListChanged(kind, i); } callTruck(); } };
     }
+    if (!tripTinkerOK()) return { label: 'Get Tinker ready (' + cash$(TINKER_GOAL) + ' of upgrades)', run: tinkerReady };   // V31
     if (!tripCashOK()) return { label: 'Get the travel money', run: () => { S.cash = Math.max(S.cash, S.trip.cash); S.peak = Math.max(S.peak, S.cash); } };
     return { label: 'Call the truck', run: callTruck };
   }
@@ -10174,6 +10302,7 @@ function applyKit(name){
   if (K.story) jumpStory(K.story);
   if (K.bee && LOT_ID === 'home') jumpBee(K.bee);   // V26
   if (K.tinker && LOT_ID === 'home') tinkerReady();   // V28
+  if (SNIP_LAB && S.shakers.some(c => c.lv && c.lv.snip > 0)){ S.flags.snipKnown = true; S.flags.snipLab = true; }   // V31: a kit with Garden shears has worked out deadheading
   if (K.honey && LOT_ID === 'home'){ S.totals.honeyCash = Math.max(S.totals.honeyCash || 0, HONEY_CASH); if (S.miles.honeyHome == null) S.miles.honeyHome = Math.round(S.t) - GOAL_DONE_HOLD; }
   if (K.leaves) S.totals.leaves = Math.max(S.totals.leaves || 0, K.leaves);
   if (K.earned) S.totals.cash = Math.max(S.totals.cash || 0, K.earned);
@@ -10729,7 +10858,7 @@ function assignOpts(k, i){
   const o = [];
   if (k === 'book' && researchOpen()){ o.push(['robot', 'research']); if (FIND().blower) o.push(['blower', 'research']); if (FIND().shaker) o.push(['shaker', 'research']); }
   else if ((k === 'bagger' || k === 'bin') && S.bag.built){ if (DRY_BENCH) o.push(...(dryLabOn() ? [['blower', 'research']] : []), ['blower', 'bag'], ['robot', 'fuel']); else o.push(['robot', 'bag']); }
-  else if (k === 'hive' && S.hive.built && !hiveGrounded()) o.push(['robot', 'jar'], ['robot', 'wrap'], ['shaker', 'snip']);
+  else if (k === 'hive' && S.hive.built && !hiveGrounded()) o.push(['robot', 'jar'], ['robot', 'wrap'], ...(snipLabOn() ? [['shaker', 'research']] : snipKnown() ? [['shaker', 'snip']] : []));   // (V31: the spent-flower research first)
   else if (k === 'plant' && S.plant.built) o.push(['robot', 'smelt'], ['robot', 'haul'], ['robot', 'refuel'], ['blower', 'stoke']);
   else if (k === 'spot' && S.miners.includes(i)){ o.push(['robot', 'mine']); if (S.shafts.includes(i)) o.push(['blower', 'dig']); }
   else if (k === 'letter' && S.trip) for (const kind of tripKinds()) o.push([kind, 'travel']);   // V22.3: who goes on the trip (only those tripFor allows: Tinker on the hollow and the final ride, the one from home going back)
@@ -10746,7 +10875,7 @@ const ASSIGN_ROWS = {
   book: { 'robot:research': ['rw'], 'blower:research': ['lb', 'fhblower'], 'shaker:research': ['fhshaker'] },
   bagger: { 'blower:research': ['dlab'], 'blower:bag': ['dryc'], 'robot:fuel': ['crewfuel'], 'robot:bag': ['crewbag'] },
   bin: { 'blower:research': ['dlab'], 'blower:bag': ['dryc'], 'robot:fuel': ['crewfuel'], 'robot:bag': ['crewbag'] },
-  hive: { 'robot:jar': ['crewjar'], 'robot:wrap': ['crewwrap'], 'shaker:snip': ['dhd'] },
+  hive: { 'robot:jar': ['crewjar'], 'robot:wrap': ['crewwrap'], 'shaker:snip': ['dhd'], 'shaker:research': ['slab'] },
   plant: { 'robot:smelt': ['crewsmelt'], 'robot:haul': ['crewhaul'], 'robot:refuel': ['crewrefuel'], 'blower:stoke': ['stk'], 'blower:brolly': ['brl'] },
   spot: { 'robot:mine': ['nw', 'w'], 'blower:dig': ['ex'] },
   letter: { 'robot:travel': ['triprobot'], 'blower:travel': ['tripblower'] },
@@ -11168,7 +11297,14 @@ function cardModel(){
       }
       rows.push(crewRow('jar', 'Fillers', 'jar', ri => smeltSkillPack(ri)));
       if (H.packing) rows.push(crewRow('wrap', 'Wrappers', 'wrap', ri => smeltSkillPack(ri)));
-      if (S.shakers.length){
+      if (snipLabOn()){
+        // V31: the spent-flower research, worked out by Shakers only (its Assign sits here)
+        const rs = HB.filter(h => h.kind === 'shaker' && (h.st === 'snipLab' || (h.st === 'go' && h.task === 'research'))), rate = snipLabRate();
+        rows.push({ sig:'slab' + rs.map(h => h.idx + h.st).join(',') + Math.round(snipLabK()*40) + S.shakers.length, html: row({ icon: ic('research'), name:'Research: spent flowers', cls:'crewrow',
+          val: meter('research', Math.round(snipLabK()*100), 100, 'Worked out') + '<br>' + (rs.length ? rs.map(h => helperStyle(h).name).join(', ') + (rate ? ' · ' + mmss((SNIP_LAB_NEED - (S.flags.snipProg || 0))/rate) + ' left' : ' · on its way')
+            : '<span class="none">' + (S.shakers.length ? 'only a Shaker can work this out · put one on Research' : 'only a Shaker can work this out · build one in the workshop') + '</span>'),
+          tip:'Something to do with the spent flowers around the hive. Only a Shaker’s claws can work it out: ' + SNIP_LAB_NEED + ' research, ' + SNIP_LAB_RATE + ' a second for each Shaker on it (up to 3 at once).' }) });
+      } else if (S.shakers.length && snipKnown()){
         // V22.3: shakers with Garden shears deadhead spent flowers so they bloom again sooner (its Assign sits here)
         const dh = S.shakers.map((c, i) => taskOn(c, 'snip') && c.lv.snip > 0 ? i : -1).filter(i => i >= 0), learnt = S.shakers.some(c => c.lv.snip > 0);
         rows.push({ sig:'dhd' + dh.join(',') + learnt + S.shakers.length, html: row({ icon: ic('snip'), name:'Deadheaders', cls:'crewrow',
@@ -11283,15 +11419,22 @@ function cardModel(){
     title = L ? L.title : 'A letter'; head = 'letter';
     if (L) top = '<div class="letter' + (L.gold ? ' gold' : '') + '"><p>' + L.text + '</p><p class="sig">— ' + L.sign + '</p></div>' + (L.note ? '<div class="lnote">' + ic('info') + '<span>' + L.note() + '</span></div>' : '');
     if (S.trip){
+      // V31: the hollow trip waits for Tinker's upgrades: the first row says so, with how far it has got
+      if (S.trip.tinker){
+        const ok = tripTinkerOK(), tn = tinkerI() >= 0 ? styleOf(tinkerI()).name : 'Tinker';
+        rows.push({ sig:'tnk' + Math.floor(tinkerWorth()) + ok, html: row({ icon: ic('robot'), name: tn + '’s upgrades', cls: ok ? '' : 'soon',
+          tip:'The crew only sets off once ' + tn + '’s upgrades are worth $' + TINKER_GOAL + ': every level it has counts at full price. Upgrade it on its card.',
+          val: ok ? ic('tick') + '<b>Ready</b>' : '<b class="warnc">Not ready yet</b> · <b>' + tinkerWaitTxt() + '</b><br><span class="none">upgrade ' + tn + ' on its card first</span>' }) });
+      }
       // V14: one row for each one who goes (a robot, and maybe a blower), and one for the travel money
       const chip = '<span class="chip mini" style="--tc:' + TASKS.travel.col + '">' + ic('travel') + TASKS.travel.short + '</span>';
       for (const kind of tripKinds()){
         const h = tripHolder(kind), list = cfgsOf(kind), hi = h ? list.indexOf(h) : -1, cand = list.findIndex(tripFor), o = h && runtimeOf(kind, h);
         const nm = i => kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
         const whose = cand < 0 ? null : (S.trip.to === 'home' || (kind === 'robot' && S.trip.who != null)) ? nm(cand) + '’s' : kind === 'blower' ? 'a Blower’s' : 'a Robot’s';
-        const st = o && o.st, val = hi >= 0 ? nm(hi) + (st === 'curb' ? ' is waiting at the curb' : st === 'toCurb' ? ' is on its way to the curb' : !tripCashOK() ? ' goes once the money is there' : ' will go with the next pickup')
+        const st = o && o.st, val = hi >= 0 ? nm(hi) + (st === 'curb' ? ' is waiting at the curb' : st === 'toCurb' ? ' is on its way to the curb' : !tripCashOK() ? ' goes once the money is there' : !tripTinkerOK() ? (kind === 'robot' && hi === tinkerI() ? ' goes once its upgrades are worth $' + TINKER_GOAL : ' goes once Tinker is ready') : ' will go with the next pickup')
           : whose ? '<span class="none">add ' + chip + ' to ' + whose + ' Do list</span>' : '<span class="none">' + (kind === 'blower' ? 'build a Blower in the workshop first' : 'no Robot can go') + '</span>';
-        rows.push({ sig:'trip' + kind + hi + st + tripCashOK(), html: row({ icon: ic(kind === 'blower' ? 'blow' : 'travel'), name: TASKS.travel.name + (tripKinds().length > 1 ? (kind === 'blower' ? ' · Blower' : ' · Robot') : ''),
+        rows.push({ sig:'trip' + kind + hi + st + tripCashOK() + tripTinkerOK(), html: row({ icon: ic(kind === 'blower' ? 'blow' : 'travel'), name: TASKS.travel.name + (tripKinds().length > 1 ? (kind === 'blower' ? ' · Blower' : ' · Robot') : ''),
           tip:'Waits at the curb and hops into the back of the truck at the next pickup' + (tripKinds().length > 1 ? ', once both are there' : '') + (S.trip.bee ? ', and a bee comes along' : ''), val }) });
       }
       if (S.trip.cash && !S.trip.paid) rows.push({ sig:'fare' + Math.floor(S.cash) + tripCashOK(), html: row({ icon: ic('coin'), name:'Travel money', cls: tripCashOK() ? '' : 'soon',
@@ -11518,7 +11661,7 @@ function liveHTML(kind){
         : h.st === 'go' && h.task === 'stoke' ? ['stoke', 'To the plant'] : h.st === 'go' && h.task === 'dig' ? ['dig', 'To a shaft'] : h.st === 'lap' ? ['blow', h.lap ? 'Blowing · lap ' + (h.lap + 1) : 'Blowing along the fence']
         : h.st === 'dry' ? ['bag', 'Drying leaves'] : h.st === 'go' && h.task === 'bag' ? ['bag', 'To the drying bench'] : h.st === 'go' ? ['blow', 'To the next lap'] : ['clock', 'Waiting for leaves'];
     } else {
-      s = h.st === 'snip' ? ['snip', 'Deadheading'] : h.st === 'go' && h.target && h.target.type === 'flower' ? ['snip', 'To a flower'] : h.st === 'shake' ? ['shake', h.target.type === 'tree' ? 'Shaking a tree' : 'Shaking a bush']
+      s = h.st === 'snipLab' ? ['research', 'Researching spent flowers'] : h.st === 'go' && h.task === 'research' && snipLabOn() ? ['research', 'To the flowers by the hive'] : h.st === 'snip' ? ['snip', 'Deadheading'] : h.st === 'go' && h.target && h.target.type === 'flower' ? ['snip', 'To a flower'] : h.st === 'shake' ? ['shake', h.target.type === 'tree' ? 'Shaking a tree' : 'Shaking a bush']
         : h.st === 'go' ? ['shake', h.target && h.target.type === 'bush' ? 'To a bush' : 'To a tree'] : ['clock', tooManyLeaves() ? 'Plenty down already' : 'Trees refilling'];
     }
     return '<span class="st">' + ic(s[0]) + s[1] + '</span>';
@@ -12121,6 +12264,8 @@ function load(data){
     if (S.flags.fareOpen && !S.trip && S.miles.fare == null && !S.flags.fare && LOT_ID === 'home' && !S.robots.some(c => c.away)) openTrip({ to: 'prairie', cash: TRIP_CASH }, true);
     if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
     if (S.trip && S.trip.to === 'hollow' && S.trip.cash && !S.trip.paid) delete S.trip.cash;   // (V28: the hollow trip costs nothing now)
+    if (SNIP_LAB && S.shakers.some(c => c.lv && c.lv.snip > 0)){ S.flags.snipKnown = true; S.flags.snipLab = true; }   // V31
+    if (LOT_ID === 'home' && S.flags.tinkerGoal && !S.trip && !S.flags.hollowGone && !S.robots.some(c => c.away)) openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0, tinker: true }, true);   // V31
   }
   if (src && src.v === 2 && S.bag.built && S.miles.bagTable == null) S.miles.bagTable = 0;   // (V24: an older save that has the table: no tick to show)
   // V24: every robot here is tied to its identity (a save from before gets its roster from what's here). A new lot that
@@ -12199,7 +12344,7 @@ function simTasks(){
   // (V16.4: the hollow's blowers start with Dry leaves in Don't: the sim turns it on, below any research)
   if (DRY_BENCH) for (const c of S.blowers) if (c.lv.dry > 0 && !taskOn(c, 'bag')){ taskRemove(c, 'bag'); const i = taskTop(c, 'research') ? 1 : 0; c.prio.splice(i, 0, ['bag']); }
   // V17: the hollow's fire needs a shaker there too
-  const s0 = S.shakers[0], fireLab = researchOpen() && !!FIND().shaker;
+  const s0 = S.shakers[0], fireLab = (researchOpen() && !!FIND().shaker) || snipLabOn();   // (V31: and the first yard's spent flowers)
   if (s0 && fireLab && !S.shakers.some(c => taskTop(c, 'research'))) putTop(s0, 'research');
   else if (s0 && !fireLab && taskTop(s0, 'research')) putOff(s0, 'research');
   const n = S.robots.length, want = { bag: S.bag.built && !DRY_BENCH ? Math.max(1, Math.round(n*0.3)) : 0, jar: S.hive.built && !hiveGrounded() ? (S.hive.bees >= 12 ? 2 : 1) : 0, fuel: FIRE_STORY && S.bench.fire ? 1 : 0,

@@ -978,3 +978,33 @@ first-hive single-gatherer diagnostic stalled in seek for one seed in BOTH versi
 
 Local source hashes, policies, per-seed results, scripts and the full report: `runs/v30-combined/`. Runs remain
 Git-ignored. This is a playtest configuration; baskets, wheels and hive changes are shared with the hollow.
+
+## V31 (Oct 16): the soggy letter can be assigned straight away; deadheading is researched by a Shaker
+
+- **The hollow trip opens when the soggy letter is read** (`openHollowTrip`, `S.trip.tinker`), so the letter's Assign
+  buttons (Tinker, a Blower) are there from the start. The crew only heads for the curb once Tinker is ready
+  (`tripTinkerOK`, `tripGoOK` = cash and Tinker; used everywhere `tripCashOK` used to gate boarding). Until then:
+  the letter card's first row is **Tinker's upgrades** ("Not ready yet · $134 / $300 · upgrade Tinker on its card
+  first", green "Ready" once done), the trip rows say "Tinker goes once its upgrades are worth $300" / "Puff goes once
+  Tinker is ready", the trip chips read "New lot - waiting for more upgrades ($134 / $300)" (Tinker) and "… waiting for
+  Tinker's upgrades (…)" (the Blower), and the "A new lot!" toast says they set off once Tinker is worth $300. Reaching
+  it (`qTinker` → `tinkerIsReady`) toasts "Tinker is ready!" (they head for the curb if both are assigned). A save that
+  read the letter before this gets the trip on load. Next step: "Get Tinker ready" sits after "Send … on the trip".
+- **Deadheading is worked out first (first yard only, `SNIP_LAB`):** a hidden milestone `snipLab` (50 jars sold by the
+  truck, gift jars count: `S.totals.jarsSold`, `SNIP_JARS`) opens it (`openSnipLab`): camera on the hive, "New
+  research: spent flowers", a toast, and Research in every Shaker's Off pile (shakers have the research task at home
+  now). A blue **?** floats over the beehive while nobody works on it; with a Shaker on it a timer tag shows instead.
+  Only Shakers can research it: each goes to one of the three flowers nearest the hive (`snipLabSpot`) and alternates
+  looking and trying its claws on the spent head (state `snipLab`, `updSnipLab`, `h.lm`), `SNIP_LAB_RATE` 4 a second
+  each, `SNIP_LAB_NEED` 1,000 (one Shaker ~4:10, two ~2:05, three ~1:23). The hive card has a "Research: spent flowers"
+  row with a meter and its Assign (Shakers), replacing the Deadheaders row until it's done. Done (`finishSnipLab`):
+  zoom, "New: Garden shears", toast "Deadheading!". Only then do Garden shears (`trackVisible('snip')`) and Deadhead
+  flowers (`taskOpen`, `helperWork`) exist (`snipKnown()`).
+- **Lessons:** new `sniplab` (20 s with no Shaker that will get to it: build one if needed → tap the hive → Assign →
+  pick a Shaker); `deadhead` now plays 8 s after the research is done (at home; other yards as before).
+- **Old saves / kits:** a shaker that already knows Garden shears marks deadheading known (on load and after a kit).
+  The sim puts the first Shaker on the research (60-min fresh home sim: opened ~51 min, done ~55.5, no errors).
+- **Checks** (headless Chromium): letter3 jump with Tinker lowered to $134: letter card, chips, crew stays at work,
+  `tinkerReady()` → both go to the curb; quests jump with 50 jars: camera, ?, hive card row + Assign, shaker at a
+  flower, timer, finish, Garden shears visible; `sniplab` and `deadhead` lessons step through; crew / hollow / strike /
+  back / smelt jumps with no page errors.
