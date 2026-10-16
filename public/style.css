@@ -603,3 +603,15 @@ body.ending #tut{display:none !important}
 .eyup{display:inline-flex;align-items:center;gap:2px;white-space:nowrap;margin-right:4px}
 .eycheap{display:inline-block;font-size:10.5px;font-weight:800;color:#4f7a2c;background:#e2efcf;border-radius:6px;padding:0 5px;box-shadow:inset 0 0 0 1px rgba(79,122,44,.3);white-space:nowrap}
 .eyering{flex:none}
+/* V33.3: the Efficiency Overview's ignore buttons and the "ignored" toggle in its live line */
+.buy.eyeign{min-width:0;width:30px;height:30px;padding:0;display:grid;place-items:center;margin-left:4px;opacity:.75}
+.buy.eyeign:hover{opacity:1}
+.buy.eyeign svg{width:16px;height:16px}
+.eyerow .btn{display:flex;flex-direction:row;align-items:center;gap:4px}
+.eyerow .btn .buy.eyeign{margin-left:0}
+.buy.eyeunig{min-width:0;padding:0 9px;height:28px;font-size:12.5px}
+.eyerow.ig{opacity:.8}
+button.st.eyign{font:inherit;font-size:12px;color:var(--ink-2,#6b5a48);cursor:pointer;border:0;padding:1px 7px 0 4px;gap:2px;opacity:.8}
+button.st.eyign svg{width:13px;height:13px}
+button.st.eyign:hover{opacity:1}
+button.st.eyign.on{background:#d9ece6;color:#2f555c;opacity:1;box-shadow:inset 0 0 0 1.2px rgba(47,85,92,.4)}

@@ -944,7 +944,7 @@ const DEFAULT_PRIO = { robot: [['bag', 'jar'], ...(FIRE_STORY ? [['fuel']] : [])
 const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
 function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
 function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke: COAL && S && S.flags && S.flags.coalKnown ? 1 : 0, brolly:0, dry: DRY_BENCH && S && S.flags && S.flags.dryKnown ? 1 : 0 } }, 'blower')
- : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip:0 } }, 'shaker'); }
+ : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip: SNIP_LAB && S && S.flags && S.flags.snipKnown ? 1 : 0 } }, 'shaker'); }   // (V35: free once deadheading is worked out)
 // V24: a new identity costs its place in the price list (how many of that kind exist in every yard); once there are as
 // many identities as a yard can hold, the next one here is a copy (half of that identity's own price)
 const newHelperCost = kind => (kind === 'blower' ? BLOWER_COST : SHAKER_COST)[idCount(kind)];
@@ -984,7 +984,8 @@ function freshState(){
       flights:0, wins:0, walkK:-1 },   // (V15: the hollow's hive: flying tries made, portholes put in, how far in they started walking)
     // V13: letters waiting for the truck (ids), letters lying in the yard ({ id, x, y, read }), and an open trip
     post:[], letters:[], trip:null,
-    eye:{ built:false, pay:0, at:-1, told:false },   // V33: the Efficiency Overview camera (pay: what the last truck paid, for "cheap")
+    eye:{ built:false, pay:0, at:-1, told:false, ign:[] },   // (V33.3: ign: what the player chose to ignore, 'r:kind:i:track' / 'u:key' / 'g:key' / 'h:key')
+      // V33: the Efficiency Overview camera (pay: what the last truck paid, for "cheap")
     flags:{ ending:0, endBot:0, endPop:0, tOpen:{}, opened:false, finished:false, sentHint:false, saleShown:0, research:false, general:false, tiers5:true, bin9:true, metalTub:true, palletStorage:true, hiveShown:false, v6:true, v7:true, v9:true, v11:true, v12:true, bagShown:false, plantShown:false, taskHint:false, hints:{},
       hiveKnown:false, hiveDeal:false, guestBee:false, helpers:false, moreLeaves:false, leafBase:0,   // (V26: the leaves letter read, and leafSold when it was)
       // (V14: listed here so they're kept on load: merge() only keeps keys the fresh state has)
@@ -2089,10 +2090,10 @@ function tinkerReady(){
 function tinkerWorth(){ const c = S.robots[tinkerI()]; if (!c) return 0; let s = 0; for (const k in c.lv) if (TRACKS[k]) s += lvWorth(k, c.lv[k] | 0); return s; }
 // V31: deadheading is worked out, not just bought. Once the first yard's truck has bought SNIP_JARS jars of honey (a
 // hidden milestone; gift jars count), a research question mark goes up over the beehive and Research opens for Shakers
-// (only them). A Shaker on it stands by a flower near the hive, trying its claws on the spent heads, SNIP_LAB_RATE
-// research a second each (up to three Shakers); at SNIP_LAB_NEED it's worked out and only then do Garden shears and the
-// Deadhead flowers task show. Other yards keep deadheading as it was.
-const SNIP_JARS = 50, SNIP_LAB_NEED = 1000, SNIP_LAB_RATE = 4;   // (one Shaker ~4:10, two ~2:05, three ~1:23)
+// (only them). A Shaker on it acts out the research (see updSnipLab: led by a bee to a flower, cutting it, bringing it
+// to the hive, puzzling), SNIP_LAB_RATE research a second each (up to three Shakers); at SNIP_LAB_NEED it's worked out:
+// V35: every Shaker then gets Garden shears free, with Deadhead flowers on its Do list. Other yards keep deadheading as it was.
+const SNIP_JARS = 50, SNIP_LAB_NEED = 333, SNIP_LAB_RATE = 4;   // (V35: a third of the old 1,000: one Shaker ~1:23, two ~42 s, three ~28 s)
 const snipKnown = () => !SNIP_LAB || !!S.flags.snipKnown;
 const snipLabOn = () => SNIP_LAB && !!S.flags.snipLab && !S.flags.snipKnown;
 const snipLabK = () => clamp((S.flags.snipProg || 0)/SNIP_LAB_NEED, 0, 1);
@@ -4256,6 +4257,7 @@ function arrive(a, wasNew){
     if (!home) cfg.home = q.home;
     taskRemove(cfg, 'travel'); cfg.off.push('travel'); tasksFix(cfg, kind);
     // V15: a blower that knows Warm air goes back to the drying bench (V16.4: one that doesn't gets level 1 free, Dry leaves left in Don't)
+    if (SNIP_LAB && kind === 'shaker' && S.flags.snipKnown) grantShears(cfg);   // V35: a Shaker coming home gets Garden shears too
     if (DRY_BENCH && kind === 'blower' && S.flags.dryKnown){ if (!(b.lv && b.lv.dry > 0)){ cfg.lv.dry = Math.max(1, cfg.lv.dry); putOff(cfg, 'bag'); } else if (!taskOn(cfg, 'bag')) putTop(cfg, 'bag'); }
     out.push({ kind, i });
   }
@@ -4562,31 +4564,213 @@ function openSnipLab(){
   setTimeout(() => showToast('Spent flowers', 'The flowers around the hive are full of spent heads. Only a Shaker can work out what to do about them: ' + (S.shakers.length ? 'tap the hive and Assign a Shaker to Research.' : 'build a Shaker in the workshop, then tap the hive and Assign it to Research.'), 12), 2200);
   save();
 }
-// where a Shaker researching stands: beside one of the three flowers nearest the hive (one each), facing it
-function snipLabSpot(h){
-  const fs = FLOWERS.map((f, i) => ({ f, i })).filter(o => flowerOn(o.f)).sort((a, b) => Math.hypot(a.f.x - HIVE.x, a.f.y - HIVE.y) - Math.hypot(b.f.x - HIVE.x, b.f.y - HIVE.y));
-  const pick = [];
-  for (const o of fs){ if (pick.every(q => Math.hypot(q.f.x - o.f.x, q.f.y - o.f.y) > 34)) pick.push(o); if (pick.length >= 3) break; }
-  const o = pick[(h.idx | 0) % Math.max(1, pick.length)];
-  return o ? { x: o.f.x - 15, y: o.f.y + 3, fi: o.i } : { x: HIVE.x - 56, y: HIVE.y - 30, fi: -1 };
+// V35: the spent-flower research as a little show. Each Shaker on it runs its own loop (h.lm), all while research ticks:
+//   'hive'   in front of the hive, looking about (where are the flowers? what are they for?)
+//   'bee'    a bee comes out, buzzes round its head and leads it off to a flower, in some other flower patch
+//   'snip'   it cuts the flower's head off with a claw
+//   'carry'  and brings it back, held up, to the front of the hive
+//   'place'  sets it down on the ground there (it stays a while, see SLAB_FL)
+//   'wait'   a bee comes down, sniffs at it, shakes its head and flies back in: not like that
+//   'back'   off to a new flower somewhere else
+//   'ponder' blinks, hops a little, scratches its chin with a claw; then cuts that one and brings it back again
+//            (and every other time it goes to the hive for a bee to show it one)
+// The bees and the flowers on the ground are only for show (runtime, not saved, not in the sim).
+let SLAB_FL = [], SLAB_B = [];
+const slabDrop = h => ({ x: HIVE.x + [8, 28, 46][(h.idx | 0) % 3], y: HIVE.y + 19 });   // (clear of the honey crate on its left)
+const slabStand = h => { const d = slabDrop(h); return { x: d.x - 19, y: d.y + 1 }; };
+const slabFlowerSpot = i => { const f = FLOWERS[i]; return { x: f.x - 15, y: f.y + 3 }; };
+// a flower in another patch than the last one (spent ones first: those are the ones it's puzzling over)
+function slabPickFlower(h){
+  const last = h.slabLast, taken = i => HB.some(q => q !== h && q.st === 'snipLab' && q.slab === i);
+  let c = FLOWERS.map((f, i) => ({ f, i })).filter(o => flowerOn(o.f) && !taken(o.i) && Math.hypot(o.f.x - HIVE.x, (o.f.y - HIVE.y)*1.3) < 330);
+  if (!c.length) return -1;
+  const far = c.filter(o => !last || Math.hypot(o.f.x - last.x, o.f.y - last.y) > 75); if (far.length) c = far;
+  const spent = c.filter(o => !o.f.full); if (spent.length >= 2) c = spent;
+  return c[Math.floor(Math.random()*c.length)].i;
 }
-// state 'snipLab': it looks the flower over, then tries its claws on the spent head (a few dry bits fly), and again
+function snipLabSpot(h){ return slabStand(h); }   // where it walks to first: in front of the hive
+function slabBee(h, m){
+  const b = { h, m, x: DOOR.x, y: DOOR.y, z: DOOR.z, face: 1, anim: rand(0, 10), ph: rand(0, TAU), t: 0, st: 'fly' };
+  SLAB_B.push(b); return b;
+}
+function slabBeeTo(b, x, y, z, sp, dt){
+  const dx = x - b.x, dy = y - b.y, dz = z - b.z, d = Math.hypot(dx, dy, dz);
+  if (Math.abs(dx) > 0.6) b.face = dx > 0 ? 1 : -1;
+  if (d <= sp*dt){ b.x = x; b.y = y; b.z = z; return true; }
+  b.x += dx/d*sp*dt; b.y += dy/d*sp*dt; b.z += dz/d*sp*dt; return false;
+}
+function slabSet(h, lm){
+  h.lm = lm; h.modeT = 0; h.sub = null; h.subT = 0; h.jz = 0; h.lookX = 0; h.scratch = false;
+  if (lm !== 'snip') h.target = null;
+}
 function updSnipLab(h, dt){
-  if (!snipLabOn()){ h.st = 'idle'; h.target = null; return; }
+  if (!snipLabOn()){ h.st = 'idle'; h.target = null; h.carry = null; return; }
   S.flags.snipProg = Math.min(SNIP_LAB_NEED, (S.flags.snipProg || 0) + SNIP_LAB_RATE*dt);
-  const f = h.slab >= 0 ? FLOWERS[h.slab] : null;
-  h.modeT -= dt;
-  if (h.modeT <= 0){
-    if (h.lm === 'snip' || !f){ h.lm = 'look'; h.target = null; h.modeT = rand(1.4, 2.6); }
-    else { h.lm = 'snip'; h.target = { type: 'flower', i: h.slab }; h.modeT = rand(1, 1.5); h.snipT = 0.45; }
-  }
-  if (h.lm === 'snip' && f && !simMode && (h.snipT -= dt) <= 0){
-    h.snipT = 99; const hy = f.y - flowerHead(f);
-    for (let k=0;k<3;k++) parts.push({ k:'petal', x: f.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-22, 22), vy: rand(-32, -8), g: 90, life: rand(.5, .9), t: 0, col: '#8a7a4a' });
-  }
   h.timer -= dt;
-  if (h.timer <= 0){ h.timer = 1.5; const t = chooseTask(h, helperCfg(h), x => helperWork(h, x) != null); if (t !== 'research'){ h.st = 'idle'; h.target = null; unitDone(h, 'research'); return; } }
-  if (S.flags.snipProg >= SNIP_LAB_NEED - 1e-9) finishSnipLab();
+  if (h.timer <= 0){ h.timer = 1.5; const t = chooseTask(h, helperCfg(h), x => helperWork(h, x) != null); if (t !== 'research'){ h.st = 'idle'; h.target = null; h.carry = null; unitDone(h, 'research'); return; } }
+  if (S.flags.snipProg >= SNIP_LAB_NEED - 1e-9){ finishSnipLab(); return; }
+  if (simMode) return;
+  const sp = helperSpeed(h)*0.75, f = h.slab >= 0 ? FLOWERS[h.slab] : null;
+  h.modeT += dt;
+  switch (h.lm){
+    case 'hive': {
+      // looking about: eyes left, right, up at the hive
+      const k = Math.floor(h.modeT/0.7) % 4; h.lookX = [0, -1, 1, 0.3][k];
+      if (h.modeT > 1.2 && !h.bee){ h.bee = slabBee(h, 'out'); }
+      if (h.bee && h.bee.m === 'lead'){ slabSet(h, 'bee'); }
+      if (h.modeT > 9){ h.bee = null; slabSet(h, 'back'); h.slab = slabPickFlower(h); }   // (no bee came: off it goes on its own)
+      break;
+    }
+    case 'bee': {
+      // following the bee; it stays a little ahead and waits when the Shaker falls behind
+      const b = h.bee;
+      if (!b || !f){ slabSet(h, 'back'); h.slab = slabPickFlower(h); break; }
+      const P = slabFlowerSpot(h.slab), d = Math.hypot(b.x - h.x, b.y - h.y);
+      h.lookX = clamp((b.x - h.x)/30, -1, 1);
+      const there = Math.hypot(P.x - h.x, P.y - h.y) < 3;
+      if (there || moveTo(h, d > 20 || b.m === 'show' ? P.x : h.x, d > 20 || b.m === 'show' ? P.y : h.y, sp, dt) && b.m === 'show'){
+        b.m = 'home'; h.bee = null; slabSet(h, 'snip'); h.target = { type: 'flower', i: h.slab }; h.snipT = 0.5;
+      }
+      break;
+    }
+    case 'snip': {
+      if (!f){ slabSet(h, 'back'); h.slab = slabPickFlower(h); break; }
+      if (h.target == null) h.target = { type: 'flower', i: h.slab };
+      if ((h.snipT -= dt) <= 0){
+        h.snipT = 0.45; const hy = f.y - flowerHead(f);
+        for (let k=0;k<3;k++) parts.push({ k:'petal', x: f.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-22, 22), vy: rand(-32, -8), g: 90, life: rand(.5, .9), t: 0, col: '#8a7a4a' });
+        f.bob = 0.5;
+      }
+      if (h.modeT > 1.6){
+        h.carry = { ty: f.ty, s: f.s, rot: rand(-0.3, 0.3) }; h.slabLast = { x: f.x, y: f.y };
+        if (Math.random() < 0.4) pop(f.x, f.y - flowerHead(f) - 14, 'snip!', 'note', 12);
+        slabSet(h, 'carry');
+      }
+      break;
+    }
+    case 'carry': {
+      const P = slabStand(h);
+      h.lookX = 0.4;
+      if (moveTo(h, P.x, P.y, sp, dt)) slabSet(h, 'place');
+      break;
+    }
+    case 'place': {
+      // leans its claw down and lets go
+      if (h.carry && h.modeT > 0.7){
+        const D = slabDrop(h);
+        SLAB_FL.push({ x: D.x + rand(-3, 3), y: D.y + rand(-1, 2), ty: h.carry.ty, s: h.carry.s, rot: rand(-0.5, 0.5), t: 0 });
+        while (SLAB_FL.length > 9) SLAB_FL.shift();
+        h.carry = null; h.placed = SLAB_FL[SLAB_FL.length - 1];
+      }
+      if (h.modeT > 1.3){ slabSet(h, 'wait'); h.bee = slabBee(h, 'check'); h.bee.fl = h.placed; }
+      break;
+    }
+    case 'wait': {
+      // watching the bee look the flower over, then turn away
+      const b = h.bee;
+      if (b) h.lookX = clamp((b.x - h.x)/24, -1, 1);
+      if (!b || b.m === 'home'){
+        if (h.modeT < 99){ h.modeT = 99; pop(h.x, h.y - 52, '?', 'note', 16); }
+        if (h.modeT > 100.2){ h.bee = null; h.round = (h.round | 0) + 1; if (h.round % 2) { slabSet(h, 'back'); h.slab = slabPickFlower(h); } else slabSet(h, 'hive'); }
+      }
+      break;
+    }
+    case 'back': {
+      if (!f){ h.slab = slabPickFlower(h); if (h.slab < 0){ slabSet(h, 'hive'); } break; }
+      const P = slabFlowerSpot(h.slab);
+      if (moveTo(h, P.x, P.y, sp, dt)) slabSet(h, 'ponder');
+      break;
+    }
+    case 'ponder': {
+      // a puzzled little moment: blink, hop, scratch its chin
+      if (!h.sub || h.subT <= 0){
+        h.subN = (h.subN | 0) + 1;
+        if (h.subN > (h.subMax || 3)){ h.subN = 0; h.subMax = 2 + (Math.random() < 0.5 ? 1 : 0); h.target = { type: 'flower', i: h.slab }; slabSet(h, 'snip'); h.snipT = 0.4; break; }
+        const opts = ['blink', 'hop', 'scratch'].filter(o => o !== h.sub);
+        h.sub = opts[Math.floor(Math.random()*opts.length)]; h.subT = h.sub === 'scratch' ? rand(1.4, 2) : h.sub === 'hop' ? 1.2 : 1; h.subK = 0;
+        if (h.sub === 'scratch' && Math.random() < 0.5) pop(h.x, h.y - 52, 'hmm', 'note', 12);
+      }
+      h.subT -= dt; h.subK += dt;
+      h.scratch = h.sub === 'scratch';
+      h.jz = h.sub === 'hop' ? Math.max(0, Math.sin(h.subK*Math.PI*2.5))*5*(h.subK < 0.8 ? 1 : 0) : 0;
+      if (h.sub === 'blink'){ if ((h.subK > 0.1 && h.subK < 0.12 + dt) || (h.subK > 0.45 && h.subK < 0.47 + dt)) h.blink = 0.14; h.lookX = h.subK > 0.6 ? -0.6 : 0.5; }
+      else h.lookX = h.sub === 'scratch' ? 0.5 + Math.sin(h.subK*2)*0.3 : 0;
+      break;
+    }
+    default: slabSet(h, 'hive');
+  }
+}
+// the bees of the show: one leads a Shaker to a flower, another looks over the flower it brought and turns away
+function updSnipLabFx(dt){
+  if (!SNIP_LAB) return;
+  for (const l of SLAB_FL) l.t += dt;
+  SLAB_FL = SLAB_FL.filter(l => l.t < 40);
+  if (!snipLabOn()) SLAB_FL = SLAB_FL.filter(l => l.t < 30);
+  for (const b of SLAB_B){
+    b.anim += dt; b.t += dt;
+    const h = b.h, ok = h && h.st === 'snipLab' && h.bee === b;
+    if (!ok && b.m !== 'home'){ b.m = 'home'; b.t = 0; }
+    const D = DOOR;
+    switch (b.m){
+      case 'out': if (slabBeeTo(b, h.x + 4, h.y + 2, 34, 55, dt)){ b.m = 'circle'; b.t = 0; } break;
+      case 'circle': {
+        const a = b.t*5.5; b.x = h.x + Math.cos(a)*12; b.y = h.y + 2 + Math.sin(a)*4; b.z = 34 + Math.sin(a*2)*3; b.face = Math.sin(a) > 0 ? -1 : 1;
+        if (b.t > 1.6){ h.slab = slabPickFlower(h); if (h.slab < 0){ b.m = 'home'; break; } b.m = 'lead'; b.t = 0; }
+        break;
+      }
+      case 'lead': case 'show': {
+        const f = FLOWERS[h.slab]; if (!f){ b.m = 'home'; break; }
+        const tx = f.x, ty = f.y, tz = flowerHead(f) + 9, gap = Math.hypot(b.x - h.x, b.y - h.y);
+        if (b.m === 'lead'){
+          // a little ahead of the Shaker: waits (hovering, turned back to it) when it lags
+          if (gap < 46 && slabBeeTo(b, tx, ty, tz, Math.max(24, helperSpeed(h)*0.8), dt)){ b.m = 'show'; b.t = 0; }
+          else if (gap >= 46){ b.face = h.x > b.x ? 1 : -1; b.z += (24 - b.z)*Math.min(1, dt*2); }
+        } else { b.x = tx + Math.sin(b.t*3)*5; b.y = ty; b.z = tz + Math.sin(b.t*6)*1.5; b.face = Math.cos(b.t*3) > 0 ? 1 : -1; }
+        break;
+      }
+      case 'check': {
+        const l = b.fl; if (!l){ b.m = 'home'; break; }
+        if (b.st === 'fly'){ if (slabBeeTo(b, l.x + 3, l.y, 4, 50, dt)){ b.st = 'sniff'; b.t = 0; } }
+        else if (b.st === 'sniff'){ b.x = l.x + 3 + Math.sin(b.t*4)*2.5; b.z = 4 + Math.abs(Math.sin(b.t*5))*2; b.face = -1; if (b.t > 1.3){ b.st = 'nope'; b.t = 0; b.z = 9; } }
+        else { b.face = Math.sin(b.t*22) > 0 ? 1 : -1; b.x = l.x + 3 + Math.sin(b.t*22)*2.2; b.z = 9 + b.t*4; if (b.t > 0.9){ b.m = 'home'; b.t = 0; } }
+        break;
+      }
+      case 'home': if (slabBeeTo(b, D.x, D.y, D.z, 60, dt)) b.gone = true; break;
+    }
+  }
+  SLAB_B = SLAB_B.filter(b => !b.gone);
+}
+function drawSnipLabBees(){
+  const c = ctx;
+  for (const b of SLAB_B){
+    const wob = Math.sin(b.anim*7 + b.ph)*0.8, y = b.y - b.z + wob;
+    if (b.z > 1.5){ c.fillStyle = 'rgba(30,22,8,.16)'; ell(c, b.x, b.y + 1, 2.6, 1.1); c.fill(); }
+    c.save(); c.translate(b.x, y); c.scale(b.face*1.2, 1.2); drawBeeBrass(c, b, Math.abs(Math.sin(b.anim*60)), 0); c.restore();
+  }
+}
+// a cut, spent flower head with a bit of stalk (held in a claw, or lying in front of the hive)
+function drawSpentHead(c, x, y, rot, s, ty, a){
+  const T = FLOWER_TYPES[ty] || FLOWER_TYPES[0], cols = T.cols || ['#8a5a3a', '#a2703f', '#b88a50', '#5a4026'];
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(s, s); if (a < 1) c.globalAlpha *= a;
+  c.strokeStyle = '#6a6a32'; c.lineWidth = 1; c.lineCap = 'round'; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(1.5, 3, 0.5, 7); c.stroke();
+  c.fillStyle = '#6c7a37'; ell(c, 1.8, 4, 1.8, 0.8); c.fill();
+  for (let k=0;k<8;k++){ c.save(); c.rotate(k/8*TAU + 0.2); c.fillStyle = k % 2 ? shade(cols[1], 0.7) : shade(cols[0], 0.75); ell(c, 0, -2.3, 0.9, 1.7 - (k % 3)*0.3); c.fill(); c.restore(); }
+  c.fillStyle = '#5a4026'; ell(c, 0, 0, 1.5, 1.5); c.fill(); c.fillStyle = 'rgba(140,110,60,.7)'; ell(c, -0.4, -0.4, 0.6, 0.6); c.fill();
+  c.restore();
+}
+function snipLabGroundItems(list){
+  if (!SNIP_LAB) return;
+  for (const l of SLAB_FL) list.push({ y: l.y - 2, f: () => drawSpentHead(ctx, l.x, l.y - 1.5, Math.PI/2 + l.rot, l.s*1.05, l.ty, clamp((40 - l.t)/3, 0, 1)) });
+}
+// V35: once deadheading is worked out every Shaker has Garden shears (free) and Deadhead flowers in its Do list,
+// beside Shake (new Shakers start that way too, see newHelperCfg)
+function grantShears(c, force){
+  if (!SNIP_LAB || !S.flags.snipKnown || !c || !c.lv) return;
+  const had = c.lv.snip > 0; c.lv.snip = Math.max(1, c.lv.snip | 0);
+  if (had && !force) return;
+  if (taskOn(c, 'snip') && !force) return;
+  taskRemove(c, 'snip'); const row = c.prio.find(r => r.includes('shake'));
+  if (row && row.length < 2) row.push('snip'); else if (!taskOn(c, 'snip')) c.prio.push(['snip']);
 }
 function finishSnipLab(){
   if (!SNIP_LAB || S.flags.snipKnown) return;
@@ -4595,14 +4779,15 @@ function finishSnipLab(){
   S.shakers.forEach((c, i) => {
     const h = HB.find(q => q.kind === 'shaker' && q.idx === i);
     if (h && (h.st === 'snipLab' || (h.st === 'go' && h.task === 'research'))){ h.st = 'idle'; h.target = null; unitDone(h, 'research'); }
-    if (taskOn(c, 'research')){ who.push(helperStyleOf('shaker', i).name); putOff(c, 'research'); taskListChanged('shaker', i); }
+    if (taskOn(c, 'research')){ who.push(helperStyleOf('shaker', i).name); putOff(c, 'research'); }
+    if (!c.away) grantShears(c, true); taskListChanged('shaker', i);
   });
   if (simMode) return;
   const y = HIVE.y - hiveTopZ();
   startFindCam(HIVE.x, y + 10, 4.2, 2.2);
   sparkle(HIVE.x, y - 30); sfx('chime', 'sale');
-  pop(HIVE.x, y - 70, 'New: Garden shears', 'note', 19, 0.4, 4);
-  setTimeout(() => showToast('Deadheading!', 'Snip off a spent flower and it blooms again sooner: more nectar for the bees. Teach a Shaker Garden shears on its card, then it can Deadhead flowers.', 11), 700);
+  pop(HIVE.x, y - 70, 'Every Shaker: Garden shears', 'note', 19, 0.4, 4);
+  setTimeout(() => showToast('Deadheading!', 'Snip off a spent flower and it blooms again sooner: more nectar for the bees. Every Shaker has Garden shears now, with Deadhead flowers on its Do list.', 11), 700);
   save();
 }
 function finishDryLab(){
@@ -4688,7 +4873,7 @@ function helperDecide(h){
   if (t === 'travel'){ h.target = null; h.lap = null; h.dig = null; h.st = 'toCurb'; return; }
   if (t === 'bag'){ claimStation('bag', hKey(h)); const i = Math.max(0, STN.bag.indexOf(100 + h.idx)), P = DRY_SPOTS[i]; h.dryI = i; h.tx = P.x; h.ty = P.y; h.st = 'go'; return; }
   if (t === 'research' && h.kind === 'blower' && dryLabOn()){ claimStation('bag', hKey(h)); const i = Math.max(0, STN.bag.indexOf(100 + h.idx)), P = DRY_SPOTS[i]; h.dryI = i; h.tx = P.x; h.ty = P.y; h.target = null; h.st = 'go'; return; }   // V27
-  if (t === 'research' && h.kind === 'shaker' && snipLabOn()){ const p = snipLabSpot(h); h.slab = p.fi; h.tx = p.x; h.ty = p.y; h.target = null; h.st = 'go'; return; }   // V31
+  if (t === 'research' && h.kind === 'shaker' && snipLabOn()){ const p = snipLabSpot(h); h.slab = -1; h.tx = p.x; h.ty = p.y; h.target = null; h.carry = null; h.st = 'go'; return; }   // V31
   if (t === 'research'){ const p = FIND().atFire ? fireSpot(h) : labSpot(); h.tx = p.x; h.ty = p.y; h.target = null; h.st = 'go'; return; }
   if (t !== 'dig') h.dig = null;
   if (!t){ h.target = null; h.lap = null; helperWander(h, h.kind === 'blower' ? 60 : 50, h.kind === 'blower' ? 40 : 30); return; }
@@ -4758,7 +4943,7 @@ function updHelper(h, dt){
       if (!to){ h.st = 'idle'; break; }
       if (moveTo(h, to.x, to.y, sp, dt)){
         if (h.kind === 'blower' && h.task === 'bag'){ if (!beginDry(h)){ releaseStations(hKey(h)); h.st = 'idle'; } }
-        else if (slab){ h.st = 'snipLab'; h.lm = 'look'; h.modeT = rand(0.5, 1); h.timer = 1.5; h.target = null; }
+        else if (slab){ h.st = 'snipLab'; h.timer = 1.5; h.bee = null; h.carry = null; h.round = 0; slabSet(h, 'hive'); }
         else if (dlab){ h.st = 'dryLab'; h.face = DRY_SPOTS[h.dryI | 0].face; h.workP = 0; h.puffT = 0; h.timer = 1.5; }
         else if (res && FIND().atFire){ h.st = 'fire'; h.face = fireSpot(h).face; h.puffT = 0; h.timer = 1.5; h.fm = null; h.modeT = 0; }   // V17
         else if (h.kind === 'blower' && h.task === 'research'){ h.st = 'lab'; h.face = labSpot().face; h.puffT = 0; h.timer = 1.5; }
@@ -5994,7 +6179,7 @@ function step(dt){
   for (const r of R) updRobot(r, dt);
   updShakeTimers(dt);
   for (const h of HB) updHelper(h, dt);
-  updFlowers(dt); syncBees();
+  updFlowers(dt); syncBees(); updSnipLabFx(dt);   // (V35: the spent-flower research show)
   for (const b of B) updBee(b, dt);
   updHive(dt);
   updResearch(dt);
@@ -8403,9 +8588,10 @@ function crabClaw(c, x, y, side, cs, open, ang, st){
 }
 function drawShaker(h){
   const c = ctx, st = helperStyle(h), bw = st.bw, bh = st.bh;
-  const snipping = (h.st === 'snip' || (h.st === 'snipLab' && h.lm === 'snip')) && h.target, shaking = (h.st === 'shake' && h.target) || (h.st === 'fire' && h.fireShake), bush = shaking && !!h.target && h.target.type === 'bush';   // (V17.1: or shaking the burning tree)
+  const slab = h.st === 'snipLab', snipping = (h.st === 'snip' || (slab && h.lm === 'snip')) && h.target, shaking = (h.st === 'shake' && h.target) || (h.st === 'fire' && h.fireShake), bush = shaking && !!h.target && h.target.type === 'bush';   // (V17.1: or shaking the burning tree)
   c.save(); c.translate(h.x, h.y);
-  c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, bw*0.85, 4.5); c.fill();
+  c.fillStyle = 'rgba(35,28,12,.3)'; ell(c, 0, 1, bw*0.85*(1 - (h.jz || 0)*0.03), 4.5); c.fill();
+  if (slab && h.jz) c.translate(0, -h.jz);   // V35: a little hop
   const jig = shaking ? Math.sin(h.anim*38)*1.3 : 0, bob = h.moving ? -Math.abs(Math.sin(h.anim*14))*1 : Math.sin(h.anim*2 + h.idx)*0.3;
   // two treads seen end-on
   for (const s of [-1, 1]){
@@ -8423,7 +8609,10 @@ function drawShaker(h){
   for (const s of [-1, 1]){
     const cs = s < 0 ? st.cl : st.cr;
     let cx, cy, open, ang;
-    if (snipping && s > 0){ const f = FLOWERS[h.target.i]; cx = (f.x - h.x)*0.92; cy = f.y - flowerHead(f) - h.y + 1; open = 0.15 + 0.35*Math.abs(Math.sin(t*16)); ang = -0.9; }
+    if (slab && h.lm === 'place' && s > 0){ const k = clamp(h.modeT/0.7, 0, 1); cx = bw/2 + 8 + 4*k; cy = lerp(top + bh*0.3, -3, k); open = h.carry ? 0.08 : 0.4; ang = lerp(-1.1, 0.3, k); }   // V35: setting the flower down
+    else if (slab && h.carry && s > 0){ cx = bw/2 + 6 + 2*cs; cy = top - 8 - 2*cs + (h.moving ? Math.sin(t*11)*1 : 0); open = 0.08; ang = -1.15; }   // V35: holding up the cut flower
+    else if (slab && h.scratch && s < 0){ cx = -bw/2 - 3 + Math.sin(t*20)*1.3; cy = top + 5 + Math.sin(t*20 + 1)*1; open = 0.1 + 0.15*Math.abs(Math.sin(t*20)); ang = -2.75;   /* (pointing in, at the chin) */ }   // V35: scratching its chin
+    else if (snipping && s > 0){ const f = FLOWERS[h.target.i]; cx = (f.x - h.x)*0.92; cy = f.y - flowerHead(f) - h.y + 1; open = 0.15 + 0.35*Math.abs(Math.sin(t*16)); ang = -0.9; }
     else if (snipping){ cx = -(bw/2 + 6 + 3*cs); cy = top + bh*0.4; open = 0.2; ang = -0.4; }
     else if (h.holding && s > 0){ cx = bw/2 + 6 + 2*cs; cy = top - 8 - 2*cs; open = 0.06; ang = -1.15; }   // V17: holding up a burning branch or log
     else if (shaking){ cx = s*(bush ? bw*0.42 + 4*cs : 6 + 2*cs) + jig; cy = top - (bush ? 4 : 13) - cs*3 + (s > 0 ? Math.sin(t*38) : -Math.sin(t*38))*0.9; open = 0.04; ang = bush ? -1.2 : -1.9; }
@@ -8449,13 +8638,15 @@ function drawShaker(h){
   // eye lenses on short metal stalks
   if (st.beacon){ c.strokeStyle = '#4a423b'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(0, top - 3); c.lineTo(0, top - 15); c.stroke(); const on = Math.sin(t*5 + h.idx) > 0; c.fillStyle = on ? '#ff7a4d' : '#8a4a36'; ell(c, 0, top - 16, 2.2, 2.2); c.fill(); if (on){ c.fillStyle = 'rgba(255,122,77,.3)'; ell(c, 0, top - 16, 5, 5); c.fill(); } }
   for (const s of [-1, 1]){
-    const ex = s*5.5 + s*Math.sin(t*1.3 + s)*0.4, ey = top - (st.tallEyes ? 16 : 9);
+    const ex = s*5.5 + s*Math.sin(t*1.3 + s)*0.4 + (slab ? (h.lookX || 0)*2.2 : 0), ey = top - (st.tallEyes ? 16 : 9) - (slab && h.lm === 'hive' && (h.lookX || 0) > 0.2 ? 1.5 : 0);
     c.strokeStyle = '#4a423b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(s*4, top - 2); c.lineTo(ex, ey + 2); c.stroke();
     c.fillStyle = st.head2; ell(c, ex, ey, 4, 4); c.fill();
     robotEye(c, ex, ey, 2.8, h.blink, false);
   }
   c.restore();
   for (const a of arms) crabClaw(c, a.cx, a.cy, a.s, a.cs, a.open, a.ang, st);
+  // V35: the cut spent flower in its claw
+  if (slab && h.carry){ const a = arms[1]; drawSpentHead(c, a.cx + 4, a.cy - 5, h.carry.rot + (h.lm === 'place' ? 1.2*clamp(h.modeT/0.7, 0, 1) : 0), h.carry.s*1.05, h.carry.ty, 1); }
   // V17: what it holds up in its claw at the fire: a burning branch, or a burning log for the dryer's stove
   if (h.holding){
     const a = arms[1], hx = a.cx + 6, hy = a.cy - 8;
@@ -9837,6 +10028,7 @@ function draw(){
   }
   if (researchOpen() && !FIND().atHive && !FIND().atFire && !FIND().atRuin && !bookRt.held && S.t >= bookRt.landT) list.push({ y: S.story.y, f: drawGroundBook });
   fireGroundItems(list);   // V17: burning branches and logs round the struck tree
+  snipLabGroundItems(list);   // V35: cut spent flowers in front of the hive
   for (const l of S.letters) list.push({ y: l.y, f: () => drawGroundLetter(l) });
   if (driver && driver.y < LANE - 26) list.push({ y: driver.y, f: () => drawRobot(driver) });
   BUSHES.forEach((b, i) => list.push({ y: b.y, f: () => drawBushObj(i) }));
@@ -9861,6 +10053,7 @@ function draw(){
   drawParts();
   drawEyeFx();   // V33
   if (!LOT.antsOnGround) drawBees(V);
+  if (SNIP_LAB) drawSnipLabBees();   // V35
   if (RAINY && !DBG.includes('norain')) drawRain();
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   for (const f of fgLeaves){ const fx = Math.cos(f.ph); drawLeaf(c, f.x, f.y, f.s, f.rot, f.ci, f.sh, Math.abs(fx) < 0.15 ? 0.15 : fx, 1, 0.92, fx < 0 ? 0.2 : 0); }
@@ -9883,8 +10076,9 @@ function draw(){
 //   missing (bagging table, drying bench and stove, honey crate, gift wrapping, smelting plant / kiln, mines), and skills
 //   nobody uses (deadheading, excavating, bellows, refuelling). A task that only sits below a task that always has work
 //   (Gather leaves, mining or sawing, smelting) on every list counts as nobody doing it (eyeCover says which).
-//   Cheap upgrades (counts a little): a robot doing a job without the upgrades for it that cost no more than the last
-//   truck paid ("cheap"; a tenth of that is "really cheap"), for its main job (what it spent most time on lately).
+//   Cheap upgrades (counts a little): a robot doing a job without the upgrades for it that cost under 5% of the cash held
+//   now ("cheap"; under 1% is "really cheap"), for its main job (what it spent most time on lately); and (V33.3) building and
+//   yard-wide upgrades that help whatever the yard does. Each can be ignored for good (per Robot per skill).
 // What it finds fills the ring round its eye (EYE.score 0–100): green, yellow from 30, orange from 60, red from 85. Every
 // step up blinks the ring and sends pulses of light in the new colour into the yard for ~2 s. It looks at what it found.
 // Tapping the camera (or Open on the workshop row) opens the overview card: what is stuck and why, as short as possible,
@@ -9907,7 +10101,28 @@ const EYE_TRACKS = {
 };
 // runtime: when each task last finished a unit of work (unitDone), how long each condition has held (since), time spent on
 // each job lately per robot (acc), what the last scan found (issues: stuck, lo: cheap upgrades), the score and level
-const EYE = { t: -1, scanT: 0, done: {}, since: {}, acc: {}, issues: [], lo: [], hiW: 0, loW: 0, score: 0, lvl: 0, want: 0, wantT: 0 };
+const EYE = { t: -1, scanT: 0, done: {}, since: {}, acc: {}, issues: [], lo: [], hiW: 0, loW: 0, score: 0, lvl: 0, want: 0, wantT: 0, full: {}, showIgn: false };
+// V33.3: "cheap" is measured against the cash held right now: a level is cheap at EYE_CHEAP of it (a Robot's row stops at
+// twice that in all), really cheap at EYE_TINY. Building and yard-wide upgrades are listed when they're good whatever the
+// yard does (prices, pickups, the cleanup deal, plant speed, yard-wide, hive upgrades); bigger storage only while the thing
+// it makes bigger has been full in the last EYE_FULL_T game seconds (EYE_CAP, EYE.full). Ignored rows stay out for good,
+// per Robot per skill (S.eye.ign), until un-ignored from the card's "ignored" toggle.
+const EYE_CHEAP = 0.05, EYE_TINY = 0.01, EYE_FULL_T = 120;
+const EYE_CAP = { bin: () => binRoom() <= 0, metalBin: () => S.metalSlot && tubRoom() <= 0, hopper: () => S.plant.built && hopperRoom() <= 0,
+  pallet: () => palletShown() && palletRoom() <= 0, hiveTank: () => S.hive.built && tankFull(), hiveStore: () => S.hive.built && S.hive.honey >= honeyCap() - 1e-6 };
+const eyeFullLately = k => EYE.full[k] != null && S.t - EYE.full[k] < EYE_FULL_T;
+const eyeIgn = () => Array.isArray(S.eye.ign) ? S.eye.ign : (S.eye.ign = []);
+const eyeIgnored = k => eyeIgn().includes(k);
+// what an ignored key is, for the "ignored" list (null once it's gone, e.g. a Robot that left)
+function eyeIgnLabel(k){
+  const p = k.split(':');
+  if (p[0] === 'r'){ const kind = p[1], i = +p[2], t = p[3]; if (!cfgsOf(kind) || !cfgsOf(kind)[i] || !TRACKS[t]) return null; return { icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i), why: ic(TRACK_ICON[t]) + ' ' + TRACKS[t].label }; }
+  if (p[0] === 'u' && UP[p[1]]) return { icon: UP_ICON[p[1]], what: UP_SHORT[p[1]] || upName(p[1]), why: 'building upgrade' };
+  if (p[0] === 'g' && GEN[p[1]]) return { icon: ic(GEN_ICON[p[1]] || 'wrench'), what: GEN[p[1]].name, why: 'yard-wide upgrade' };
+  if (p[0] === 'h' && HIVE_UP[p[1]]) return { icon: ic(HIVE_ICON[p[1]]), what: HIVE_UP[p[1]].name, why: 'hive upgrade' };
+  return null;
+}
+const EYE_SLASH = '<svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-6.6,0 Q0,-6.2 6.6,0 Q0,6.2 -6.6,0Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle r="2.2" fill="currentColor"/><path d="M-5.6,5.6 L5.6,-5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
 // runtime, real time: the camera's own motion (swing of the hinge, the arm sliding out, where it looks), the blink, the
 // light pulses, and where its head was last drawn (for tapping it)
 const eyeRt = { rt: 0, fill: 0, fx: [], flashT: 0, lid: 0, blinkT: 2, blink: -1, boot: -1, swing: 0, sv: 0, ext: 3.5, yaw: 0, pitch: 0, look: null, lookT: 0,
@@ -10049,22 +10264,40 @@ function eyeScan(){
     if (eyeHeld('mn' + sp, !mining) > G.mine) hi.push({ key:'mn' + sp, w:15, icon: ic('vein'), what: 'Miner idle', why: metalRoom() <= 0 ? ic('tub') + ' the tub is full' : cover('mine') || 'every miner is at another mine', go:['spot', sp], at: SPOTS[sp] });
   }
   if (S.shafts.length && S.blowers.some(c => !c.away && c.lv.dig > 0) && eyeHeld('dig', R.some(r => r.st === 'mine') && !eyeCover('dig', 'blower').ok) > G.skill) hi.push({ key:'dig', w:10, icon: ic('dig'), what:'Nobody excavates', why: cover('dig', 'blower'), go:['spot', S.shafts[0]], at: SPOTS[S.shafts[0]] });
-  // ── less important: cheap upgrades for what each one actually does
-  const pay = Math.max(10, S.eye.pay || 0), tiny = pay*0.1;
+  // ── less important: cheap upgrades for what each one actually does (V33.3: cheap against the cash held now, per skill, ignorable)
+  const lim = S.cash*EYE_CHEAP, tiny = S.cash*EYE_TINY;
   for (const kind of ['robot', 'blower', 'shaker']) cfgsOf(kind).forEach((c, i) => {
     if (c.away || !eyeWho(kind, i)) return;
     const t = eyeMain(kind, i), ks = (t && EYE_TRACKS[kind][t]) || [];
-    let n = 0, cost = 0, small = 0; const parts = [];
+    let n = 0, cost = 0, small = 0; const parts = [], ign = [];
     for (const k of ks){
       if (!trackVisible(k)) continue;
+      const ik = 'r:' + kind + ':' + i + ':' + k; if (eyeIgnored(ik)) continue;
       const cap = Math.min(trackCap(k), trackMax(k)); let L = c.lv[k], m = 0;
-      while (L < cap){ const p = eyeLvCost(kind, c, k, L); if (p == null || p > pay) break; cost += p; m++; if (p <= tiny) small++; L++; }
-      if (m){ n += m; parts.push([k, m]); }
+      while (L < cap){ const p = eyeLvCost(kind, c, k, L); if (p == null || p > lim || cost + p > lim*2) break; cost += p; m++; if (p <= tiny) small++; L++; }
+      if (m){ n += m; parts.push([k, m]); ign.push(ik); }
     }
-    if (n >= 2 || small >= 1) lo.push({ key:'up' + kind + i, w: small ? 6 : 4, cost, small, icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i) + ' · ' + eyeChip(t),
-      why: parts.map(([k, m]) => '<span class="eyup" title="' + attr(TRACKS[k].label) + ': ' + m + ' cheap level' + (m > 1 ? 's' : '') + '">' + ic(TRACK_ICON[k]) + '<b>+' + m + '</b></span>').join(' ') + ' <b>' + cash$(cost) + '</b>' + (small ? ' <span class="eycheap" title="Some of these cost less than a tenth of the last truck’s pay">really cheap</span>' : ''),
+    if (n) lo.push({ key:'up' + kind + i, ign, w: small ? 5 : 3, cost, small, icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i) + ' · ' + eyeChip(t),
+      why: parts.map(([k, m]) => '<span class="eyup" title="' + attr(TRACKS[k].label) + ': ' + m + ' cheap level' + (m > 1 ? 's' : '') + '">' + ic(TRACK_ICON[k]) + '<b>+' + m + '</b></span>').join(' ') + ' <b>' + cash$(cost) + '</b>' + (small ? ' <span class="eycheap" title="Some of these cost less than ' + Math.round(EYE_TINY*100) + '% of your cash">really cheap</span>' : ''),
       go:[kind, i], at: eyeWho(kind, i) });
   });
+  // buildings and yard-wide upgrades that help whatever the yard does (storage only once it has been full lately)
+  for (const k in EYE_CAP) if (EYE_CAP[k]()) EYE.full[k] = S.t;
+  for (const o of offers()){
+    let ik, name, icon, go, note = '';
+    if (o.id === 'up'){
+      if (EYE_CAP[o.key]){ if (!eyeFullLately(o.key)) continue; note = ' · it’s been full'; }
+      ik = 'u:' + o.key; name = UP_SHORT[o.key] || upName(o.key); icon = UP_ICON[o.key]; go = [o.obj];
+    } else if (o.id === 'gen'){ ik = 'g:' + o.key; name = GEN[o.key].name; icon = ic(GEN_ICON[o.key] || 'wrench'); go = ['shed']; }
+    else if (o.id === 'hiveUp'){
+      if ((o.key === 'fan' && !eyeFullLately('hiveTank')) || (o.key === 'nursery' && S.hive.bees >= MAX_BEES)) continue;
+      ik = 'h:' + o.key; name = HIVE_UP[o.key].name; icon = ic(HIVE_ICON[o.key]); go = ['hive'];
+    } else continue;
+    if (!(o.cost > 0) || o.cost > lim || eyeIgnored(ik)) continue;
+    const small = o.cost <= tiny;
+    lo.push({ key:'b' + ik, ign:[ik], bld: true, w: small ? 4 : 2, cost: o.cost, small, icon, what: name,
+      why: '<b>' + cash$(o.cost) + '</b>' + note + (small ? ' <span class="eycheap" title="Costs less than ' + Math.round(EYE_TINY*100) + '% of your cash">really cheap</span>' : ''), go, at: objPos(o.obj) });
+  }
   hi.sort((a, b) => b.w - a.w); lo.sort((a, b) => a.cost - b.cost);
   EYE.issues = hi; EYE.lo = lo;
   EYE.hiW = hi.reduce((n, o) => n + o.w, 0); EYE.loW = Math.min(20, lo.reduce((n, o) => n + o.w, 0));
@@ -10287,19 +10520,30 @@ const eyeRing = (k, col, sz) => { const C = 2*Math.PI*4.4, f = clamp(k, 0, 1); r
 const eyeSummary = () => EYE.issues.length || EYE.lo.length ? (EYE.issues.length ? '<b class="warnc">' + EYE.issues.length + ' stuck</b>' : '<b>nothing stuck</b>') + (EYE.lo.length ? ' · ' + EYE.lo.length + ' with cheap upgrades' : '') : '<b>all clear</b>';
 function eyeRow(o, lo){
   return { sig: 'ey' + o.key + o.what + o.why, html: row({ cls: 'eyerow' + (lo ? ' lo' : ''), icon: o.icon, name: o.what, val: o.why,
-    btn: o.go ? '<button class="buy ghost eyego" data-act="eyego:' + o.key + '" title="Show it" aria-label="Show it"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-6.6,0 Q0,-6.2 6.6,0 Q0,6.2 -6.6,0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle r="2.5" fill="currentColor"/></svg></button>' : '' }) };
+    btn: (o.go ? '<button class="buy ghost eyego" data-act="eyego:' + o.key + '" title="Show it" aria-label="Show it"><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="M-6.6,0 Q0,-6.2 6.6,0 Q0,6.2 -6.6,0Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle r="2.5" fill="currentColor"/></svg></button>' : '')
+      + (lo && o.ign && o.ign.length ? '<button class="buy ghost eyeign" data-act="eyeign:' + o.key + '" title="Ignore: don’t show ' + (o.ign.length > 1 ? 'these skills' : 'this') + ' here again (see them with the ignored toggle at the top)" aria-label="Ignore">' + EYE_SLASH + '</button>' : '') }) };
 }
 function eyeCardRows(rows, rows2){
   rows.push({ sig:'eyS', html:'<div class="sect" title="Things standing still, and why">Stuck</div>' });
   if (!EYE.issues.length) rows.push({ sig:'eyS0', html: row({ icon: ic('tick'), name:'Nothing stuck', val:'<span class="none">everything that can work is working</span>' }) });
   for (const o of EYE.issues.slice(0, 14)) rows.push(eyeRow(o, false));
-  rows2.push({ sig:'eyL', html:'<div class="sect" title="Upgrades for what each one does that cost no more than the last truck paid (' + cash$(Math.max(10, S.eye.pay || 0)) + ')">Cheap upgrades</div>' });
-  if (!EYE.lo.length) rows2.push({ sig:'eyL0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">upgrades under ' + cash$(Math.max(10, S.eye.pay || 0)) + ' are all bought</span>' }) });
-  for (const o of EYE.lo.slice(0, 10)) rows2.push(eyeRow(o, true));
+  const lim = cash$(S.cash*EYE_CHEAP), bots = EYE.lo.filter(o => !o.bld), blds = EYE.lo.filter(o => o.bld);
+  rows2.push({ sig:'eyL', html:'<div class="sect" title="Skills for what each one mostly does, each level under ' + Math.round(EYE_CHEAP*100) + '% of the cash you have (' + lim + ')">Cheap upgrades</div>' });
+  if (!bots.length) rows2.push({ sig:'eyL0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">no skill under ' + lim + ' left for their jobs</span>' }) });
+  for (const o of bots.slice(0, 10)) rows2.push(eyeRow(o, true));
+  rows2.push({ sig:'eyB', html:'<div class="sect" title="Upgrades that help whatever the yard does (prices, pickups, yard-wide, hive), and bigger storage once it has been full, under ' + Math.round(EYE_CHEAP*100) + '% of your cash (' + lim + ')">Buildings &amp; yard</div>' });
+  if (!blds.length) rows2.push({ sig:'eyB0', html: row({ icon: ic('tick'), name:'Nothing cheap missing', val:'<span class="none">no building or yard-wide upgrade under ' + lim + '</span>' }) });
+  for (const o of blds.slice(0, 8)) rows2.push(eyeRow(o, true));
+  if (EYE.showIgn){
+    rows2.push({ sig:'eyI', html:'<div class="sect" title="What you chose to ignore. Un-ignore to see it here again when it’s cheap">Ignored</div>' });
+    const L = eyeIgn().map(k => [k, eyeIgnLabel(k)]).filter(q => q[1]);
+    if (!L.length) rows2.push({ sig:'eyI0', html: row({ icon: ic('tick'), name:'Nothing ignored', val:'' }) });
+    for (const [k, q] of L) rows2.push({ sig:'eyI' + k, html: row({ cls:'eyerow lo ig', icon: q.icon, name: q.what, val: q.why, btn:'<button class="buy ghost eyeunig" data-act="eyeunig:' + k + '" title="Show it again when it’s cheap">Unignore</button>' }) });
+  }
 }
 // the workshop's row: build it (once there are enough robots and a working beehive), then a way to open it
 function eyeShedRow(){
-  const tip = 'A webcam on the workshop roof that watches the yard: what is stuck and why (letters, research, idle Robots, buildings standing still, skills nobody uses) and which Robots lack cheap upgrades for their job. The more it finds, the further its ring fills: green, yellow, orange, red. Tap the camera to look.';
+  const tip = 'A webcam on the workshop roof that watches the yard: what is stuck and why (letters, research, idle Robots, buildings standing still, skills nobody uses) which Robots lack cheap upgrades for their job, and cheap building and yard-wide upgrades left unbought (cheap: under 5% of the cash you have). Ignore one and it stays out. The more it finds, the further its ring fills: green, yellow, orange, red. Tap the camera to look.';
   if (S.eye.built) return { sig:'eyeB' + EYE.lvl + EYE.issues.length + EYE.lo.length, html: row({ icon: eyeRing(eyeRt.fill, EYE_COL[EYE.lvl]), name:'Efficiency Overview', tip, val: eyeSummary(), btn:'<button class="buy ghost" data-act="eye">Open</button>' }) };
   if (!eyeShown()) return null;
   return buyRow('Efficiency Overview', 'watches the yard: what’s stuck and why', 'eye', EYE_COST, '', ic('eye'), tip);
@@ -12214,7 +12458,7 @@ function liveHTML(kind){
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
     + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a Robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
   if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves' : 'Bags') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
-  if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + EYE_WORD[EYE.lvl] + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '');   // V33
+  if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + EYE_WORD[EYE.lvl] + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '') + (eyeIgn().length ? '<button class="st eyign' + (EYE.showIgn ? ' on' : '') + '" data-act="eyeshowign" title="' + (EYE.showIgn ? 'Hide' : 'See') + ' what you’ve ignored" aria-pressed="' + EYE.showIgn + '">' + EYE_SLASH + eyeIgn().length + '</button>' : '');   // V33 (V33.3: the ignored toggle)
   if (kind === 'truck'){
     let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
     if (S.lv.cleanup) h += meter('cleanup', S.cleanN | 0, 100, 'Leaves toward the next cleanup bonus', 'green');
@@ -12439,6 +12683,9 @@ card.addEventListener('click', e => {
   else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
   else if (act === 'eye'){ if (S.eye.built){ openCard('eye'); return; } if (eyeBuyable()) buy({ id:'eye', obj:'shed', cost:EYE_COST }); }   // V33
   else if (act.startsWith('eyego:')){ eyeGo(act.slice(6)); return; }
+  else if (act.startsWith('eyeign:')){ const o = EYE.lo.find(q => q.key === act.slice(7)); if (o && o.ign) for (const k of o.ign) if (!eyeIgnored(k)) eyeIgn().push(k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }   // V33.3
+  else if (act.startsWith('eyeunig:')){ const k = act.slice(8); S.eye.ign = eyeIgn().filter(q => q !== k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }
+  else if (act === 'eyeshowign'){ EYE.showIgn = !EYE.showIgn; sfx('paper'); renderCard(true); return; }
   else if (act === 'metalSlot') buy({ id:'metalSlot', obj:'bin', cost:METAL_SLOT_COST });
   else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
@@ -12809,6 +13056,7 @@ function load(data){
     if (S.trip && S.trip.crew) S.trip.crew = S.trip.crew.filter(k => KIND_LIST[k]);
     if (S.trip && S.trip.to === 'hollow' && S.trip.cash && !S.trip.paid) delete S.trip.cash;   // (V28: the hollow trip costs nothing now)
     if (SNIP_LAB && S.shakers.some(c => c.lv && c.lv.snip > 0)){ S.flags.snipKnown = true; S.flags.snipLab = true; }   // V31
+    if (SNIP_LAB && S.flags.snipKnown) for (const c of S.shakers) if (!c.away && !(c.lv.snip > 0)) grantShears(c, true);   // V35: deadheading known: every Shaker has the shears
     if (LOT_ID === 'home' && S.flags.tinkerGoal && !S.trip && !S.flags.hollowGone && !S.robots.some(c => c.away)) openTrip({ to: 'hollow', crew: ['robot', 'blower'], who: 0, tinker: true }, true);   // V31
   }
   if (src && src.v === 2 && S.bag.built && S.miles.bagTable == null) S.miles.bagTable = 0;   // (V24: an older save that has the table: no tick to show)
@@ -12971,7 +13219,7 @@ window.__leafYard = {
   dev: code => eval(code),   // reads/changes the game's own variables (headless tests only)
   fire: cmd => FIRE_STORY ? (cmd === 'out' ? fireOut() : cmd === 'strike' ? strike() : S.fire) : null,   // V17: for tests
   ants: () => (ANTS ? antGrid() : null),   // V14.1: the ants' grid and trails (for tests)   // V14.1: the test panel's Jump to
-  eye: () => ({ score: EYE.score, lvl: EYE.lvl, shown: eyeShown(), buyable: eyeBuyable(), built: S.eye.built, pay: S.eye.pay, hi: EYE.issues.map(o => ({ key: o.key, w: o.w, what: o.what.replace(/<[^>]+>/g, ''), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })), lo: EYE.lo.map(o => ({ key: o.key, w: o.w, cost: o.cost, what: o.what.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })) }),   // V33: for tests
+  eye: () => ({ score: EYE.score, lvl: EYE.lvl, shown: eyeShown(), buyable: eyeBuyable(), built: S.eye.built, pay: S.eye.pay, ign: eyeIgn().slice(), hi: EYE.issues.map(o => ({ key: o.key, w: o.w, what: o.what.replace(/<[^>]+>/g, ''), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })), lo: EYE.lo.map(o => ({ key: o.key, w: o.w, cost: o.cost, what: o.what.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), why: o.why.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() })) }),   // V33: for tests
   robots: () => R,
   helpers: () => HB,
   bees: () => B,
