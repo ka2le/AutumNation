@@ -1,22 +1,29 @@
 'use strict';
-// V32 economy invariants and legacy-save/arrival checks. Uses Chromium without touching player saves.
+// Economy invariants and legacy-save/arrival checks. Uses Chromium without touching player saves.
 const fs=require('fs'),path=require('path'),assert=require('assert/strict'),{pathToFileURL}=require('url');
 const {chromium}=require(process.env.PLAYWRIGHT_PATH||'C:/Users/kallek/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
 const root=path.resolve(__dirname,'..');
+const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.join(root,'public');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'}),errors=[];
- const fresh=async lot=>{const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route(/^https:\/\//,r=>r.abort());await page.addInitScript(()=>window.requestAnimationFrame=()=>0);await page.goto(pathToFileURL(path.join(root,'public/index.html')).href+'?fresh'+(lot?'&lot='+lot:''));await page.waitForFunction(()=>window.__leafYard);return page;};
+ const fresh=async lot=>{const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route(/^https:\/\//,r=>r.abort());await page.addInitScript(()=>window.requestAnimationFrame=()=>0);await page.goto(pathToFileURL(path.join(gameRoot,'index.html')).href+'?fresh'+(lot?'&lot='+lot:''));await page.waitForFunction(()=>window.__leafYard);return page;};
  let checks=0;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
  try{
   const home=await fresh();
-  const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
-  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,600);
+  const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,robotCosts:ROBOT_COST.slice(0,ROBOT_MAX),discount:DISCOUNT,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
+  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
+  eq(data.robotCosts,[0,8,30,65,120,175,290,450,650,900]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
   eq(data.tracks.speed.vals.slice(0,8),[1,1.14,1.28,1.42,1.62,1.82,2.02,2.22]);
   eq(data.tracks.carry.vals.slice(0,8),[3,5,7,9,12,15,18,21]);
   eq(data.tracks.pick.vals.slice(0,7),[1.3,1.12,.98,.86,.76,.67,.60]);
   eq(data.tracks.grab.vals.slice(0,4),[1,2,3,5]);eq(data.tracks.reach.vals.slice(0,4),[20,30,44,64]);
-  eq(data.tracks.speed.gens[1].cost,[3,4.5,7,10]);eq(data.tracks.carry.gens[1].cost,[3.75,6.25,10,15]);eq(data.tracks.pick.gens[1].cost,[2.5,4.5,8]);
+  eq(data.tracks.speed.gens[0].cost,[.3,.6,1.2]);eq(data.tracks.carry.gens[0].cost,[.25,.5,1]);eq(data.tracks.pick.gens[0].cost,[.3,.6,1.2]);
+  eq(data.tracks.speed.gens[1].cost,[4,6,10,16]);eq(data.tracks.carry.gens[1].cost,[5,8,13,22]);eq(data.tracks.pick.gens[1].cost,[3.5,6,11]);
+  eq(data.tracks.speed.gens[2].cost,[100,190]);eq(data.tracks.carry.gens[2].cost,[140,300]);eq(data.tracks.pick.gens.slice(2).flatMap(g=>g.cost),[85,250]);
+  eq(data.tracks.blow.gens.flatMap(g=>g.cost),[6,18,38,70]);eq(data.tracks.shake.gens.flatMap(g=>g.cost),[5,9,18,45,70,90]);
+  eq(data.up.bin.costs,[.4,.8,1.5,4,30,100,260,650]);eq(data.up.truck.costs,[2,8,50,140,260,700,1800]);
+  eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,7500]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
   eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,2600,5000]);
   eq(data.up.cleanup.costs,[1000,2200,4000]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
@@ -33,9 +40,13 @@ const root=path.resolve(__dirname,'..');
     const o=F.offers().find(o=>o.id==='rup'&&o.ri===0&&o.key===k);if(!o)throw Error('Missing actual offer '+k+' '+i);const cash=Y.state().cash;if(!Y.buy(o))throw Error('Rejected real offer');if(Math.abs(cash-Y.state().cash-o.cost)>1e-6)throw Error('Wrong charge');charged+=o.cost;n++;
    }
    Y.state().gen.basket=1;const plan=F.allPlan('carry'),before=Y.state().cash;if(!plan||!Y.buy({id:'rall',key:'carry',obj:'robot1',...plan}))throw Error('Match all failed');
-   return {n,charged,copyCost:before-Y.state().cash,matched:Y.state().robots[1].lv.carry,levels:Y.state().robots[0].lv};
+   const copyCost=before-Y.state().cash,matched=Y.state().robots[1].lv.carry,hires=[];
+   while(Y.state().robots.length<10){const o=F.offers().find(o=>o.id==='robot');if(!o)throw Error('No next robot offer');const cash=Y.state().cash;if(!Y.buy(o))throw Error('Robot purchase rejected');hires.push(cash-Y.state().cash);}
+   if(F.offers().some(o=>o.id==='robot'))throw Error('Robot cap exceeded');
+   return {n,charged,copyCost,matched,hires,levels:Y.state().robots[0].lv};
   });
   eq(paid.n,57);eq(paid.matched,9);
+  eq(paid.hires,data.robotCosts.slice(2));
   eq(Math.round(paid.copyCost*100),Math.round(data.tracks.carry.gens.flatMap(g=>g.cost).reduce((s,c)=>s+nice(c*.1),0)*100));
   await home.close();
   const hollow=await fresh('hollow');
@@ -58,6 +69,6 @@ const root=path.resolve(__dirname,'..');
     const a={from:'home',to:'hollow',skillVersion:version,crew:[{kind:'robot',sty:0,home:0,bot:{lv,prio:[['leaves']],off:[]}}]};Y.dev(`arrive(${JSON.stringify(a)},true)`);return Y.state().robots[0].lv;
    },version);for(const[k,v]of Object.entries({speed:9,carry:9,pick:8,grab:4,reach:4,pack:7}))eq(result[k],v);await page.close();
   }
-  eq(errors,[]);console.log('V32 checks passed: '+checks+' invariants, real paid skill purchases and bulk matching, legacy save/reload, old/new arrivals, local prices, and unchanged bee/ant population curve.');
+  eq(errors,[]);console.log('Economy checks passed: '+checks+' invariants, real paid skill purchases, hires and bulk matching, legacy save/reload, old/new arrivals, local prices, and unchanged bee/ant population curve.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

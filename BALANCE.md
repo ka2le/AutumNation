@@ -5,6 +5,21 @@ it, how to measure it with the headless tools, the current numbers (V9), and wha
 `PROJECT_NOTES.md` has the history of every change; this file explains *why* the numbers are what they are and *how*
 to check them.
 
+### Current direction (V34, October 16, 2026)
+
+The V9 tables and five-minute payback rule below are historical guidance. The current priority is **meaningful
+capacity investments in the midgame**: another robot competes with developing the existing crew, storage, packing
+and leaf supply. Several cheap training steps on a new robot are fine; Match and copied-level discounts are
+deliberate conveniences. Purchase count and the fraction of cheap catch-up upgrades are not success criteria by
+themselves. Measure actual paid growth decisions and production bottlenecks.
+
+Preserve the first three wheel/basket/pickup prices, the early claw/reach experience, and maximum output. Prices
+can rise after those three gathering levels, especially around levels six and seven. New robots cost more from
+the third onward, with a tapering premium for later industrial staffing. Blowing, bee/ant population, honey
+development and industrial prices are unchanged in this pass. Do not slow them further merely to extend playtime.
+
+See `tools/balance/v34-midgame.md` for the selected prices, paired campaign evidence and remaining ending risk.
+
 Contents: 1 Goals · 2 Core ideas and formulas · 3 Methods and tools · 4 Pricing something new · 5 Current balance (V9)
 · 6 Pitfalls · 7 History of balance passes · 8 Pending balance work
 

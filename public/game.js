@@ -210,21 +210,22 @@ const salePos = () => { const A = AREAS[S.land]; return { x: Math.round(A.w*0.18
 // ───────────────────────── economy
 const UP = {
   // the bin starts small: the first few sizes are cheap, after that each one is a real purchase
-  bin:        { obj:'bin',  name:'Bigger bin',        max:8,  costs:[0.4, 0.8, 1.5, 4, 15, 60, 190, 520], vals:[15, 22, 32, 48, 72, 110, 180, 320, 600], val:l=>UP.bin.vals[l], show:v=>v+' leaves' },
+  bin:        { obj:'bin',  name:'Bigger bin',        max:8,  costs:[0.4, 0.8, 1.5, 4, 30, 100, 260, 650], vals:[15, 22, 32, 48, 72, 110, 180, 320, 600], val:l=>UP.bin.vals[l], show:v=>v+' leaves' },
   // V6: sorting is only a few steps now; after that the bagging table (and the robots working it) takes over
   // V19.1: two more steps after the first five (×1.2 a leaf each, as before, so loose leaves, dry leaves and bags are all
   // worth 44% more at the top) for $70 and $160: a real jump, priced for the cottage-full stage, not the old ×1.7 curve
   // V22: three more late steps after the seventh (×1.25, ×1.30, ×1.35 over the one before; ×2.19375 for all three) for
   // $2,200 / $4,000 / $7,500, so leaves stay worth upgrading once the regular economy has developed. Loose leaves, dry
   // leaves and bags get them; the cleanup deals' bonus per 100 leaves doesn't
-  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:10, gaps:[{n:5}, {n:2}], costs:[0.8, 1.25, 2.25, 4, 6.75, 70, 160, 2200, 4000, 7500], late:[1, 1.25, 1.25*1.3, 1.25*1.3*1.35], val:l=>0.13*Math.pow(1.2,Math.min(l, 7))*(l > 7 ? UP.leafPrice.late[l - 7] : 1)*pressMul(), show:v=>money(v)+' / leaf' },
+  // V34: the cottage-full sorting steps are $100 / $220; the first five and late ladder are unchanged.
+  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:10, gaps:[{n:5}, {n:2}], costs:[0.8, 1.25, 2.25, 4, 6.75, 100, 220, 2200, 4000, 7500], late:[1, 1.25, 1.25*1.3, 1.25*1.3*1.35], val:l=>0.13*Math.pow(1.2,Math.min(l, 7))*(l > 7 ? UP.leafPrice.late[l - 7] : 1)*pressMul(), show:v=>money(v)+' / leaf' },
   // bags: a tied bag of BAG_SIZE leaves is worth more than the same leaves loose, and better bags are worth more again
   // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top). V9: priced against what
   // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
   // V19.1: three more steps (6 → 8.7×, +13–14% each like the others), and the ladder climbs evenly ($11 → 440, +$40–70 a
   // step; steps 6–10 were $130 / 170 / 210 / 240 / 280, now $95 / 135 / 175 / 215 / 255)
   // V32: keep the first three purchases; later pairs become one investment at about 30% above their combined cost.
-  bagPrice:   { obj:'bagger', name:'Better bags', max:8, gaps:[{n:3}, {n:3}], costs:[11, 19, 28, 127, 299, 507, 735, 1053], vals:[1.5, 1.8, 2.1, 2.45, 3.2, 4.15, 5.3, 6.8, 8.7], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
+  bagPrice:   { obj:'bagger', name:'Better bags', max:8, gaps:[{n:3}, {n:3}], costs:[11, 19, 28, 170, 299, 507, 735, 1053], vals:[1.5, 1.8, 2.1, 2.45, 3.2, 4.15, 5.3, 6.8, 8.7], val:l=>UP.bagPrice.vals[l], show:v=>money(BAG_SIZE*val('leafPrice')*v*sellMul())+' a bag' },
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
@@ -235,7 +236,7 @@ const UP = {
   metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[200, 250, 300, 350, 400, 450, 525, 600],   // V32.1: was 30 … 400
                  vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
-  truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 28, 90, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
+  truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
   // the top deal brings a leaf to about $1.20. Each tier is a big jump that costs a lot at the time you can first afford it.
   cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[1000, 2200, 4000],   // V32: the hollow has a gentler local ladder.
@@ -301,22 +302,23 @@ const SHAFT_COST = 600;         // V32.1: was 350. Turning a miner into a mine s
 const BAG_TIME = 4, JAR_TIME = 2.5, WRAP_TIME = 2.6, SMELT_TIME = COAL ? 27 : 13.5;   // (V22: the kiln's batch is twice as long)
 // Per-robot upgrade tracks. Generation 0 needs no research; later generations are unlocked at the workshop.
 const TRACKS = {
+  // V34: the first three gathering levels stay very cheap; researched levels climb toward 6–7. Effects and step counts stay as in V32.
   speed: { label:'Wheels', gens:[
       { name:'Old wheels', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'treads', name:'Rubber treads', n:4, cost:[3, 4.5, 7, 10] },
-      { tech:'hubs', name:'Ball-bearing hubs', n:2, cost:[77, 163] } ],
+      { tech:'treads', name:'Rubber treads', n:4, cost:[4, 6, 10, 16] },
+      { tech:'hubs', name:'Ball-bearing hubs', n:2, cost:[100, 190] } ],
     vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.74,3.3], show:v=>v.toFixed(2)+'× speed' },
   carry: { label:'Basket', gens:[
       { name:'Tin basket', n:3, cost:[0.25, 0.5, 1] },
-      { tech:'hamper', name:'Wicker hamper', n:4, cost:[3.75, 6.25, 10, 15] },
-      { tech:'hopper', name:'Spring hopper', n:2, cost:[105, 268] } ],   // V32: final pairs combined; first researched tier and copied-basket discount unchanged.
+      { tech:'hamper', name:'Wicker hamper', n:4, cost:[5, 8, 13, 22] },
+      { tech:'hopper', name:'Spring hopper', n:2, cost:[140, 300] } ],   // V34: copied-basket discount unchanged; no further consolidation.
     vals:[3,5,7,9, 12,15,18,21, 29,38], show:v=>v+' leaves' },
   pick: { label:'Pickup', gens:[
       { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'servos', name:'Quick servos', n:3, cost:[2.5, 4.5, 8] },
-      { tech:'wrist', name:'Gyro wrist', n:1, cost:[65] },
-      { tech:'fineWrist', name:'Fine control', n:1, cost:[221] } ],
-    // V32: basic and Quick servos unchanged; each later researched tier is one larger investment.
+      { tech:'servos', name:'Quick servos', n:3, cost:[3.5, 6, 11] },
+      { tech:'wrist', name:'Gyro wrist', n:1, cost:[85] },
+      { tech:'fineWrist', name:'Fine control', n:1, cost:[250] } ],
+    // V34: basic levels unchanged; later researched tiers keep V32's larger steps.
     vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.44,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
@@ -350,7 +352,7 @@ const TRACKS = {
   // V19: 3 levels, one unlock, 3 more (was 2 + 3 + 3 with two unlocks): the same 6 → 38 leaves
   shake: { label:'Tree shaking', gens:[
       { name:'Gentle wiggle', n:3, cost:[5, 9, 18] },
-      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[32, 50, 65] } ],
+      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[45, 70, 90] } ],
     vals:[6, 8, 11, 15, 21, 29, 38], show:v=>v+' leaves from a big tree' },
   // shakers with shears can deadhead spent flowers so a fresh bloom pops up for the bees right away
   snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[25] } ],
@@ -422,10 +424,10 @@ const TECH = {
   servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Three faster pickup upgrades.' },
   claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Four claw upgrades, up to 12 leaves.' },
   arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Four reach upgrades. Pairs well with the claw rake.' },
-  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:72,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
-  hopper:  { name:'Spring hopper',     track:'carry', cost:40,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
-  wrist:   { name:'Gyro wrist',        track:'pick',  cost:20,  needs:'servos', desc:'A faster pickup upgrade: 0.44 seconds a grab.' },
-  fineWrist:{ name:'Fine control',     track:'pick',  cost:45,  needs:'wrist', desc:'The final pickup upgrade: 0.32 seconds a grab.' },
+  hubs:    { name:'Ball-bearing hubs', track:'speed', cost:90,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
+  hopper:  { name:'Spring hopper',     track:'carry', cost:50,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
+  wrist:   { name:'Gyro wrist',        track:'pick',  cost:25,  needs:'servos', desc:'A faster pickup upgrade: 0.44 seconds a grab.' },
+  fineWrist:{ name:'Fine control',     track:'pick',  cost:55,  needs:'wrist', desc:'The final pickup upgrade: 0.32 seconds a grab.' },
   diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
   // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
   horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
@@ -473,16 +475,15 @@ const genAvail = k => genHere(k) && gl(k) < GEN[k].max && (!GEN[k].needs || GEN[
 const genVisible = () => S.flags.general || S.cash >= GEN_UNLOCK;
 // V25: a general workshop upgrade you can buy right now (here, available, and affordable)
 const genBuyable = () => genVisible() && Object.keys(GEN).find(k => genAvail(k) && genCost(k) <= S.cash + 1e-9) || null;
-// V6: twelve robots (since V6.1), and each one costs only a little more than the last (there's a lot more for them to do now)
-// (V24: the fifth costs $95, was $70: four robots come easily, more is an investment; copies of a robot from another yard
-// cost half of its own price, so a fifth here is often a copy)
-const ROBOT_COST = [0, 8, 15, 30, 95, 140, 240, 380, 560, 800, 1100, 1500];
+// V34: robot two stays $8; three and four are investments. The premium tapers for later hires, preserving affordable
+// industrial staffing rather than extending the early doubling forever. Copied-level discounts and Match are unchanged.
+const ROBOT_COST = [0, 8, 30, 65, 120, 175, 290, 450, 650, 900, 1200, 1600];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 // V32.1: mining and sawing come clearly after the hive/ant hill in both yards and lead into the smelting/charcoal endgame
 const MINER_COST = 500;        // (V32: home 200, hollow 100)
 const METAL_SLOT_COST = 450;   // the metal tub / log crib (V32: hollow 160)
 // helper robots: up to three of each (V16; four in V7, five in V6.1), on every lot. The second costs about twice the
-// first, the third more. Their skills are cheap all the way up (V16), so a full set of three is affordable to max out.
+// first, the third more. Blowing prices stay as in V30; V34 only raises the later shaking steps.
 const HELPER_MAX = 3;
 const BLOWER_COST = [7, 25, 50];
 const SHAKER_COST = [9, 30, 60];
@@ -2066,7 +2067,7 @@ const HONEY_CASH = 100;      // V13.4: dollars the truck pays for the prairie's 
 // (tier unlocks are shared by every Robot, so they don't count). Sized from runs/tinker-readiness: a moderately trained
 // Tinker (Wheels/Basket/Pickup 7, Claw/Reach 3, Speed reading) is ~$220, the balance player's usual one ~$560–680;
 // at a $0 start a light one is ~7 min slower in the hollow, a moderate one ~4, so this sits between moderate and strong.
-const TINKER_GOAL = 600;   // V32: a money goal recalibrated for larger late skill purchases (was $300).
+const TINKER_GOAL = 750;   // V34: reprice the $600 V32 readiness benchmark for the dearer gathering skills; still a money goal.
 // what one level of a track costs at full price, added up for the first lv levels (in the order they're bought)
 function lvWorth(key, lv){ let s = 0, k = 0; for (const g of TRACKS[key].gens) for (const c of g.cost){ if (k++ >= lv) return s; s += c; } return s; }
 const tinkerI = () => S.robots.findIndex((c, j) => styleIdx(j) === 0 && !c.away);
