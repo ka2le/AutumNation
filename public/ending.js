@@ -957,6 +957,125 @@ function shadeHex(h, k){ return mix(h, '#000000', 1 - k); }
 // we leave, the cash in the container flies into the truck, the way the leaves fly in back at the yard.
 // Each pot runs in batches (pot.st: fill → mix → dye → ready → fill). Round the edges: a clerk stamping papers at a desk,
 // a robot polishing the vault door, plants, a water cooler, filing cabinets, a coat stand, rope barriers, a trash can.
+// V39: the bank's security cameras: the yard's Efficiency Overview camera (game.js drawEye) in the bank's colours. The same
+// foot, swivel collar, lower tube, hinge knuckle, telescoping sleeve with a chrome inner tube and the yoke round a ball
+// head, but steel and graphite with a brass band instead of cream and teal, a deep sun-shield hood, a glossy black dome
+// eye with a small red iris that shows where it's looking, and a blinking red recording light. Never explained: one over
+// the front door watches Tinker arrive, one inside on the back wall by the vault watches the floor.
+// cam: { x, y (its foot), k (how big), yaw, pitch, swing (the hinge), ext (the inner tube), zoom, t }
+function secCamNew(x, y, k, dir){ return { x, y, k, yaw: 0.3*dir, pitch: 0.4, swing: 0.25*dir, ext: 2, zoom: 0, t: rand(0, 9), glance: null, glT: rand(3, 6) }; }
+function secCamGeo(cm){
+  const fx = cm.x, fy = cm.y, cx = fx, cy = fy - 3.2, hx = cx - 0.8, hy = cy - 15;
+  const a = cm.swing, sl = Math.sin(a), cl = Math.cos(a), sleeve = 7.5, out = sleeve + Math.max(0, cm.ext) + 1.5;
+  return { fx, fy, cx, cy, hx, hy, a, sl, cl, sx: hx + sl*sleeve, sy: hy - cl*sleeve, tx: hx + sl*out, ty: hy - cl*out, ex: hx + sl*(out + 10), ey: hy - cl*(out + 10) };
+}
+// turn toward (tx, ty) in world units: yaw and pitch on the head, the hinge leaning that way, the arm reaching a little
+// further for things far off, and now and then a zoom (the iris tightens)
+function secCamAim(cm, tx, ty, dt){
+  cm.t += dt;
+  const G = secCamGeo(cm), wx = cm.x + (G.ex - cm.x)*cm.k, wy = cm.y + (G.ey - cm.y)*cm.k*(cm.hang ? -1 : 1), dx = tx - wx, dy = ty - wy, a = 1 - Math.pow(0.05, dt);
+  cm.yaw += (clamp(dx/110, -1, 1)*0.95 - cm.yaw)*a;
+  cm.pitch += (clamp(dy/150, -0.6, 1) - cm.pitch)*a;
+  cm.swing += (clamp(dx/260, -1, 1)*0.55 - cm.swing)*a*0.5;
+  cm.ext = 2 + Math.sin(cm.t*0.7)*1.3 + clamp(Math.hypot(dx, dy)/320, 0, 1)*2.2;
+  cm.zoom = Math.pow(Math.max(0, Math.sin(cm.t*0.45)), 6);
+}
+const secTube = (c, x0, y0, x1, y1, w, dark, mid, lite) => {
+  c.lineCap = 'round';
+  c.strokeStyle = dark; c.lineWidth = w + 1.2; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  c.strokeStyle = mid; c.lineWidth = w; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+  const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, ox = -dy/d*w*0.22, oy = dx/d*w*0.22;
+  c.strokeStyle = lite; c.lineWidth = w*0.28; c.beginPath(); c.moveTo(x0 - ox, y0 - oy); c.lineTo(x1 - ox, y1 - oy); c.stroke();
+};
+// mount: 'shelf' (a little brass shelf on a wall bracket under it), or cm.hang: bolted under a ledge and hanging upside
+// down (the arm is drawn mirrored; the head stays upright, the yoke holding it from above)
+function drawSecCam(c, cm, mount){
+  const G = secCamGeo(cm);
+  if (mount === 'shelf'){
+    const x = cm.x, y = cm.y;
+    c.fillStyle = 'rgba(40,26,14,.25)'; c.fillRect(x - 10, y + 2, 22, 3);
+    c.fillStyle = '#8a6a2c'; c.beginPath(); c.moveTo(x - 6, y + 1); c.lineTo(x + 6, y + 1); c.lineTo(x - 4, y + 13); c.lineTo(x - 6, y + 13); c.closePath(); c.fill();
+    c.fillStyle = '#b8862a'; rr(c, x - 11, y - 0.6, 22, 3, 1); c.fill(); c.fillStyle = 'rgba(255,236,170,.6)'; c.fillRect(x - 10, y - 0.6, 20, 0.8);
+    c.fillStyle = '#6e5222'; ell(c, x - 5, y + 11, 0.9, 0.9); c.fill();
+  }
+  c.save(); c.translate(G.fx, G.fy); c.scale(cm.k, cm.hang ? -cm.k : cm.k); c.translate(-G.fx, -G.fy);
+  // the foot: a plate bolted down
+  c.fillStyle = 'rgba(20,12,8,.35)'; rr(c, G.fx - 8, G.fy - 0.4, 16, 3, 1.2); c.fill();
+  c.fillStyle = '#34373a'; rr(c, G.fx - 7.5, G.fy - 2.6, 15, 3.4, 1.2); c.fill();
+  c.fillStyle = '#c9a24a'; for (const bx of [-5.2, 5.2]){ ell(c, G.fx + bx, G.fy - 0.9, 0.85, 0.85); c.fill(); }
+  // the swivel collar
+  c.fillStyle = '#26282a'; ell(c, G.cx, G.cy + 1.2, 4.3, 1.9); c.fill();
+  c.fillStyle = '#4c5054'; rr(c, G.cx - 3.4, G.cy - 2.2, 6.8, 3.4, 1); c.fill();
+  c.fillStyle = '#767c80'; ell(c, G.cx, G.cy - 2.2, 3.4, 1.3); c.fill();
+  // its cable, sagging down to the foot
+  c.strokeStyle = '#1c1d1f'; c.lineWidth = 0.8; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(G.tx + G.cl*2.2, G.ty + G.sl*2.2); c.quadraticCurveTo(G.hx + 4.2 + G.sl*3, G.hy + 1 - G.cl*2, G.hx + 2.6, G.hy + 3.5); c.quadraticCurveTo(G.cx + 3.2, (G.hy + G.cy)/2 + 2, G.cx + 3.6, G.cy + 0.5); c.stroke();
+  // the lower tube (steel), the chrome inner tube, the sleeve (graphite with a brass ring) and the brass hinge knuckle
+  secTube(c, G.cx, G.cy - 1.5, G.hx, G.hy, 3.2, '#4a4f53', '#a9b1b5', 'rgba(255,255,255,.55)');
+  secTube(c, G.tx, G.ty, G.sx, G.sy, 2.1, '#5c6468', '#c9d2d6', 'rgba(255,255,255,.75)');
+  secTube(c, G.sx, G.sy, G.hx + G.sl*1.2, G.hy - G.cl*1.2, 3.5, '#1e2022', '#3c4044', 'rgba(220,230,235,.35)');
+  c.strokeStyle = '#b8862a'; c.lineWidth = 3.9; c.lineCap = 'butt'; c.beginPath(); c.moveTo(G.sx + G.sl*0.2, G.sy - G.cl*0.2); c.lineTo(G.sx + G.sl*1.4, G.sy - G.cl*1.4); c.stroke();
+  c.fillStyle = '#3d3632'; ell(c, G.hx, G.hy, 3.5, 3.5); c.fill();
+  c.fillStyle = '#b8862a'; ell(c, G.hx, G.hy, 2.5, 2.5); c.fill();
+  c.fillStyle = '#f0d98a'; ell(c, G.hx - 0.4, G.hy - 0.4, 0.9, 0.9); c.fill();
+  // the yoke round the bottom of the head
+  c.save(); c.translate(G.ex, G.ey); c.rotate(G.a*0.45);
+  c.strokeStyle = '#1e2022'; c.lineWidth = 2.6; c.lineCap = 'round'; c.beginPath(); c.arc(0, 0.6, 10.6, 0.08*Math.PI, 0.92*Math.PI); c.stroke();
+  c.strokeStyle = '#5a5f63'; c.lineWidth = 1.1; c.beginPath(); c.arc(0, 0.6, 10.6, 0.15*Math.PI, 0.6*Math.PI); c.stroke();
+  for (const sx of [-1, 1]){ c.fillStyle = '#1e2022'; ell(c, sx*10.3, 2.2, 1.9, 1.9); c.fill(); c.fillStyle = '#c9a24a'; ell(c, sx*10.3, 2.2, 0.8, 0.8); c.fill(); }
+  c.restore();
+  if (cm.hang){ c.restore(); c.save(); c.translate(G.fx, G.fy); c.scale(cm.k, cm.k); c.translate(-G.fx, -G.fy); secCamHead(c, cm, G.ex, 2*G.fy - G.ey, -G.a*0.45); }
+  else secCamHead(c, cm, G.ex, G.ey, G.a*0.45);
+  c.restore();
+}
+function secCamHead(c, cm, x, y, tilt){
+  const yaw = cm.yaw, pitch = cm.pitch, ay = Math.abs(yaw);
+  c.save(); c.translate(x, y); c.rotate(tilt);
+  // the shell: brushed steel, like the vault door, with a brass band that turns with it
+  const sh = c.createRadialGradient(-3, -4, 1, 0, 0, 10.5);
+  sh.addColorStop(0, '#f1f4f5'); sh.addColorStop(0.55, '#aab2b6'); sh.addColorStop(1, '#646b6f');
+  c.fillStyle = 'rgba(20,14,10,.28)'; ell(c, 0.8, 1.2, 9.6, 9.2); c.fill();
+  c.fillStyle = sh; ell(c, 0, 0, 9.4, 9); c.fill();
+  c.strokeStyle = '#41474b'; c.lineWidth = 0.7; ell(c, 0, 0, 9.4, 9); c.stroke();
+  c.save(); ell(c, 0, 0, 9.4, 9); c.clip();
+  const bw = 9.4*(0.35 + 0.65*(1 - ay*0.4));
+  c.strokeStyle = '#b8862a'; c.lineWidth = 2.2; c.beginPath(); c.ellipse(-yaw*6.5, 0.5, bw, 9.6, 0, -Math.PI/2, Math.PI/2, yaw > 0); c.stroke();
+  c.strokeStyle = 'rgba(255,236,170,.55)'; c.lineWidth = 0.6; c.beginPath(); c.ellipse(-yaw*6.5 - 0.6, 0.5, bw, 9.6, 0, -Math.PI/2, Math.PI/2, yaw > 0); c.stroke();
+  c.restore();
+  // the faceplate turns toward where it looks: a brass bezel round black glass
+  const fx = yaw*3.4, fy = pitch*1.3, fk = 1 - ay*0.3, fr = 6.9;
+  c.fillStyle = '#9a7024'; ell(c, fx, fy, fr*fk, fr); c.fill();
+  c.fillStyle = '#d9b75a'; c.beginPath(); c.ellipse(fx, fy, fr*fk, fr, 0, Math.PI*1.05, Math.PI*1.7); c.ellipse(fx, fy, (fr - 1)*fk, fr - 1, 0, Math.PI*1.7, Math.PI*1.05, true); c.closePath(); c.fill();
+  c.fillStyle = '#0b0c0d'; ell(c, fx, fy, (fr - 1)*fk, fr - 1); c.fill();
+  // the eye: a glossy black dome, a small red iris in it where it's looking (it tightens when it zooms in), and the
+  // window light caught on the glass
+  const lx = fx + yaw*1.1, ly = fy + pitch*0.9, lr = 5.1, lk = fk;
+  const dg = c.createRadialGradient(lx - 1.8*lk, ly - 2, 0.3, lx, ly, lr);
+  dg.addColorStop(0, '#59626b'); dg.addColorStop(0.35, '#1c2024'); dg.addColorStop(1, '#020304');
+  c.fillStyle = dg; ell(c, lx, ly, lr*lk, lr); c.fill();
+  c.save(); ell(c, lx, ly, lr*lk, lr); c.clip();
+  const ix = lx + yaw*1.9*lk, iy = ly + pitch*1.7, ir = 1.7*(1 - cm.zoom*0.45);
+  c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(230,60,40,.22)'; ell(c, ix, iy, ir*2.4*lk, ir*2.4); c.fill(); c.globalCompositeOperation = 'source-over';
+  c.strokeStyle = 'rgba(214,58,40,.95)'; c.lineWidth = 0.8; ell(c, ix, iy, ir*lk, ir); c.stroke();
+  c.fillStyle = '#ff7a52'; ell(c, ix, iy, 0.55*lk, 0.55); c.fill();
+  c.restore();
+  c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 0.9; c.lineCap = 'round'; c.beginPath(); c.ellipse(lx, ly, (lr - 1.3)*lk, lr - 1.3, 0, Math.PI*1.12, Math.PI*1.45); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.9)'; ell(c, lx - 2.6*lk, ly - 0.6, 0.55, 0.55); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.28)'; ell(c, lx + 2.4*lk, ly + 2.6, 0.9, 0.45); c.fill();
+  // the sun-shield hood: a deep graphite peak over the faceplate, wider than the shell
+  c.save(); c.translate(fx*0.8, -6.1 + fy*0.35); c.rotate(yaw*0.15);
+  c.fillStyle = 'rgba(10,10,12,.3)'; c.beginPath(); c.moveTo(-8.4*fk, 1.6); c.quadraticCurveTo(0, 3.4, 8.4*fk, 1.6); c.lineTo(8.4*fk, 0.6); c.lineTo(-8.4*fk, 0.6); c.closePath(); c.fill();
+  c.fillStyle = '#26292c'; c.beginPath(); c.moveTo(-10.2*fk, 1.4); c.quadraticCurveTo(-9.6*fk, -4.6, 0, -5); c.quadraticCurveTo(9.6*fk, -4.6, 10.2*fk, 1.4); c.quadraticCurveTo(0, 0, -10.2*fk, 1.4); c.fill();
+  c.strokeStyle = 'rgba(200,210,215,.45)'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(-9*fk, -1.6); c.quadraticCurveTo(0, -5.6, 9*fk, -1.6); c.stroke();
+  c.strokeStyle = '#4a4f53'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(-10.2*fk, 1.4); c.quadraticCurveTo(0, 0, 10.2*fk, 1.4); c.stroke();
+  c.restore();
+  // the recording light: red, blinking
+  const on = (cm.t % 1.3) < 0.75, Lx = -6.4 - yaw*1.5, Ly = 4.6;
+  c.fillStyle = on ? '#ff3a24' : '#4a2a26'; ell(c, Lx, Ly, 0.95, 0.95); c.fill();
+  if (on){ c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(255,60,36,.4)'; ell(c, Lx, Ly, 2.6, 2.6); c.fill(); c.globalCompositeOperation = 'source-over'; }
+  c.restore();
+}
+
 function makeBank(){
   const B = { x0: -400, x1: 400, yb: -340, yf: -38, h: 104, reveal: 0, doors: [{ x: -262, w: 40, h: 62 }, { x: 312, w: 34, h: 52 }], wall: '#e4d8bd', stub: '#cdbf9f', side: '#bfae8c' };
   const P = { bags: { x: -350, y: -258 }, bags2: { x: -352, y: -170 }, shred: { x: -226, y: -214 }, mill: { x: 94, y: -262 }, cut: { x: 262, y: -262 },
@@ -972,7 +1091,10 @@ function makeBank(){
   const potCol = p => mix(mix(SLUDGE[0], SLUDGE[1], p.mix), SLUDGE[2], p.green);
   const sc = { id: 'bank', B, P, POTS, M, stopX: -150, door: { x: -262 }, inside: [[-296, -80], [-246, -86]], insideFace: [1, 1], open: false,
     frame: { x0: B.x0 - 40, x1: B.x1 + 50, y0: B.yb - B.h - 30, y1: LANE + 46 } };
-  Object.defineProperty(sc, 'POT', { get: () => POTS[1] });   // (endingState shows the cycling pot)
+  Object.defineProperty(sc, 'POT', { get: () => POTS[1] });
+  // V39: the security cameras: one hanging upside down under the frieze right of the portico, over the front door; one on a
+  // little brass shelf on the back wall, right of the vault
+  const CAMS = sc.cams = { out: Object.assign(secCamNew(-205, B.yf - B.h + 12, 1.15, 1), { hang: true }), in: secCamNew(386, B.yb - B.h + 58, 1.05, -1) };   // (endingState shows the cycling pot)
   const VESTS = ['#2f5a3a', '#6e2f2f', '#3f4f7a', '#5a4a2a'], TIES = ['#a8361d', '#d9b75a', '#2f5f86'];
   let vi = 0;
   const banker = (shape, o) => { const k = vi++; return bot(look(shape, Object.assign({ body: '#e4dcc6', body2: '#b3a78b', head: '#ece5d2', head2: '#c0b498', band: VESTS[k % 4], vest: VESTS[k % 4], tie: TIES[k % 3], look: 'banker', noBasket: true }, o || {})), 0, 0, { sp: 44 + Math.random()*8 }); };
@@ -1155,6 +1277,7 @@ function makeBank(){
     })());
   }
   function update(dt){
+    aimCams(dt);
     // V21.2: the moment we step inside (the walls still up), the floor is set for the tour: the back pot full of green for
     // the buckets, the front pot nearly empty, and the shredder holding its heap until the tour gets to it (M.hold)
     if (sc.open && !M.set){
@@ -1197,6 +1320,24 @@ function makeBank(){
     cu.down = Math.max(0, cu.down - dt*4);
     if (run){ cu.t += dt*tm; if (cu.t > 0.9){ cu.t = 0; cu.down = 1; cu.tray++; sfx('tink', panOf(P.cut.x), 0.12); } }
   }
+  // V39: where the cameras look. Over the door: Tinker whenever it's out on the curb, else the truck while it's near,
+  // else a slow sweep along the curb. Inside: Tinker while it's in, with a glance at one of the bankers now and then,
+  // else a slow sweep over the floor.
+  function aimCams(dt){
+    const tk = E.tinker, T = E.truck, co = CAMS.out, ci = CAMS.in, inside = tk && !tk.hidden && tk.st !== 'ride' && tk.y < B.yf - 8;
+    if (tk && !tk.hidden && tk.st !== 'ride' && tk.y >= B.yf - 8) secCamAim(co, tk.x, tk.y - 22, dt);
+    else if (T && Math.abs(T.x - sc.stopX) < 700) secCamAim(co, T.x + 30, LANE - 46, dt);
+    else secCamAim(co, sc.door.x + 60 + Math.sin(E.t*0.35)*240, 6, dt);
+    if ((ci.glT -= dt) <= 0){
+      const pool = E.actors.filter(o => o.sty && o.sty.look === 'banker' && o.y < B.yf - 10 && o.x > B.x0 && o.x < B.x1);
+      ci.glance = pool.length ? { o: pool[Math.floor(rand(0, pool.length))], t: rand(1.6, 2.6) } : null; ci.glT = rand(5, 9);
+    }
+    if (ci.glance && (ci.glance.t -= dt) <= 0) ci.glance = null;
+    const gl = ci.glance && ci.glance.o;
+    if (gl) secCamAim(ci, gl.x, gl.y - 22, dt);
+    else if (inside) secCamAim(ci, tk.x, tk.y - 22, dt);
+    else secCamAim(ci, Math.sin(E.t*0.3)*300, -200, dt);
+  }
   function under(c){
     // a checkered marble floor with a long red carpet from the door
     c.fillStyle = '#efe6d2'; c.fillRect(B.x0, B.yb, B.x1 - B.x0, B.yf - B.yb);
@@ -1220,6 +1361,7 @@ function makeBank(){
     c.fillStyle = B.side; c.fillRect(B.x0 - 8, by, 8, B.yf - by); c.fillRect(B.x1, by, 8, B.yf - by);
     // V21: leaves that missed the hopper, lying on the marble till the sweeper gets them
     for (const l of M.spill){ c.fillStyle = 'rgba(40,30,10,.18)'; ell(c, l.x + 1, l.y + 1, l.s*0.7, l.s*0.35); c.fill(); H.stampLeaf(c, l.x, l.y, l.s, l.rot, l.ci, 1, 1, .72, 1); }
+    drawSecCam(c, CAMS.in, 'shelf');   // (V39: on the back wall, right of the vault)
   }
   // V21: a pile of bags, as many as are on it (rows of five, four, three...)
   function bagPile(c, p, n){
@@ -1424,6 +1566,7 @@ function makeBank(){
     // the side door: a plain service door with a little hood and a lamp
     { const d = B.doors[1]; c.fillStyle = '#cfc2a2'; c.fillRect(d.x - d.w/2 - 4, B.yf - d.h - 6, d.w + 8, 6); c.fillStyle = '#3d3734'; rr(c, d.x + d.w/2 + 3, B.yf - d.h + 4, 5, 8, 1.2); c.fill(); c.fillStyle = 'rgba(255,214,140,.9)'; rr(c, d.x + d.w/2 + 4, B.yf - d.h + 5.5, 3, 5, 1); c.fill(); }
     // a copper downpipe at each corner, gone green
+    drawSecCam(c, CAMS.out);   // (V39: hanging under the frieze right of the portico, over the front door)
     for (const x of [B.x0 - 2, B.x1 + 1]){ c.fillStyle = '#5f9c8a'; c.fillRect(x - 1.5, by - 2, 3, B.h + 2); c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(x - 1.5, by - 2, 1, B.h + 2); for (let y = by + 14; y < B.yf; y += 26){ c.fillStyle = '#4a7d6e'; c.fillRect(x - 2.5, y, 5, 2); } }
   }
   // V21: the roof in more detail (slates with a little shading, a green copper ridge with cresting, dormers, chimneys
