@@ -6620,6 +6620,11 @@ function buy(o){
       buildGround(to);
     }
   } else if (o.id === 'robot' || o.id === 'blower' || o.id === 'shaker'){ S.cash += o.cost; return false; }   // (V24: no room, no identity left)
+  // A successful skill purchase acknowledges just that row on the open card.
+  if (!simMode && cardOpen && cardOpen.freshT){
+    if (['rup', 'hup', 'rmax', 'rall'].includes(o.id)) cardOpen.freshT.delete(o.key);
+    else if (o.id === 'tech') cardOpen.freshT.delete(TECH[o.key].track);
+  }
   if (S.trip && (o.id === 'robot' || o.id === 'blower' || o.id === 'shaker' || o.id === 'copy')) autoTripCrew();   // V36
   // buying things is silent on purpose; only a new robot says hello
   if (o.id === 'robot' || (o.id === 'copy' && o.kind === 'robot')){ const r = R[R.length - 1]; if (r && !simMode) setTimeout(() => robotSays(r, 'hello', true), 450); }
@@ -11993,7 +11998,7 @@ function robotRow(ri, k, kind){
     sig += '|u' + tid + a2;
   }
   const tip = genNameAt(k, L) + ' · ' + TRACK_TIP[k];
-  // V40: a skill row seen for the first time is highlighted while this card stays open (then it counts as seen)
+  // V40: a new skill stays highlighted until purchased or this card closes.
   let fresh = false;
   if (cardOpen && !simMode){
     const seen = S.flags.skSeen || (S.flags.skSeen = {});

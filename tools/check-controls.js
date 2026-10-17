@@ -14,6 +14,37 @@ const root=path.resolve(__dirname,'../public');
  const click=(p,act)=>p.locator(`[data-act="${act}"]`).evaluate(e=>e.click());
  const mature=`S.cash=S.peak=100000;S.land=1;S.metalSlot=true;S.miners=[0,1];S.plant.built=true;S.flags.ruinKnown=true;S.hive.built=true;S.hive.bees=4;S.hive.packing=true;S.bag.built=true;S.story.done=true;S.flags.antHill=true;S.flags.coalKnown=true;S.flags.snipKnown=true;for(const k in TECH)S.tech[k]=true;bindIds();syncRobots();syncBees();`;
  try{
+  // New skill highlights clear per purchased row for every button and robot/helper kind.
+  for(const kind of ['robot','blower','shaker'])for(const action of ['rup','rmax','rall','allplus','tech']){
+   const p=await page();
+   await dev(p,`${mature}
+    const list=cfgsOf('${kind}');
+    if(!list.length)list.push(newHelperCfg('${kind}'));
+    const peer='${kind}'==='robot'?newRobotCfg():newHelperCfg('${kind}');peer.sty=1;list.push(peer);
+    bindIds();syncRobots();syncHelpers();
+    list[0].lv.speed='${action}'==='tech'?3:0;list[1].lv.speed=['rmax','rall'].includes('${action}')?2:list[0].lv.speed;
+    if('${action}'==='tech')delete S.tech.treads;
+    S.flags.skSeen={};S.flags.taskHint=true;cardTab='up';openCard('${kind}',0);
+   `);
+   const button=action==='tech'?'tech:treads':(action==='allplus'?'rall':action)+':speed';
+   const row=p.locator(`[data-act="${button}"]`).locator('xpath=ancestor::div[contains(@class,"row bot")]');
+   ok((await row.getAttribute('class')).includes('fresh'),`${kind} ${action} starts highlighted`);
+   const other=await p.locator('.row.bot.fresh').count();ok(other>1);
+   // An unaffordable attempt keeps its highlight and levels.
+   const levels=await dev(p,`cfgsOf('${kind}').map(c=>c.lv.speed)`);
+   await dev(p,'S.cash=0;renderCard(true)');await click(p,button);
+   eq(await dev(p,`cfgsOf('${kind}').map(c=>c.lv.speed)`),levels);
+   ok(await dev(p,'cardOpen.freshT.has("speed")'));
+   await dev(p,'S.cash=100000;renderCard(true)');await click(p,button);
+   ok(!await dev(p,'cardOpen.freshT.has("speed")'),`${kind} ${action} acknowledges the skill`);
+   eq(await p.locator('.row.bot.fresh').count(),other-1);
+   eq(await p.locator('.row.bot .newtag').count(),other-1);
+   if(action==='tech')ok(await dev(p,'S.tech.treads'));
+   else ok(await dev(p,`cfgsOf('${kind}')[0].lv.speed>${levels[0]}`));
+   await dev(p,`closeCard();openCard('${kind}',0)`);
+   eq(await p.locator('.row.bot.fresh').count(),0);
+   await p.close();
+  }
   let p=await page();
   await dev(p,`${mature}S.robots[0].prio=[['leaves']];putOff(S.robots[0],'mine');openCard('spot',0);`);
   const before=await dev(p,'assignmentState(S.robots[0])');await click(p,'send');
