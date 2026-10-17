@@ -2175,7 +2175,7 @@ const MILESTONES = [
   { id:'snipR', lot:'home', name:'Deadheading', goal:'Research the spent flowers', prog: () => S.flags.snipLab && S.flags.snipKnown ? 1 : 0,
     hud:{ icon:'flower', pct:true, val: () => S.flags.snipKnown ? 1 : snipLabK(), of: 1, show: () => !!S.flags.snipLab && !S.flags.hollowLetter } },
   // V15 (the Rainy hollow): its leaves are too wet to sell. A blower learns to dry them at the bench; the first goal is to sell 100
-  // V17: the hollow's goals all show at once (group 'hollowA'), each done one staying up (ticked) until the lightning:
+  // V17: the hollow's goals all show at once (group 'hollowA'); completed goals show a tick briefly, then disappear:
   // dry leaves; getting bees started (it stays up through the failed flight and the research, and once it's an ant hill it
   // says "sort of bees"), then canned mushrooms in its place; and with those two, a shaker and the log crib, a saw and
   // logs sold, one after the other. Dry leaves, canned mushrooms and logs all done: lightning (strike).
@@ -2231,7 +2231,7 @@ const GOAL_GROUPS = {
 };
 // V17: a group member with after: shows once that one has been reached for GOAL_DONE_HOLD seconds, and takes its place
 const afterOK = m => !m.after || (S.miles[m.after] != null && S.t - S.miles[m.after] >= GOAL_DONE_HOLD);
-const memberShown = m => afterOK(m) && !MILESTONES.some(q => q.after === m.id && q.group === m.group && afterOK(q));
+const memberShown = m => afterOK(m) && (S.miles[m.id] == null || S.t - S.miles[m.id] < GOAL_DONE_HOLD) && !MILESTONES.some(q => q.after === m.id && q.group === m.group && afterOK(q));
 const reached = m => m.live ? m.prog() >= 1 : S.miles[m.id] != null;
 function updMilestones(){
   for (const m of MILESTONES){
@@ -2262,7 +2262,7 @@ function startBeeFind(){
   S.flags.helpers = true;   // (blowers and shakers stay known: helpersKnown() looked at the book's research)
   Object.assign(S.story, { item: 'bee', armed: true, found: false, x: 0, y: 0, prog: 0, eta: null, done: false, opened: false, foundT: -1, doneT: -1, cam: false });
 }
-// what shows right now, top first: [{ m, done }]. A group shows every member (done ones with a tick); a live goal shows
+// what shows right now, top first: [{ m, done }]. Group members hide independently after their brief done tick; a live goal shows
 // while its show() is true, ticked while it's reached; otherwise one goal at a time, ticked for a moment once reached.
 function goalList(){
   const out = [];
