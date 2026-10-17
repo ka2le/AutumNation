@@ -27,7 +27,7 @@ async function checks(page,lot){
    ok(Y.dev('LH.RACK_CAP')===rack[l],'lot renderer sees current capacity at tier '+l);
    if(l<F.UP.pallet.max){const offer=F.offers().find(o=>o.id==='up'&&o.key==='pallet'),before=S.cash;ok(!!offer&&Y.buy(offer),'buy pallet tier '+(l+1));ok(close(before-S.cash,F.UP.pallet.costs[l]),'pallet purchase charge '+(l+1));}
   }
-  const hopper=lot==='hollow'?[16,30,50]:[24,40,64,100,200];
+  const hopper=lot==='hollow'?[16,30,50,100]:[24,40,64,100,200];
   S.lv.hopper=0;
   for(let l=0;l<hopper.length;l++){
    ok(F.hopperCap()===hopper[l],'hopper tier '+l);

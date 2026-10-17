@@ -980,7 +980,7 @@ function freshState(){
     hive:{ built:false, bees:0, nectar:0, honey:0, jars:0, packing:false, gift:0, up:{ wings:false, fan:false, nursery:false, third:false, tongue:false, recipe:false } },
     bag:{ built: DRY_BENCH, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0, coal: COAL_MAX }, coalStand:0, ingots:0, coalCredit:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
     tech:{}, gen:{}, seen:{}, metalSlot:false, robots:[newRobotCfg()], blowers:[], shakers:[], miners:[],
-    truckT:28,
+    truckT:28, sales:[],
     totals:{ leaves:0, metal:0, cash:0, trucks:0, lucky:0, drops:0, shakes:0, honey:0, honeyCash:0, nectar:0, bags:0, gifts:0, ingots:0, jars:0, snips:0, blown:0, soaked:0, drySold:0, dried:0, leafSold:0,
       logsSold:0, coal:0, fireDried:0, kilnSold:0, ingotsSold:0 },   // (V17: logs the truck took, coal made, leaves dried over the fire)
     // V17 (FIRE_STORY): the struck tree's fire (L: how much is burning, 0 = out; next: when lightning strikes again, -1 = not
@@ -1449,7 +1449,7 @@ function metalTarget(r){
 }
 // ── miners: a plain miner has room for one robot, a mine shaft for two
 const slotsAt = sp => S.shafts.includes(sp) ? 2 : 1;
-const minerWorkers = sp => { const out = []; S.robots.forEach((c, i) => { if (c.miner === sp) out.push(i); }); return out; };
+const minerWorkers = sp => { const out = []; S.robots.forEach((c, i) => { if (!c.away && c.miner === sp) out.push(i); }); return out; };
 function mineSlotFor(r){
   const cfg = S.robots[r.id];
   if (cfg.miner != null && S.miners.includes(cfg.miner)) return cfg.miner;
@@ -1768,6 +1768,7 @@ function grabLeaves(r){
   if (got.length && S.story.armed && !S.story.found){ const fl = got.find(l => l.y < FIND_ABOVE); if (fl) findBook(r, fl); }
   for (const l of got){
     l.st = 'gone'; l.claim = null; r.carryL++;
+    productionAdd('picked', 1);
     flyTo('leaf', l.x, l.y, r.x - r.face*8, r.y - 38, (r.pickDur || 0.5)*0.45 + 0.08 + Math.random()*0.1, 16, { ci:l.ci, sh:l.sh, s:l.s*0.75 });
   }
   for (const l of r.plan || []) if (l.claim === r) l.claim = null;
@@ -3355,7 +3356,7 @@ function updFireDo(r, dt, sp){
       if (moveTo(r, l.x + side*12, l.y + 2, sp, dt)){ r.face = -side; f.st = 'pick'; f.t = 0; }
     } else if (f.st === 'pick'){
       r.lean = 0.16*Math.sin(clamp(f.t/0.45, 0, 1)*Math.PI);
-      if (f.t > 0.3 && f.l && f.l.st === 'ground'){ f.l.st = 'gone'; f.l.claim = null; r.carryL++; f.n++; f.l = null; }
+      if (f.t > 0.3 && f.l && f.l.st === 'ground'){ f.l.st = 'gone'; f.l.claim = null; r.carryL++; productionAdd('picked',1); f.n++; f.l = null; }
       if (f.t > 0.45){ r.lean = 0; if (f.n < f.want && r.carryL < leafCap(r.id)){ f.l = fillLeafNear(r); if (f.l){ f.l.claim = r; f.st = 'go'; } else f.st = 'tip'; } else f.st = 'tip'; f.t = 0; }
     } else if (f.st === 'tip'){
       if (!r.carryL){ fireRt.fillT = S.t + rand(6, 10); backToFire(r); return; }
@@ -5320,6 +5321,7 @@ function updTruck(dt){
       // the cleanup program pays a lump sum for every 100 leaves the truck has taken (bagged ones count too)
       const nL = T.takeL + T.takeB*BAG_SIZE;
       if (S.lv.cleanup && nL){ S.cleanN = (S.cleanN || 0) + nL; while (S.cleanN >= 100){ S.cleanN -= 100; bonus += cleanupBonus(); } amt += bonus; if (simMode && window.__src) window.__src.clean += bonus; }
+      recordSale(T, bonus, coalCredit, amt);
       if (bonus && !simMode) setTimeout(() => sfx('chime', 'sale'), 500);
       if (any > 0){
         S.totals.trucks++; S.eye.pay = amt;   // (V33: what "cheap" means to the Efficiency Overview)
@@ -6036,6 +6038,7 @@ function updHive(dt){
   let n = 0;
   if (room > 1e-9 && H.nectar > 0) n = Math.min(H.nectar, fanRate()*dt, room*jarNectar());
   H.nectar -= n; H.honey = Math.min(honeyCap(), H.honey + n/jarNectar());
+  productionAdd('converted', n); productionAdd('made', n/jarNectar());
   hiveRt.making = lerp(hiveRt.making, dt > 0 ? n/dt : 0, Math.min(1, dt*2));
   const made = Math.floor(H.honey + 1e-9) - before;
   if (made > 0){ hiveRt.jars += made; S.totals.honey = (S.totals.honey || 0) + made; hiveRt.bump = 0.25; }
@@ -6345,6 +6348,7 @@ function step(dt){
   if (S.plant.built && S.plant.slagAcc >= 1 - 1e-9) settleRecovery();   // V22: recovered output owed while the rack was full
   updTruck(dt);
   updDriver(dt); updLetters(); updGuest(dt); updBoarding();
+  sampleProduction();
   updParts(dt);
   updMilestones();
   if (bumpBin > 0) bumpBin -= dt;
@@ -10425,10 +10429,10 @@ const EYE_WORD = ['All clear', 'A little', 'Some things stuck', 'A lot stuck', '
 const EYE_GRACE = { idle: 10, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
 // which skills help with which job (for the cheap-upgrade list)
 const EYE_TRACKS = {
-  robot: { leaves:['speed', 'carry', 'pick', 'grab', 'reach'], mine:['drill', 'magnet', 'carry'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill'],
+  robot: { leaves:['speed', 'carry', 'pick', 'grab', 'reach'], mine:['drill', 'magnet', 'carry', 'speed'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill', 'magnet'],
     haul:['carry', 'speed'], fuel:['carry', 'speed'], refuel:['speed'], research:['study'] },
-  blower: { blow:['blow', 'speed'], bag:['dry'], dig:['dig'], stoke:['stoke'] },
-  shaker: { shake:['shake', 'speed', 'snip'], snip:['snip'] },
+  blower: { blow:['blow', 'speed'], bag:['dry', 'speed'], dig:['dig', 'speed'], stoke:['stoke', 'speed'] },
+  shaker: { shake:['shake', 'speed'], snip:['snip', 'speed'] },
 };
 // runtime: when each task last finished a unit of work (unitDone), how long each condition has held (since), time spent on
 // each job lately per robot (acc), what the last scan found (issues: stuck, lo: cheap upgrades), the score and level
@@ -10443,8 +10447,8 @@ const EYE_CHEAP = 0.05, EYE_TINY = 0.01, EYE_FULL_T = 120;
 // (was each Robot row 3 / 5, each building row 2 / 4, capped at 20, so even a long list stayed green)
 const EYE_LO_MAX = 45;
 const EYE_CAP = { bin: () => binRoom() <= 0, metalBin: () => S.metalSlot && tubRoom() <= 0, hopper: () => S.plant.built && hopperRoom() <= 0,
-  pallet: () => palletShown() && palletRoom() <= 0, hiveTank: () => S.hive.built && tankFull(), hiveStore: () => S.hive.built && S.hive.honey >= honeyCap() - 1e-6 };
-const eyeFullLately = k => EYE.full[k] != null && S.t - EYE.full[k] < EYE_FULL_T;
+  pallet: () => palletShown() && (palletRoom() <= 0 || (S.plant.built && S.plant.rack >= rackCap())), hiveTank: () => S.hive.built && tankFull(), hiveStore: () => S.hive.built && (S.hive.honey >= honeyCap() - 1e-6 || crateFull()) };
+const eyeFullLately = k => EYE.full[k] != null && S.t >= EYE.full[k] && S.t - EYE.full[k] < EYE_FULL_T;
 const eyeIgn = () => Array.isArray(S.eye.ign) ? S.eye.ign : (S.eye.ign = []);
 const eyeIgnored = k => eyeIgn().includes(k);
 // what an ignored key is, for the "ignored" list (null once it's gone, e.g. a Robot that left)
@@ -10574,7 +10578,8 @@ function eyeScan(){
     if (S.hive.packing && eyeHeld('wrap', S.hive.jars >= 1 && eyeLast('wrap') > 3) > G.slow) hi.push({ key:'wrap', w:15, icon: ic('wrap'), what:'Nobody wraps gift jars', why: cover('wrap') || 'the wrappers are busy elsewhere', go:['hive'], at: CRATE });
     if (eyeHeld('tank', tankFull() && B.some(b => b.st === 'queue')) > G.slow) hi.push({ key:'tank', w:10, icon: ic('nectar'), what:'Nectar tank full', why: ic('bee') + ' bees queue at the door · ' + (S.hive.honey >= honeyCap() - 1e-6 ? 'the honey store is full too' : 'a bigger tank'), go:['hive'], at: HIVE });
     // deadheading learnt but nobody doing it
-    if (snipKnown() && S.shakers.some(c => !c.away && c.lv.snip > 0) && eyeHeld('snip', !eyeCover('snip', 'shaker').ok) > G.skill) hi.push({ key:'snip', w:15, icon: ic('snip'), what:'Nobody deadheads', why: cover('snip', 'shaker'), go:['hive'], at: HIVE });
+    const snipWork = snipKnown() && S.shakers.some((c,i) => !c.away && c.lv.snip > 0 && eyeWho('shaker',i) && snipTarget(eyeWho('shaker',i)));
+    if (eyeHeld('snip', snipWork && !eyeCover('snip', 'shaker').ok) > G.skill) hi.push({ key:'snip', w:15, icon: ic('snip'), what:'Nobody deadheads', why: cover('snip', 'shaker'), go:['hive'], at: HIVE });
   }
   if (S.plant.built){
     const what = COAL ? 'Charcoal kiln idle' : 'Smelting plant idle';
@@ -10587,7 +10592,8 @@ function eyeScan(){
       hi.push({ key:'plant', w, icon: ic('flame'), what, why, go:['plant'], at:{ x: PLANT.x, y: PLANT.y - 40 } });
     }
     if (PLANT_COAL && eyeHeld('refuel', !S.robots.some(c => !c.away && taskOn(c, 'refuel'))) > 5 && !hi.some(o => o.key === 'plant')) hi.push({ key:'refuel', w:20, icon: ic('coal'), what:'Nobody refuels the furnace', why: eyeChip('refuel') + ' off on every Robot · it runs out', go:['plant'], at: BUNKER });
-    if (S.blowers.some(c => !c.away && c.lv.stoke > 0) && eyeLast('smelt') < 60 && eyeHeld('stoke', !eyeCover('stoke', 'blower').ok) > G.skill) hi.push({ key:'stoke', w:10, icon: ic('stoke'), what:'Nobody works the bellows', why: cover('stoke', 'blower'), go:['plant'], at: STOKE_SPOT });
+    const stokeWork = R.some(r => r.st === 'smelt') && S.blowers.some(c => !c.away && c.lv.stoke > 0);
+    if (eyeHeld('stoke', stokeWork && !eyeCover('stoke', 'blower').ok) > G.skill) hi.push({ key:'stoke', w:10, icon: ic('stoke'), what:'Nobody works the bellows', why: cover('stoke', 'blower'), go:['plant'], at: STOKE_SPOT });
   }
   if (palletShown()){
     const work = palletRoom() > 0 && ((S.plant.built && S.plant.rack > 0) || (COAL && S.flags.coalKnown && S.bench.coal > 0));
@@ -10597,7 +10603,8 @@ function eyeScan(){
     const mining = R.some(r => S.robots[r.id] && S.robots[r.id].miner === sp && (r.st === 'mine' || r.st === 'toMine' || r.task === 'mine'));
     if (eyeHeld('mn' + sp, !mining) > G.mine) hi.push({ key:'mn' + sp, w:15, icon: ic('vein'), what: 'A mine is unmanned', why: metalRoom() <= 0 ? ic('tub') + ' the tub is full' : cover('mine') || 'needs one more Robot with ' + eyeChip('mine'), go:['spot', sp], at: SPOTS[sp] });
   }
-  if (S.shafts.length && S.blowers.some(c => !c.away && c.lv.dig > 0) && eyeHeld('dig', R.some(r => r.st === 'mine') && !eyeCover('dig', 'blower').ok) > G.skill) hi.push({ key:'dig', w:10, icon: ic('dig'), what:'Nobody excavates', why: cover('dig', 'blower'), go:['spot', S.shafts[0]], at: SPOTS[S.shafts[0]] });
+  const digWork = S.shafts.some(sp => R.some(r => r.st === 'mine' && S.robots[r.id].miner === sp)) && S.blowers.some(c => !c.away && c.lv.dig > 0);
+  if (eyeHeld('dig', digWork && !eyeCover('dig', 'blower').ok) > G.skill) hi.push({ key:'dig', w:10, icon: ic('dig'), what:'Nobody excavates', why: cover('dig', 'blower'), go:['spot', S.shafts[0]], at: SPOTS[S.shafts[0]] });
   // ── less important: cheap upgrades for what each one actually does (V33.3: cheap against the cash held now, per skill, ignorable)
   const lim = S.cash*EYE_CHEAP, tiny = S.cash*EYE_TINY;
   for (const kind of ['robot', 'blower', 'shaker']) cfgsOf(kind).forEach((c, i) => {
@@ -10662,8 +10669,13 @@ function updEye(dt){
   if (S.t >= EYE.scanT){ EYE.scanT = S.t + 0.5; const first = EYE.lvl0 == null; eyeScan(); if (first){ EYE.lvl0 = EYE.lvl; eyeRt.lvl = EYE.lvl; } }
   updEyeAnim(dt);
 }
+function resetEyeMemory(){
+  Object.assign(EYE, { since:{}, done:{}, acc:{}, idleAcc:{}, full:{}, issues:[], lo:[], hiW:0, loW:0, score:0, lvl:0, t:-1, scanT:0, lvl0:0, want:0, wantT:0, showIgn:false });
+  overviewReturn = null;
+  Object.assign(eyeRt, { look:null, lookT:0, fill:0, lvl:0, boot:-1, fx:[], flashT:0 });
+}
 function eyeBoot(){
-  EYE.since = {}; EYE.done = {}; EYE.acc = {}; EYE.idleAcc = {}; EYE.issues = []; EYE.lo = []; EYE.score = 0; EYE.lvl = 0; EYE.t = -1; EYE.scanT = 0; EYE.lvl0 = 0;
+  resetEyeMemory();
   Object.assign(eyeRt, { boot: 0, lid: 1, fill: 0, lvl: 0, quiet: eyeRt.rt + 2.4, fx: [], flashT: 0, swing: 0, sv: 0, ext: 0 });
 }
 function updEyeAnim(dt){
@@ -10892,6 +10904,7 @@ function eyeShedRow(){
 // "show it": open the card of the thing, glide the camera over if it's off screen, and the eye looks at it
 function eyeGo(key){
   const o = EYE.issues.find(q => q.key === key) || EYE.lo.find(q => q.key === key); if (!o) return;
+  const back = { owner:S, scroll:cardScrollSave(), tab:cardTab };
   if (o.at){ eyeRt.look = o.at; eyeRt.lookT = 4; }
   const [kind, i] = o.go || [];
   if (o.at){
@@ -10900,7 +10913,7 @@ function eyeGo(key){
   }
   if (kind === 'letter' && !S.letters[i]) return;
   if ((kind === 'robot' && !R[i]) || ((kind === 'blower' || kind === 'shaker') && !HB.find(h => h.kind === kind && h.idx === i))) return;
-  if (kind) setTimeout(() => openCard(kind, i), o.at ? 120 : 0);
+  if (kind) setTimeout(() => { if (back.owner !== S) return; openCard(kind, i); overviewReturn = back; renderCard(true); }, o.at ? 120 : 0);
 }
 
 // ───────────────────────── HUD (cash only) + secret test money
@@ -11773,6 +11786,87 @@ function row(o){
 const arrow = '<span class="to">→</span>';
 const fromTo = (a, b, unit, maxed) => maxed ? '<b>' + a + '</b>' + (unit || '') : a + arrow + '<b>' + b + '</b>' + (unit || '');
 
+// V42: each yard saves its last five pickup receipts. Live production is a session-local 30-second game-time window.
+const PRODUCTION_WINDOW = 30;
+const PROD = { owner:null, start:0, last:0, extra:{}, samples:[] };
+let receiptIndex = 0, overviewReturn = null;
+function resetProduction(){
+  PROD.owner = S; PROD.start = PROD.last = S.t; PROD.extra = { picked:0, converted:0, made:0 };
+  PROD.samples = [{ t:S.t, v:productionValues() }]; receiptIndex = 0;
+}
+function productionValues(){
+  const t = S.totals;
+  return { ...PROD.extra, bags:t.bags || 0, bagged:(t.bags || 0)*BAG_SIZE, nectar:t.nectar || 0, jars:t.jars || 0, gifts:t.gifts || 0, metal:t.metal || 0, ingots:(COAL ? t.coal : t.ingots) || 0 };
+}
+function productionReady(){ if (PROD.owner !== S || S.t < PROD.last) resetProduction(); }
+function productionAdd(k, n){ if (simMode || !n) return; productionReady(); PROD.extra[k] = (PROD.extra[k] || 0) + n; }
+function sampleProduction(){
+  if (simMode) return;
+  productionReady();
+  if (S.t - PROD.last < 1) return;
+  PROD.last = S.t; PROD.samples.push({ t:S.t, v:productionValues() });
+  while (PROD.samples.length > 2 && PROD.samples[1].t <= S.t - PRODUCTION_WINDOW) PROD.samples.shift();
+}
+function productionRate(k){
+  productionReady();
+  const end = S.t, from = Math.max(PROD.start, end - PRODUCTION_WINDOW), dt = end - from;
+  if (dt < 1) return 0;
+  const a = PROD.samples, now = { t:end, v:productionValues() };
+  let left = a[0], right = now;
+  for (const s of a){ if (s.t <= from) left = s; else { right = s; break; } }
+  const f = right.t > left.t ? clamp((from - left.t)/(right.t - left.t), 0, 1) : 0;
+  const base = lerp(left.v[k] || 0, right.v[k] || 0, f);
+  return Math.max(0, ((now.v[k] || 0) - base)/dt);
+}
+function recordSale(T, bonus, credit, total){
+  const counts = { leaf:T.takeL, bag:T.takeB, metal:T.takeM, ingot:T.takeI, jar:T.takeH, gift:T.takeG };
+  const prices = { leaf:leafPrice(), bag:bagPrice(), metal:metalPrice(), ingot:ingotPrice(), jar:honeyPrice(), gift:giftJarPrice() };
+  const items = Object.keys(counts).map(k => ({ k, n:counts[k] || 0, price:prices[k], amount:(counts[k] || 0)*prices[k] + (k === 'ingot' ? credit : 0) }));
+  const receipt = { t:S.t, items, bonus, credit, total };
+  if (!Array.isArray(S.sales)) S.sales = [];
+  S.sales.unshift(receipt); S.sales.length = Math.min(5, S.sales.length);
+  if (!simMode) receiptIndex = 0;
+}
+function saleLabel(k){
+  return { leaf:'Loose leaves', bag:DRY_BENCH ? 'Dry leaves' : 'Bags of leaves', metal:COAL ? 'Raw logs' : 'Raw metal', ingot:COAL ? 'Charcoal' : 'Ingots', jar:ANTS && S.flags.antHill ? 'Canned mushrooms' : 'Honey jars', gift:ANTS && S.flags.antHill ? 'D.O.P. cans' : 'Gift jars' }[k];
+}
+const receiptMoney = n => '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const receiptPrice = n => '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:4});
+function receiptPanel(group, history){
+  const sales = Array.isArray(S.sales) ? S.sales : [], index = history ? Math.min(receiptIndex, Math.max(0, sales.length - 1)) : 0, sale = sales[index];
+  const keys = { leaf:['leaf','bag'], honey:['jar','gift'], metal:['metal'], plant:['ingot'] }[group];
+  const items = sale ? sale.items.filter(q => (!keys || keys.includes(q.k)) && q.n > 0) : [];
+  let html = '<section class="activity receipt"><div class="activity-head"><b>' + (history && index ? 'Earlier pickup' : 'Last pickup') + '</b>';
+  if (sale) html += '<small>' + mmss(sale.t) + ' · yard time</small>';
+  html += '</div>';
+  if (!sale) html += '<p class="none">The next pickup will leave a receipt here.</p>';
+  else {
+    const leaves = sale.items.filter(q => q.k === 'leaf' || q.k === 'bag'), leafN = leaves.reduce((n,q) => n + q.n*(q.k === 'bag' ? BAG_SIZE : 1), 0);
+    if ((!group || group === 'leaf') && leafN) html += '<p class="receipt-note">' + leafN + ' leaves sold · ' + (leaves.find(q => q.k === 'bag')?.n || 0)*BAG_SIZE + (DRY_BENCH ? ' dried' : ' in bags') + '</p>';
+    for (const q of items){
+      const count = q.k === 'bag' && DRY_BENCH ? q.n*BAG_SIZE : q.n, price = q.k === 'bag' && DRY_BENCH ? q.price/BAG_SIZE : q.price;
+      html += '<div class="receipt-line"><span>' + ic(q.k === 'metal' ? 'ore' : q.k) + saleLabel(q.k) + '<small>' + count + ' × ' + receiptPrice(price) + (q.k === 'bag' && !DRY_BENCH ? ' · ' + BAG_SIZE + ' leaves/bag' : '') + '</small></span><b>' + receiptMoney(q.amount) + '</b></div>';
+    }
+    const bonus = !group || group === 'leaf' ? sale.bonus : 0;
+    if (bonus) html += '<div class="receipt-line"><span>' + ic('cleanup') + 'Cleanup bonus</span><b>' + receiptMoney(bonus) + '</b></div>';
+    if (sale.credit && (!group || group === 'plant')) html += '<p class="receipt-note">Charcoal includes ' + receiptMoney(sale.credit) + ' carried-over credit.</p>';
+    const total = group ? items.reduce((n,q) => n + q.amount, 0) + bonus : sale.total;
+    if (!items.length && !bonus) html += '<p class="none">' + (group ? 'None of this resource sold on this pickup.' : 'Nothing sold on this pickup.') + '</p>';
+    html += '<div class="receipt-total"><span>' + (group ? 'Contribution' : 'Total paid') + '</span><b>' + receiptMoney(total) + '</b></div>';
+  }
+  if (history && sales.length > 1) html += '<div class="receipt-nav"><button class="link" data-act="receipt:newer"' + (index === 0 ? ' disabled' : '') + '>‹ Newer</button><small>' + (index + 1) + ' / ' + sales.length + '</small><button class="link" data-act="receipt:older"' + (index >= sales.length - 1 ? ' disabled' : '') + '>Older ›</button></div>';
+  return { sig:'receipt' + group + index + JSON.stringify(sale), html:html + '</section>' };
+}
+function productionPanel(group){
+  const honey = ANTS && S.flags.antHill;
+  const sets = { leaf:[['picked','leaf','Leaves picked'], ['bags','bag',DRY_BENCH ? 'Trays dried' : 'Bags made'], ['bagged','leaf',DRY_BENCH ? 'Leaves dried' : 'Leaves bagged']], honey:[['nectar','nectar',honey ? 'Mushrooms brought in' : 'Nectar brought in'], ['converted','nectar',honey ? 'Mushrooms sorted' : 'Nectar converted'], ['made','honey',honey ? 'Cans’ worth sorted' : 'Honey · jars’ worth'], ['jars','jar',honey ? 'Cans filled' : 'Jars filled'], ['gifts','gift',honey ? 'D.O.P. cans sealed' : 'Jars wrapped']], metal:[['metal','ore',COAL ? 'Logs delivered' : 'Metal delivered']], plant:[['ingots','ingot',COAL ? 'Charcoal made' : 'Ingots made']] };
+  let entries = sets[group] || [...sets.leaf, ...(S.hive.built && !hiveGrounded() ? sets.honey : []), ...(S.metalSlot ? sets.metal : []), ...(S.plant.built ? sets.plant : [])];
+  entries = entries.filter(([key]) => (!['bags','bagged'].includes(key) || S.bag.built) && (key !== 'gifts' || S.hive.packing));
+  const elapsed = Math.min(PRODUCTION_WINDOW, Math.max(0, S.t - (PROD.owner === S ? PROD.start : S.t))), vals = entries.map(([key,icon,label]) => { const r = productionRate(key); return '<div><span>' + ic(icon) + label + '</span><b>' + (r > 0 && r < .01 ? '<0.01' : r.toFixed(2)) + '<small>/s</small></b></div>'; }).join('');
+  const html = '<section class="activity production"><div class="activity-head"><b title="Moving average over the last 30 seconds of game time. After opening the game, it uses the time measured so far. Pauses do not count.">Recent production</b><small>' + (elapsed < 30 ? 'collecting · ' + Math.floor(elapsed) + '/30 s' : 'last 30 s') + '</small></div><div class="production-grid">' + vals + '</div></section>';
+  return { sig:'production' + group + vals + Math.floor(elapsed), html };
+}
+function keepMetalRow(){ return keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal); }
 function visibleTasks(kind, cfg){ return KIND_TASKS[kind].filter(t => taskOpen(t, cfg)); }
 // ── yard upgrades (bin, truck, hive, plant): short names, a picture, and the value as number + unit picture
 const UP_ICON = { bin:ic('bin'), leafPrice:icp('leaf'), bagPrice:icp('bag'), metalPrice:icp('ore'), metalBin:ic('tub'), truck:ic('truck'), cleanup:ic('cleanup'),
@@ -11794,9 +11888,17 @@ const UP_VAL = {
 function upRow(k, extra){
   const u = UP[k], l = S.lv[k], maxed = l >= u.max, cost = maxed ? 0 : upCost(k);
   const a = UP_VAL[k](u.val(l)), b = maxed ? a : UP_VAL[k](u.val(l + 1));
+  const next = maxed ? l : l + 1, moneyEffect = (name, f) => '<br><small>' + name + ': ' + fromTo(cash$(f(l)), cash$(f(next)), '', maxed) + '</small>';
+  if (k === 'leafPrice' && S.bag.built) extra = (extra || '') + moneyEffect(DRY_BENCH ? 'Dry sack' : 'Bag value', L => BAG_SIZE*u.val(L)*val('bagPrice')*sellMul());
+  if (k === 'metalPrice' && S.plant.built) extra = moneyEffect(COAL ? 'Charcoal value' : 'Ingot value', L => (COAL ? COAL_UNIT : ORE_PER_INGOT)*u.val(L)*val('ingotGrade')*sellMul());
+  if (k === 'honeyPrice' && S.hive.packing) extra = (extra || '') + moneyEffect(ANTS && S.flags.antHill ? 'D.O.P. can' : 'Gift jar', L => u.val(L)*val('giftPrice')*sellMul());
+  if (k === 'hiveTank' || k === 'hiveStore'){
+    const floors = 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore + (maxed ? 0 : 1))/2), rate = floors*FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1);
+    extra = '<br><small>' + (floors > hiveFloors() ? '+1 floor · ' : '') + 'Processing: ' + fromTo(fanRate().toFixed(2), rate.toFixed(2), ' nectar/s', maxed || rate === fanRate()) + '<br>' + fromTo((fanRate()/jarNectar()).toFixed(2), (rate/jarNectar()).toFixed(2), ' jars’ worth/s', maxed || rate === fanRate()) + '</small>';
+  }
   if (k === 'pallet') extra = (extra || '') + '<br><small>' + (COAL ? 'Kiln shelf: ' : 'Furnace rack: ') + fromTo(u.val(l), u.val(maxed ? l : l + 1), ic('ingot'), maxed) + '</small>';
-  const val = fromTo(a[0], b[0], a[1], maxed) + (extra || '');
-  return { sig: k + l + (maxed ? 'M' : aff$(cost)) + val, html: row({ icon: UP_ICON[k], name: UP_SHORT[k] || upName(k), tip: (typeof u.name === 'function' ? upName(k) + ': ' : '') + UP_TIP[k], pips: nuts(l, upGroups(k)), val,
+  const display = fromTo(a[0], b[0], a[1], maxed) + (extra || '');
+  return { sig: k + l + (maxed ? 'M' : aff$(cost)) + display, html: row({ icon: UP_ICON[k], name: UP_SHORT[k] || upName(k), tip: (typeof u.name === 'function' ? upName(k) + ': ' : '') + UP_TIP[k], pips: nuts(l, upGroups(k)), val:display,
     btn: maxed ? stamp('max') : coinBtn('up:' + k, cost, { label: upName(k) }) }) };
 }
 const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '') + '>' + h + '</span>';
@@ -11832,9 +11934,15 @@ function robotRow(ri, k, kind){
     if (S.plant.built || (COAL && S.flags.coalKnown)) val += two(ingotCarryAt, 'ingot', COAL ? 'Coal it hauls in one trip' : 'Ingots it hauls in one trip');
   }
   // smelting speed comes from Packing and Drill together, so show it on both rows once the plant is up
-  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){ val += xt(ic('flame') + smeltSkill(ri).toFixed(1) + '×', 'Smelting speed (Load & pack × Operate machinery)'); sig += smeltSkill(ri).toFixed(2); }
+  if (kind === 'robot' && S.plant.built && (k === 'pack' || k === 'drill')){
+    const nx = maxed || (locked && !peek) ? L : L + 1, pack = k === 'pack' ? T.vals[nx] : packSpeed(ri), drill = k === 'drill' ? TRACKS.drill.vals[0]/T.vals[nx] : drillSkill(ri), after = pack*(1 + .5*(drill - 1));
+    val += xt(ic('flame') + fromTo(smeltSkill(ri).toFixed(1), after.toFixed(1), '×', nx === L), 'Smelting speed (Load & pack × Operate machinery)'); sig += after.toFixed(2);
+  }
   // V22: Extra yield also adds to every kiln or furnace batch this robot operates, at half strength
-  if (kind === 'robot' && S.plant.built && k === 'magnet'){ val += xt(ic('flame') + '+' + Math.round(EXTRA_YIELD_SMELT*doubleChance(ri)*100) + '%' + ic('ingot'), 'More finished ' + (COAL ? 'charcoal' : 'ingots') + ' from every batch it operates: half of its resource efficiency'); sig += 'y' + doubleChance(ri).toFixed(2); }
+  if (kind === 'robot' && S.plant.built && k === 'magnet'){
+    const nx = maxed || (locked && !peek) ? L : L + 1, after = Math.min(.9, T.vals[nx] + (gl('charm') ? .08 : 0));
+    val += xt(ic('flame') + fromTo('+' + Math.round(EXTRA_YIELD_SMELT*doubleChance(ri)*100), '+' + Math.round(EXTRA_YIELD_SMELT*after*100), '%' + ic('ingot'), nx === L), 'More finished ' + (COAL ? 'charcoal' : 'ingots') + ' from every batch it operates: half of its resource efficiency'); sig += 'y' + after.toFixed(2);
+  }
   if (k === 'snip') val = L ? 'Deadheads spent flowers' : 'Deadhead spent flowers: they bloom again sooner, so more nectar for the bees';   // V13.7
   if (k === 'dry' && !L) val = 'Learn to dry wet leaves at the drying bench';   // V15
   let allb = '';   // (V21: what applies to every robot goes in its own lane: the unlock and the all / match button)
@@ -12015,14 +12123,23 @@ const ASSIGN_ROWS = {
   letter: { 'robot:travel': ['triprobot'], 'blower:travel': ['tripblower'] },
   lab: { 'blower:research': ['lres'], 'shaker:research': ['lres'] },
 };
+function assignmentInfo(kind, i, t){
+  const c = cfgsOf(kind)[i], who = eyeWho(kind, i), sp = t === 'mine' && cardOpen && cardOpen.kind === 'spot' ? cardOpen.i : null;
+  const atMine = sp != null && c.miner === sp, full = sp != null && !atMine && minerWorkers(sp).length >= slotsAt(sp);
+  const on = taskTop(c,t) && c.prio[0].length === 1 && (sp == null || atMine);
+  let current = !who ? 'Idle' : kind === 'robot' ? robotDoing(who)[1] : who.task && TASKS[who.task] ? TASKS[who.task].short : 'Idle';
+  if (kind === 'robot' && c.miner != null && who && who.task === 'mine') current += ' · mine ' + (c.miner + 1);
+  const context = full ? 'Mine full · ' + minerWorkers(sp).length + '/' + slotsAt(sp) : on ? 'Already assigned here' : current;
+  return { on, blocked:full, context, occupancy:sp == null ? '' : minerWorkers(sp).length + '/' + slotsAt(sp) + ' assigned' };
+}
 function assignPicker(opts){
   const kinds = new Set(opts.map(q => q[0])).size > 1;
   let h = '<div class="pick apk inl" role="listbox">';
   for (const [kind, t] of opts){
     if (opts.length > 1) h += '<div class="pk">' + ic(t) + TASKS[t].name + (kinds ? ' <small>· ' + KN(kind) + 's</small>' : '') + '</div>';
     for (const q of assignWho(kind, t)){
-      const c = cfgsOf(kind)[q.i], on = taskTop(c, t) && c.prio[0].length === 1;
-      h += '<button role="option" aria-selected="' + on + '" class="po' + (on ? ' on' : '') + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(on ? q.name + ' already has this first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' + q.name + (on ? '<span class="ok">' + ic('tick') + '</span>' : '') + '</button>';
+      const info = assignmentInfo(kind,q.i,t), on = info.on;
+      h += '<button role="option" aria-selected="' + on + '" aria-disabled="' + info.blocked + '" class="po' + (on ? ' on' : '') + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(info.blocked ? info.context : on ? q.name + ' already has this first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt=""><span class="candidate">' + q.name + '<small>' + info.context + '</small></span>' + (on ? '<span class="ok">' + ic('tick') + '</span>' : '') + '</button>';
     }
   }
   return h + '</div>';
@@ -12031,9 +12148,9 @@ function assignBtnHTML(key, opts){
   // V36: only one who could take it (Tinker on its trip, the only Blower, the only Shaker): no list, the button assigns it
   const cands = opts.flatMap(([kind, t]) => assignWho(kind, t).map(q => [kind, t, q]));
   if (cands.length === 1){
-    const [kind, t, q] = cands[0], c = cfgsOf(kind)[q.i], on = taskTop(c, t) && c.prio[0].length === 1;
-    return '<div class="asg"><button class="asgb one' + (on ? ' set' : '') + '" data-k="' + key + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(on ? q.name + ' already has ' + TASKS[t].name + ' first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' +
-      (on ? ic('tick') + '<span>' + q.name + '</span>' : '<span>Assign ' + q.name + '</span>') + '</button></div>';
+    const [kind, t, q] = cands[0], info = assignmentInfo(kind,q.i,t), on = info.on;
+    return '<div class="asg"><button class="asgb one' + (on ? ' set' : '') + '" aria-disabled="' + info.blocked + '" data-k="' + key + '" data-act="asg:' + kind + ':' + q.i + ':' + t + '" title="' + attr(info.blocked ? info.context : on ? q.name + ' already has ' + TASKS[t].name + ' first' : 'Put ' + TASKS[t].name + ' first on ' + q.name + '’s list') + '"><img src="' + kindThumb(kind, q.i) + '" alt="">' +
+      (on ? ic('tick') + '<span>' + q.name + '</span>' : '<span>Assign ' + q.name + '</span>') + '</button><small class="assign-context">' + info.context + (info.occupancy ? ' · ' + info.occupancy : '') + '</small></div>';
   }
   const open = assignOpen === key, kinds = [...new Set(opts.map(q => q[0]))];
   return '<div class="asg"><button class="asgb' + (open ? ' on' : '') + '" data-k="' + key + '" data-act="apick:' + key + '" aria-haspopup="listbox" aria-expanded="' + open + '" title="Put ' + (kinds.length === 1 && kinds[0] !== 'robot' ? 'a ' + KN(kinds[0]) : 'a Robot') + ' to work on this">' + ic(kinds.length === 1 ? (kinds[0] === 'blower' ? 'blow' : kinds[0] === 'shaker' ? 'shake' : 'robot') : 'robot') + '<span>Assign</span>' +
@@ -12054,18 +12171,21 @@ function placeAssign(k, opts, rows, rows2){
   for (const [r, os] of groups){
     const key = 'r' + (n++) + os.map(o => o.join('-')).join('_'), i = r.html.lastIndexOf('</div><div class="btn">');
     r.html = r.html.slice(0, i) + assignBtnHTML(key, os) + r.html.slice(i);
-    r.sig += '|asg' + key + (assignOpen === key ? 'O' : '') + os.map(([kind, t]) => assignWho(kind, t).map(q => q.i + (taskTop(cfgsOf(kind)[q.i], t) && cfgsOf(kind)[q.i].prio[0].length === 1 ? 't' : '')).join()).join('/');
+    r.sig += '|asg' + key + (assignOpen === key ? 'O' : '') + os.map(([kind, t]) => assignWho(kind, t).map(q => q.i + JSON.stringify(assignmentInfo(kind,q.i,t))).join()).join('/');
   }
   if (left.length){
     const key = 'x' + left.map(o => o.join('-')).join('_');
-    rows.push({ sig: 'asgx' + key + (assignOpen === key ? 'O' : '') + left.map(([kind, t]) => assignWho(kind, t).map(q => q.i + (taskTop(cfgsOf(kind)[q.i], t) ? 't' : '')).join()).join('/'), html: row({ icon: ic(left[0][1]), name: left.map(o => TASKS[o[1]].name).join(' · '), val: assignBtnHTML(key, left) }) });
+    rows.push({ sig: 'asgx' + key + (assignOpen === key ? 'O' : '') + left.map(([kind, t]) => assignWho(kind, t).map(q => q.i + JSON.stringify(assignmentInfo(kind,q.i,t))).join()).join('/'), html: row({ icon: ic(left[0][1]), name: left.map(o => TASKS[o[1]].name).join(' · '), val: assignBtnHTML(key, left) }) });
   }
 }
 function assignTo(kind, i, t){
   const c = cfgsOf(kind)[i]; if (!c || !(t === 'travel' ? tripFor(c) : taskOpen(t, c))) return;
+  if (c.away) return;
+  const info = assignmentInfo(kind,i,t);
+  if (info.blocked){ cardNote = 'This mine is full. Choose a mine with room.'; return false; }
   if (t === 'travel') cfgsOf(kind).forEach((o, j) => { if (o !== c && taskOn(o, 'travel')){ taskRemove(o, 'travel'); o.off.push('travel'); taskListChanged(kind, j); } });   // V22.3: one per kind
   putTop(c, t);
-  if (kind === 'robot' && t === 'mine' && cardOpen && cardOpen.kind === 'spot'){ const sp = cardOpen.i; if (S.robots[i].miner !== sp){ if (S.robots[i].miner != null) S.robots[i].miner = null; assign(i, sp); } }
+  if (kind === 'robot' && t === 'mine' && cardOpen && cardOpen.kind === 'spot'){ const sp = cardOpen.i; if (S.robots[i].miner !== sp) assign(i, sp); }
   if (kind === 'robot') S.flags.taskHint = true;
   taskListChanged(kind, i);
   const nm = kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
@@ -12087,12 +12207,14 @@ function navGo(kind, i){
 const crewBot = (ri, tag) => '<span class="crew" title="' + styleOf(ri).name + '"><img src="' + botThumb(ri) + '" alt="' + styleOf(ri).name + '">' + (tag ? '<b>' + tag + '</b>' : '') + '</span>';
 // "who works here": robots with that task on their list, or a nudge to add it
 function crewRow(icon, label, task, tagOf){
-  const who = S.robots.map((c, ri) => taskOn(c, task) ? ri : -1).filter(ri => ri >= 0);
-  // lots of robots: their faces in a little huddle (with the number once, if they're all the same)
+  const who = S.robots.map((c, ri) => !c.away && taskOn(c, task) ? ri : -1).filter(ri => ri >= 0);
+  const active = ri => R[ri] && R[ri].task === task && !['idle','rest','wander','gone'].includes(R[ri].st);
   const tags = who.map(ri => tagOf ? tagOf(ri) : ''), same = tags.every(t => t === tags[0]);
-  const body = who.length > 4 ? '<span class="huddle">' + who.map((ri, j) => '<img src="' + botThumb(ri) + '" alt="" title="' + styleOf(ri).name + (tags[j] ? ' · ' + attr(tags[j]) : '') + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
-    : who.length ? who.map(ri => crewBot(ri, tagOf ? tagOf(ri) : '')).join('') : '<span class="none">nobody · add <span class="chip mini" style="--tc:' + TASKS[task].col + '">' + ic(task) + TASKS[task].short + '</span> to a Robot’s tasks</span>';
-  return { sig: 'crew' + task + who.map(ri => ri + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
+  const title = ri => attr(styleOf(ri).name + ' · ' + (R[ri] ? robotDoing(R[ri])[1] : 'Idle'));
+  const portraits = who.length > 4 ? '<span class="huddle">' + who.map(ri => '<img class="crew-state ' + (active(ri) ? 'working' : 'waiting') + '" src="' + botThumb(ri) + '" alt="' + styleOf(ri).name + '" title="' + title(ri) + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
+    : who.map(ri => '<span class="crew-state' + (active(ri) ? ' working' : ' waiting') + '">' + crewBot(ri, tagOf ? tagOf(ri) : '').replace('title="' + styleOf(ri).name + '"','title="' + title(ri) + '"') + '</span>').join('');
+  const body = who.length ? portraits + '<small class="crew-count">' + who.filter(active).length + ' on task · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
+  return { sig: 'crew' + task + who.map(ri => ri + ':' + (R[ri] ? R[ri].st : '') + ':' + active(ri) + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
 }
 
 // ── the task list on a robot's card: drag tasks between the rows of "Do" and the "Off" pile
@@ -12374,7 +12496,7 @@ function cardModel(){
     else {
       if (S.bag.built || baggerShown()) rows2.push({ sig:'sMetal', html:'<div class="sect">Metal</div>' });
       rows2.push(upRow('metalBin')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
-      if (S.plant.built) rows2.push(keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal));
+      if (S.plant.built) rows2.push(keepMetalRow());
       if (plantGrade() && !S.plant.built) rows2.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html: row({ icon: ic('flame'), cls:'soon', name:'Smelting plant', val:'shows up once you’ve held ' + cash$(PLANT_COST*0.25), tip:'Turns metal into ingots worth a lot more' }) });
     }
   } else if (k === 'sign'){
@@ -12436,12 +12558,8 @@ function cardModel(){
       } else rows.push({ sig:'beefull', html: row({ icon: ic('bee'), name:'Robot bees', val: meter('bee', n, MAX_BEES), btn: stamp('full') }) });
       // V29: say what the floors do. Tank and store steps count together: every second one (either track) adds a floor, and
       // each floor turns FLOOR_RATE more nectar a second into honey (fanRate), so not every storage step adds one
-      const fl = hiveFloors(), fr = fanRate(), frN = (fl + 1)*FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1), nec = ic('nectar'), even = (S.lv.hiveTank + S.lv.hiveStore) % 2 === 0;
-      const floorTip = 'Tank and store steps count together: every second one adds a hive floor. Each floor turns ' + (FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1)) + ' more nectar a second into honey. Now ' + fl + ' floors, ' + fr + ' nectar a second.';
-      const floorNext = even ? xt('+1 floor: ' + fr + arrow + '<b>' + frN + '</b>' + nec + '<small>/s</small>', 'This step adds a floor. ' + floorTip)
-                             : xt('no floor <small>(next step adds one)</small>', 'This step adds no floor; the next tank or store step does. ' + floorTip);
-      rows.push(upRow('hiveTank', S.lv.hiveTank < UP.hiveTank.max ? floorNext : ''));
-      rows.push(upRow('hiveStore', S.lv.hiveStore < UP.hiveStore.max ? floorNext : ''));
+      rows.push(upRow('hiveTank'));
+      rows.push(upRow('hiveStore'));
       // V40: what the nectar is worth once it's in a jar (like the Leaf → bag line): a jar takes N nectar and sells for $X
       { const need = jarNectar(), jp = honeyPrice(), gp = H.packing ? giftJarPrice() : 0;
         rows.push({ sig:'nv' + need + jp.toFixed(3) + gp.toFixed(3), html: row({ icon: ic('nectar'), name:'Nectar → jar', tip:'A jar takes ' + need + ' nectar and sells for ' + cash$(jp) + (gp ? ' (' + cash$(gp) + ' as a gift jar)' : '') + ', so each one the bees bring home is worth about ' + cash$(jp/need) + (gp ? ' (' + cash$(gp/need) + ' wrapped)' : '') + '. Fancy labels raise the jar’s price; Better recipe needs less nectar a jar.',
@@ -12458,7 +12576,7 @@ function cardModel(){
         rows.push(labLinkRow('snip'));   // V36: worked on from its own research card
       } else if (S.shakers.length && snipKnown()){
         // V22.3: shakers with Garden shears deadhead spent flowers so they bloom again sooner (its Assign sits here)
-        const dh = S.shakers.map((c, i) => taskOn(c, 'snip') && c.lv.snip > 0 ? i : -1).filter(i => i >= 0), learnt = S.shakers.some(c => c.lv.snip > 0);
+        const dh = S.shakers.map((c, i) => !c.away && taskOn(c, 'snip') && c.lv.snip > 0 ? i : -1).filter(i => i >= 0), learnt = S.shakers.some(c => !c.away && c.lv.snip > 0);
         rows.push({ sig:'dhd' + dh.join(',') + learnt + S.shakers.length, html: row({ icon: ic('snip'), name:'Deadheaders', cls:'crewrow',
           val: dh.length ? dh.map(i => helperStyleOf('shaker', i).name).join(', ')
             : '<span class="none">' + (learnt ? 'nobody · add <span class="chip mini" style="--tc:' + TASKS.snip.col + '">' + ic('snip') + TASKS.snip.short + '</span> to a Shaker' : 'a Shaker can learn it (Garden shears, on its card)') + '</span>',
@@ -12499,6 +12617,7 @@ function cardModel(){
       rows.push(upRow('ingotGrade', COAL ? xt(cash$(ingotPrice()*KILN_COAL*(1 + val('slag'))/KILN_LOGS) + '/' + ic('ore'), 'Per log, burnt to coal (sold as logs: ' + cash$(metalPrice()) + ')') : xt(cash$(ingotPrice()*(1 + val('slag'))/ORE_PER_INGOT) + '/' + ic('ore'), 'Per chunk of metal, smelted')));
       rows.push(upRow('hopper'));
       rows.push(upRow('pallet'));
+      rows.push(keepMetalRow());
       rows2.push(crewRow('smelt', 'Smelters <small class="cap">' + SMELT_N + ' Robots at a time</small>', 'smelt', ri => smeltSkill(ri).toFixed(1) + '×'));   // V21: two robot doors
       rows2.push(crewRow('haul', 'Haulers', 'haul', ri => ingotCarry(ri) + '<small>/trip</small>'));
       if (PLANT_COAL){
@@ -12654,6 +12773,12 @@ function cardModel(){
       }
     }
   }
+  if (k === 'sign'){ rows.push(productionPanel()); rows2.push(receiptPanel(null,true)); }
+  if (k === 'bin'){ rows.push(productionPanel('leaf'),receiptPanel('leaf')); if (S.metalSlot) rows2.push(productionPanel('metal'),receiptPanel('metal')); }
+  if (k === 'hive' && S.hive.built && !hiveGrounded()){ rows2.push(productionPanel('honey'),receiptPanel('honey')); }
+  if (k === 'plant' && (S.plant.built || palletShown())) rows.push(productionPanel('plant'),receiptPanel('plant'));
+  if (k === 'spot' && S.metalSlot && SPOTS[cardOpen.i].land <= S.land) rows2.push(productionPanel('metal'),receiptPanel('metal'));
+  if (overviewReturn && overviewReturn.owner === S && k !== 'eye') top = '<div class="overview-back"><button class="link" data-act="eyeback">‹ Back to overview</button></div>' + top;
   { const ao = assignOpts(k, cardOpen.i); if (ao.length) placeAssign(k, ao, rows, rows2); else assignOpen = false; }   // V21 (V22.2: under its row)
   return { title, tag, rows, rows2, top, foot, live, tabs, head };
 }
@@ -13073,6 +13198,7 @@ function cardAnchor(){
   return { x: s.x, y: s.y, below: below*cam.z };
 }
 function openCard(kind, i, still){
+  if (kind === 'eye') overviewReturn = null;
   if (kind === 'hive' && hiveLabOn()) kind = 'book';   // V15: the hollow's hive, while it's being researched
   if (kind === 'plant' && RUIN && researchOpen() && FIND().atRuin) kind = 'book';
   if (kind === 'bagger' && dryLabOn()){ kind = 'lab'; i = 'dry'; }   // V36: the drying research has a research card of its own
@@ -13098,7 +13224,7 @@ function openCard(kind, i, still){
   sfx('paper');
   renderCard(true);
 }
-function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; assignOpen = false; }
+function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; assignOpen = false; overviewReturn = null; }
 
 card.addEventListener('pointerdown', e => e.stopPropagation());
 card.addEventListener('click', e => {
@@ -13134,6 +13260,8 @@ card.addEventListener('click', e => {
   else if (act.startsWith('tech:')){ const id = act.slice(5); if (techAvailable(id)) buy({ id:'tech', key:id, obj:cardOpen.obj, cost:TECH[id].cost }); }
   else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
   else if (act === 'eye'){ if (S.eye.built){ openCard('eye'); return; } if (eyeBuyable()) buy({ id:'eye', obj:'shed', cost:EYE_COST }); }   // V33
+  else if (act === 'eyeback'){ const back = overviewReturn; overviewReturn = null; if (back && back.owner === S) cardTab = back.tab; openCard('eye'); if (back && back.owner === S) cardScrollRestore(back.scroll); return; }
+  else if (act.startsWith('receipt:')){ receiptIndex = clamp(receiptIndex + (act === 'receipt:older' ? 1 : -1), 0, Math.max(0,(S.sales || []).length - 1)); renderCard(true); return; }
   else if (act.startsWith('eyego:')){ eyeGo(act.slice(6)); return; }
   else if (act.startsWith('eyeign:')){ const o = EYE.lo.find(q => q.key === act.slice(7)); if (o && o.ign) for (const k of o.ign) if (!eyeIgnored(k)) eyeIgn().push(k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }   // V33.3
   else if (act.startsWith('eyeunig:')){ const k = act.slice(8); S.eye.ign = eyeIgn().filter(q => q !== k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }
@@ -13527,6 +13655,7 @@ function hardReset(){
   delete WORLD.arrive; delete WORLD.ids; delete WORLD.tech; delete WORLD.gen; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;   // (V24: the shared robots too)
   IDL = {}; WORLD.runT = 0;   // Clear the runtime roster before bindIds can merge old skills into the new robot.
   S = freshState(); bindIds(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
+  resetEyeMemory(); resetProduction();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
   closeCard(); syncRobots(); seedLeaves();

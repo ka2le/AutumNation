@@ -34,7 +34,8 @@ const root = path.resolve(__dirname, '../public');
       await page.evaluate(() => __leafYard.endingFF(10000));
       assert.equal(await dev('S.flags.ending'), 3, 'full tour returns home');
       await dev('startEndReturn(R[0]); showEndPopup(false)');
-      await page.locator('#epGo').click();
+      // The loop is frozen for this test; invoke Continue immediately rather than racing its CSS animation/timers.
+      await page.locator('#epGo').evaluate(button => button.click());
       assert.equal(await dev('tripHolder() === null'), true, 'return leaves nobody assigned');
       assert(await dev('S.robots[0].off.includes("travel")'), 'optional ride is in Don’t');
       assert(await dev('taskOpen("travel", S.robots[0])'), 'ride is available on task list');
