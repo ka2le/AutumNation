@@ -5278,6 +5278,8 @@ function updTruck(dt){
       T.takeB = S.bag.bags; S.bag.bags = 0; T.takeI = S.ingots; S.ingots = 0;
       T.takeH = Math.max(0, (S.hive.jars | 0) - keepJars()); S.hive.jars -= T.takeH;
       T.takeG = S.hive.gift | 0; S.hive.gift = 0;
+      // V43: remember the actual reserve left at loading, before work continues during the pickup.
+      T.kept = { leaf: DRY_BENCH ? 0 : S.binLeaves, metal:S.binMetal, jar:S.hive.jars };
       if (T.takeH || T.takeG){ const a = sndAt(CRATE.x, CRATE.y); sfx('clink', T.takeH + T.takeG, a.pan, a.vol); for (let i=0;i<Math.min(T.takeH + T.takeG, 10);i++) flyTo(i < T.takeG ? 'gift' : 'jar', CRATE.x + rand(-12, 12), CRATE.y - 30, T.x + rand(0,58), LANE - 64, 0.7 + i*0.08, 70, {}); }
       for (let i=0;i<Math.min(T.takeB, 8);i++) flyTo('bag', BIN.x + rand(0, 22), BIN.y - 50, T.x + rand(0,58), LANE - 64, 0.55 + i*0.09, 55, {});
       for (let i=0;i<Math.min(T.takeI, 10);i++) flyTo('ingot', PALLET.x + rand(-10, 10), PALLET.y - 20, T.x + rand(0,58), LANE - 64, 0.6 + i*0.08, 55, {});
@@ -10426,6 +10428,7 @@ const EYE_K = 1.2;                           // how much bigger it's drawn than 
 const EYE_LV = [0, 1, 30, 60, 85];           // score where each level starts: calm, green, yellow, orange, red
 const EYE_COL = ['#7fc7a4', '#86d65a', '#f4cf3a', '#f28a2a', '#ea4128'];
 const EYE_WORD = ['All clear', 'A little', 'Some things stuck', 'A lot stuck', 'Badly stuck'];
+const eyeStatus = () => EYE.issues.length ? EYE_WORD[EYE.lvl] : EYE.lo.length ? 'Upgrades available' : 'All clear';
 const EYE_GRACE = { idle: 10, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
 // which skills help with which job (for the cheap-upgrade list)
 const EYE_TRACKS = {
@@ -11823,6 +11826,7 @@ function recordSale(T, bonus, credit, total){
   const prices = { leaf:leafPrice(), bag:bagPrice(), metal:metalPrice(), ingot:ingotPrice(), jar:honeyPrice(), gift:giftJarPrice() };
   const items = Object.keys(counts).map(k => ({ k, n:counts[k] || 0, price:prices[k], amount:(counts[k] || 0)*prices[k] + (k === 'ingot' ? credit : 0) }));
   const receipt = { t:S.t, items, bonus, credit, total };
+  if (T.kept) receipt.kept = { ...T.kept };
   if (!Array.isArray(S.sales)) S.sales = [];
   S.sales.unshift(receipt); S.sales.length = Math.min(5, S.sales.length);
   if (!simMode) receiptIndex = 0;
@@ -11851,8 +11855,19 @@ function receiptPanel(group, history){
     if (bonus) html += '<div class="receipt-line"><span>' + ic('cleanup') + 'Cleanup bonus</span><b>' + receiptMoney(bonus) + '</b></div>';
     if (sale.credit && (!group || group === 'plant')) html += '<p class="receipt-note">Charcoal includes ' + receiptMoney(sale.credit) + ' carried-over credit.</p>';
     const total = group ? items.reduce((n,q) => n + q.amount, 0) + bonus : sale.total;
-    if (!items.length && !bonus) html += '<p class="none">' + (group ? 'None of this resource sold on this pickup.' : 'Nothing sold on this pickup.') + '</p>';
-    html += '<div class="receipt-total"><span>' + (group ? 'Contribution' : 'Total paid') + '</span><b>' + receiptMoney(total) + '</b></div>';
+    if (!items.length && !bonus) html += '<p class="none">' + (group === 'metal' ? 'No raw ' + (COAL ? 'logs' : 'metal') + ' sold on this pickup.' : group ? 'None of this resource sold on this pickup.' : 'Nothing sold on this pickup.') + '</p>';
+    html += '<div class="receipt-total"><span>' + (group === 'metal' ? 'Raw ' + (COAL ? 'log' : 'metal') + ' contribution' : group ? 'Contribution' : 'Total paid') + '</span><b>' + receiptMoney(total) + '</b></div>';
+    const kept = sale.kept || {};
+    const notes = [
+      ['leaf', 'leaf', ' leaves kept for bagging', !group || group === 'leaf'],
+      ['metal', 'ore', COAL ? ' logs kept for charcoal' : ' metal kept for smelting', !group || group === 'metal' || group === 'plant'],
+      ['jar', 'jar', ANTS && S.flags.antHill ? ' cans kept for certifying' : ' jars kept for wrapping', !group || group === 'honey'],
+    ];
+    for (const [key, icon, label, shown] of notes) if (shown && kept[key] > 0) html += '<p class="receipt-note retained">' + ic(icon) + num(kept[key]) + label + '</p>';
+    if (group === 'metal'){
+      const finished = sale.items.find(q => q.k === 'ingot');
+      if (finished && finished.n > 0) html += '<p class="receipt-note finished-sales">' + ic('ingot') + (COAL ? 'Charcoal' : 'Ingots') + ' sold across the yard: <b>' + receiptMoney(finished.amount) + '</b> <button class="link" data-act="finishedsales">See finished sales ›</button></p>';
+    }
   }
   if (history && sales.length > 1) html += '<div class="receipt-nav"><button class="link" data-act="receipt:newer"' + (index === 0 ? ' disabled' : '') + '>‹ Newer</button><small>' + (index + 1) + ' / ' + sales.length + '</small><button class="link" data-act="receipt:older"' + (index >= sales.length - 1 ? ' disabled' : '') + '>Older ›</button></div>';
   return { sig:'receipt' + group + index + JSON.stringify(sale), html:html + '</section>' };
@@ -12095,6 +12110,44 @@ function navTitle(k, i, name){
 // work stations have a picker like the one by a robot's name. Choosing one puts that task alone on a new top row of its
 // list, the rest stays below (to share a row with another task, use the Tasks tab). [[kind, task], ...]
 let assignOpen = false;
+// V43: one short-lived undo, containing only task lists and mine choices (never skills or resources).
+let assignmentUndo = null;
+const assignmentState = c => ({ prio:c.prio.map(r => r.slice()), off:c.off.slice(), miner:c.miner ?? null });
+function assignmentSnapshot(kind){ return cfgsOf(kind).map((cfg,i) => ({ kind, i, cfg, before:assignmentState(cfg) })); }
+function rememberAssignment(before, name, task){
+  const changes = before.map(q => ({ ...q, after:assignmentState(q.cfg) })).filter(q => JSON.stringify(q.before) !== JSON.stringify(q.after));
+  if (changes.length) assignmentUndo = { owner:S, until:performance.now() + 12000, name, task, changes };
+}
+function assignmentUndoValid(){
+  const u = assignmentUndo;
+  return !!(u && u.owner === S && !travelling && performance.now() < u.until && u.changes.every(q => cfgsOf(q.kind)[q.i] === q.cfg && !q.cfg.away && !['toBoard','hopIn','ride','hopOut','gone'].includes((eyeWho(q.kind,q.i) || {}).st) && JSON.stringify([q.cfg.prio,q.cfg.off]) === JSON.stringify([q.after.prio,q.after.off])));
+}
+function assignmentUndoHTML(){
+  return assignmentUndoValid() ? '<div class="assignment-undo" role="status"><span>' + assignmentUndo.name + ' · ' + TASKS[assignmentUndo.task].short + '</span><button class="link" data-act="assignmentundo">Undo</button></div>' : '';
+}
+function undoAssignment(){
+  if (!assignmentUndoValid()){ assignmentUndo = null; return; }
+  const u = assignmentUndo, restoring = new Set(u.changes.filter(q => q.kind === 'robot').map(q => q.i));
+  // A different worker may have claimed the old workplace since the assignment; never displace it.
+  for (const q of u.changes) if (q.kind === 'robot' && q.before.miner != null){
+    const sp = q.before.miner, others = minerWorkers(sp).filter(i => !restoring.has(i)).length;
+    const returning = u.changes.filter(x => x.kind === 'robot' && x.before.miner === sp).length;
+    if (!S.miners.includes(sp) || others + returning > slotsAt(sp)){ assignmentUndo = null; cardNote = 'Cannot undo: the previous mine has no room.'; return; }
+  }
+  assignmentUndo = null;
+  for (const q of u.changes){ q.cfg.prio = q.before.prio.map(r => r.slice()); q.cfg.off = q.before.off.slice(); if (q.kind === 'robot') q.cfg.miner = q.before.miner; }
+  fixSlots();
+  for (const q of u.changes){
+    const r = q.kind === 'robot' && R[q.i];
+    if (r && ['mine','toMine'].includes(r.st)){ release(r); r.st = 'idle'; r.mineP = 0; }
+    taskListChanged(q.kind, q.i);
+  }
+  cardNote = 'Previous tasks restored.';
+}
+function sendMineCandidate(sp){
+  const p = SPOTS[sp];
+  return assignWho('robot', 'mine').filter(q => S.robots[q.i].miner == null).sort((a,b) => Math.hypot(R[a.i].x-p.x,R[a.i].y-p.y) - Math.hypot(R[b.i].x-p.x,R[b.i].y-p.y))[0];
+}
 function assignOpts(k, i){
   const o = [];
   if (k === 'book' && researchOpen()){ o.push(['robot', 'research']); if (FIND().blower) o.push(['blower', 'research']); if (FIND().shaker) o.push(['shaker', 'research']); }
@@ -12183,13 +12236,17 @@ function assignTo(kind, i, t){
   if (c.away) return;
   const info = assignmentInfo(kind,i,t);
   if (info.blocked){ cardNote = 'This mine is full. Choose a mine with room.'; return false; }
+  if (info.on) return true;
+  const before = assignmentSnapshot(kind);
   if (t === 'travel') cfgsOf(kind).forEach((o, j) => { if (o !== c && taskOn(o, 'travel')){ taskRemove(o, 'travel'); o.off.push('travel'); taskListChanged(kind, j); } });   // V22.3: one per kind
   putTop(c, t);
   if (kind === 'robot' && t === 'mine' && cardOpen && cardOpen.kind === 'spot'){ const sp = cardOpen.i; if (S.robots[i].miner !== sp) assign(i, sp); }
   if (kind === 'robot') S.flags.taskHint = true;
   taskListChanged(kind, i);
   const nm = kind === 'robot' ? styleOf(i).name : helperStyleOf(kind, i).name;
+  rememberAssignment(before, nm, t);
   cardNote = nm + ': ' + TASKS[t].name + ' first' + (t === 'research' || cfgsOf(kind)[i].prio.length < 2 ? '' : ', the rest below it') + '.';
+  return true;
 }
 function navGo(kind, i){
   pickOpen = false;
@@ -12217,18 +12274,52 @@ function crewRow(icon, label, task, tagOf){
   return { sig: 'crew' + task + who.map(ri => ri + ':' + (R[ri] ? R[ri].st : '') + ':' + active(ri) + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
 }
 
-// ── the task list on a robot's card: drag tasks between the rows of "Do" and the "Off" pile
+// V43: the same working / travelling / waiting distinction for support crews as for Robots.
+function helperCrew(task, at){
+  const kind = task === 'snip' ? 'shaker' : 'blower', all = cfgsOf(kind);
+  const learned = all.some(c => !c.away && taskOpen(task,c));
+  const who = all.map((c,i) => ({ c, i, h:eyeWho(kind,i) })).filter(q => !q.c.away && taskOpen(task,q.c) && taskOn(q.c,task));
+  const state = q => {
+    const h = q.h, here = task !== 'dig' || at == null || h && h.dig === at;
+    if (h && h.task === task && here && h.st === task) return { key:'working', text:'Working' };
+    if (h && h.task === task && here && h.st === 'go') return { key:'travelling', text:'On the way' };
+    let text = 'Waiting';
+    if (h && h.task === task && !here) text = h.st === 'go' ? 'On the way to another mine' : h.st === 'dig' ? 'Working at another mine' : 'Waiting at another mine';
+    else if (h && h.task && h.task !== task && !idleOf(q.c)) text = TASKS[h.task].short;
+    else { const wait = idleWait(task,q.c); if (wait) text = 'Waiting for ' + wait; }
+    return { key:'waiting', text };
+  };
+  const statuses = who.map(state), counts = { working:0, travelling:0, waiting:0 };
+  statuses.forEach(s => counts[s.key]++);
+  const html = who.length ? '<span class="helper-crews">' + who.map((q,j) => '<span class="helper-member crew-state ' + statuses[j].key + '"><img src="' + kindThumb(kind,q.i) + '" alt=""><span>' + helperStyleOf(kind,q.i).name + '<small>' + statuses[j].text + '</small></span></span>').join('') + '</span><small class="crew-count">' + counts.working + ' working · ' + counts.travelling + ' on the way · ' + counts.waiting + ' waiting · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
+  return { learned, html, sig:who.map((q,j) => q.i + ':' + statuses[j].key + ':' + statuses[j].text).join('|') };
+}
+
+// ── the task list on a robot's card: drag tasks, or tap one for move controls
+let taskMenu = null, taskClickUntil = 0;
+function toggleTaskMenu(t){ taskMenu = taskMenu === t ? null : t; renderCard(true); }
+function taskMove(action){
+  if (!taskMenu || !cardOpen || !['robot','blower','shaker'].includes(cardOpen.kind)) return;
+  const kind = cardOpen.kind, i = cardOpen.i, cfg = cfgsOf(kind)[i], vis = visibleTasks(kind,cfg), task = taskMenu;
+  if (!vis.includes(task)) return;
+  const rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length), ri = rows.findIndex(r => r.includes(task));
+  const target = action === 'first' ? { type:'before', row:0 } : action === 'off' && ri >= 0 ? { type:'off' } : action === 'up' && ri > 0 ? { type:'before', row:ri - 1 } : action === 'down' && ri >= 0 && ri < rows.length - 1 ? { type:'after', row:ri + 1 } : null;
+  taskMenu = null;
+  if (target){ applyTaskDrop(kind,i,task,target); sfx('paper'); }
+  renderCard(true);
+}
 function tasksPanel(kind, i){
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   if (vis.length < 2) return '';
-  const chip = t => '<span class="chip" data-task="' + t + '" style="--tc:' + TASKS[t].col + '" title="' + taskName(t, cfg) + ' · drag to move">' + ic(t) + taskShort(t, cfg) + '</span>';
+  const chip = t => '<span class="chip' + (taskMenu === t ? ' selected' : '') + '" data-task="' + t + '" role="button" tabindex="0" aria-expanded="' + (taskMenu === t) + '" style="--tc:' + TASKS[t].col + '" title="' + taskName(t, cfg) + ' · tap for controls or drag to move">' + ic(t) + taskShort(t, cfg) + '</span>';
   const rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length), off = cfg.off.filter(t => vis.includes(t));
+  const menu = ri => '<div class="task-actions" role="group" aria-label="Move ' + attr(TASKS[taskMenu].short) + '">' + [['first','Move first',ri === 0 && rows[0].length === 1],['up','Move up',ri <= 0],['down','Move down',ri < 0 || ri >= rows.length - 1],['off','Off',ri < 0]].map(([act,label,disabled]) => '<button data-act="taskmove:' + act + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>').join('') + '<button data-act="taskmenuclose" aria-label="Close task controls">×</button></div>';
   let h = '<div class="tasks" data-kind="' + kind + '" data-i="' + i + '"><div class="th"><b>Do</b><span title="Side by side: they take turns">top row first</span></div><div class="tdo">';
-  rows.forEach((row, ri) => { h += '<div class="trow" data-row="' + ri + '"><span class="tn">' + (ri + 1) + '</span>' + row.map(chip).join('') + (row.length < 2 ? '<span class="tslot"></span>' : '') + '</div>'; });
+  rows.forEach((row, ri) => { h += '<div class="trow" data-row="' + ri + '"><span class="tn">' + (ri + 1) + '</span>' + row.map(chip).join('') + (row.length < 2 ? '<span class="tslot"></span>' : '') + '</div>' + (row.includes(taskMenu) ? menu(ri) : ''); });
   // there's always one empty row at the bottom of Do, so a task can be dropped into a priority of its own below the rest
   h += '<div class="trow tnew" data-row="' + rows.length + '"><span class="tn">' + (rows.length + 1) + '</span><span class="tslot wide">' + (rows.length ? '' : 'drag a task up here') + '</span></div>';
   h += '</div><div class="th off"><b>Off</b>' + (rows.length ? '<button class="toffall" data-act="taskoff" title="Move every task to Off">all off</button>' : '') + '</div><div class="toff">' + off.map(chip).join('') + '</div>' +
-    '<div class="thint">Drag to reorder · side by side = take turns</div></div>';
+    (off.includes(taskMenu) ? menu(-1) : '') + '<div class="thint">Tap a task for controls or drag to reorder · side by side = take turns</div></div>';
   return h;
 }
 // the task order in a few small pictures, for the Tasks tab
@@ -12285,6 +12376,7 @@ function keepRow(k, icon, name, now, tip, v){
 }
 
 function applyTaskDrop(kind, i, task, tgt){
+  taskMenu = null;
   tutUse('drag'); if (tgt.type === 'join') tutUse('join'); if (task === 'travel' && tgt.type !== 'off') tutUse('travel');   // V23
   const cfg = cfgsOf(kind)[i], vis = visibleTasks(kind, cfg);
   let rows = cfg.prio.map(r => r.filter(t => vis.includes(t))).filter(r => r.length).map(r => r.map(t => t === task ? null : t));
@@ -12386,14 +12478,28 @@ function tdragEnd(e, cancel){
   if (!tdrag || (e && e.pointerId !== tdrag.id)) return;
   const d = tdrag; tdrag = null;
   if (d.ghost) d.ghost.remove();
+  d.box.classList.remove('dragging'); d.chip.classList.remove('lifted');
+  d.box.querySelectorAll('.drop-join,.drop-top,.drop-bottom,.drop-off').forEach(n => n.classList.remove('drop-join','drop-top','drop-bottom','drop-off'));
+  taskClickUntil = performance.now() + 350;
   if (d.on && !cancel && d.tgt){ applyTaskDrop(d.kind, d.i, d.task, d.tgt); sfx('paper'); }
+  else if (!d.on && !cancel) taskMenu = taskMenu === d.task ? null : d.task;
   renderCard(true);
 }
 card.addEventListener('pointerup', e => tdragEnd(e, false));
 card.addEventListener('pointercancel', e => tdragEnd(e, true));
 let sliding = false;
 card.addEventListener('pointerdown', e => { if (e.target.classList && e.target.classList.contains('keepr')) sliding = true; });
-addEventListener('pointerup', () => { if (sliding){ sliding = false; save(); } });
+function endSlider(){ if (sliding){ sliding = false; save(); } }
+addEventListener('pointerup', endSlider);
+addEventListener('pointercancel', endSlider);
+addEventListener('blur', () => { endSlider(); tdragEnd(null,true); cardTouch = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden){ endSlider(); tdragEnd(null,true); cardTouch = false; } });
+card.addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea,[contenteditable="true"]')) e.stopPropagation();
+  const chip = e.target.closest('.tasks .chip');
+  if (chip && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.stopPropagation(); toggleTaskMenu(chip.dataset.task); }
+  if (e.key === 'Escape' && taskMenu){ e.stopPropagation(); taskMenu = null; renderCard(true); }
+});
 card.addEventListener('input', e => {
   const id = e.target.id; if (id !== 'keepL' && id !== 'keepM' && id !== 'keepJ') return;
   tutUse('keep');   // V23.1
@@ -12563,8 +12669,10 @@ function cardModel(){
       // V40: what the nectar is worth once it's in a jar (like the Leaf → bag line): a jar takes N nectar and sells for $X
       { const need = jarNectar(), jp = honeyPrice(), gp = H.packing ? giftJarPrice() : 0;
         rows.push({ sig:'nv' + need + jp.toFixed(3) + gp.toFixed(3), html: row({ icon: ic('nectar'), name:'Nectar → jar', tip:'A jar takes ' + need + ' nectar and sells for ' + cash$(jp) + (gp ? ' (' + cash$(gp) + ' as a gift jar)' : '') + ', so each one the bees bring home is worth about ' + cash$(jp/need) + (gp ? ' (' + cash$(gp/need) + ' wrapped)' : '') + '. Fancy labels raise the jar’s price; Better recipe needs less nectar a jar.',
-          val: '1' + ic('nectar') + '≈<b>' + cash$((gp || jp)/need) + '</b> · ' + need + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(jp) + '</b>' + (gp ? arrow + ic('gift') + '<b>' + cash$(gp) + '</b>' : '') }) }); }
-      rows.push(upRow('honeyPrice', xt('≈' + cash$(UP.honeyPrice.vals[Math.min(S.lv.honeyPrice + 1, UP.honeyPrice.max)]*sellMul()/jarNectar()) + '/' + ic('nectar'), 'What each nectar is worth in a jar after this step')));
+          val: '1' + ic('nectar') + '≈<b>' + cash$(jp/need) + '</b> plain' + (gp ? ' · <b>' + cash$(gp/need) + '</b> ' + (ANTS && S.flags.antHill ? 'certified' : 'gift') : '') + '<br><small>' + need + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(jp) + '</b>' + (gp ? arrow + ic('gift') + '<b>' + cash$(gp) + '</b>' : '') + '</small>' }) }); }
+      { const need = jarNectar(), maxed = S.lv.honeyPrice >= UP.honeyPrice.max, next = UP.honeyPrice.vals[Math.min(S.lv.honeyPrice + 1, UP.honeyPrice.max)]*sellMul();
+        const per = '<br><small>Per nectar · plain: ' + fromTo(cash$(honeyPrice()/need),cash$(next/need),'',maxed) + (H.packing ? '<br>Per nectar · ' + (ANTS && S.flags.antHill ? 'certified' : 'gift') + ': ' + fromTo(cash$(giftJarPrice()/need),cash$(next*val('giftPrice')/need),'',maxed) : '') + '</small>';
+        rows.push(upRow('honeyPrice',per)); }
       if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', ic('jar') + cash$(honeyPrice()) + arrow + ic('gift') + '<b>' + cash$(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b>', 'honeyPack', HONEY_PACK_COST, '', ic('gift'), 'Adds the Wrap task: a Robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.')); }
       else {
         rows.push(upRow('giftPrice'));
@@ -12576,9 +12684,10 @@ function cardModel(){
         rows.push(labLinkRow('snip'));   // V36: worked on from its own research card
       } else if (S.shakers.length && snipKnown()){
         // V22.3: shakers with Garden shears deadhead spent flowers so they bloom again sooner (its Assign sits here)
-        const dh = S.shakers.map((c, i) => !c.away && taskOn(c, 'snip') && c.lv.snip > 0 ? i : -1).filter(i => i >= 0), learnt = S.shakers.some(c => !c.away && c.lv.snip > 0);
-        rows.push({ sig:'dhd' + dh.join(',') + learnt + S.shakers.length, html: row({ icon: ic('snip'), name:'Deadheaders', cls:'crewrow',
-          val: dh.length ? dh.map(i => helperStyleOf('shaker', i).name).join(', ')
+        const learnt = S.shakers.some(c => !c.away && c.lv.snip > 0);
+        const crew = helperCrew('snip');
+        rows.push({ sig:'dhd' + crew.sig + learnt + S.shakers.length, html: row({ icon: ic('snip'), name:'Deadheaders', cls:'crewrow',
+          val: crew.learned ? crew.html
             : '<span class="none">' + (learnt ? 'nobody · add <span class="chip mini" style="--tc:' + TASKS.snip.col + '">' + ic('snip') + TASKS.snip.short + '</span> to a Shaker' : 'a Shaker can learn it (Garden shears, on its card)') + '</span>',
           tip:'A Shaker with Garden shears deadheads spent flowers: they bloom again sooner, so more nectar for the bees' }) });
       }
@@ -12626,9 +12735,9 @@ function cardModel(){
         rows2.push({ sig:'cst' + S.coalStand, html: row({ icon: ic('coal'), name:'Coal stand', val: meter('coal', S.coalStand, COAL_MAX, 'Coal waiting at the stand by the road', 'coal') + ' <small>the truck fills it free at every pickup</small>',
           tip:'The truck brings a load of coal with every pickup, free of charge. A Robot with Refuel the furnace carries it up to the bunker once it’s down to ' + COAL_LOW }) });
       }
-      const sk = stoker(), learnt = S.blowers.some(b => b.lv.stoke > 0);
-      rows2.push({ sig:'stk' + (sk ? sk.idx + hv(sk, 'stoke') : '-') + learnt + S.blowers.length, html: row({ icon: ic('stoke'), name:'Bellows', cls:'crewrow',
-        val: sk ? helperStyle(sk).name + ' <span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting' : '<span class="none">' + (learnt ? 'no Blower here · add <span class="chip mini" style="--tc:' + TASKS.stoke.col + '">' + ic('stoke') + TASKS.stoke.short + '</span> to a Blower' : S.blowers.length ? 'a Blower can learn it (' + TRACKS.stoke.label + ', on its card)' : 'build a Blower to work it') + '</span>',
+      const sk = stoker(), learnt = S.blowers.some(b => b.lv.stoke > 0), crew = helperCrew('stoke');
+      rows2.push({ sig:'stk' + crew.sig + (sk ? hv(sk, 'stoke') : '-') + learnt + S.blowers.length, html: row({ icon: ic('stoke'), name:'Bellows', cls:'crewrow',
+        val: crew.learned ? (sk ? '<span class="gain">+' + Math.round(hv(sk, 'stoke')*100) + '%</span> smelting<br>' : '') + crew.html : '<span class="none">' + (S.blowers.length ? 'a Blower can learn it (' + TRACKS.stoke.label + ', on its card)' : 'build a Blower to work it') + '</span>',
         tip:'A Blower working the bellows makes every smelter faster' }) });
       if (WET_WOOD){
         // V14: who's carrying the wood umbrella, and how much dry wood the rain has soaked so far
@@ -12740,14 +12849,14 @@ function cardModel(){
         drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small> +1</small>', 'Resource efficiency: chance of an extra chunk each time') : '') + '</div></div>' +
         '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + styleOf(w).name + '’s task list">Stop</button></div></div>' });
       if (ws.length < room){
-        const any = R.some(r => S.robots[r.id].miner == null);
-        rows.push({ sig:'nw' + any + ws.length, html: row({ icon: ic('robot'), cls:'soon', name: ws.length ? 'Room for one more' : 'Nobody mining', val: any ? 'sends the nearest free Robot' : 'every Robot is at a mine', btn:'<button class="buy ghost" data-act="send" aria-disabled="' + !any + '">Send one</button>' }) });
+        const candidate = sendMineCandidate(i);
+        rows.push({ sig:'nw' + (candidate ? candidate.i : '-') + ws.length, html: row({ icon: ic('robot'), cls:'soon', name: ws.length ? 'Room for one more' : 'Nobody mining', val: candidate ? 'Send one assigns ' + candidate.name + ', the nearest Robot without a mine' : 'use Assign to move a Robot from another mine', btn:'<button class="buy ghost" data-act="send" aria-disabled="' + !candidate + '">Send one</button>' }) });
       }
       if (!shaft && shaftShown()) rows.push(buyRow('Dig a shaft', '<span class="gain">+35%</span> speed · 2' + ic('robot') + (S.shafts.length ? xt('½ price', 'You’ve dug one before') : ''), 'shaft', shaftCost(), '', ic('shaft'), 'A deeper, richer vein: chunks come 35% faster and two Robots can work it. Blowers can learn to excavate a shaft.'));
       if (shaft){
-        const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i), learnt = S.blowers.some(b => b.lv.dig > 0);
-        rows.push({ sig:'ex' + (ex ? ex.idx + hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A Blower sucking the dirt out makes mining here faster',
-          val: ex ? helperStyle(ex).name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no Blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + TASKS.dig.short + '</span> to a Blower' : S.blowers.length ? 'a Blower can learn it (' + TRACKS.dig.label + ', on its card)' : 'build a Blower to dig here') + '</span>' }) });
+        const ex = HB.find(h => h.kind === 'blower' && h.st === 'dig' && h.dig === i), learnt = S.blowers.some(b => b.lv.dig > 0), crew = helperCrew('dig',i);
+        rows.push({ sig:'ex' + crew.sig + (ex ? hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A Blower sucking the dirt out makes mining here faster',
+          val: crew.learned ? (ex ? '<span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining<br>' : '') + crew.html : '<span class="none">' + (S.blowers.length ? 'a Blower can learn it (' + TRACKS.dig.label + ', on its card)' : 'build a Blower to dig here') + '</span>' }) });
       }
       // V40: the metal tub's size and the metal's price can be bought here too (the same upgrades as on the bin card)
       rows.push({ sig:'sTub', html:'<div class="sect">Metal tub &amp; price</div>' });
@@ -13026,7 +13135,7 @@ function liveHTML(kind){
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
     + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a Robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
   if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves' : 'Bags') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
-  if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + EYE_WORD[EYE.lvl] + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '') + (eyeIgn().length ? '<button class="st eyign' + (EYE.showIgn ? ' on' : '') + '" data-act="eyeshowign" title="' + (EYE.showIgn ? 'Hide' : 'See') + ' what you’ve ignored" aria-pressed="' + EYE.showIgn + '">' + EYE_SLASH + eyeIgn().length + '</button>' : '');   // V33 (V33.3: the ignored toggle)
+  if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + eyeStatus() + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '') + (eyeIgn().length ? '<button class="st eyign' + (EYE.showIgn ? ' on' : '') + '" data-act="eyeshowign" title="' + (EYE.showIgn ? 'Hide' : 'See') + ' what you’ve ignored" aria-pressed="' + EYE.showIgn + '">' + EYE_SLASH + eyeIgn().length + '</button>' : '');   // V33 (V33.3: the ignored toggle)
   if (kind === 'truck'){
     let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
     if (S.lv.cleanup) h += meter('cleanup', S.cleanN | 0, 100, 'Leaves toward the next cleanup bonus', 'green');
@@ -13102,13 +13211,16 @@ function renderCard(force){
   if (!cardOpen) return;
   const m = cardModel();
   const qb = questBox();
-  const sig = qb + cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
+  const undo = assignmentUndoHTML();
+  const sig = qb + undo + cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
   // V25: while the player is scrolling the card (a finger down, or a fling still running) a plain refresh waits, so
   // the list isn't rebuilt under their finger; anything they tapped (force) still redraws at once
   const scrollBusy = !force && (cardTouch || performance.now() - cardScrollT < 380);
   if ((sig !== cardSig || force) && !tdrag && !sliding && !scrollBusy){
     cardSig = sig;
     const keep = cardScrollSave();
+    const active = card.contains(document.activeElement) ? document.activeElement : null;
+    const focus = active && (active.id ? '#' + CSS.escape(active.id) : active.dataset.act ? '[data-act="' + CSS.escape(active.dataset.act) + '"]' : active.dataset.task ? '.tasks [data-task="' + CSS.escape(active.dataset.task) + '"]' : null);
     const two = m.rows2.length > 0, body = m.rows.map(r => r.html).join('');
     cardOpen.tabsOn = !!m.tabs;
     card.classList.toggle('wide', m.tabs ? !!m.tabs.wide : two);
@@ -13118,13 +13230,14 @@ function renderCard(force){
       '<div class="hd"><div class="ct">' + m.title + m.tag + '</div>' + (m.live ? '<div class="live" id="cardLive"></div>' : '') + '</div>' + qb + watchBtn() + '<button class="x" data-act="close" aria-label="Close">' +
       '<svg viewBox="-6 -6 12 12" aria-hidden="true"><path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>' +
       (m.tabs ? '<div class="tabs" role="tablist"><button role="tab" data-act="tab:up" class="' + (cardTab !== 'tasks' ? 'on' : '') + '">' + ic('wrench') + 'Upgrades</button><button role="tab" data-act="tab:tasks" class="' + (cardTab === 'tasks' ? 'on' : '') + '">' + ic('list') + 'Tasks<span class="peek">' + m.tabs.peek + '</span></button></div>' : '') +
-      '<div class="cbody">' + m.top +
+      undo + '<div class="cbody">' + m.top +
       (two ? '<div class="cols"><div class="col">' + body + '</div><div class="col">' + m.rows2.map(r => r.html).join('') + '</div></div>' : body) +
       (cardNote ? '<div class="note">' + cardNote + '</div>' : '') + m.foot + '</div>');
     card.querySelectorAll('.live').forEach(n => { n._t = ''; });
     { const lv0 = $('cardLive'); if (lv0){ const t = liveHTML(m.live); lv0._t = t; lv0.innerHTML = sayH(t); } }   // (V25: before the scroll is put back, so the header has its height)
     placeCard();
     cardScrollRestore(keep);
+    if (focus){ const el = card.querySelector(focus); if (el) el.focus({ preventScroll:true }); }
   }
   const lv = $('cardLive'); if (lv){ const t = liveHTML(m.live); if (lv._t !== t){ lv._t = t; lv.innerHTML = sayH(t); } }
   const pc = $('cardPortrait'); if (pc) drawPortrait(pc, cardOpen.kind, cardOpen.i);
@@ -13198,6 +13311,7 @@ function cardAnchor(){
   return { x: s.x, y: s.y, below: below*cam.z };
 }
 function openCard(kind, i, still){
+  endSlider(); taskMenu = null;
   if (kind === 'eye') overviewReturn = null;
   if (kind === 'hive' && hiveLabOn()) kind = 'book';   // V15: the hollow's hive, while it's being researched
   if (kind === 'plant' && RUIN && researchOpen() && FIND().atRuin) kind = 'book';
@@ -13224,17 +13338,23 @@ function openCard(kind, i, still){
   sfx('paper');
   renderCard(true);
 }
-function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; assignOpen = false; overviewReturn = null; }
+function closeCard(){ cardOpen = null; card.hidden = true; cardSig = ''; pickOpen = false; assignOpen = false; overviewReturn = null; taskMenu = null; endSlider(); tdragEnd(null,true); }
 
 card.addEventListener('pointerdown', e => e.stopPropagation());
 card.addEventListener('click', e => {
+  const chip = e.target.closest('.tasks .chip');
+  if (chip){ if (performance.now() >= taskClickUntil) toggleTaskMenu(chip.dataset.task); return; }
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   cardLastAct = { act, t: performance.now() };   // V25: keep this row where it is through the redraw
   tutAct(act);   // V23
   if (act === 'close'){ closeCard(); return; }
+  if (act === 'assignmentundo'){ undoAssignment(); save(); renderCard(true); return; }
+  if (act === 'finishedsales'){ openCard('plant'); return; }
+  if (act.startsWith('taskmove:')){ if (!b.disabled) taskMove(act.slice(9)); return; }
+  if (act === 'taskmenuclose'){ taskMenu = null; renderCard(true); return; }
   if (act === 'watch'){ if (watching(cardOpen.kind, cardOpen.i)){ camFollow = null; camMovedT = performance.now(); } else startWatch(cardOpen.kind, cardOpen.i); sfx('paper'); renderCard(true); return; }
-  if (act.startsWith('tab:')){ cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
+  if (act.startsWith('tab:')){ taskMenu = null; cardTab = act.slice(4); sfx('paper'); renderCard(true); return; }
   // V19.3: the arrows and the picker by a robot's name
   if (act === 'pick'){ pickOpen = !pickOpen; sfx('paper'); renderCard(true); return; }
   if (act.startsWith('nav:')){
@@ -13280,7 +13400,7 @@ card.addEventListener('click', e => {
   else if (act === 'plant'){ if (plantBuyable() && plantShown()) buy({ id:'plant', obj:'plant', cost:PLANT_COST }); }
   else if (act === 'shaft'){ if (S.miners.includes(i) && !S.shafts.includes(i)) buy({ id:'shaft', arg:i, obj:'spot'+i, cost:shaftCost() }); }
   else if (act.startsWith('release:')){ const w = +act.slice(8); if (S.robots[w] && S.robots[w].miner === i) unassign(w); }
-  else if (act === 'send'){ const p = SPOTS[i]; const cand = R.filter(r => S.robots[r.id].miner == null).sort((a,b) => Math.hypot(a.x-p.x,a.y-p.y) - Math.hypot(b.x-p.x,b.y-p.y))[0]; if (cand) assign(cand.id, i); }
+  else if (act === 'send'){ const cand = sendMineCandidate(i); if (cand) assignTo('robot',cand.i,'mine'); }
   else if (act === 'taskoff'){ if (cardOpen.kind === 'robot' || cardOpen.kind === 'blower' || cardOpen.kind === 'shaker'){ allTasksOff(cardOpen.kind, i); sfx('paper'); } }
   else if (act === 'reset1') resetArm = true;
   else if (act === 'reset2'){ hardReset(); return; }
@@ -13375,6 +13495,7 @@ const keys = new Set();
 const PAN_KEYS = ['arrowleft','arrowright','arrowup','arrowdown','a','d','w','s'];
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest && e.target.closest('input,select,textarea,[contenteditable="true"],button,[role="button"]')) return;
   const k = e.key.toLowerCase();
   if (PAN_KEYS.includes(k)){ keys.add(k); e.preventDefault(); }
   else if (k === '+' || k === '='){ zoomAt(W/2, H/2, 1.2); }
@@ -13649,6 +13770,7 @@ function load(data){
 }
 function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
 function hardReset(){
+  assignmentUndo = null; taskMenu = null; endSlider();
   // V13: starting over wipes every lot and goes back to the first yard
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
