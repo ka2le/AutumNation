@@ -19,12 +19,12 @@ Minimal palette: metal gray `#a8b2b6`, dark metal gray `#4c565a`, eye yellow `#f
 
 ## Switching to another option
 
-The shipped files are all rendered from one SVG (`art/icon-master.svg` is option 6, fitted with a 26 px margin):
+The shipped files are all rendered from one SVG (`art/icon-master.svg` is option 6 with no background, fitted with a 6 px margin):
 
-- `public/favicon.ico` (16, 32, 48) and `public/icons/favicon-32.png`: 26 px margin
-- `public/icons/icon-192.png`, `icon-512.png`: 26 px margin, white full-bleed
-- `public/icons/apple-touch-icon.png` (180): 54 px margin, so iOS's rounded corners don't clip the bucket
-- `public/icons/icon-maskable-192.png`, `icon-maskable-512.png`: 104 px margin, inside the maskable safe circle
+- `public/favicon.ico` (16, 32, 48) and `public/icons/favicon-32.png`: 6 px margin, transparent
+- `public/icons/icon-192.png`, `icon-512.png`: 6 px margin, transparent
+- `public/icons/apple-touch-icon.png` (180): 34 px margin on white (iOS shows transparency as black and rounds the corners)
+- `public/icons/icon-maskable-192.png`, `icon-maskable-512.png`: 104 px margin on white, inside the maskable safe circle (must be opaque)
 
 Render the chosen SVG at 1024 px in a browser, downscale with Lanczos to each size, then bump the `?v=` on the icon links
 in `public/index.html`, `public/location*/index.html` and `public/manifest.webmanifest`, and `VERSION` in `public/sw.js`.
