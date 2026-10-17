@@ -198,9 +198,9 @@ const TREES = LOT.TREES || [
   { x: -700, y: -430, r: 150, seed: 211 }, { x: 705, y: -420, r: 150, seed: 223 }, { x: -665, y: -150, r: 92, seed: 227 }, { x: 680, y: -165, r: 95, seed: 229 },
 ];
 // shrubs on your own land (wild ones beyond the fence are baked into the ground); shakers can shake these too
-const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 7 }, { x: -122, y: -340, s: 0.95, seed: 19 },
+const BUSHES = LOT.BUSHES || [ { x: -168, y: -268, s: 1.05, seed: 12 }, { x: -122, y: -340, s: 0.95, seed: 19 },
   // V19.3: one more on the cottage plot, and more round the Meadow (along its sides, the top and the bottom corners)
-  { x: 232, y: -200, s: 0.9, seed: 23 },
+  { x: 232, y: -200, s: 0.9, seed: 4 },   // (V45: seeds 12 and 4 give a rust and an orange bush; all three were olive)
   { x: -500, y: -255, s: 0.95, seed: 29 }, { x: -490, y: -105, s: 1.0, seed: 31 }, { x: 500, y: -250, s: 0.95, seed: 37 }, { x: 505, y: -140, s: 1.0, seed: 41 },
   { x: -110, y: -455, s: 0.9, seed: 43 }, { x: 245, y: -430, s: 0.85, seed: 47 }, { x: 380, y: -80, s: 0.9, seed: 53 }, { x: -460, y: -45, s: 0.85, seed: 59 } ];
 const trunkBase = t => t.y + t.r*1.16;
@@ -6923,6 +6923,14 @@ function* paintPuddleWater(g, V, O){
   }
 }
 // the first yard: autumn grass, fallen leaves, toadstools; dark, overgrown land beyond the fence; a gravel verge
+// (V45) a soft round patch of one colour (0x5c alpha in the middle, none at the edge), made once per colour
+const softBlobs = {};
+function softBlob(col){
+  if (softBlobs[col]) return softBlobs[col];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, col + '5c'); rg.addColorStop(1, col + '00'); g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+  return softBlobs[col] = cv;
+}
 function* paintGroundHome(G){
   const { g, V, O, CS, i0, i1, j0, j1, inOwned } = G;
   const gr = g.createLinearGradient(0, V.y0, 0, 0);
@@ -6933,6 +6941,26 @@ function* paintGroundHome(G){
     const rnd = cellRnd(i, j, 1);
     const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 60 + rnd()*120, col = patch[Math.floor(rnd()*patch.length)];
     const rg = g.createRadialGradient(x,y,0,x,y,r); rg.addColorStop(0, col+'88'); rg.addColorStop(1, col+'00'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2);
+  }
+  // (V45 look pass) finer mottling: small soft patches of lusher and drier grass between the big ones
+  const mott = ['#7d8a42','#64733a','#8c8a48','#a39a52','#5a6934','#88964a'];
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
+    const rnd = cellRnd(i, j, 7);
+    for (let k=0;k<8;k++){ const x = (i + rnd())*CS, y = (j + rnd())*CS, r = 10 + rnd()*18, col = mott[Math.floor(rnd()*mott.length)];
+      if (y > -VERGE + r*0.3) continue;
+      g.drawImage(softBlob(col), x - r, y - r, r*2, r*2); }
+  }
+  // worn earth where the Robots tramp most: a scuffed patch behind the bin, a trail to it from the road by the sign,
+  // and a fainter one up into the yard
+  { const trail = (pts, w, a) => { g.lineCap = 'round'; g.lineJoin = 'round';
+      for (const [ww, aa] of [[w*1.6, a*0.35], [w, a*0.6], [w*0.45, a*0.5]]){ g.strokeStyle = 'rgba(122,96,58,' + aa + ')'; g.lineWidth = ww; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let k=1;k<pts.length - 1;k++){ const mx = (pts[k][0] + pts[k + 1][0])/2, my = (pts[k][1] + pts[k + 1][1])/2; g.quadraticCurveTo(pts[k][0], pts[k][1], mx, my); } const L = pts[pts.length - 1]; g.lineTo(L[0], L[1]); g.stroke(); } };
+    trail([[SIGN.x - 30, -VERGE + 2], [SIGN.x + 10, -52], [BIN.x - 50, -70], [BIN.x, -72]], 9, 0.32);
+    trail([[BIN.x + 6, -76], [BIN.x + 20, -118], [BIN.x - 10, -165], [BIN.x - 40, -205]], 7, 0.18);
+    const rp = g.createRadialGradient(BIN.x, -72, 4, BIN.x, -72, 46); rp.addColorStop(0, 'rgba(122,96,58,.34)'); rp.addColorStop(1, 'rgba(122,96,58,0)');
+    g.save(); g.translate(0, -72); g.scale(1, 0.38); g.translate(0, 72); g.fillStyle = rp; g.fillRect(BIN.x - 50, -122, 100, 100); g.restore();
+    const pr = mulberry(4511);
+    for (let k=0;k<70;k++){ const t = pr(), x = lerp(SIGN.x - 20, BIN.x + 30, t) + (pr() - 0.5)*24, y = lerp(-40, -74, Math.min(1, t*1.4)) + (pr() - 0.5)*10;
+      if (y > -VERGE - 2) continue; g.fillStyle = pr() < .5 ? 'rgba(160,140,108,.55)' : 'rgba(96,78,52,.45)'; ell(g, x, y, 0.8 + pr()*1.1, 0.6 + pr()*0.7); g.fill(); }
   }
   for (const t of TREES){ const x = t.x + t.r*0.22, y = t.y + t.r*0.5, r = t.r*1.12; const rg = g.createRadialGradient(x,y,r*0.2,x,y,r); rg.addColorStop(0,'rgba(30,35,10,.32)'); rg.addColorStop(1,'rgba(30,35,10,0)'); g.fillStyle = rg; g.fillRect(x-r,y-r,r*2,r*2); }
   g.lineCap = 'round';
@@ -6957,6 +6985,53 @@ function* paintGroundHome(G){
         else { g.fillStyle = '#e8dcc2'; g.fillRect(x - 1.2*s, y - 5*s, 2.4*s, 5*s); g.fillStyle = red ? '#b5452d' : '#c88b4a'; g.beginPath(); g.ellipse(x, y - 5*s, 5*s, 3.4*s, 0, Math.PI, 0); g.fill(); g.fillStyle = '#f4ead5'; ell(g, x - 2*s, y - 6.5*s, .9*s, .9*s); g.fill(); }
       }
     }
+  }
+  // (V45) grass tufts, clover and the odd molehill
+  for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
+    const rnd = cellRnd(i, j, 8);
+    const tb = [new Path2D(), new Path2D(), new Path2D()], tsh = new Path2D();
+    for (let k=0;k<6;k++){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS, n = 4 + Math.floor(rnd()*3), h = 4 + rnd()*4;
+      if (y > -VERGE - 4) continue;
+      tsh.ellipse(x, y + 0.5, 3.6, 1.2, 0, 0, TAU); tsh.closePath();
+      for (let m=0;m<n;m++){ const a = (m/(n - 1) - 0.5)*1.3 + (rnd() - 0.5)*0.2, hh = h*(0.7 + rnd()*0.5), P = tb[m === n - 2 ? 2 : rnd() < .5 ? 0 : 1];
+        P.moveTo(x + (m - n/2)*0.7, y); P.quadraticCurveTo(x + Math.sin(a)*hh*0.3, y - hh*0.6, x + Math.sin(a)*hh*0.75, y - hh); }
+    }
+    g.fillStyle = 'rgba(40,50,18,.22)'; g.fill(tsh);
+    g.lineWidth = 1.1; ['rgba(58,72,26,.5)', 'rgba(84,100,38,.5)', 'rgba(168,176,92,.5)'].forEach((col, q) => { g.strokeStyle = col; g.stroke(tb[q]); });
+    if (rnd() < 0.55){
+      const cx = (i + rnd())*CS, cy = (j + rnd())*CS, n = 7 + Math.floor(rnd()*7);
+      if (cy < -VERGE - 10){
+        const sh = new Path2D(), C = [new Path2D(), new Path2D()], hl = new Path2D(), fl = [];
+        for (let m=0;m<n;m++){
+          const x = cx + (rnd() - 0.5)*22, y = cy + (rnd() - 0.5)*10, r = 1.15 + rnd()*0.4, P = C[rnd() < .5 ? 0 : 1];
+          sh.ellipse(x + 0.4, y + 0.6, r*1.9, r*1.1, 0, 0, TAU); sh.closePath();
+          for (let q=0;q<3;q++){ const a = q/3*TAU - Math.PI/2 + m, px = x + Math.cos(a)*r*0.95, py = y + Math.sin(a)*r*0.75; P.moveTo(px + r*0.85, py); P.ellipse(px, py, r*0.85, r*0.7, 0, 0, TAU); }
+          hl.moveTo(x - 0.2 + r*0.35, y - 0.3); hl.ellipse(x - 0.2, y - 0.3, r*0.35, r*0.25, 0, 0, TAU);
+          if (rnd() < 0.12) fl.push([x + 1.5, y - 2.5]);
+        }
+        g.fillStyle = 'rgba(40,52,18,.25)'; g.fill(sh); g.fillStyle = '#6c8636'; g.fill(C[0]); g.fillStyle = '#7f9a42'; g.fill(C[1]); g.fillStyle = 'rgba(220,235,170,.35)'; g.fill(hl);
+        for (const [fx, fy] of fl){ g.fillStyle = '#f2ead6'; ell(g, fx, fy, 1.5, 1.3); g.fill(); g.fillStyle = 'rgba(200,120,140,.6)'; ell(g, fx, fy + 0.4, 0.8, 0.6); g.fill(); }
+      }
+    }
+    if (rnd() < 0.06){
+      const x = (i + rnd())*CS, y = (j + rnd())*CS;
+      if (y < -VERGE - 14){
+        g.fillStyle = 'rgba(40,30,15,.28)'; ell(g, x + 1.5, y + 1.5, 9, 3.4); g.fill();
+        g.fillStyle = '#6a5034'; ell(g, x, y - 1, 7.5, 4); g.fill(); g.fillStyle = '#7f6240'; ell(g, x - 1, y - 2.4, 5, 2.6); g.fill(); g.fillStyle = '#987650'; ell(g, x - 2, y - 3.4, 2.4, 1.2); g.fill();
+        g.fillStyle = '#5a4128'; for (let q=0;q<6;q++){ ell(g, x + (rnd() - 0.5)*20, y + (rnd() - 0.3)*7, 0.9 + rnd(), 0.6 + rnd()*0.6); g.fill(); }
+      }
+    }
+  }
+  // (V45) leaf litter: faded leaves drifted against the fence and lying under each tree's crown
+  { const lr = mulberry(9127), litter = (x, y) => { const ci = Math.floor(lr()*LEAFC.length), sz = 3 + lr()*2.6, rot = lr()*TAU, sh = lr() < .5 ? 1 : 0, a = 0.2 + lr()*0.16;
+      if (y > -VERGE - 4) return; stampLeaf(g, x, y, sz, rot, ci, sh, 1, 0.7, a*0.9); };
+    for (const t of TREES){ if (t.pine) continue; const bx = t.x, by = trunkBase(t);
+      for (let k=0;k<26;k++){ const a = lr()*TAU, d = Math.sqrt(lr())*t.r*0.95; litter(bx + Math.cos(a)*d, by - t.r*0.15 + Math.sin(a)*d*0.45); } }
+    const n = Math.round((O.x1 - O.x0)/9);
+    for (let k=0;k<n;k++){ const x = lerp(O.x0, O.x1, lr()); litter(x, O.y0 + 3 + Math.pow(lr(), 2)*14); }
+    const m = Math.round((O.y1 - O.y0)/11);
+    for (let k=0;k<m;k++){ const y = lerp(O.y0, O.y1, lr()); litter(O.x0 + 3 + Math.pow(lr(), 2)*12, y); litter(O.x1 - 3 - Math.pow(lr(), 2)*12, y); }
   }
   SPOTS.forEach((p, i) => drawRockBed(g, p.x, p.y, 100 + i));
   // wild land beyond the fence: darker, overgrown
@@ -7005,23 +7080,35 @@ function* paintGroundHome(G){
 // A rounded autumn shrub: one colour family, clumps piled into a mound, lit from the top left.
 const bushFams = () => [FOLIAGE.olive, FOLIAGE.rust, FOLIAGE.red, ['#3e4a1c','#56632a','#6f7d34','#8e9a45','#b3b862'], FOLIAGE.orange];
 // V13: a lot can have its own shrubs and fence (own: one of your bushes, drawn live, rather than a wild one)
-function drawBush(g, x, y, s, rnd, own){ if (LOT.drawBush) LOT.drawBush(g, x, y, s, rnd, own); else drawBushHome(g, x, y, s, rnd); }
+function drawBush(g, x, y, s, rnd, own){ if (LOT.drawBush) LOT.drawBush(g, x, y, s, rnd, own); else drawBushHome(g, x, y, s, rnd, own); }
 function drawFence(g, O){ if (LOT.drawFence) LOT.drawFence(g, O); else drawFenceHome(g, O); }
-function drawBushHome(g, x, y, s, rnd){
+function drawBushHome(g, x, y, s, rnd, own){
+  // (wild ones beyond the fence, painted into the ground, get a little less leaf texture: there are lots of them)
+  // (V45 look pass) the same mound of clumps, but each clump has the trees' leafy scalloped edge, a dark rim so it reads
+  // against the grass, shading from the top left, leaf texture, a few twigs at its foot and a couple of fallen leaves.
   const F = bushFams(), P = F[Math.floor(rnd()*F.length)], W = 22*s;
-  g.fillStyle = 'rgba(25,22,8,.32)'; ell(g, x + 5*s, y + 3*s, W*1.25, 7*s); g.fill();
+  g.fillStyle = 'rgba(25,22,8,.3)'; ell(g, x + 5*s, y + 3*s, W*1.25, 7*s); g.fill();
+  g.fillStyle = 'rgba(25,22,8,.22)'; ell(g, x + 2*s, y + 1*s, W*0.9, 4*s); g.fill();
   const cl = [];
-  for (let m=0;m<8;m++){ const bx = (rnd() - 0.5)*2*W*0.8, hump = 1 - Math.abs(bx)/W; cl.push({ x: bx, y: -hump*12*s - rnd()*6*s, r: (6 + hump*6 + rnd()*4)*s }); }
+  for (let m=0;m<(own ? 9 : 7);m++){ const bx = (rnd() - 0.5)*2*W*0.8, hump = 1 - Math.abs(bx)/W; cl.push({ x: bx, y: -hump*12*s - rnd()*6*s, r: (6 + hump*6 + rnd()*4)*s }); }
   cl.sort((a, b) => a.y - b.y);
-  g.fillStyle = P[0]; for (const k of cl){ ell(g, x + k.x + 1, y + k.y + 2, k.r + 2, k.r*0.86 + 2); g.fill(); }
+  // twigs poking out under the mound
+  g.strokeStyle = '#4a3420'; g.lineCap = 'round';
+  for (let q=0;q<4;q++){ const tx = x + (rnd() - 0.5)*W*1.2, tl = (4 + rnd()*4)*s, ta = (rnd() - 0.5)*1.2; g.lineWidth = 1.1*s; g.beginPath(); g.moveTo(tx, y + 1*s); g.lineTo(tx + Math.sin(ta)*tl, y + 1*s - Math.cos(ta)*tl); g.stroke(); }
+  g.fillStyle = P[0]; for (const k of cl){ scallop(g, x + k.x + 1, y + k.y + 2, k.r + 2.2, rnd); g.fill(); }
   for (const k of cl){
-    const lit = clamp(Math.round(2 - k.x/W - (k.y/(14*s)) * 0.6 + (rnd() - 0.5)), 1, 3);
-    g.fillStyle = P[lit - 1]; ell(g, x + k.x + k.r*0.1, y + k.y + k.r*0.12, k.r, k.r*0.86); g.fill();
-    g.fillStyle = P[lit]; ell(g, x + k.x - k.r*0.08, y + k.y - k.r*0.08, k.r*0.86, k.r*0.74); g.fill();
-    g.globalAlpha = 0.7; g.fillStyle = P[lit + 1]; ell(g, x + k.x - k.r*0.32, y + k.y - k.r*0.32, k.r*0.38, k.r*0.3); g.fill(); g.globalAlpha = 1;
-    for (let q=0;q<2;q++) leafBlob(g, x + k.x + (rnd() - 0.5)*k.r*1.2, y + k.y + (rnd() - 0.5)*k.r, 1.8 + rnd()*1.4, rnd()*TAU, P[clamp(lit + (rnd() < .5 ? 1 : -1), 0, 4)]);
+    const lit = clamp(Math.round(2 - k.x/W - (k.y/(14*s)) * 0.6 + (rnd() - 0.5)), 1, 3), cx = x + k.x, cy = y + k.y;
+    if (own){ scallop(g, cx + k.r*0.1, cy + k.r*0.12, k.r, rnd); g.fillStyle = P[lit - 1]; g.fill(); }
+    let gr = P[lit];
+    if (own){ gr = g.createLinearGradient(cx - k.r*0.7, cy - k.r*0.8, cx + k.r*0.6, cy + k.r*0.7); gr.addColorStop(0, P[Math.min(4, lit + 1)]); gr.addColorStop(0.5, P[lit]); gr.addColorStop(1, P[lit - 1]); }
+    scallop(g, cx - k.r*0.06, cy - k.r*0.06, k.r*0.88, rnd); g.fillStyle = gr; g.fill();
+    for (let q=0;q<(own ? 6 : 3);q++){ const a = rnd()*TAU, d = Math.sqrt(rnd())*k.r*0.8, lx = Math.cos(a)*d, ly = Math.sin(a)*d, side = (-lx - ly)/k.r;
+      leafBlob(g, cx + lx, cy + ly, (1.5 + rnd()*1.3)*Math.max(0.8, s), rnd()*TAU, P[clamp(lit + (side > 0.1 ? 1 : side < -0.3 ? -1 : (rnd() < .5 ? 1 : 0)), 0, 4)]); }
   }
-  if (rnd() < 0.3){ g.fillStyle = '#c23a2a'; for (let q=0;q<6;q++){ ell(g, x + (rnd() - 0.5)*W*1.3, y - rnd()*16*s, 1.6*s, 1.6*s); g.fill(); } }
+  // loose leaves round the top edge, and a couple fallen at the foot
+  for (let q=0;q<(own ? 7 : 4);q++){ const k = cl[Math.floor(rnd()*cl.length)], a = -Math.PI*(0.15 + rnd()*0.7); leafBlob(g, x + k.x + Math.cos(a)*k.r*0.95, y + k.y + Math.sin(a)*k.r*0.95, (1.6 + rnd()*1.2)*s, a + Math.PI/2, P[2 + Math.floor(rnd()*3)]); }
+  for (let q=0;q<3;q++) leafBlob(g, x + (rnd() - 0.5)*W*2.2, y + (1 + rnd()*4)*s, (1.8 + rnd())*s, rnd()*TAU, P[1 + Math.floor(rnd()*3)]);
+  if (rnd() < 0.3){ for (let q=0;q<7;q++){ const bx = x + (rnd() - 0.5)*W*1.3, by = y - rnd()*16*s; g.fillStyle = '#7e1e16'; ell(g, bx + 0.4*s, by + 0.4*s, 1.7*s, 1.7*s); g.fill(); g.fillStyle = '#c8392a'; ell(g, bx, by, 1.6*s, 1.6*s); g.fill(); g.fillStyle = 'rgba(255,220,200,.7)'; ell(g, bx - 0.5*s, by - 0.5*s, 0.5*s, 0.5*s); g.fill(); } }
 }
 
 function drawFenceHome(g, O){
@@ -7318,15 +7405,36 @@ function nugget(c, x, y, s, rot){
 }
 
 function drawSign(){
+  // (V45 look pass) a little roofed signboard on a post, like the workshop: shingle cap, a wooden frame with nails, a
+  // cream panel and a painted truck, stones and a tuft at the foot. Same place and size; the board sways a touch.
   const c = ctx; c.save(); c.translate(SIGN.x, SIGN.y);
-  c.fillStyle = 'rgba(35,25,10,.28)'; ell(c, 3, 1, 10, 3); c.fill();
-  c.fillStyle = '#6e4a30'; rr(c, -2.5, -52, 5, 52, 2); c.fill();
+  c.fillStyle = 'rgba(35,25,10,.28)'; ell(c, 3, 1, 11, 3); c.fill();
+  const pg = c.createLinearGradient(-2.5, 0, 2.5, 0); pg.addColorStop(0, '#83593a'); pg.addColorStop(1, '#5e3e28');
+  c.fillStyle = pg; rr(c, -2.5, -52, 5, 52, 1.5); c.fill();
+  c.strokeStyle = 'rgba(40,24,14,.4)'; c.lineWidth = 0.5; c.beginPath(); c.moveTo(-0.6, -40); c.quadraticCurveTo(0, -30, -0.4, -18); c.moveTo(0.9, -12); c.lineTo(0.7, -4); c.stroke();
+  c.fillStyle = '#8d857a'; ell(c, -4.5, -0.4, 3, 1.9); c.fill(); c.fillStyle = '#a69e92'; ell(c, 4.4, 0.2, 2.4, 1.5); c.fill(); c.fillStyle = 'rgba(255,250,235,.25)'; ell(c, -5, -1, 1.4, 0.6); c.fill();
+  c.strokeStyle = '#5f6e33'; c.lineWidth = 0.9; c.lineCap = 'round'; for (const [gx, gl, gd] of [[-3, 6, -1.5], [-1.6, 8, -0.4], [2.6, 7, 1.4], [3.8, 5, 2.4]]){ c.beginPath(); c.moveTo(gx, 0); c.quadraticCurveTo(gx + gd*0.3, -gl*0.6, gx + gd, -gl); c.stroke(); }
   c.rotate(Math.sin(S.t*1.3)*0.012);
-  c.fillStyle = '#6e4a30'; rr(c, -27, -71, 54, 26, 5); c.fill();
-  c.fillStyle = '#efe2c6'; rr(c, -25, -69, 50, 22, 4); c.fill();
-  c.save(); c.translate(-15, -58); c.scale(0.85, 0.85);
-  c.fillStyle = '#5e8a86'; rr(c, -7, -4, 6, 6, 1.5); c.fill(); c.fillStyle = '#7c5a3c'; rr(c, -1, -5, 9, 7, 1); c.fill();
-  c.fillStyle = '#2a2624'; ell(c, -4, 3, 1.8, 1.8); c.fill(); ell(c, 5, 3, 1.8, 1.8); c.fill();
+  // the board
+  c.fillStyle = 'rgba(30,18,10,.3)'; rr(c, -26, -69, 54, 26, 5); c.fill();
+  c.fillStyle = '#6e4a30'; rr(c, -27, -71, 54, 26, 4); c.fill();
+  c.fillStyle = 'rgba(255,220,180,.16)'; c.fillRect(-25, -70.4, 50, 1);
+  const pn = c.createLinearGradient(0, -69, 0, -47); pn.addColorStop(0, '#f4e9d0'); pn.addColorStop(1, '#e4d3b0');
+  c.fillStyle = pn; rr(c, -24.5, -68.5, 49, 21, 3); c.fill();
+  c.fillStyle = '#4a3226'; for (const [nx, ny] of [[-25.6, -69.6], [25.6, -69.6], [-25.6, -46.4], [25.6, -46.4]]){ ell(c, nx, ny, 0.8, 0.8); c.fill(); }
+  // the shingle cap
+  c.fillStyle = '#2f2420'; c.beginPath(); c.moveTo(-31, -70); c.lineTo(0, -81); c.lineTo(31, -70); c.lineTo(31, -68.6); c.lineTo(-31, -68.6); c.closePath(); c.fill();
+  c.fillStyle = '#4f3c36'; c.beginPath(); c.moveTo(-29, -70.6); c.lineTo(0, -80); c.lineTo(29, -70.6); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(25,16,12,.45)'; c.fillRect(-20, -73.7, 40, 0.8); c.fillRect(-10, -76.9, 20, 0.8);
+  c.fillStyle = 'rgba(255,214,160,.12)'; c.beginPath(); c.moveTo(-29, -70.6); c.lineTo(0, -80); c.lineTo(0, -70.6); c.closePath(); c.fill();
+  c.strokeStyle = '#d9c9a9'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-30, -70.1); c.lineTo(0, -80.4); c.lineTo(30, -70.1); c.stroke();
+  // a painted truck: teal cab with a window, a brown bed, two wheels
+  c.save(); c.translate(-15.5, -58); c.scale(0.9, 0.9);
+  c.fillStyle = '#5f8c87'; c.beginPath(); c.moveTo(-8.5, 2.5); c.lineTo(-8.5, -1.5); c.lineTo(-5.5, -2); c.lineTo(-4, -5.5); c.lineTo(-0.5, -5.5); c.lineTo(-0.5, 2.5); c.closePath(); c.fill();
+  c.fillStyle = '#d9ece8'; c.beginPath(); c.moveTo(-4.5, -2); c.lineTo(-3.4, -4.6); c.lineTo(-1.6, -4.6); c.lineTo(-1.6, -2); c.closePath(); c.fill();
+  c.fillStyle = '#7c5a3c'; rr(c, 0, -4, 9, 6.5, 1); c.fill(); c.fillStyle = '#b8582a'; ell(c, 4.5, -4, 4, 1.6); c.fill();
+  c.fillStyle = '#2a2624'; ell(c, -5, 3, 2, 2); c.fill(); ell(c, 5.5, 3, 2, 2); c.fill();
+  c.fillStyle = '#c8bca6'; ell(c, -5, 3, 0.8, 0.8); c.fill(); ell(c, 5.5, 3, 0.8, 0.8); c.fill();
   c.restore();
   c.font = '700 14px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
   c.fillText(truckHere() ? 'now' : mmss(S.truckT), 8, -57);
@@ -7360,24 +7468,93 @@ function drawSaleSign(){
 }
 
 function drawShed(){
+  // (V45 look pass: board-and-batten walls with shading, a stone footing, a framed window with a sill and a flower box,
+  // a hinged door on a stone step, a lamp, tabbed shingles lit from the left, barge boards, a ridge cap and a stovepipe.
+  // Same footprint, roof line and eaves as before, so the camera on the roof, the hollow's moss and drips still fit.)
   const c = ctx; c.save(); c.translate(SHED.x, SHED.y);
+  const rnd = mulberry(311);
   c.fillStyle = 'rgba(35,25,10,.3)'; ell(c, 4, 2, 58, 10); c.fill();
-  c.fillStyle = '#9b4e35'; rr(c, -44, -62, 88, 62, 3); c.fill();
-  c.strokeStyle = '#7f3c27'; c.lineWidth = 1.2; for (let x=-36; x<44; x+=8){ c.beginPath(); c.moveTo(x, -60); c.lineTo(x, -1); c.stroke(); }
-  c.fillStyle = '#ecdfc6'; c.fillRect(-44, -62, 4, 62); c.fillRect(40, -62, 4, 62);
-  c.fillStyle = '#ecdfc6'; rr(c, -15, -44, 30, 44, 3); c.fill();
-  c.fillStyle = '#6c3523'; rr(c, -12.5, -41.5, 25, 41.5, 2); c.fill();
-  c.strokeStyle = '#ecdfc6'; c.lineWidth = 2; c.beginPath(); c.moveTo(-12, -40); c.lineTo(12, -2); c.moveTo(12, -40); c.lineTo(-12, -2); c.stroke();
-  c.fillStyle = '#d9b55a'; ell(c, 8, -20, 1.6, 1.6); c.fill();
-  c.fillStyle = '#ecdfc6'; rr(c, -38, -52, 19, 16, 2); c.fill();
+  // stone footing
+  c.fillStyle = '#6f675d'; rr(c, -46, -6, 92, 7, 2); c.fill();
+  for (let x = -45, k = 0; x < 45; k++){ const w = 7 + rnd()*6, w2 = Math.min(w, 45 - x); c.fillStyle = ['#9a9184','#8a8174','#a8a092'][k % 3]; rr(c, x + 0.4, -5.4 + (k % 2)*0.5, w2 - 0.8, 5.2, 1.4); c.fill(); c.fillStyle = 'rgba(255,250,235,.16)'; c.fillRect(x + 1, -5, w2 - 2, 1); x += w; }
+  // walls: boards with battens, darker toward the ground and under the eaves
+  const wg = c.createLinearGradient(-44, 0, 44, 0); wg.addColorStop(0, '#a95a3d'); wg.addColorStop(0.55, '#9b4e35'); wg.addColorStop(1, '#8a432e');
+  c.fillStyle = wg; c.fillRect(-44, -62, 88, 57);
+  c.strokeStyle = 'rgba(70,28,16,.22)'; c.lineWidth = 0.6;
+  for (let k=0;k<26;k++){ const x = -42 + rnd()*84, y = -58 + rnd()*48, l = 4 + rnd()*9; c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + 0.6, y + l*0.5, x, y + l); c.stroke(); }
+  for (let x=-36; x<44; x+=8){
+    c.fillStyle = 'rgba(60,24,14,.35)'; c.fillRect(x + 0.9, -60, 1.1, 55);
+    c.fillStyle = '#ad5c3f'; c.fillRect(x - 1.1, -60, 2, 55);
+    c.fillStyle = 'rgba(255,215,180,.16)'; c.fillRect(x - 1.1, -60, 0.7, 55);
+  }
+  const sg = c.createLinearGradient(0, -60, 0, -44); sg.addColorStop(0, 'rgba(40,16,8,.42)'); sg.addColorStop(1, 'rgba(40,16,8,0)');
+  c.fillStyle = sg; c.fillRect(-44, -60, 88, 16);
+  const bg = c.createLinearGradient(0, -18, 0, -5); bg.addColorStop(0, 'rgba(40,16,8,0)'); bg.addColorStop(1, 'rgba(40,16,8,.22)');
+  c.fillStyle = bg; c.fillRect(-44, -18, 88, 13);
+  // corner boards
+  c.fillStyle = '#ecdfc6'; c.fillRect(-44, -62, 4.5, 57); c.fillRect(39.5, -62, 4.5, 57);
+  c.fillStyle = 'rgba(120,90,60,.3)'; c.fillRect(-40.6, -62, 1.1, 57); c.fillRect(42.9, -62, 1.1, 57);
+  // the door: a stone step, a cream frame, planks with a Z... X brace, strap hinges and a latch
+  c.fillStyle = '#8f877b'; rr(c, -19, -3, 38, 5, 1.6); c.fill(); c.fillStyle = '#b3ab9d'; rr(c, -19, -3, 38, 1.8, 1.2); c.fill();
+  c.fillStyle = '#ecdfc6'; rr(c, -15, -45, 30, 42, 3); c.fill();
+  c.fillStyle = 'rgba(120,90,60,.35)'; c.fillRect(13.6, -43.5, 1.2, 40);
+  const dg = c.createLinearGradient(-12, 0, 12, 0); dg.addColorStop(0, '#7a3d28'); dg.addColorStop(1, '#5e2e1e');
+  c.fillStyle = dg; rr(c, -12.5, -42.5, 25, 39.5, 2); c.fill();
+  c.strokeStyle = 'rgba(30,12,6,.35)'; c.lineWidth = 0.7; for (const x of [-6.3, 0, 6.3]){ c.beginPath(); c.moveTo(x, -42); c.lineTo(x, -3.5); c.stroke(); }
+  c.fillStyle = 'rgba(30,12,6,.4)'; c.fillRect(-12.5, -42.5, 25, 2.2);
+  c.strokeStyle = '#e2d3b6'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(-11, -40.5); c.lineTo(11, -5); c.moveTo(11, -40.5); c.lineTo(-11, -5); c.stroke();
+  c.fillStyle = '#3a3029'; for (const hy of [-37, -11]){ rr(c, -13.5, hy - 1, 9, 2.2, 0.8); c.fill(); c.fillStyle = '#7a6f62'; ell(c, -11.6, hy + 0.1, 0.5, 0.5); c.fill(); ell(c, -7.6, hy + 0.1, 0.5, 0.5); c.fill(); c.fillStyle = '#3a3029'; }
+  c.fillStyle = '#d9b55a'; ell(c, 8.5, -21, 1.7, 1.7); c.fill(); c.fillStyle = '#fff1b8'; ell(c, 8.1, -21.5, 0.6, 0.6); c.fill();
+  c.fillStyle = '#4b3a2e'; rr(c, 7.6, -19, 1.8, 4, 0.8); c.fill();
+  // the window: frame, warm light with a soft inner glow, a sill and a little flower box
   const flick = 0.85 + Math.sin(S.t*3.1)*0.05 + Math.sin(S.t*7.3)*0.03;
-  c.fillStyle = 'rgba(246,190,96,'+flick+')'; c.fillRect(-36, -50, 15, 12);
-  c.fillStyle = '#ecdfc6'; c.fillRect(-29, -50, 1.5, 12); c.fillRect(-36, -44.7, 15, 1.5);
-  c.fillStyle = '#4d3a34'; c.beginPath(); c.moveTo(-54, -58); c.lineTo(0, -96); c.lineTo(54, -58); c.closePath(); c.fill();
-  c.strokeStyle = '#3c2d28'; c.lineWidth = 1.5;
-  for (let i=1;i<5;i++){ const yy = -58 - i*7.6, half = 54 - i*10.8; c.beginPath(); c.moveTo(-half, yy); c.lineTo(half, yy); c.stroke(); }
+  c.fillStyle = '#ecdfc6'; rr(c, -39, -53, 21, 18, 2); c.fill();
+  const lg = c.createRadialGradient(-28.5, -43, 1, -28.5, -44, 11); lg.addColorStop(0, 'rgba(255,224,150,' + flick + ')'); lg.addColorStop(1, 'rgba(232,160,70,' + flick + ')');
+  c.fillStyle = lg; c.fillRect(-36.5, -50.5, 16, 13);
+  c.fillStyle = 'rgba(120,60,20,.28)'; c.fillRect(-36.5, -50.5, 16, 2);
+  c.fillStyle = '#ecdfc6'; c.fillRect(-29.3, -50.5, 1.6, 13); c.fillRect(-36.5, -44.8, 16, 1.6);
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.moveTo(-35.5, -49.5); c.lineTo(-33, -49.5); c.lineTo(-35.5, -46); c.closePath(); c.fill();
+  c.fillStyle = '#d8c8a8'; rr(c, -40.5, -36, 24, 2.4, 1); c.fill();
+  c.fillStyle = '#6e4a30'; rr(c, -39, -33.6, 21, 5, 1.2); c.fill(); c.fillStyle = '#8a6040'; c.fillRect(-39, -33.6, 21, 1.4);
+  for (const [fx, col] of [[-36, '#e0662f'], [-32.2, '#f2b03a'], [-28.4, '#c23a2a'], [-24.6, '#ea8a34'], [-21, '#f2b03a']]){
+    c.fillStyle = '#5c6e2c'; ell(c, fx + 0.6, -34.2, 2.2, 1.4); c.fill();
+    c.fillStyle = col; ell(c, fx, -36.2, 1.5, 1.4); c.fill(); c.fillStyle = 'rgba(255,240,200,.5)'; ell(c, fx - 0.4, -36.6, 0.5, 0.5); c.fill();
+  }
+  // a wall lamp over the door
+  c.save(); c.translate(-20.9, -9.6);
+  c.fillStyle = '#3a3029'; c.fillRect(18.5, -47, 4, 1.2); c.fillRect(21.3, -48, 1.2, 3);
+  c.fillStyle = '#2f2724'; rr(c, 18.6, -46, 4.6, 1.4, 0.6); c.fill();
+  c.fillStyle = 'rgba(255,214,130,' + (0.75*flick) + ')'; rr(c, 19, -44.8, 3.8, 4.6, 1); c.fill();
+  c.fillStyle = '#2f2724'; rr(c, 18.6, -40.6, 4.6, 1.2, 0.5); c.fill();
+  c.globalCompositeOperation = 'lighter'; const lmp = c.createRadialGradient(20.9, -42.5, 0.5, 20.9, -42.5, 9); lmp.addColorStop(0, 'rgba(255,190,90,' + (0.35*flick) + ')'); lmp.addColorStop(1, 'rgba(255,190,90,0)');
+  c.fillStyle = lmp; ell(c, 20.9, -42.5, 9, 9); c.fill(); c.globalCompositeOperation = 'source-over';
+  c.restore();
+  // the stovepipe on the left slope, with a lazy wisp of smoke
+  c.fillStyle = '#3a3330'; c.fillRect(-35, -92, 5.5, 22); c.fillStyle = '#5b524c'; c.fillRect(-34.2, -92, 1.4, 22);
+  c.fillStyle = '#2a2523'; rr(c, -37, -95, 9.5, 3.2, 1); c.fill(); c.fillStyle = '#2a2523'; c.beginPath(); c.moveTo(-38.5, -95); c.lineTo(-32.25, -99); c.lineTo(-26, -95); c.closePath(); c.fill();
+  if (!reduceMotion) for (let k=0;k<4;k++){ const ph = (S.t*0.16 + k/4) % 1, wx = wind*0.5*ph; c.fillStyle = 'rgba(214,206,196,' + (0.32*Math.sin(ph*Math.PI)*(1 - ph*0.4)) + ')'; ell(c, -32.25 + wx + Math.sin(ph*6 + k)*2, -98 - ph*26, 2.4 + ph*5, 2 + ph*4); c.fill(); }
+  // the roof: tabbed shingle rows, warmer on the left, shaded on the right
+  const roof = () => { c.beginPath(); c.moveTo(-54, -58); c.lineTo(0, -96); c.lineTo(54, -58); c.closePath(); };
+  c.save(); roof(); c.clip();
+  c.fillStyle = '#4d3a34'; c.fillRect(-56, -98, 112, 42);
+  for (let i=0;i<6;i++){
+    const yy = -58 - i*6.4, half = 54 - i*9.1;
+    c.fillStyle = 'rgba(25,16,12,.45)'; c.fillRect(-half, yy - 1.2, half*2, 1.4);
+    let x = -half - (i % 2)*3.2, k = 0;
+    while (x < half){ const w = 6.4, t = rnd(); c.fillStyle = t < 0.18 ? '#5a4640' : t < 0.3 ? '#43322d' : '#4f3c36'; rr(c, x + 0.4, yy - 6.2, w - 0.8, 5.6, 0.9); c.fill(); c.fillStyle = 'rgba(255,230,210,.07)'; c.fillRect(x + 0.6, yy - 6, w - 1.2, 1); x += w; k++; }
+  }
+  const rs = c.createLinearGradient(-54, 0, 54, 0); rs.addColorStop(0, 'rgba(255,214,160,.14)'); rs.addColorStop(0.5, 'rgba(255,214,160,0)'); rs.addColorStop(0.5, 'rgba(20,10,8,.10)'); rs.addColorStop(1, 'rgba(20,10,8,.22)');
+  c.fillStyle = rs; c.fillRect(-56, -98, 112, 42);
+  c.restore();
   for (const [lx, ly, ci] of [[-20,-66,2],[12,-74,0],[30,-62,3],[-6,-84,4]]) drawLeaf(c, lx, ly, 4, lx*0.1, ci, 1, 1, 0.8, 1, 0);
-  c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3);
+  // barge boards along both slopes and a ridge cap
+  c.lineCap = 'round';
+  c.strokeStyle = '#2f2420'; c.lineWidth = 3.4; c.beginPath(); c.moveTo(-56, -57.6); c.lineTo(0, -97); c.lineTo(56, -57.6); c.stroke();
+  c.strokeStyle = '#d9c9a9'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-55, -58.6); c.lineTo(0, -96.6); c.lineTo(55, -58.6); c.stroke();
+  c.fillStyle = '#2f2420'; ell(c, 0, -96.5, 2.6, 2.2); c.fill(); c.fillStyle = '#d9b55a'; ell(c, 0, -97, 1.3, 1.3); c.fill();
+  // eaves: fascia board, with the gutter's shine
+  c.fillStyle = '#2f2420'; c.fillRect(-56, -59, 112, 3.2);
+  c.fillStyle = 'rgba(255,240,220,.18)'; c.fillRect(-56, -59, 112, 0.8);
   if (ART.shedExtra) ART.shedExtra(c);   // V14: moss and drips in the rain
   drawWallCharm(c);   // V37: the Lucky horseshoe (Lucky axe) on the wall
   c.restore();
@@ -9119,10 +9296,15 @@ function drawTruckBoard(c, BT){
   if (S.hive.built) rows.push(['honey', honeyPrice(), 'jar']);
   if (S.hive.packing) rows.push(['gift', giftJarPrice(), 'gift']);
   const x0 = -13, x1 = 65, y0 = BT + 4, y1 = -16, bw = x1 - x0, cx = (x0 + x1)/2;
+  c.fillStyle = 'rgba(20,12,6,.35)'; rr(c, x0 - 1, y0 - 0.5, bw + 3, y1 - y0 + 3, 4); c.fill();
   c.fillStyle = '#e9d6b0'; rr(c, x0 - 1.5, y0 - 1.5, bw + 3, y1 - y0 + 3, 4); c.fill();
-  c.fillStyle = '#33271d'; rr(c, x0, y0, bw, y1 - y0, 3); c.fill();
+  c.fillStyle = 'rgba(255,250,235,.5)'; rr(c, x0 - 1, y0 - 1.2, bw + 2, 1.2, 0.6); c.fill();
+  { const bgr = c.createLinearGradient(0, y0, 0, y1); bgr.addColorStop(0, '#3a2d22'); bgr.addColorStop(1, '#2b2119'); c.fillStyle = bgr; rr(c, x0, y0, bw, y1 - y0, 3); c.fill(); }
+  c.fillStyle = 'rgba(255,240,210,.035)'; for (let k=0;k<6;k++){ ell(c, x0 + 8 + k*13, y1 - 6 - (k%3)*5, 9, 2.5); c.fill(); }   // chalk dust
   // header strip
   c.fillStyle = '#b8452d'; rr(c, x0 + 2, y0 + 2, bw - 4, 10, 2); c.fill();
+  c.fillStyle = 'rgba(255,220,190,.18)'; rr(c, x0 + 2.5, y0 + 2.4, bw - 5, 2.2, 1); c.fill();
+  c.fillStyle = '#8b7a62'; for (const [bx, by] of [[x0 + 0.2, y0 + 0.2], [x1 - 0.2, y0 + 0.2], [x0 + 0.2, y1 - 0.2], [x1 - 0.2, y1 - 0.2]]){ ell(c, bx, by, 1.2, 1.2); c.fill(); }
   c.font = '800 8.5px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fbefd8';
   c.fillText('WE BUY', cx, y0 + 7.4);
   // more than three things to sell: two columns, with the price only (the icon says what it's for)
@@ -9171,24 +9353,74 @@ function drawTruck(){
   for (const rd of T.riders) if (rd.st === 'ride'){ { const n = T.riders.length, k = Math.max(0, T.riders.indexOf(rd)); rd.x = T.x + (n > 1 ? [20, 50][k] || 50 : RIDE.dx); rd.y = RIDE.y + (rd.kind ? 2 : 0); rd.hz = 0; }   /* (V21.3: pinned to the truck at draw time. It used to be set in the robot's own update, a frame behind the truck, so a rider shook back and forth while the truck pulled away) */
     c.save(); c.beginPath(); c.rect(-200, BT - 200, 400, 200); c.clip(); c.translate(-T.x, -LANE); if (rd.kind) drawBlower(rd); else drawRobot(rd); c.restore(); }
   c.fillStyle = '#5d412b'; c.fillRect(-18, BT - 2, 88, 3.5);
+  c.fillStyle = 'rgba(255,230,190,.14)'; c.fillRect(-18, BT - 2, 88, 1);
+  for (const px of [-18, 66.5]){ c.fillStyle = '#5d412b'; rr(c, px, BT - 4, 3.5, 52, 1); c.fill(); }
   drawTruckBoard(c, BT);
-  c.fillStyle = '#4f7774'; rr(c, -84, -32, 16, 20, 4); c.fill();
-  c.fillStyle = '#5f8c87'; rr(c, -74, -52, 58, 40, 7); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.14)'; rr(c, -72, -50, 54, 5, 3); c.fill();
-  c.fillStyle = '#d4e6e2'; rr(c, -67, -47, 23, 16, 4); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.moveTo(-62, -47); c.lineTo(-56, -47); c.lineTo(-63, -31); c.lineTo(-67, -31); c.closePath(); c.fill();
-  c.strokeStyle = '#46696a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-40, -50); c.lineTo(-40, -14); c.stroke();
-  c.fillStyle = '#ffe39b'; ell(c, -83, -24, 2.3, 3); c.fill();
-  c.fillStyle = '#3a3633'; rr(c, -86, -15, 154, 6, 2); c.fill();
+  drawTruckCab(c, T);
+  c.restore();
+}
+// (V45 look pass) the cab: a rounded old farm pickup in teal with a cream pinstripe and a leaf on the door, chrome
+// bumper and grille, a headlight on the fender, wheel wells, a running board, mudguard over the back wheel, tail light,
+// and wheels with a white-wall rim and a turning hub. Same size and place as before.
+function drawTruckCab(c, T){
+  // chassis, exhaust and the back mudguard
+  c.fillStyle = '#2f2b29'; rr(c, -86, -15, 156, 6, 2); c.fill();
+  c.fillStyle = '#55504c'; rr(c, 60, -10.5, 13, 2.4, 1.2); c.fill(); c.fillStyle = '#2a2624'; ell(c, 73, -9.3, 0.9, 1.1); c.fill();
+  c.fillStyle = '#3f3a37'; c.beginPath(); c.arc(42, -7, 14, Math.PI, 0); c.lineTo(56, -12); c.lineTo(28, -12); c.closePath(); c.fill();
+  c.fillStyle = '#c0392b'; rr(c, 68.5, -26, 3.2, 6, 1); c.fill(); c.fillStyle = 'rgba(255,190,170,.6)'; c.fillRect(69.2, -25.2, 1, 2.4);
+  // the body
+  const body = () => { c.beginPath(); c.moveTo(-16, -11); c.lineTo(-16, -49); c.quadraticCurveTo(-16, -54, -21, -54); c.lineTo(-57, -54); c.quadraticCurveTo(-62, -54, -64, -50);
+    c.lineTo(-70, -36); c.lineTo(-85, -34); c.quadraticCurveTo(-92, -33, -92, -26); c.lineTo(-92, -15); c.quadraticCurveTo(-92, -11, -88, -11); c.closePath(); };
+  const bgd = c.createLinearGradient(0, -54, 0, -11); bgd.addColorStop(0, '#6c9a94'); bgd.addColorStop(0.5, '#5f8c87'); bgd.addColorStop(1, '#4b736f');
+  body(); c.fillStyle = bgd; c.fill();
+  c.save(); body(); c.clip();
+  c.fillStyle = 'rgba(255,255,255,.16)'; rr(c, -60, -53, 42, 3, 1.5); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.moveTo(-70, -35.2); c.lineTo(-85, -33.2); c.lineTo(-85, -31.6); c.lineTo(-70, -33.6); c.closePath(); c.fill();
+  // the front wheel well
+  c.fillStyle = '#2a3634'; ell(c, -56, -7, 14, 14); c.fill();
+  c.restore();
+  // fender lip round the front wheel
+  c.strokeStyle = '#7fb0a9'; c.lineWidth = 1.2; c.beginPath(); c.arc(-56, -7, 14.2, Math.PI*1.08, Math.PI*1.92); c.stroke();
+  c.strokeStyle = '#46696a'; c.lineWidth = 0.8; c.beginPath(); c.arc(-56, -7, 15.4, Math.PI*1.1, Math.PI*1.9); c.stroke();
+  // pinstripe, door, window
+  c.strokeStyle = '#efe2c6'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(-89, -27); c.lineTo(-71.5, -27); c.moveTo(-40.5, -27); c.lineTo(-17, -27); c.stroke();
+  c.strokeStyle = '#46696a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(-63.5, -50); c.lineTo(-69, -36.5); c.lineTo(-69, -17); c.moveTo(-40, -51); c.lineTo(-40, -14); c.stroke();
+  c.strokeStyle = 'rgba(30,50,48,.5)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(-70, -35.6); c.lineTo(-84, -33.8); c.stroke();
+  const glass = c.createLinearGradient(-66, -50, -44, -38); glass.addColorStop(0, '#eef6f3'); glass.addColorStop(1, '#a9c9c4');
+  c.fillStyle = '#3e5f5c'; c.beginPath(); c.moveTo(-61.5, -50.5); c.lineTo(-43, -50.5); c.lineTo(-43, -36); c.lineTo(-67.5, -36); c.closePath(); c.fill();
+  c.fillStyle = glass; c.beginPath(); c.moveTo(-60.6, -49.4); c.lineTo(-44.2, -49.4); c.lineTo(-44.2, -37.2); c.lineTo(-65.8, -37.2); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.moveTo(-56, -49.4); c.lineTo(-51, -49.4); c.lineTo(-58, -37.2); c.lineTo(-63, -37.2); c.closePath(); c.fill();
+  // the door's leaf badge on the stripe, and its handle
+  c.fillStyle = '#efe2c6'; ell(c, -56, -27, 6.6, 6.6); c.fill(); c.fillStyle = '#46696a'; ell(c, -56, -27, 5.4, 5.4); c.fill();
+  c.fillStyle = '#efe2c6'; ell(c, -56, -27, 4.6, 4.6); c.fill();
+  drawLeaf(c, -56, -27, 3.6, -0.4, 1, 1, 1, 1, 1, 0);
+  c.fillStyle = '#c9ced0'; rr(c, -46, -33, 4.6, 1.5, 0.7); c.fill(); c.fillStyle = '#ffffff'; c.fillRect(-45.4, -32.9, 1.6, 0.5);
+  // side mirror on a little arm
+  c.strokeStyle = '#3a3633'; c.lineWidth = 1; c.beginPath(); c.moveTo(-66, -38); c.lineTo(-71, -42); c.stroke();
+  c.fillStyle = '#3a3633'; rr(c, -74, -46, 4, 6, 1.5); c.fill(); c.fillStyle = '#9fbab6'; rr(c, -73.4, -45.3, 2.6, 4.6, 1.2); c.fill();
+  // hood vents, grille, headlight and bumper
+  c.fillStyle = '#46696a'; for (let k=0;k<3;k++){ rr(c, -83 + k*4.2, -24, 2.4, 6, 1); c.fill(); }
+  c.fillStyle = '#9aa3a6'; rr(c, -94.5, -28, 4, 13, 1.5); c.fill(); c.fillStyle = '#d5dadc'; rr(c, -94.5, -28, 1.6, 13, 0.8); c.fill();
+  c.fillStyle = '#5b6366'; for (let k=0;k<3;k++) c.fillRect(-92.7, -26 + k*3.6, 1.8, 1.6);
+  c.fillStyle = '#c9ced0'; ell(c, -84.5, -35.5, 4, 3.4); c.fill();
+  c.fillStyle = '#ffe39b'; ell(c, -85.5, -35.6, 2.6, 2.5); c.fill(); c.fillStyle = '#fff8dc'; ell(c, -86.2, -36.3, 0.9, 0.9); c.fill();
+  c.globalCompositeOperation = 'lighter'; const hl = c.createRadialGradient(-86, -35.5, 1, -86, -35.5, 8); hl.addColorStop(0, 'rgba(255,220,140,.22)'); hl.addColorStop(1, 'rgba(255,220,140,0)'); c.fillStyle = hl; ell(c, -86, -35.5, 8, 7); c.fill(); c.globalCompositeOperation = 'source-over';
+  c.fillStyle = '#8f989b'; rr(c, -97, -18, 13, 5.4, 2.2); c.fill(); c.fillStyle = '#dde2e4'; rr(c, -96.4, -17.6, 11.6, 1.8, 0.9); c.fill();
+  // running board
+  c.fillStyle = '#2f2b29'; rr(c, -42, -12.5, 26, 3.4, 1.2); c.fill(); c.fillStyle = '#5a5552'; c.fillRect(-41, -12.4, 24, 0.9);
+  // wheels
   for (const wx of [-56, 42]){
     c.save(); c.translate(wx, -6);
-    c.fillStyle = '#2a2624'; ell(c, 0, 0, 10.5, 10.5); c.fill();
-    c.fillStyle = '#b8ad9c'; ell(c, 0, 0, 5, 5); c.fill();
-    c.rotate(T.rot); c.strokeStyle = '#7d7466'; c.lineWidth = 1.5;
-    for (let k=0;k<3;k++){ c.rotate(TAU/3); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 4.6); c.stroke(); }
+    c.fillStyle = '#211d1b'; ell(c, 0, 0, 10.5, 10.5); c.fill();
+    c.strokeStyle = '#3a3532'; c.lineWidth = 1.4; ell(c, 0, 0, 8.6, 8.6); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.08)'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, 9.6, Math.PI*1.1, Math.PI*1.55); c.stroke();
+    c.fillStyle = '#e6dccb'; ell(c, 0, 0, 6.4, 6.4); c.fill();
+    c.fillStyle = '#b8ad9c'; ell(c, 0, 0, 4.6, 4.6); c.fill();
+    c.rotate(T.rot);
+    c.fillStyle = '#7d7466'; for (let k=0;k<5;k++){ const a = k/5*TAU; ell(c, Math.cos(a)*3.1, Math.sin(a)*3.1, 0.8, 0.8); c.fill(); }
+    c.fillStyle = '#d2d6d8'; ell(c, 0, 0, 1.9, 1.9); c.fill(); c.fillStyle = '#ffffff'; ell(c, -0.5, -0.6, 0.6, 0.6); c.fill();
     c.restore();
   }
-  c.restore();
 }
 
 function drawParts(){
