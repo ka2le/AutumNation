@@ -5727,7 +5727,7 @@ function refreshBee(b){
   for (const k of ['wings', 'third', 'tongue']) if (b.up[k] !== H[k]){ b.up[k] = H[k]; ch = true; }
   if (ch && !simMode) parts.push({ k:'star', x: DOOR.x + rand(-4, 4), y: DOOR.y - DOOR.z - 4, vx: rand(-30, 30), vy: rand(-50, -20), g: 60, life: 0.6, t: 0 });
 }
-function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); if (ANTS){ b.path = antRoute(b.x, b.y, tx, ty); b.pi = 0; b.inside = false; } }
+function beeLeg(b, tx, ty, tz){ b.lx = b.x; b.ly = b.y; b.lz = b.z; b.tx = tx; b.ty = ty; b.tz = tz; b.len = Math.max(1, Math.hypot(tx - b.x, ty - b.y)); if (ANTS){ b.path = antLanePath(b, antRoute(b.x, b.y, tx, ty)); b.pi = 0; b.inside = false; } }
 function beeMove(b, sp, dt){
   if (ANTS) return antMove(b, sp, dt);
   const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
@@ -5845,28 +5845,47 @@ function antRoute(x, y, tx, ty){
 // looks like a loose line of ants going both ways rather than a jam
 const antLane = b => ((b.i*37) % 7 - 3)*1.1;   // (V19.1: wider lanes, ±3.3 a side, was ±1.6: busy trunks look less like a queue)
 const antPace = b => 0.9 + ((b.i*53) % 9)/40;
+// Offset each waypoint once using the trail tangent, rather than the ant's changing position.
+// A moving offset made ants circle a waypoint and repeatedly reverse before reaching it.
+function antLanePath(b, path){
+  const lane = antLane(b);
+  return path.map((q, i) => {
+    if (i === path.length - 1) return q.slice();
+    const prev = i ? path[i - 1] : [b.x, b.y], next = path[i + 1];
+    const dx = next[0] - prev[0], dy = next[1] - prev[1], d = Math.hypot(dx, dy);
+    return d > 0.01 ? [q[0] - dy/d*lane, q[1] + dx/d*lane] : q.slice();
+  });
+}
+function antHeading(b, dx, dy, dt){
+  const d = Math.hypot(dx, dy);
+  if (d <= 0.001) return;
+  const nx = dx/d, ny = dy/d;
+  // Update once per frame from actual travel; initialize both components before smoothing.
+  const k = 1 - Math.exp(-dt*12);
+  if (!Number.isFinite(b.hx) || !Number.isFinite(b.hy)){ b.hx = nx; b.hy = ny; }
+  else { b.hx += (nx - b.hx)*k; b.hy += (ny - b.hy)*k; }
+  // Face actual travel immediately, retaining the last side on nearly vertical stretches.
+  if (Math.abs(nx) > 0.15) b.face = nx > 0 ? 1 : -1;
+}
 function antMove(b, sp, dt){
   let left = sp*dt*antPace(b);
-  const start = left, lane = antLane(b);
+  const start = left, x0 = b.x, y0 = b.y;
   if (!b.path) b.path = [[b.tx, b.ty]], b.pi = 0;
   for (let guard = 0; guard < 8; guard++){
     const last = b.pi >= b.path.length - 1, q = b.path[Math.min(b.pi, b.path.length - 1)];
-    let px = q[0], py = q[1];
-    const rx = px - b.x, ry = py - b.y, rd = Math.hypot(rx, ry);
-    if (!last && rd > 2){ px -= ry/rd*lane; py += rx/rd*lane; }
+    const px = q[0], py = q[1];
     const dx = px - b.x, dy = py - b.y, d = Math.hypot(dx, dy);
-    // (V40: the heading is smoothed and the ant only turns round once it really heads the other way, so the zig-zags
-    // of the trail grid don't flip it left and right every few steps)
-    if (d > 0.05){ const k = b.hx == null ? 1 : Math.min(1, dt*5); b.hx += (dx/d - (b.hx || 0))*k; b.hy = (b.hy || 0) + (dy/d - (b.hy || 0))*k; if (b.hx > 0.35) b.face = 1; else if (b.hx < -0.35) b.face = -1; }
     if (d <= left){
       b.x = px; b.y = py; left -= d;
       if (!last){ b.pi++; continue; }
       b.z = b.tz; b.walk = start - left > 0.01; b.gait = (b.gait || 0) + (start - left);
+      antHeading(b, b.x - x0, b.y - y0, dt);
       return true;
     }
     b.x += dx/d*left; b.y += dy/d*left; left = 0; break;
   }
   b.walk = start - left > 0.01; b.gait = (b.gait || 0) + (start - left); b.z = 0;
+  antHeading(b, b.x - x0, b.y - y0, dt);
   return false;
 }
 // V14.2: the trails themselves aren't drawn. Only a few dry pine needles lie along them here and there (at most one little

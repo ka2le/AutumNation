@@ -28,6 +28,8 @@ There is no frontend build step or package installation requirement in the curre
 
 **Replay the ending (2026-10-16):** The golden final letter stays after the tour. Tinker returns with Ride along in Don't and resumes his other tasks. Assign him through the letter or move Ride along to the top of his task list to see the tour and ending again. Repeat tours are excluded from automatic crew assignment. Completed saves regain the letter and optional trip on load. `node tools/check-ending-replay.js` checks the first tour, repeated tours through both entry points, and save/reload.
 
+**Ant walking (2026-10-17):** Ant lanes offset fixed route points using the trail tangent (`antLanePath`), rather than shifting a waypoint relative to the approaching ant, which caused circling and reversals. `antHeading` initializes both heading components and smooths actual travel once per frame; the V40 `undefined +=` could leave `hx` as NaN and facing stuck. Facing follows horizontal travel immediately, with a dead zone for nearly vertical paths. The hollow art restores the pre-V40 stride and tilt, with a smooth cosine footfall lift capped at 0.35 world pixels. `node tools/check-ants.js` checks finite headings, reversals, stable lanes, 224 real routes at 30/120 fps, exact endpoints, and mushroom delivery, and renders all five builds in `runs/ants/gait.png`.
+
 ## Run locally
 
 From this folder, run `npm start` or `node server.js --no-open`. The default address is `http://localhost:8080`; if that port is already in use, the Node server tries the next available port up to 8099. The server prints the selected address. `start.bat` also opens the game in a browser.

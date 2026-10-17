@@ -1025,14 +1025,15 @@ LOTS.hollow = H => {
     const x = b.x, y = b.y;
     // V14.1: they walk now (game.js antMove): b.walk says it moved this frame, b.gait how far it has walked, b.hx/hy its heading
     const moving = b.walk != null ? b.walk : b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue';
-    // (V40: a gentler tilt and bob, and a slower stride, so walking ants don't wobble and flicker)
-    const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.2)*0.22, -0.25, 0.25) : 0;
-    const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.5))*0.18 : 0;
+    // Keep the lively stride; smooth heading in movement and round off each footfall's body lift.
+    const tilt = moving && Number.isFinite(b.hx) && Number.isFinite(b.hy) ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.01)*0.4, -0.45, 0.45) : 0;
+    const ph = (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph;
+    const bob = moving ? -(1 - Math.cos(ph*2))*0.175 : 0;
     c.fillStyle = 'rgba(20,12,6,.28)'; ell(c, x, y + 0.6, 5, 1.3); c.fill();
     c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
     if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
     const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
-    const m = BEE_MODELS[b.i % BEE_MODELS.length], ph = (b.gait != null ? b.gait*0.48 : b.anim*9) + b.ph;
+    const m = BEE_MODELS[b.i % BEE_MODELS.length];
     const spr = c === H.mainCtx ? antSprite(m, ph, moving, n, cap, H.px*1.35) : null;
     if (spr) c.drawImage(spr, ANT_BOX.x, ANT_BOX.y, ANT_BOX.w, ANT_BOX.h);
     else drawAntShape(c, m, ph, moving, n, cap);
