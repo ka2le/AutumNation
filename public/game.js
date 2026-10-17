@@ -6986,19 +6986,9 @@ function* paintGroundHome(G){
       }
     }
   }
-  // (V45) grass tufts, clover and the odd molehill
+  // (V45) clover and the odd molehill
   for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
     const rnd = cellRnd(i, j, 8);
-    const tb = [new Path2D(), new Path2D(), new Path2D()], tsh = new Path2D();
-    for (let k=0;k<6;k++){
-      const x = (i + rnd())*CS, y = (j + rnd())*CS, n = 4 + Math.floor(rnd()*3), h = 4 + rnd()*4;
-      if (y > -VERGE - 4) continue;
-      tsh.ellipse(x, y + 0.5, 3.6, 1.2, 0, 0, TAU); tsh.closePath();
-      for (let m=0;m<n;m++){ const a = (m/(n - 1) - 0.5)*1.3 + (rnd() - 0.5)*0.2, hh = h*(0.7 + rnd()*0.5), P = tb[m === n - 2 ? 2 : rnd() < .5 ? 0 : 1];
-        P.moveTo(x + (m - n/2)*0.7, y); P.quadraticCurveTo(x + Math.sin(a)*hh*0.3, y - hh*0.6, x + Math.sin(a)*hh*0.75, y - hh); }
-    }
-    g.fillStyle = 'rgba(40,50,18,.22)'; g.fill(tsh);
-    g.lineWidth = 1.1; ['rgba(58,72,26,.5)', 'rgba(84,100,38,.5)', 'rgba(168,176,92,.5)'].forEach((col, q) => { g.strokeStyle = col; g.stroke(tb[q]); });
     if (rnd() < 0.55){
       const cx = (i + rnd())*CS, cy = (j + rnd())*CS, n = 7 + Math.floor(rnd()*7);
       if (cy < -VERGE - 10){
@@ -7041,12 +7031,7 @@ function* paintGroundHome(G){
   g.restore();
   for (let i=i0;i<i1;i++) for (let j=j0;j<j1;j++){ yield;
     const rnd = cellRnd(i, j, 3);
-    for (let k=0;k<5;k++){
-      const x = (i + rnd())*CS, y = (j + rnd())*CS, tone = rnd() < .5 ? '#56622c' : '#8a8a46';
-      if (y > -VERGE - 6 || inOwned(x, y, 14)) continue;
-      g.strokeStyle = tone; g.lineWidth = 1.5;
-      for (let m=0;m<6;m++){ const a = -Math.PI/2 + (m - 2.5)*0.22; g.beginPath(); g.moveTo(x + m*1.4, y); g.quadraticCurveTo(x + m*1.4 + Math.cos(a)*6, y - 7, x + m*1.4 + Math.cos(a)*12, y - 14 - (m%2)*3); g.stroke(); }
-    }
+    for (let k=0;k<5;k++){ rnd(); rnd(); rnd(); }   // (V45.2: the tall grass clumps beyond the fence are gone; the draws keep the bushes where they were)
     if (rnd() < 0.42){
       const x = (i + rnd())*CS, y = (j + rnd())*CS;
       if (!(y > -VERGE - 20 || inOwned(x, y, 30))) drawBush(g, x, y, 0.85 + rnd()*0.5, cellRnd(i, j, 6));
@@ -7108,7 +7093,7 @@ function drawBushHome(g, x, y, s, rnd, own){
   // loose leaves round the top edge, and a couple fallen at the foot
   for (let q=0;q<(own ? 7 : 4);q++){ const k = cl[Math.floor(rnd()*cl.length)], a = -Math.PI*(0.15 + rnd()*0.7); leafBlob(g, x + k.x + Math.cos(a)*k.r*0.95, y + k.y + Math.sin(a)*k.r*0.95, (1.6 + rnd()*1.2)*s, a + Math.PI/2, P[2 + Math.floor(rnd()*3)]); }
   for (let q=0;q<3;q++) leafBlob(g, x + (rnd() - 0.5)*W*2.2, y + (1 + rnd()*4)*s, (1.8 + rnd())*s, rnd()*TAU, P[1 + Math.floor(rnd()*3)]);
-  if (rnd() < 0.3){ for (let q=0;q<7;q++){ const bx = x + (rnd() - 0.5)*W*1.3, by = y - rnd()*16*s; g.fillStyle = '#7e1e16'; ell(g, bx + 0.4*s, by + 0.4*s, 1.7*s, 1.7*s); g.fill(); g.fillStyle = '#c8392a'; ell(g, bx, by, 1.6*s, 1.6*s); g.fill(); g.fillStyle = 'rgba(255,220,200,.7)'; ell(g, bx - 0.5*s, by - 0.5*s, 0.5*s, 0.5*s); g.fill(); } }
+  // (no berries: they read as something to tap)
 }
 
 function drawFenceHome(g, O){
@@ -7506,20 +7491,16 @@ function drawShed(){
   c.fillStyle = '#3a3029'; for (const hy of [-37, -11]){ rr(c, -13.5, hy - 1, 9, 2.2, 0.8); c.fill(); c.fillStyle = '#7a6f62'; ell(c, -11.6, hy + 0.1, 0.5, 0.5); c.fill(); ell(c, -7.6, hy + 0.1, 0.5, 0.5); c.fill(); c.fillStyle = '#3a3029'; }
   c.fillStyle = '#d9b55a'; ell(c, 8.5, -21, 1.7, 1.7); c.fill(); c.fillStyle = '#fff1b8'; ell(c, 8.1, -21.5, 0.6, 0.6); c.fill();
   c.fillStyle = '#4b3a2e'; rr(c, 7.6, -19, 1.8, 4, 0.8); c.fill();
-  // the window: frame, warm light with a soft inner glow, a sill and a little flower box
+  // the window: a small pane of dark glass in a cream frame like the door's, with a cool sheen
+  c.fillStyle = '#ecdfc6'; rr(c, -37, -52, 17, 14, 2); c.fill();
+  c.fillStyle = 'rgba(120,90,60,.35)'; c.fillRect(-21.4, -51, 1, 12);
+  const wgl = c.createLinearGradient(-35, -50, -22, -40); wgl.addColorStop(0, '#2c3438'); wgl.addColorStop(1, '#14181b');
+  c.fillStyle = wgl; rr(c, -35, -50, 13, 10, 1); c.fill();
+  c.fillStyle = 'rgba(190,215,225,.16)'; c.beginPath(); c.moveTo(-33.5, -50); c.lineTo(-30.5, -50); c.lineTo(-34.5, -40); c.lineTo(-35, -40); c.lineTo(-35, -46); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(190,215,225,.1)'; c.beginPath(); c.moveTo(-29.5, -50); c.lineTo(-28.3, -50); c.lineTo(-32.3, -40); c.lineTo(-33.5, -40); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(-35, -50, 13, 1.2);
+  c.fillStyle = '#d8c8a8'; rr(c, -38, -38.4, 19, 1.8, 0.8); c.fill();
   const flick = 0.85 + Math.sin(S.t*3.1)*0.05 + Math.sin(S.t*7.3)*0.03;
-  c.fillStyle = '#ecdfc6'; rr(c, -39, -53, 21, 18, 2); c.fill();
-  const lg = c.createRadialGradient(-28.5, -43, 1, -28.5, -44, 11); lg.addColorStop(0, 'rgba(255,224,150,' + flick + ')'); lg.addColorStop(1, 'rgba(232,160,70,' + flick + ')');
-  c.fillStyle = lg; c.fillRect(-36.5, -50.5, 16, 13);
-  c.fillStyle = 'rgba(120,60,20,.28)'; c.fillRect(-36.5, -50.5, 16, 2);
-  c.fillStyle = '#ecdfc6'; c.fillRect(-29.3, -50.5, 1.6, 13); c.fillRect(-36.5, -44.8, 16, 1.6);
-  c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.moveTo(-35.5, -49.5); c.lineTo(-33, -49.5); c.lineTo(-35.5, -46); c.closePath(); c.fill();
-  c.fillStyle = '#d8c8a8'; rr(c, -40.5, -36, 24, 2.4, 1); c.fill();
-  c.fillStyle = '#6e4a30'; rr(c, -39, -33.6, 21, 5, 1.2); c.fill(); c.fillStyle = '#8a6040'; c.fillRect(-39, -33.6, 21, 1.4);
-  for (const [fx, col] of [[-36, '#e0662f'], [-32.2, '#f2b03a'], [-28.4, '#c23a2a'], [-24.6, '#ea8a34'], [-21, '#f2b03a']]){
-    c.fillStyle = '#5c6e2c'; ell(c, fx + 0.6, -34.2, 2.2, 1.4); c.fill();
-    c.fillStyle = col; ell(c, fx, -36.2, 1.5, 1.4); c.fill(); c.fillStyle = 'rgba(255,240,200,.5)'; ell(c, fx - 0.4, -36.6, 0.5, 0.5); c.fill();
-  }
   // a wall lamp over the door
   c.save(); c.translate(-20.9, -9.6);
   c.fillStyle = '#3a3029'; c.fillRect(18.5, -47, 4, 1.2); c.fillRect(21.3, -48, 1.2, 3);
@@ -10644,7 +10625,7 @@ function drawGlows(){
   // (V16.1: each glow is a stamped picture of a soft spot of light instead of a new gradient every frame)
   const glow = (x, y, r, a, col) => { c.globalAlpha = a; c.drawImage(glowSprite(col || '255,170,80'), x - r, y - r, r*2, r*2); c.globalAlpha = 1; };
   const fl = 0.85 + Math.sin(RAIN.t*3.1)*0.06 + Math.sin(RAIN.t*7.3)*0.04;
-  glow(SHED.x - 28, SHED.y - 44, 46, 0.2*fl); glow(SHED.x - 28, SHED.y + 6, 40, 0.08*fl);
+  glow(SHED.x, SHED.y - 52, 30, 0.16*fl); glow(SHED.x, SHED.y + 6, 36, 0.07*fl);   // (V45.1: the lamp over the door; the window is dark glass now)
   if (S.hive.built) glow(HIVE.x, HIVE.y - 8, 30, 0.14*fl);
   if (S.plant.built){ const busy = STN.smelt.some(v => v != null && R[v] && R[v].st === 'smelt'); glow(PLANT.x, PLANT.y - 30, 120, (busy ? 0.2 : 0.1)*fl); glow(PLANT.x, PLANT.y + 20, 110, (busy ? 0.12 : 0.06)*fl); }
   for (const r of R) if (r.st !== 'gone' && styleOf(r.id).lantern) glow(r.x, r.y - 40, 26, 0.18*fl);
