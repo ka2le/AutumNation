@@ -9226,7 +9226,7 @@ function cardShows(o){
   if (o.obj === cardOpen.obj) return true;
   if (o.id === 'tech'){ const tk = TECH[o.key].track, kind = tk === 'blow' || tk === 'dig' || tk === 'stoke' ? 'blower' : tk === 'shake' ? 'shaker' : 'robot'; return k === kind; }
   if (k === 'bin') return o.id === 'bagger' || o.obj === 'bagger' || o.id === 'plant' || o.id === 'metalSlot';
-  if (k === 'spot') return o.id === 'metalSlot' || (o.id === 'up' && (o.key === 'metalBin' || o.key === 'metalPrice') && S.miners.includes(cardOpen.i));   // (V40: the tub and price rows are on the mine card too)
+  if (k === 'spot') return o.id === 'metalSlot' || (o.id === 'up' && (o.key === 'metalBin' || o.key === 'metalPrice') && S.metalSlot && SPOTS[cardOpen.i] && SPOTS[cardOpen.i].land <= S.land);   // (V40: the tub and price rows are on the mine card too; V41: and on the vein once the slot is built)
   if (k === 'shed') return o.id === 'hive';
   return false;
 }
@@ -12635,12 +12635,23 @@ function cardModel(){
       rows.push(upRow('metalBin')); rows.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
     } else {
       title = 'Metal vein';
-      if (!S.metalSlot){
-        // the metal slot can be bought right here as well as on the bin
-        if (metalSlotShown()) rows.push(metalSlotRow());
-        else rows.push({ sig:'locked', html: row({ icon: ic('vein'), cls:'soon', name:'This looks promising for later' }) });   // V21 (was "Needs a metal slot")
+      if (!S.metalSlot && !metalSlotShown()) rows.push({ sig:'locked', html: row({ icon: ic('vein'), cls:'soon', name:'This looks promising for later' }) });   // V21 (was "Needs a metal slot")
+      else {
+        // V41: the vein shows both things a mine needs, in order: the metal slot (the tub by the bin that the truck buys
+        // metal from) and the miner that digs it; the miner's button stays locked until the slot is there. Once the slot is
+        // built, the tub's size and the metal's price can be bought here too, so the vein is where you manage it all.
+        const sell = 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>';
+        rows.push(S.metalSlot ? buyRow('Metal slot', sell, 'metalSlot', METAL_SLOT_COST, 'done', ic('tub'))
+          : buyRow('Metal slot', sell, 'metalSlot', METAL_SLOT_COST, '', ic('tub'), 'A metal tub beside the bin, so the truck buys metal too'));
+        const mval = ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a Robot';
+        if (S.metalSlot) rows.push(buyRow('Build a miner', mval, 'miner', MINER_COST, '', ic('vein'), 'A Robot with Mine metal on its list works it'));
+        else rows.push({ sig:'minerL' + MINER_COST, html: row({ icon: ic('vein'), name:'Build a miner', tip:'Locked: first buy the metal slot, where the metal is stored and sold', val: mval,
+          btn: '<button class="buy locked" aria-disabled="true" title="Locked: first buy the metal slot, where the metal is stored and sold. Then the miner costs ' + cash$(MINER_COST) + '" aria-label="Build a miner, locked: first buy the metal slot">' + ic('lock', 'lk') + ic('coin', 'cn') + '<span>' + pr(MINER_COST) + '</span></button>' }) });
+        if (S.metalSlot){
+          rows.push({ sig:'sTub', html:'<div class="sect">Metal tub &amp; price</div>' });
+          rows.push(upRow('metalBin')); rows.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
+        }
       }
-      else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a Robot' + (S.miners.length ? '' : '<span class="lockx">Step 2 of 2: the metal tub is there, this gets the metal</span>'), 'miner', MINER_COST, '', ic('vein'), 'A Robot with Mine metal on its list works it'));
     }
   }
   { const ao = assignOpts(k, cardOpen.i); if (ao.length) placeAssign(k, ao, rows, rows2); else assignOpen = false; }   // V21 (V22.2: under its row)
