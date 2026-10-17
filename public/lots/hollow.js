@@ -902,11 +902,12 @@ LOTS.hollow = H => {
     if (b.ci == null) b.ci = Math.floor(Math.random()*LAB_BROLLY.length);   // each bee keeps one umbrella (it used to follow b.x, so walkers flickered between colours)
     const cols = LAB_BROLLY[b.ci];
     if (ground){
-      const moving = b.st !== 'pause', bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0, m = b.m || 0;
+      const moving = b.st !== 'pause', bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.5))*0.2 : 0, m = b.m || 0;
       const sc = 1.35*(b.big || 1);
       c.save(); c.translate(x, y + bob); c.scale((b.face || 1)*sc, sc);
-      if (m >= 0.67) drawAntShape(c, 'worker', (b.gait || 0)*0.75, moving, 0, '#c99448');
-      else if (m >= 0.34) drawBeeAnt(c, (b.gait || 0)*0.75, moving);
+      if (b.mi == null) b.mi = Math.floor(Math.random()*BEE_MODELS.length);   // (V40: each one its own build, not all the same worker)
+      if (m >= 0.67) drawAntShape(c, BEE_MODELS[b.mi], (b.gait || 0)*0.5, moving, 0, '#c99448');
+      else if (m >= 0.34) drawBeeAnt(c, (b.gait || 0)*0.5, moving);
       else { c.save(); c.translate(0, -3); drawBeeBrass(c, b, 0.15, 0); c.restore(); c.strokeStyle = '#2e2b2a'; c.lineWidth = 0.45; const ph = (b.gait || 0)*0.8; for (let i=0;i<3;i++){ const s = moving ? Math.sin(ph + i*2)*1.2 : 0; c.beginPath(); c.moveTo(-2.4 + i*1.6, -1.4); c.lineTo(-2.6 + i*1.6 + s, 0); c.stroke(); } }
       if (b.brolly) miniBrolly(c, 0.4, -9.5, 4.2, cols);
       if (b.wet > 0.05){ c.fillStyle = 'rgba(200,225,240,' + (0.85*clamp(b.wet, 0, 1)) + ')'; for (const [dx, dy] of [[-3, -5], [1, -6], [3, -3]]){ ell(c, dx, dy, 0.5, 0.7); c.fill(); } }
@@ -1024,13 +1025,14 @@ LOTS.hollow = H => {
     const x = b.x, y = b.y;
     // V14.1: they walk now (game.js antMove): b.walk says it moved this frame, b.gait how far it has walked, b.hx/hy its heading
     const moving = b.walk != null ? b.walk : b.st === 'fly' || b.st === 'home' || b.st === 'toWait' || b.st === 'queue';
-    const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.01)*0.4, -0.45, 0.45) : 0;
-    const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.9))*0.35 : 0;
+    // (V40: a gentler tilt and bob, and a slower stride, so walking ants don't wobble and flicker)
+    const tilt = moving && b.hx != null ? clamp(Math.atan2(b.hy, Math.abs(b.hx) + 0.2)*0.22, -0.25, 0.25) : 0;
+    const bob = moving ? -Math.abs(Math.sin((b.gait || 0)*0.5))*0.18 : 0;
     c.fillStyle = 'rgba(20,12,6,.28)'; ell(c, x, y + 0.6, 5, 1.3); c.fill();
     c.save(); c.translate(x, y + bob); c.scale(b.face*1.35, 1.35); c.rotate(tilt);
     if (b.st === 'sip'){ c.rotate(-0.12 + Math.sin(b.anim*14)*0.06); }
     const n = b.carry > 0 ? clamp(Math.ceil(b.carry/(beeSip(b)) - 1e-6), 1, 3) : 0, cap = FLOWER_TYPES[b.mty || 0].m.cap || '#c99448';
-    const m = BEE_MODELS[b.i % BEE_MODELS.length], ph = (b.gait != null ? b.gait*0.75 : b.anim*14) + b.ph;
+    const m = BEE_MODELS[b.i % BEE_MODELS.length], ph = (b.gait != null ? b.gait*0.48 : b.anim*9) + b.ph;
     const spr = c === H.mainCtx ? antSprite(m, ph, moving, n, cap, H.px*1.35) : null;
     if (spr) c.drawImage(spr, ANT_BOX.x, ANT_BOX.y, ANT_BOX.w, ANT_BOX.h);
     else drawAntShape(c, m, ph, moving, n, cap);
@@ -1593,6 +1595,7 @@ LOTS.hollow = H => {
     ['A jar of honey', 'A can of mushrooms'], ['a jar of honey', 'a can of mushrooms'], ['honey jars', 'cans'], ['ties a cloth top and a ribbon on a jar', 'seals a can as D.O.P.'], ['Fillers', 'Canners'], ['[Ff]illing', m => m[0] === 'F' ? 'Canning' : 'canning'],
     ['Honey in the hive, waiting to be jarred', 'Sorted mushrooms in the ant hill, waiting to be packed'], ['honey making', 'sorting'], ['turns nectar into honey', 'sorts mushrooms'],
     ['\\bJars\\b', 'Cans'], ['\\bjars\\b', 'cans'], ['\\bjar\\b', 'can'], ['\\bJar\\b', 'Can'], ['\\bHoney\\b', 'Can'], ['\\bhoney\\b', 'mushrooms'],
+    ['Nectar → jar', 'Mushroom → can'], ['each nectar', 'each mushroom'], ['made into honey', 'sorted'], ['Fancy labels', 'Gourmet labels'],   // (V40: the value line and the hive tiles)
     ['honey crate', 'mushroom crate'], ['\\bnectar\\b', 'mushrooms'], ['\\bNectar\\b', 'Mushrooms'],
     ['Quicker wings', 'Springy legs'], ['Long tongues', 'Sharp mandibles'], ['Faster fanning', 'Faster sorting'], ['Better recipe', 'Tight packing'],
     ['Bees fly', 'Ants walk'], ['so more bees fly further out', 'so more ants walk further out'], ['Bees take <b>5 nectar</b> from each flower', 'Ants cut <b>5 mushrooms</b> from each patch'],
@@ -1739,7 +1742,7 @@ LOTS.hollow = H => {
       smeltSpeed: { name: 'Hotter kiln', max: 2, costs: [300, 840], vals: [1, 1.35, 1.8] },
       ingotGrade: { name: 'Briquettes', max: 3, costs: [240, 600, 1140], vals: [1, 1.25, 1.5, 1.8] },
       slag: { name: 'Tight stacking', max: 2, costs: [360, 960], vals: [0, 0.2, 0.4] },
-      hopper: { name: 'Bigger log stack', max: 2, costs: [60, 180], vals: [16, 30, 50] } },
+      hopper: { name: 'Bigger log stack', max: 3, costs: [60, 180, 400], vals: [16, 30, 50, 100] } },   // (V40: a fourth step, 100 logs)
     // V15: the leaves here are too wet to sell; the blower that came along can learn to dry them at the bench
     // (V28: a fresh start with nothing; the first truck saying no to the wet leaves opens the drying research)
     arrive: { title: 'The Rainy hollow', text: (name, names) => (names && names.length > 1 ? name + ' and ' + names[1] : name) + ' made it. Pick up leaves and get this yard up and running.' },

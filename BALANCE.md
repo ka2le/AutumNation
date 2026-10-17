@@ -460,6 +460,15 @@ User-requested prices; effects unchanged.
 - Built-in greedy sim (`__leafYard.sim(4200, {priority:true})`, first yard): third Blower 27 → 44 min, third Shaker 31 → 46,
   Robot 5 38 → 47, Robot 6 47 → 51; Meadow unchanged (~53 min). Not yet measured with the balance player / campaigns.
 
+### V40 override (17 October 2026): dearer third Robot and later helpers, a cheap fourth log stack
+
+User-requested prices; effects unchanged. Not measured with the balance player / campaigns yet.
+
+- **Robots** (`ROBOT_COST`): 2nd unchanged ($8), 3rd $40 (was 30), then ~20% more each: $100 / 220 / 360 / 700 / 1,200 /
+  2,000 / 3,200 (were 80 / 180 / 300 / 580 / 1,000 / 1,650 / 2,700). Unused looks 11/12: $4,300 / 5,800.
+- **Blowers / Shakers**: the third Blower $220 (was 150); Shakers $9 / 65 / 260 (were 9 / 45 / 180).
+- **Charcoal kiln log stack** (hollow `LOT.UP.hopper`): a fourth step, 50 → 100 logs for $400 (16 / 30 / 50 / 100 for $60 / 180 / 400).
+
 ## 6. Pitfalls (learned the hard way)
 
 - **`vals` are indexed by level, and level 0 is the starting value.** Better alloy's level 0 is already ×1.45, so the

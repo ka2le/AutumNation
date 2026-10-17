@@ -482,7 +482,8 @@ const genBuyable = () => genVisible() && Object.keys(GEN).find(k => genAvail(k) 
 // industrial staffing rather than extending the early doubling forever. Copied-level discounts and Match are unchanged.
 // V37: from the fourth Robot on, each one costs a little and then a lot more than in V34 (×1.25 for the 4th rising to ×3
 // for the 10th: was 65 / 120 / 175 / 290 / 450 / 650 / 900); the second and third are unchanged
-const ROBOT_COST = [0, 8, 30, 80, 180, 300, 580, 1000, 1650, 2700, 3600, 4800];
+// V40: the third a little dearer ($40) and every one after it ~20% more (was 30 / 80 / 180 / 300 / 580 / 1,000 / 1,650 / 2,700)
+const ROBOT_COST = [0, 8, 40, 100, 220, 360, 700, 1200, 2000, 3200, 4300, 5800];
 const ROBOT_MAX = 10;   // V9: ten robots can be built (STYLES and ROBOT_COST still hold the 11th and 12th looks)
 // V32.1: mining and sawing come clearly after the hive/ant hill in both yards and lead into the smelting/charcoal endgame
 const MINER_COST = 500;        // (V32: home 200, hollow 100)
@@ -491,8 +492,9 @@ const METAL_SLOT_COST = 450;   // the metal tub / log crib (V32: hollow 160)
 // first, the third more. Blowing prices stay as in V30; V34 only raises the later shaking steps.
 const HELPER_MAX = 3;
 // V37: the second of each kind costs 50% more and the third three times as much (were 25 / 50 and 30 / 60)
-const BLOWER_COST = [7, 38, 150];
-const SHAKER_COST = [9, 45, 180];
+// V40: the third Blower and the second and third Shaker dearer again (were 150, and 45 / 180)
+const BLOWER_COST = [7, 38, 220];
+const SHAKER_COST = [9, 65, 260];
 const OLD_HELPER5 = { blower: 4500, shaker: 5000 };   // what a fifth helper cost before V7 (refunded on load)
 const DISCOUNT = 0.5;
 // V7 kept Load & pack at full price for levels another robot already has; V24 drops that, so it follows the same copied-level
@@ -1532,7 +1534,14 @@ function taskWork(r, t){
 }
 // Walk the priority list: the first row with any work wins. Two tasks side by side in a row share the priority:
 // the robot sticks with the one it's on for a few rounds, then swaps if the other has work too.
+// V40: research in the top row, once started, is never interrupted: not by a job that jumps the queue (a full honey
+// store, a full bin…), nor by a task sharing that row taking its turn. It only stops when there's nothing left to research
+// right now (it's done, or the fire is out). Waiting for a missing crew member still counts as research: the ones there
+// stay ready at their spots, so they don't walk away one after the other.
+const resTop = cfg => !!(cfg && cfg.prio[0] && cfg.prio[0].includes('research'));
+const resLocked = (who, cfg, work) => who.task === 'research' && resTop(cfg) && taskOpen('research', cfg) && work('research');
 function chooseTask(who, cfg, work){
+  if (resLocked(who, cfg, work)) return 'research';
   for (const row of cfg.prio){
     let a = null, b = null;
     for (const t of row){ if (!taskOpen(t, cfg) || !work(t)) continue; if (!a) a = t; else b = t; }
@@ -1558,7 +1567,9 @@ function urgentTask(r, cfg){
   if (S.plant.built && taskOn(cfg, 'smelt') && ((S.metalSlot && tubRoom() <= 0) || (r.carryM >= oreNeed() && hopperRoom() <= 0)) && taskWork(r, 'smelt')) return 'smelt';
   return null;
 }
-const robotTask = r => { const cfg = S.robots[r.id]; return urgentTask(r, cfg) || chooseTask(r, cfg, t => taskWork(r, t)); };
+const robotTask = r => { const cfg = S.robots[r.id], w = t => taskWork(r, t);
+  if (resLocked(r, cfg, w) && !(S.trip && taskOn(cfg, 'travel') && taskOpen('travel', cfg) && tripGoOK())) return 'research';   // V40 (a trip the player sent it on still goes)
+  return urgentTask(r, cfg) || chooseTask(r, cfg, w); };
 // Plans a grab: a spot for the hand plus up to `grab` leaves the fingers can reach from it.
 // With a claw the robot looks for a patch of leaves, not just the nearest one.
 function freeLeaf(l, r){ return l.st === 'ground' && l.collect && (!l.claim || l.claim === r) && (l.mine == null || l.mine === r.id); }
@@ -2849,7 +2860,7 @@ function updLab(dt){
     labRt.spawnT -= dt;
     if (labRt.spawnT <= 0){
       labRt.spawnT = rand(1.8, 3); S.story.flights = tries + 1; LABB.push(newLabFlyer());
-      const D = HIVE_DOOR_BEE(); pop(D.x, D.y - 52, 'Try ' + (tries + 1) + ' of ' + LAB_TRIES, 'note', 14, 0.2);
+      // (V40: no "Try 1 of 5" text over them any more)
     }
   }
   // then they give up flying and walk, slowly, more and more like ants
@@ -3220,7 +3231,15 @@ function fireExcursion(r){
   // (V17.1: the logs are the second robot's job: it saws one at the saw, or waits for the one being sawn there)
   if (k >= 0.42 && S.t > fireRt.logT && fireRt.campUnlit < 0 && S.fire.camp < FIRE_CAMP.length && (!lead || !R.some(q => q !== r && labOnTask(q)))){ const src = logSource(); if (src) return { kind: 'log', src, slot: S.fire.camp }; }
   if (k >= 0.68 && !S.fire.bench && S.fire.camp > 0 && !fireRt.benchCall) return { kind: 'lead' };
+  // V40: before the stove gets lit, a Robot fills the bin with wet leaves, so the lit stove has a tray to dry at the end
+  if (k >= 0.55 && S.t > (fireRt.fillT || 0) && dryLeaves() < BAG_SIZE*2 && binRoom() >= 4 && (!lead || !R.some(q => q !== r && labOnTask(q)))){ const l = fillLeafNear(r); if (l) return { kind: 'fill', l, n: 0, want: Math.min(leafCap(r.id), BAG_SIZE*2 - dryLeaves(), 12) }; }
   return null;
+}
+// the nearest free leaf on the ground (for filling the bin during the fire research)
+function fillLeafNear(r){
+  let best = null, bd = 1e9;
+  for (const l of leaves){ if (!freeLeaf(l, r)) continue; const d = Math.hypot(l.x - r.x, l.y - r.y) + 0.5*Math.hypot(l.x - BIN.x, l.y - BIN.y); if (d < bd){ bd = d; best = l; } }
+  return best;
 }
 function freeBranch(r){
   let best = -1, bd = 1e9;
@@ -3242,12 +3261,12 @@ function logSource(){
 function startFireDo(r, ex){
   fireRt.ex = r.id; r.fx = Object.assign({ st: 'go', t: 0 }, ex); r.labRet = true; r.st = 'fireDo';
   if (ex.kind === 'grab') fireRt.taken.add(ex.i);
-  if (ex.kind === 'leaf') ex.l.claim = r;
+  if (ex.kind === 'leaf' || ex.kind === 'fill') ex.l.claim = r;
   if (ex.kind === 'lead') fireRt.benchCall = true;
 }
 function endFireDo(r){
   const f = r.fx; r.fx = null; r.lean = 0;
-  if (f){ if (f.kind === 'grab') fireRt.taken.delete(f.i); if (f.kind === 'leaf' && f.l && f.l.claim === r) f.l.claim = null; if (f.kind === 'lead' && !S.fire.bench) fireRt.benchCall = false; }
+  if (f){ if (f.kind === 'grab') fireRt.taken.delete(f.i); if ((f.kind === 'leaf' || f.kind === 'fill') && f.l && f.l.claim === r) f.l.claim = null; if (f.kind === 'lead' && !S.fire.bench) fireRt.benchCall = false; }
   for (const q of R) if (q.giveTo === r.id) q.giveTo = null;
   if (fireRt.ex === r.id) fireRt.ex = null;
 }
@@ -3325,6 +3344,24 @@ function updFireDo(r, dt, sp){
     else if (f.st === 'take'){ r.lean = 0.12*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.3 && !f.held){ f.held = true; if (f.src.tub && S.binMetal > 0) S.binMetal--; } if (f.t > 0.6){ f.st = 'carry'; f.t = 0; r.lean = 0; } }
     else if (f.st === 'carry'){ const side = r.x < P.x ? -1 : 1; if (moveTo(r, P.x + side*15, P.y + 3, sp*0.85, dt)){ r.face = -side; f.st = 'put'; f.t = 0; } }
     else if (f.st === 'put'){ r.lean = 0.16*Math.sin(clamp(f.t/0.6, 0, 1)*Math.PI); if (f.t > 0.4 && f.held){ f.held = false; if (S.fire.camp < FIRE_CAMP.length) fireRt.campUnlit = slot; } if (f.t > 0.7){ fireRt.logT = S.t + rand(8, 14); backToFire(r); } }
+    return;
+  }
+  if (f.kind === 'fill'){
+    // V40: picking up wet leaves one patch at a time and tipping them in the bin, so the stove has something to dry
+    if (f.st === 'go'){
+      const l = f.l;
+      if (!l || l.st !== 'ground' || (l.claim && l.claim !== r)){ f.l = f.n < f.want ? fillLeafNear(r) : null; if (f.l) f.l.claim = r; else { f.st = 'tip'; f.t = 0; } return; }
+      const side = r.x < l.x ? -1 : 1;
+      if (moveTo(r, l.x + side*12, l.y + 2, sp, dt)){ r.face = -side; f.st = 'pick'; f.t = 0; }
+    } else if (f.st === 'pick'){
+      r.lean = 0.16*Math.sin(clamp(f.t/0.45, 0, 1)*Math.PI);
+      if (f.t > 0.3 && f.l && f.l.st === 'ground'){ f.l.st = 'gone'; f.l.claim = null; r.carryL++; f.n++; f.l = null; }
+      if (f.t > 0.45){ r.lean = 0; if (f.n < f.want && r.carryL < leafCap(r.id)){ f.l = fillLeafNear(r); if (f.l){ f.l.claim = r; f.st = 'go'; } else f.st = 'tip'; } else f.st = 'tip'; f.t = 0; }
+    } else if (f.st === 'tip'){
+      if (!r.carryL){ fireRt.fillT = S.t + rand(6, 10); backToFire(r); return; }
+      const p = binSpot(r);
+      if (moveTo(r, p.x, p.y, sp, dt)){ r.at = 'bin'; deposit(r); fireRt.fillT = S.t + rand(6, 10); backToFire(r); }
+    }
     return;
   }
   if (f.kind === 'lead'){
@@ -4619,7 +4656,27 @@ function openSnipLab(){
 //   'ponder' blinks, hops a little, scratches its chin with a claw; then cuts that one and brings it back again
 //            (and every other time it goes to the hive for a bee to show it one)
 // The bees and the flowers on the ground are only for show (runtime, not saved, not in the sim).
-let SLAB_FL = [], SLAB_B = [];
+let SLAB_FL = [], SLAB_B = [], SLAB_FIN = null;
+// V40: the finale belongs to the first Shaker to get there; the others carry on with their loop until it's done
+function slabFinale(h){
+  if (SLAB_FIN){
+    if (SLAB_FIN.h === h) return true;
+    const o = SLAB_FIN.h;
+    if (o && o.st === 'snipLab' && o.lm === 'final' && (SLAB_FIN.age || 0) < 30) return true;   // someone else is on it
+    SLAB_FIN = null;
+  }
+  // an old, spent flower near the hive (any flower if none is spent: it wilts for the occasion)
+  const ok = FLOWERS.map((f, i) => ({ f, i })).filter(o => flowerOn(o.f) && o.f.land <= S.land && Math.hypot(o.f.x - HIVE.x, (o.f.y - HIVE.y)*1.3) < 330);
+  if (!ok.length) return false;
+  const spent = ok.filter(o => !o.f.full), L = spent.length ? spent : ok;
+  L.sort((a, b) => Math.hypot(a.f.x - h.x, a.f.y - h.y) - Math.hypot(b.f.x - h.x, b.f.y - h.y));
+  const i = L[0].i; FLOWERS[i].full = false; FLOWERS[i].t = 0;
+  h.carry = null; if (h.bee){ h.bee.m = 'home'; h.bee = null; }
+  slabSet(h, 'final'); h.slab = i;
+  SLAB_FIN = { h, i, st: 'go', t: 0, age: 0 };
+  closeCard(); startFindCam(FLOWERS[i].x, FLOWERS[i].y - 14, 14, 2.4);
+  return true;
+}
 const slabDrop = h => ({ x: HIVE.x + [8, 28, 46][(h.idx | 0) % 3], y: HIVE.y + 19 });   // (clear of the honey crate on its left)
 const slabStand = h => { const d = slabDrop(h); return { x: d.x - 19, y: d.y + 1 }; };
 const slabFlowerSpot = i => { const f = FLOWERS[i]; return { x: f.x - 15, y: f.y + 3 }; };
@@ -4652,11 +4709,50 @@ function updSnipLab(h, dt){
   S.flags.snipProg = Math.min(SNIP_LAB_NEED, (S.flags.snipProg || 0) + SNIP_LAB_RATE*dt);
   h.timer -= dt;
   if (h.timer <= 0){ h.timer = 1.5; const t = chooseTask(h, helperCfg(h), x => helperWork(h, x) != null); if (t !== 'research'){ h.st = 'idle'; h.target = null; h.carry = null; unitDone(h, 'research'); return; } }
-  if (S.flags.snipProg >= SNIP_LAB_NEED - 1e-9){ finishSnipLab(); return; }
+  if (S.flags.snipProg >= SNIP_LAB_NEED - 1e-9 && (simMode || !slabFinale(h))){ finishSnipLab(); return; }
   if (simMode) return;
   const sp = helperSpeed(h)*0.75, f = h.slab >= 0 ? FLOWERS[h.slab] : null;
   h.modeT += dt;
   switch (h.lm){
+    case 'final': {
+      // V40: the last act. It cuts an old, spent flower; a new one pops up in its place; a bee comes for it, and the
+      // Shaker and the bee celebrate. Then it's worked out (finishSnipLab).
+      const F = SLAB_FIN, fl = FLOWERS[F.i]; F.t += dt;
+      if (!fl){ SLAB_FIN = null; finishSnipLab(); return; }
+      if (F.st === 'go'){
+        const P = { x: fl.x - 30, y: fl.y - 2 };   // (further to the side than usual, so the flower isn't hidden behind it)
+        if (moveTo(h, P.x, P.y, sp, dt) || F.t > 14){ h.x = P.x; h.y = P.y; F.st = 'snip'; F.t = 0; h.target = { type: 'flower', i: F.i }; h.snipT = 0.3; h.face = 1; }
+      } else if (F.st === 'snip'){
+        if ((h.snipT -= dt) <= 0){ h.snipT = 0.4; const hy = fl.y - flowerHead(fl); for (let k=0;k<3;k++) parts.push({ k:'petal', x: fl.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-22, 22), vy: rand(-32, -8), g: 90, life: rand(.5, .9), t: 0, col: '#8a7a4a' }); fl.bob = 0.5; }
+        if (F.t > 1.4){
+          fl.cut = true; h.target = null;
+          SLAB_FL.push({ x: fl.x + 9, y: fl.y + 4, ty: fl.ty, s: fl.s, rot: rand(-0.4, 0.4), t: 0 }); while (SLAB_FL.length > 9) SLAB_FL.shift();
+          pop(fl.x, fl.y - flowerHead(fl) - 14, 'snip!', 'note', 13);
+          F.st = 'hush'; F.t = 0; h.lookX = 0.6;
+        }
+      } else if (F.st === 'hush'){
+        // a held breath, looking at the bare stalk… and a new flower pops up
+        h.lookX = 0.6 + Math.sin(F.t*6)*0.1;
+        if (F.t > 1.1){
+          fl.cut = false; fl.full = true; fl.t = 0; fl.claim = null; fl.popK = 0; fl.bob = 0.8;
+          const hy = fl.y - flowerHead(fl);
+          sparkle(fl.x, hy); for (let k=0;k<10;k++) parts.push({ k:'star', x: fl.x + rand(-6, 6), y: hy + rand(-6, 4), vx: rand(-40, 40), vy: rand(-55, -15), g: 40, life: rand(.5, .9), t: 0 });
+          const a = sndAt(fl.x, fl.y); sfx('chime', 'sale');
+          F.st = 'bee'; F.t = 0; h.bee = slabBee(h, 'cheer'); h.bee.fi = F.i;
+        }
+      } else if (F.st === 'bee'){
+        const b = h.bee; h.lookX = b ? clamp((b.x - h.x)/24, -1, 1) : 0.5;
+        if (b && b.m === 'party'){ F.st = 'party'; F.t = 0; }
+        if (F.t > 8){ F.st = 'party'; F.t = 0; }
+      } else if (F.st === 'party'){
+        // hops, claws up, while the bee loops round it
+        h.jz = Math.max(0, Math.sin(F.t*Math.PI*2.6))*6; h.scratch = false;
+        const b = h.bee; h.lookX = b ? clamp((b.x - h.x)/20, -1, 1) : 0;
+        if (Math.random() < dt*6) parts.push({ k:'star', x: h.x + rand(-14, 14), y: h.y - 40 + rand(-10, 6), vx: rand(-20, 20), vy: rand(-40, -12), g: 30, life: rand(.4, .8), t: 0 });
+        if (F.t > 3.2){ h.jz = 0; SLAB_FIN = null; finishSnipLab(); return; }
+      }
+      break;
+    }
     case 'hive': {
       // looking about: eyes left, right, up at the hive
       const k = Math.floor(h.modeT/0.7) % 4; h.lookX = [0, -1, 1, 0.3][k];
@@ -4746,6 +4842,8 @@ function updSnipLab(h, dt){
 // the bees of the show: one leads a Shaker to a flower, another looks over the flower it brought and turns away
 function updSnipLabFx(dt){
   if (!SNIP_LAB) return;
+  if (SLAB_FIN) SLAB_FIN.age = (SLAB_FIN.age || 0) + dt;
+  for (const f of FLOWERS) if (f.popK != null){ f.popK += dt/0.75; if (f.popK >= 1) f.popK = null; }
   for (const l of SLAB_FL) l.t += dt;
   SLAB_FL = SLAB_FL.filter(l => l.t < 40);
   if (!snipLabOn()) SLAB_FL = SLAB_FL.filter(l => l.t < 30);
@@ -4776,6 +4874,18 @@ function updSnipLabFx(dt){
         if (b.st === 'fly'){ if (slabBeeTo(b, l.x + 3, l.y, 4, 50, dt)){ b.st = 'sniff'; b.t = 0; } }
         else if (b.st === 'sniff'){ b.x = l.x + 3 + Math.sin(b.t*4)*2.5; b.z = 4 + Math.abs(Math.sin(b.t*5))*2; b.face = -1; if (b.t > 1.3){ b.st = 'nope'; b.t = 0; b.z = 9; } }
         else { b.face = Math.sin(b.t*22) > 0 ? 1 : -1; b.x = l.x + 3 + Math.sin(b.t*22)*2.2; b.z = 9 + b.t*4; if (b.t > 0.9){ b.m = 'home'; b.t = 0; } }
+        break;
+      }
+      case 'cheer': {
+        // V40: out to the new flower, a sip, then a happy loop round the Shaker ('party') before it goes home
+        const f = FLOWERS[b.fi]; if (!f){ b.m = 'home'; break; }
+        if (b.st === 'fly'){ if (slabBeeTo(b, f.x + 2, f.y, flowerHead(f) + 6, 58, dt)){ b.st = 'sip'; b.t = 0; } }
+        else if (b.st === 'sip'){ b.x = f.x + 2 + Math.sin(b.t*5)*1.5; b.z = flowerHead(f) + 6 + Math.abs(Math.sin(b.t*7))*1.2; b.face = -1; if (b.t > 1.5){ b.m = 'party'; b.t = 0; b.st = 'fly'; } }
+        break;
+      }
+      case 'party': {
+        const a = b.t*6.5; b.x = h.x + Math.cos(a)*16; b.y = h.y + 2 + Math.sin(a)*5; b.z = 38 + Math.sin(a*2)*6; b.face = Math.sin(a) > 0 ? -1 : 1;
+        if (Math.random() < dt*5) parts.push({ k:'star', x: b.x, y: b.y - b.z, vx: rand(-15, 15), vy: rand(-25, -5), g: 20, life: rand(.3, .6), t: 0 });
         break;
       }
       case 'home': if (slabBeeTo(b, D.x, D.y, D.z, 60, dt)) b.gone = true; break;
@@ -5544,7 +5654,8 @@ function drawFlowers(V){
     if ((f.tier || 0) > sown) continue;   // not sown yet (Wildflower seeding)
     if (f.x < V.x0 || f.x > V.x1 || f.y < V.y0 - 20 || f.y > V.y1 + 20) continue;
     const sp = flowerSpr[f.ty]; if (!sp) continue;
-    const wild = f.land > S.land, b = wild || !active ? 1 : bloomOf(f);
+    let wild = f.land > S.land, b = wild || !active ? 1 : bloomOf(f);
+    if (f.cut) b = 0; else if (f.popK != null) b = Math.max(0.03, Math.min(1, f.popK*2))*(1 + 0.3*Math.sin(f.popK*Math.PI));   // V40: the finale's new flower pops up (with a little overshoot)
     if (ART.drawFlower){ ART.drawFlower(c, f, sp, b, wild); continue; }
     const sway = reduceMotion ? 0 : Math.sin(S.t*1.3 + f.ph)*0.05 + wind*0.0015 + (f.bob > 0 ? Math.sin(f.bob*30)*0.06 : 0);
     c.save(); c.translate(f.x, f.y); c.rotate(sway); c.scale(f.s, f.s);
@@ -5740,7 +5851,9 @@ function antMove(b, sp, dt){
     const rx = px - b.x, ry = py - b.y, rd = Math.hypot(rx, ry);
     if (!last && rd > 2){ px -= ry/rd*lane; py += rx/rd*lane; }
     const dx = px - b.x, dy = py - b.y, d = Math.hypot(dx, dy);
-    if (d > 0.05){ b.hx = dx/d; b.hy = dy/d; if (Math.abs(dx) > 0.3) b.face = dx > 0 ? 1 : -1; }
+    // (V40: the heading is smoothed and the ant only turns round once it really heads the other way, so the zig-zags
+    // of the trail grid don't flip it left and right every few steps)
+    if (d > 0.05){ const k = b.hx == null ? 1 : Math.min(1, dt*5); b.hx += (dx/d - (b.hx || 0))*k; b.hy = (b.hy || 0) + (dy/d - (b.hy || 0))*k; if (b.hx > 0.35) b.face = 1; else if (b.hx < -0.35) b.face = -1; }
     if (d <= left){
       b.x = px; b.y = py; left -= d;
       if (!last){ b.pi++; continue; }
@@ -9113,7 +9226,7 @@ function cardShows(o){
   if (o.obj === cardOpen.obj) return true;
   if (o.id === 'tech'){ const tk = TECH[o.key].track, kind = tk === 'blow' || tk === 'dig' || tk === 'stoke' ? 'blower' : tk === 'shake' ? 'shaker' : 'robot'; return k === kind; }
   if (k === 'bin') return o.id === 'bagger' || o.obj === 'bagger' || o.id === 'plant' || o.id === 'metalSlot';
-  if (k === 'spot') return o.id === 'metalSlot';
+  if (k === 'spot') return o.id === 'metalSlot' || (o.id === 'up' && (o.key === 'metalBin' || o.key === 'metalPrice') && S.miners.includes(cardOpen.i));   // (V40: the tub and price rows are on the mine card too)
   if (k === 'shed') return o.id === 'hive';
   return false;
 }
@@ -10309,7 +10422,7 @@ const EYE_K = 1.2;                           // how much bigger it's drawn than 
 const EYE_LV = [0, 1, 30, 60, 85];           // score where each level starts: calm, green, yellow, orange, red
 const EYE_COL = ['#7fc7a4', '#86d65a', '#f4cf3a', '#f28a2a', '#ea4128'];
 const EYE_WORD = ['All clear', 'A little', 'Some things stuck', 'A lot stuck', 'Badly stuck'];
-const EYE_GRACE = { idle: 12, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
+const EYE_GRACE = { idle: 10, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
 // which skills help with which job (for the cheap-upgrade list)
 const EYE_TRACKS = {
   robot: { leaves:['speed', 'carry', 'pick', 'grab', 'reach'], mine:['drill', 'magnet', 'carry'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill'],
@@ -10319,13 +10432,16 @@ const EYE_TRACKS = {
 };
 // runtime: when each task last finished a unit of work (unitDone), how long each condition has held (since), time spent on
 // each job lately per robot (acc), what the last scan found (issues: stuck, lo: cheap upgrades), the score and level
-const EYE = { t: -1, scanT: 0, done: {}, since: {}, acc: {}, issues: [], lo: [], hiW: 0, loW: 0, score: 0, lvl: 0, want: 0, wantT: 0, full: {}, showIgn: false };
+const EYE = { t: -1, scanT: 0, done: {}, since: {}, acc: {}, idleAcc: {}, issues: [], lo: [], hiW: 0, loW: 0, score: 0, lvl: 0, want: 0, wantT: 0, full: {}, showIgn: false };
 // V33.3: "cheap" is measured against the cash held right now: a level is cheap at EYE_CHEAP of it (a Robot's row stops at
 // twice that in all), really cheap at EYE_TINY. Building and yard-wide upgrades are listed when they're good whatever the
 // yard does (prices, pickups, the cleanup deal, plant speed, yard-wide, hive upgrades); bigger storage only while the thing
 // it makes bigger has been full in the last EYE_FULL_T game seconds (EYE_CAP, EYE.full). Ignored rows stay out for good,
 // per Robot per skill (S.eye.ign), until un-ignored from the card's "ignored" toggle.
 const EYE_CHEAP = 0.05, EYE_TINY = 0.01, EYE_FULL_T = 120;
+// V40: cheap upgrades count for more and together can reach yellow on their own (5 Robot rows ≈ 30), but never orange
+// (was each Robot row 3 / 5, each building row 2 / 4, capped at 20, so even a long list stayed green)
+const EYE_LO_MAX = 45;
 const EYE_CAP = { bin: () => binRoom() <= 0, metalBin: () => S.metalSlot && tubRoom() <= 0, hopper: () => S.plant.built && hopperRoom() <= 0,
   pallet: () => palletShown() && palletRoom() <= 0, hiveTank: () => S.hive.built && tankFull(), hiveStore: () => S.hive.built && S.hive.honey >= honeyCap() - 1e-6 };
 const eyeFullLately = k => EYE.full[k] != null && S.t - EYE.full[k] < EYE_FULL_T;
@@ -10422,7 +10538,7 @@ function eyeScan(){
       const w = who.st === 'wait' || who.st === 'waitI';
       if (eyeHeld('w' + i, w) > G.wait) wait[who.st === 'waitI' ? 'pallet' : who.at === 'metal' ? 'metal' : 'bin'].push(i);
     }
-    if (eyeHeld('i' + kind + i, !!idleOf(c)) > G.idle){
+    if ((EYE.idleAcc[kind + i] || 0) >= G.idle){   // (V40: idle for ~10 s with only short blips of work, not 12 s unbroken)
       const none = !c.prio.some(row => row.some(t => taskOpen(t, c))), w = idleWaitFirst(c);
       const why = none ? 'nothing it can do is on its list' : w ? 'waiting for ' + w : 'none of its tasks has work';
       (idle[why] = idle[why] || []).push([kind, i]);
@@ -10479,7 +10595,7 @@ function eyeScan(){
   }
   for (const sp of S.miners){
     const mining = R.some(r => S.robots[r.id] && S.robots[r.id].miner === sp && (r.st === 'mine' || r.st === 'toMine' || r.task === 'mine'));
-    if (eyeHeld('mn' + sp, !mining) > G.mine) hi.push({ key:'mn' + sp, w:15, icon: ic('vein'), what: 'Miner idle', why: metalRoom() <= 0 ? ic('tub') + ' the tub is full' : cover('mine') || 'every miner is at another mine', go:['spot', sp], at: SPOTS[sp] });
+    if (eyeHeld('mn' + sp, !mining) > G.mine) hi.push({ key:'mn' + sp, w:15, icon: ic('vein'), what: 'A mine is unmanned', why: metalRoom() <= 0 ? ic('tub') + ' the tub is full' : cover('mine') || 'needs one more Robot with ' + eyeChip('mine'), go:['spot', sp], at: SPOTS[sp] });
   }
   if (S.shafts.length && S.blowers.some(c => !c.away && c.lv.dig > 0) && eyeHeld('dig', R.some(r => r.st === 'mine') && !eyeCover('dig', 'blower').ok) > G.skill) hi.push({ key:'dig', w:10, icon: ic('dig'), what:'Nobody excavates', why: cover('dig', 'blower'), go:['spot', S.shafts[0]], at: SPOTS[S.shafts[0]] });
   // ── less important: cheap upgrades for what each one actually does (V33.3: cheap against the cash held now, per skill, ignorable)
@@ -10495,7 +10611,7 @@ function eyeScan(){
       while (L < cap){ const p = eyeLvCost(kind, c, k, L); if (p == null || p > lim || cost + p > lim*2) break; cost += p; m++; if (p <= tiny) small++; L++; }
       if (m){ n += m; parts.push([k, m]); ign.push(ik); }
     }
-    if (n) lo.push({ key:'up' + kind + i, ign, w: small ? 5 : 3, cost, small, icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i) + ' · ' + eyeChip(t),
+    if (n) lo.push({ key:'up' + kind + i, ign, w: small ? 9 : 6, cost, small, icon: eyeThumbs([[kind, i]]), what: eyeName(kind, i) + ' · ' + eyeChip(t),
       why: parts.map(([k, m]) => '<span class="eyup" title="' + attr(TRACKS[k].label) + ': ' + m + ' cheap level' + (m > 1 ? 's' : '') + '">' + ic(TRACK_ICON[k]) + '<b>+' + m + '</b></span>').join(' ') + ' <b>' + cash$(cost) + '</b>' + (small ? ' <span class="eycheap" title="Some of these cost less than ' + Math.round(EYE_TINY*100) + '% of your cash">really cheap</span>' : ''),
       go:[kind, i], at: eyeWho(kind, i) });
   });
@@ -10513,12 +10629,12 @@ function eyeScan(){
     } else continue;
     if (!(o.cost > 0) || o.cost > lim || eyeIgnored(ik)) continue;
     const small = o.cost <= tiny;
-    lo.push({ key:'b' + ik, ign:[ik], bld: true, w: small ? 4 : 2, cost: o.cost, small, icon, what: name,
+    lo.push({ key:'b' + ik, ign:[ik], bld: true, w: small ? 6 : 4, cost: o.cost, small, icon, what: name,
       why: '<b>' + cash$(o.cost) + '</b>' + note + (small ? ' <span class="eycheap" title="Costs less than ' + Math.round(EYE_TINY*100) + '% of your cash">really cheap</span>' : ''), go, at: objPos(o.obj) });
   }
   hi.sort((a, b) => b.w - a.w); lo.sort((a, b) => a.cost - b.cost);
   EYE.issues = hi; EYE.lo = lo;
-  EYE.hiW = hi.reduce((n, o) => n + o.w, 0); EYE.loW = Math.min(20, lo.reduce((n, o) => n + o.w, 0));
+  EYE.hiW = hi.reduce((n, o) => n + o.w, 0); EYE.loW = Math.min(EYE_LO_MAX, lo.reduce((n, o) => n + o.w, 0));
   EYE.score = Math.min(100, EYE.hiW + EYE.loW);
   // the level follows the score: up as soon as it has been over the line a moment, down only once it has been well
   // under it for a while (so it doesn't flicker)
@@ -10536,12 +10652,18 @@ function updEye(dt){
     const note = (key, t) => { const a = EYE.acc[key] || (EYE.acc[key] = {}); for (const k in a) a[k] *= keep; if (t) a[t] = (a[t] || 0) + gdt; };
     for (const r of R) if (S.robots[r.id] && !S.robots[r.id].away) note('robot' + r.id, r.task && r.task !== 'travel' ? r.task : null);
     for (const h of HB) if (helperCfg(h) && !helperCfg(h).away) note(h.kind + h.idx, h.task && h.task !== 'travel' ? h.task : null);
+    // V40: how long each one has had nothing it can do: counts up while it's idle, back down three times as fast while it
+    // works, so a Robot that only gets a moment's work now and then still shows after ~10 s
+    for (const kind of ['robot', 'blower', 'shaker']) cfgsOf(kind).forEach((c, i) => {
+      const k = kind + i, v = EYE.idleAcc[k] || 0;
+      EYE.idleAcc[k] = c.away ? 0 : idleOf(c) ? Math.min(30, v + gdt) : Math.max(0, v - gdt*3);
+    });
   }
   if (S.t >= EYE.scanT){ EYE.scanT = S.t + 0.5; const first = EYE.lvl0 == null; eyeScan(); if (first){ EYE.lvl0 = EYE.lvl; eyeRt.lvl = EYE.lvl; } }
   updEyeAnim(dt);
 }
 function eyeBoot(){
-  EYE.since = {}; EYE.done = {}; EYE.acc = {}; EYE.issues = []; EYE.lo = []; EYE.score = 0; EYE.lvl = 0; EYE.t = -1; EYE.scanT = 0; EYE.lvl0 = 0;
+  EYE.since = {}; EYE.done = {}; EYE.acc = {}; EYE.idleAcc = {}; EYE.issues = []; EYE.lo = []; EYE.score = 0; EYE.lvl = 0; EYE.t = -1; EYE.scanT = 0; EYE.lvl0 = 0;
   Object.assign(eyeRt, { boot: 0, lid: 1, fill: 0, lvl: 0, quiet: eyeRt.rt + 2.4, fx: [], flashT: 0, swing: 0, sv: 0, ext: 0 });
 }
 function updEyeAnim(dt){
@@ -10568,13 +10690,13 @@ function updEyeAnim(dt){
   if ((E.lookT -= dt) <= 0){
     const found = EYE.issues.filter(o => o.at).slice(0, 3), roll = Math.random();
     if (found.length && roll < 0.7) E.look = found[Math.floor(Math.random()*found.length)].at;
-    else if (roll < 0.85 && R.length){ const r = R[Math.floor(Math.random()*R.length)]; E.look = r && r.st !== 'gone' && r.st !== 'ride' ? r : null; }
+    else if (roll < 0.85 && (R.length || HB.length)){ const all = [...R, ...HB], r = all[Math.floor(Math.random()*all.length)]; E.look = r && r.st !== 'gone' && r.st !== 'ride' ? r : null; }   // (V40: Blowers and Shakers too)
     else E.look = null;
     E.lookT = rand(2.6, 5.5);
   }
   // (V33.2: whenever the camera is following something, a story zoom, the driver, a find, a trip, focus and follow, the eye
   // watches it too: it looks where the middle of the screen is)
-  if (camFollow && W && H){ const m = s2w(W/2, H/2); E.look = { x: m.x, y: m.y }; E.lookT = Math.max(E.lookT, 1.2); }
+  if (camFollow && W && H){ const t = camFollow.watch && watchTarget(camFollow.watch), m = t || s2w(W/2, H/2); E.look = { x: m.x, y: m.y - 14 }; E.lookT = Math.max(E.lookT, 1.2); }   // (V40: a followed Robot / Blower / Shaker itself, not the screen's middle beside the card)
   const L = E.look && isFinite(E.look.x) && isFinite(E.look.y) ? E.look : null, dx = L ? L.x - E.hx : 0, dy = L ? L.y - E.hy : 40;
   const yawT = clamp(dx/200, -1, 1)*0.9, pitchT = clamp(dy/220, -1, 1);
   E.yaw += (yawT - E.yaw)*Math.min(1, dt*3.2); E.pitch += (pitchT - E.pitch)*Math.min(1, dt*3.2);
@@ -11748,7 +11870,14 @@ function robotRow(ri, k, kind){
     sig += '|u' + tid + a2;
   }
   const tip = genNameAt(k, L) + ' · ' + TRACK_TIP[k];
-  return { sig: k + sig + val, html: '<div class="row bot"><div class="ri">' + ic(TRACK_ICON[k]) + '</div><div class="rm"><div class="n" title="' + tip + '">' + T.label + nuts(L, trackGroups(k)) + '</div><div class="v">' + val + lockx + '</div></div>' +
+  // V40: a skill row seen for the first time is highlighted while this card stays open (then it counts as seen)
+  let fresh = false;
+  if (cardOpen && !simMode){
+    const seen = S.flags.skSeen || (S.flags.skSeen = {});
+    if (!seen[k]){ seen[k] = 1; if (!cardOpen.initSeen) (cardOpen.freshT || (cardOpen.freshT = new Set())).add(k); }
+    fresh = !!(cardOpen.freshT && cardOpen.freshT.has(k));
+  }
+  return { sig: k + sig + val + (fresh ? 'F' : ''), html: '<div class="row bot' + (fresh ? ' fresh' : '') + '"><div class="ri">' + ic(TRACK_ICON[k]) + '</div><div class="rm"><div class="n" title="' + tip + '">' + T.label + (fresh ? '<b class="newtag" title="A skill you haven’t seen before">new</b>' : '') + nuts(L, trackGroups(k)) + '</div><div class="v">' + val + lockx + '</div></div>' +
     '<div class="btn me">' + btn + '</div><div class="btn all">' + unl + allb + '</div></div>' };
 }
 // V21: over the upgrade rows on a robot's (or helper's) card: which buttons are for this one and which for all of them
@@ -11791,8 +11920,10 @@ function plantBuildRow(){
   return buyRow('Smelting plant', ORE_PER_INGOT + ic('ore') + arrow + ic('ingot') + '<b>' + cash$(ingotPrice()) + '</b> ' + pct(ingotPrice()/ORE_PER_INGOT, metalPrice()), 'plant', PLANT_COST, '', ic('flame'),
     'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth more. Three furnaces (two for Robots, one for a Blower on the bellows), and someone has to haul the ingots to the road');
 }
-const metalSlotRow = () => buyRow('Metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
-  'A metal tub beside the bin, so the truck buys metal too. Then build miners on the rocks (' + cash$(MINER_COST) + ' each, a Robot works each one)');
+// V40: says plainly that this only unlocks selling: the metal itself needs a Miner as well, and what that costs
+const metalSlotRow = () => buyRow('Metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>' +
+    '<span class="lockx">Unlocks mining, step 1 of 2. Then build a Miner on the rocks: ' + ic('vein') + '<b>' + cash$(MINER_COST) + '</b>, worked by a Robot (' + cash$(METAL_SLOT_COST + MINER_COST) + ' in all)</span>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
+  'A metal tub beside the bin, so the truck buys metal too. It doesn’t dig any: build a Miner on the rocks as well (' + cash$(MINER_COST) + ' each, a Robot works each one)');
 
 // ── robot portraits: the real robot, drawn live into a little canvas
 const pcv = document.createElement('canvas');
@@ -11945,8 +12076,10 @@ function navGo(kind, i){
   const keep = cardTab;
   // V21.2: stepping to another robot keeps the card where it is on screen (it doesn't jump to where that robot stands)
   const pin = card.hidden ? null : { x: card.offsetLeft, y: card.offsetTop }, mh = cardOpen && cardOpen.minH;
+  const wasWatch = !!(camFollow && camFollow.watch);
   openCard(kind, i, !!pin);
   if (pin && cardOpen) cardOpen.pin = pin;
+  if (wasWatch && cardOpen && ['robot', 'blower', 'shaker'].includes(cardOpen.kind)) startWatch(cardOpen.kind, cardOpen.i);   // V40: following carries over to the Robot, Blower or Shaker you step to
   if (mh && cardOpen){ cardOpen.minH = mh; card.style.minHeight = mh + 'px'; }   // V25: the sheet keeps its height
   if (keep === 'tasks' && tasksPanel(kind, i)) cardTab = 'tasks';
   renderCard(true);
@@ -12148,7 +12281,15 @@ card.addEventListener('input', e => {
   else { S.keep.metal = v; const l = $('keepMLv'); if (l) l.innerHTML = keepMetal() + ic('ore'); }
 });
 // ── what each card shows
-const HIVE_SHORT = { wings:'+25% bee speed', third:'3 flowers a trip', tongue:'5 nectar a sip', fan:'+50% honey making', get recipe(){ return jarNectarAt(true) + ' nectar a jar'; }, nursery:'Bees 40% cheaper' };
+// V40: each tile says what changes, from → to, and (where it's about money) what that does to a jar's worth
+const HIVE_SHORT = {
+  get wings(){ return '+25% bee speed: more trips a minute'; },
+  get third(){ return '2 → 3 flowers a trip: +50% nectar a trip'; },
+  get tongue(){ return '4 → 5 nectar a sip: +25% a trip'; },
+  get fan(){ const f = hiveFloors()*FLOOR_RATE; return f + ' → ' + Math.round(f*15)/10 + ' nectar/s made into honey'; },
+  get recipe(){ const a = jarNectarAt(false), b = jarNectarAt(true); return a + ' → ' + b + ' nectar a jar: each nectar worth ' + cash$(honeyPrice()/a) + ' → ' + cash$(honeyPrice()/b); },
+  get nursery(){ const c = beeCost(); return S.hive.up.nursery ? 'Bees 40% cheaper' : 'Bees 40% cheaper: next ' + cash$(c) + ' → ' + cash$(niceCost(c*0.6)); },
+};
 const HIVE_ICON = { wings:'wings', third:'three', tongue:'tongue', fan:'fan', recipe:'recipe', nursery:'nursery' };
 const GEN_ICON = { oil:'oil', basket:'basket', blueprint:'blueprint', cutting:'tools', market:'market', charm:'horseshoe' };
 const GEN_SHORT = { oil: () => '+' + Math.round(OIL_BONUS*100) + '% speed, every Robot', basket: () => 'Copied baskets cost 10%',
@@ -12301,7 +12442,11 @@ function cardModel(){
                              : xt('no floor <small>(next step adds one)</small>', 'This step adds no floor; the next tank or store step does. ' + floorTip);
       rows.push(upRow('hiveTank', S.lv.hiveTank < UP.hiveTank.max ? floorNext : ''));
       rows.push(upRow('hiveStore', S.lv.hiveStore < UP.hiveStore.max ? floorNext : ''));
-      rows.push(upRow('honeyPrice'));
+      // V40: what the nectar is worth once it's in a jar (like the Leaf → bag line): a jar takes N nectar and sells for $X
+      { const need = jarNectar(), jp = honeyPrice(), gp = H.packing ? giftJarPrice() : 0;
+        rows.push({ sig:'nv' + need + jp.toFixed(3) + gp.toFixed(3), html: row({ icon: ic('nectar'), name:'Nectar → jar', tip:'A jar takes ' + need + ' nectar and sells for ' + cash$(jp) + (gp ? ' (' + cash$(gp) + ' as a gift jar)' : '') + ', so each one the bees bring home is worth about ' + cash$(jp/need) + (gp ? ' (' + cash$(gp/need) + ' wrapped)' : '') + '. Fancy labels raise the jar’s price; Better recipe needs less nectar a jar.',
+          val: '1' + ic('nectar') + '≈<b>' + cash$((gp || jp)/need) + '</b> · ' + need + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(jp) + '</b>' + (gp ? arrow + ic('gift') + '<b>' + cash$(gp) + '</b>' : '') }) }); }
+      rows.push(upRow('honeyPrice', xt('≈' + cash$(UP.honeyPrice.vals[Math.min(S.lv.honeyPrice + 1, UP.honeyPrice.max)]*sellMul()/jarNectar()) + '/' + ic('nectar'), 'What each nectar is worth in a jar after this step')));
       if (!H.packing){ if (packShown()) rows.push(buyRow('Gift wrapping', ic('jar') + cash$(honeyPrice()) + arrow + ic('gift') + '<b>' + cash$(val('honeyPrice')*UP.giftPrice.vals[0]*sellMul()) + '</b>', 'honeyPack', HONEY_PACK_COST, '', ic('gift'), 'Adds the Wrap task: a Robot ties a cloth top and a ribbon on a jar so it sells as a gift jar. Wrapping takes almost as long as filling the jar.')); }
       else {
         rows.push(upRow('giftPrice'));
@@ -12485,6 +12630,9 @@ function cardModel(){
         rows.push({ sig:'ex' + (ex ? ex.idx + hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A Blower sucking the dirt out makes mining here faster',
           val: ex ? helperStyle(ex).name + ' <span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining' : '<span class="none">' + (learnt ? 'no Blower here · add <span class="chip mini" style="--tc:' + TASKS.dig.col + '">' + ic('dig') + TASKS.dig.short + '</span> to a Blower' : S.blowers.length ? 'a Blower can learn it (' + TRACKS.dig.label + ', on its card)' : 'build a Blower to dig here') + '</span>' }) });
       }
+      // V40: the metal tub's size and the metal's price can be bought here too (the same upgrades as on the bin card)
+      rows.push({ sig:'sTub', html:'<div class="sect">Metal tub &amp; price</div>' });
+      rows.push(upRow('metalBin')); rows.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
     } else {
       title = 'Metal vein';
       if (!S.metalSlot){
@@ -12492,7 +12640,7 @@ function cardModel(){
         if (metalSlotShown()) rows.push(metalSlotRow());
         else rows.push({ sig:'locked', html: row({ icon: ic('vein'), cls:'soon', name:'This looks promising for later' }) });   // V21 (was "Needs a metal slot")
       }
-      else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a Robot', 'miner', MINER_COST, '', ic('vein'), 'A Robot with Mine metal on its list works it'));
+      else rows.push(buyRow('Build a miner', ic('ore') + '<b>' + cash$(metalPrice()) + '</b> a chunk · needs a Robot' + (S.miners.length ? '' : '<span class="lockx">Step 2 of 2: the metal tub is there, this gets the metal</span>'), 'miner', MINER_COST, '', ic('vein'), 'A Robot with Mine metal on its list works it'));
     }
   }
   { const ao = assignOpts(k, cardOpen.i); if (ao.length) placeAssign(k, ao, rows, rows2); else assignOpen = false; }   // V21 (V22.2: under its row)
@@ -12923,6 +13071,8 @@ function openCard(kind, i, still){
   const obj = kind === 'robot' || kind === 'spot' || kind === 'blower' || kind === 'shaker' || kind === 'letter' || kind === 'lab' ? kind + i : kind;
   cardOpen = { kind, i, obj, from }; card.style.minHeight = '';
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
+  // V40: the first robot card opened with this code only notes which skills are already there (none highlighted)
+  if ((kind === 'robot' || kind === 'blower' || kind === 'shaker') && !S.flags.skSeen){ S.flags.skSeen = {}; cardOpen.initSeen = true; }
   if (kind === 'blower' || kind === 'shaker'){ const h = HB.find(q => q.kind === kind && q.idx === i); cardOpen.ax = h.x; cardOpen.ay = h.y - 46; }
   resetArm = false; cardNote = ''; cardSig = ''; pickOpen = false; assignOpen = false;
   card.hidden = false; if (!still){ card.style.animation = 'none'; void card.offsetWidth; card.style.animation = ''; }

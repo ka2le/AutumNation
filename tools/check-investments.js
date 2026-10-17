@@ -12,7 +12,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   const home=await fresh();
   const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,robotCosts:ROBOT_COST.slice(0,ROBOT_MAX),discount:DISCOUNT,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
   eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
-  eq(data.robotCosts,[0,8,30,80,180,300,580,1000,1650,2700]);eq(data.discount,.5);
+  eq(data.robotCosts,[0,8,40,100,220,360,700,1200,2000,3200]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
   eq(await home.evaluate(()=>__leafYard.dev('INGOT_GOAL')),1000);
   eq(data.tracks.speed.vals.slice(0,8),[1,1.14,1.28,1.42,1.62,1.82,2.02,2.22]);
