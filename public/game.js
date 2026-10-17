@@ -1270,7 +1270,7 @@ let R = [];
 const SALE_HOLD = 2.0, SALE_FLY = 0.6, SALE_STEP = 2.35;
 const truck = { riders:[], st:'away', x:0, v:0, timer:0, fill:0, rot:0, takeL:0, takeM:0, takeH:0, takeB:0, takeI:0, takeG:0 };
 let parts = [], pops = [], bubbles = [];
-let wind = 0, gust = 0, gustT = 8;
+let wind = 0, gust = 0, gustT = 8, treeWind = 0;
 let spawnAcc = 0, ambAcc = 0, fgAcc = 0;
 let bumpBin = 0, cashBumpT = 0, saleAppearT = -10;
 const treeAlpha = TREES.map(() => 0.96);
@@ -3876,7 +3876,7 @@ function paintFire(){
   const g = fireCx;
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, cw, ch);
   // (the same sway as the tree's crown)
-  const sh = treeShake[FIRE_TI], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + FIRE_TI*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
+  const sh = treeShake[FIRE_TI], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + FIRE_TI*1.7)*0.012 + treeWind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
   g.setTransform(sc, 0, 0, sc, -x0*sc, -y0*sc); g.translate(T.x, yb); g.rotate(sway); g.translate(0, -F.base);
   const on = [];
   let xa = 1e9, xb = -1e9, ya = 0, nc = 0, trunkTo = -1e9;
@@ -5443,6 +5443,9 @@ function updLeaves(dt){
   gustT -= dt; if (gustT < 0){ gust = rand(18, 40)*(Math.random()<.5?-1:1); gustT = rand(9, 18); }
   gust *= Math.pow(0.55, dt);
   wind = 12*Math.sin(S.t*0.13) + 7*Math.sin(S.t*0.41 + 1) + gust;
+  // Gusts start abruptly for drifting leaves; trees lean into them over about half a second.
+  // Keep the response continuous and independent of frame rate, including when a gust reverses.
+  if (!simMode) treeWind += (wind - treeWind)*(-Math.expm1(-dt/0.5));
   const A = AREAS[S.land];
   spawnAcc += dt*A.spawn;
   while (spawnAcc >= 1){ spawnAcc -= 1; if (groundN < A.cap) spawnCollectable(false); }
@@ -10645,7 +10648,7 @@ function drawGlows(){
 // tree (higher up the yard than the foot of its trunk) would be hidden under it
 function drawTreeAt(i, onTrunk){
   const c = ctx, t = TREES[i], cc = canopyCvs[i], base = t.y + cc.base;
-  const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + wind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
+  const sh = treeShake[i], sway = reduceMotion ? 0 : Math.sin(S.t*0.7 + i*1.7)*0.012 + treeWind*0.0004 + (sh > 0 ? Math.sin(sh*26)*0.035*Math.min(1, sh) : 0);
   // under the crown: within reach of the crown's middle, and behind the trunk's foot
   const hid = (x, y, top) => y < base - 1 && Math.hypot(x - t.x, y - top - t.y) < t.r*0.92;
   let under = R.some(r => r.st !== 'ride' && r.st !== 'gone' && hid(r.x, r.y, 30)) || HB.some(h => !onTrunk(h) && h.st !== 'gone' && h.st !== 'ride' && hid(h.x, h.y, 24)) || S.miners.some(m => hid(SPOTS[m].x, SPOTS[m].y, 30));
