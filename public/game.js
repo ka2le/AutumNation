@@ -229,11 +229,11 @@ const UP = {
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
-  metalPrice: { obj:'bin',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[300, 600, 1100, 3500, 7000, 13000],   // V32.1: metal comes after the hive, so the first grades are dearer (were 40 / 76 / 380). V32: later sale values are investments; physical furnace upgrades retain their prices.
+  metalPrice: { obj:'tub',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[300, 600, 1100, 3500, 7000, 13000],   // V32.1: metal comes after the hive, so the first grades are dearer (were 40 / 76 / 380). V32: later sale values are investments; physical furnace upgrades retain their prices.
                 vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
   // Raw metal and logs have their own storage; finished-goods pallets use the separate pallet track.
-  metalBin:   { obj:'bin',  name:'Bigger metal tub',  max:8,  costs:[200, 250, 300, 350, 400, 450, 525, 600],   // V32.1: was 30 … 400
+  metalBin:   { obj:'tub',  name:'Bigger metal tub',  max:8,  costs:[200, 250, 300, 350, 400, 450, 525, 600],   // V32.1: was 30 … 400
                  vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
@@ -6426,7 +6426,7 @@ function offers(all){
   const up = k => ({ id:'up', key:k, obj: UP[k].obj, cost: upCost(k), maxed: S.lv[k] >= UP[k].max });
   o.push(up('bin'), up('leafPrice'), up('truck'));
   if (S.lv.cleanup < UP.cleanup.max && (all || seenPrice(upCost('cleanup')))) o.push(up('cleanup'));
-  if (!S.metalSlot){ if (metalSlotShown()) o.push({ id:'metalSlot', obj:'bin', cost: METAL_SLOT_COST }); }
+  if (!S.metalSlot){ if (metalSlotShown()){ const i = SPOTS.findIndex(p => p.land <= S.land); if (i >= 0) o.push({ id:'metalSlot', obj:'spot'+i, cost: METAL_SLOT_COST }); } }
   else o.push(up('metalPrice'), up('metalBin'));
   S.robots.forEach((cfg, ri) => {
     if (cfg.away) return;
@@ -6475,6 +6475,7 @@ function offers(all){
 }
 function objPos(obj){
   if (obj === 'bin') return { x: BIN.x, y: BIN.y - 66 };
+  if (obj === 'tub') return S.metalSlot ? { x: TUB.x, y: TUB.y - 62 } : null;
   if (obj === 'sign') return { x: SIGN.x, y: SIGN.y - 84 };
   if (obj === 'shed') return { x: SHED.x, y: SHED.y - 106 };
   if (obj === 'sale'){ const p = salePos(); return { x: p.x, y: p.y - 86 }; }
@@ -6684,27 +6685,35 @@ function autoAssign(t, at, says){
 // one, so a slow pan rarely shows its edge. buildGround(c) still paints in one go (start, resize, recenter, land).
 let groundJob = null, groundSpare = null, groundSpareT = 0;
 const GROUND_BUDGET = 4;   // ms a frame for painting the next ground in the background
-function groundLayers(w, h){
+// Ground ahead: while the camera keeps moving (following a Robot, the truck driving off with Tinker) the old way fell behind: the
+// next ground was painted for where the view was when it started, took a second or more at 4 ms a frame, and was often
+// thrown away and started again before it was done, so the yard coming in at the edge was bare background. Now:
+// - the camera's motion is tracked (gMot), and a ground started while it moves is painted ahead of it (lead), so it
+//   still covers the view when it's done;
+// - it starts as soon as the view will run off the current one before a new one could be ready (gTimeLeft), not when
+//   the camera stops, and a job is only dropped when the view has already left it;
+// - the budget grows only as much as needed to be done in time (it stays 4 ms a frame when there's time);
+// - a low-resolution backdrop of the whole lot (groundBack, painted once in the background, again when the land
+//   changes) is laid under the edges the sharp ground doesn't reach yet, so nothing is ever bare.
+const gMot = { cx: null, cy: null, z: 1, vx: 0, vy: 0, zr: 0, cost: 160, frame: 1/60 };
+let groundBack = null, backJob = null;
+function groundLayers(w, h, fresh){
   // reuse the canvases of the ground before last when they're the right size
-  const sp = groundSpare; groundSpare = null;
+  const sp = fresh ? null : groundSpare; if (!fresh) groundSpare = null;
   // (kept in main memory, willReadFrequently: the browser would otherwise put off drawing what was painted until the
   // canvas is first shown, and do it all in that one frame; stepGround makes it draw as it goes instead)
   const mk = old => { if (old && old.width === w && old.height === h){ const g = old.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h); return old; } const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d', { willReadFrequently: true }); return cv; };
   return { cv: mk(sp && sp.cv), top: RAINY ? mk(sp && sp.top) : null };
 }
-function startGround(c){
-  const mx = Math.round(W*0.35), my = Math.round(H*0.35);
-  const rs = Math.min(DPR, Math.sqrt(9e6/((W + 2*mx)*(H + 2*my))));
-  const G = { z: c.z, ox: c.ox, oy: c.oy, mx, my, rs };
-  if (groundJob && groundJob.cv !== groundCv) groundSpare = { cv: groundJob.cv, top: groundJob.top };   // an unfinished one is dropped
-  const L = groundLayers(Math.ceil((W + 2*mx)*rs), Math.ceil((H + 2*my)*rs));
+// a painting job for camera G (z, ox, oy, margins mx/my in screen px, rs canvas pixels per screen px) covering world V
+function groundJobFor(G, L, V){
+  const c = G, mx = G.mx, my = G.my, rs = G.rs;
   const g = L.cv.getContext('2d');
   g.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my));
   // V14: on a lot with puddles the ground comes in two layers: the flat earth (with the puddles' beds) under the water,
   // and everything standing up out of it (fence, wood piles, bracken...) on top of the water (G.gTop)
   let gTop = g;
   if (L.top){ gTop = L.top.getContext('2d'); gTop.setTransform(rs*c.z, 0, 0, rs*c.z, rs*(c.ox + mx), rs*(c.oy + my)); }
-  const V = { x0: -(c.ox + mx)/c.z - 30, x1: (W + mx - c.ox)/c.z + 30, y0: -(c.oy + my)/c.z - 30, y1: (H + my - c.oy)/c.z + 30 };
   const O = owned();
   const CS = 128, i0 = Math.floor(V.x0/CS), i1 = Math.ceil(V.x1/CS), j0 = Math.floor(V.y0/CS), j1 = 1;
   const inOwned = (x, y, m) => x > O.x0 - m && x < O.x1 + m && y > O.y0 - m;
@@ -6719,19 +6728,31 @@ function startGround(c){
     if (r && typeof r.next === 'function') yield* r;
   })();
   G.sig = groundSig();
-  groundJob = { cam: G, cv: L.cv, top: L.top, it, g };
+  return { cam: G, cv: L.cv, top: L.top, it, g, spent: 0 };
+}
+// lead: how far ahead (world units) of camera c the new ground is centred, for a camera that's moving
+function startGround(c, lead){
+  const mx = Math.round(W*0.35), my = Math.round(H*0.35);
+  const rs = Math.min(DPR, Math.sqrt(9e6/((W + 2*mx)*(H + 2*my))));
+  // (painted as if for a camera a little further on; it still holds the view now: the lead is at most 0.8 of a margin)
+  const sx = lead ? clamp(lead.x*c.z, -0.8*mx, 0.8*mx) : 0, sy = lead ? clamp(lead.y*c.z, -0.8*my, 0.8*my) : 0;
+  const G = { z: c.z, ox: c.ox - sx, oy: c.oy - sy, mx, my, rs };
+  if (groundJob && groundJob.cv !== groundCv) groundSpare = { cv: groundJob.cv, top: groundJob.top };   // an unfinished one is dropped
+  const L = groundLayers(Math.ceil((W + 2*mx)*rs), Math.ceil((H + 2*my)*rs));
+  const V = { x0: -(G.ox + mx)/G.z - 30, x1: (W + mx - G.ox)/G.z + 30, y0: -(G.oy + my)/G.z - 30, y1: (H + my - G.oy)/G.z + 30 };
+  groundJob = groundJobFor(G, L, V);
 }
 // what the ground depends on besides the camera: the land you own, and (the hollow) the ants' trails, worn in once the
 // ant hill is up
 const trailsShown = () => !!(ANTS && S.hive.built && !simMode && !hiveGrounded());
 function groundSig(){ return S.land + '|' + (trailsShown() ? (antGrid(), antNav.sig) : '-'); }
-// paint on for up to ms milliseconds; true once the new ground is on screen
-function stepGround(ms){
-  const J = groundJob; if (!J) return true;
+// run job J for up to ms milliseconds; true once it's finished
+function runGroundJob(J, ms){
   if (J.it){
-    const end = performance.now() + ms, flush = ms !== Infinity;
+    const t0 = performance.now(), end = t0 + ms, flush = ms !== Infinity;
     // (reading a pixel back makes the browser actually draw the cells painted so far, so that work is spread too)
-    while (!J.it.next().done){ if (flush){ J.g.getImageData(0, 0, 1, 1); if (J.top) J.top.getContext('2d').getImageData(0, 0, 1, 1); } if (performance.now() >= end) return false; }
+    while (!J.it.next().done){ if (flush){ J.g.getImageData(0, 0, 1, 1); if (J.top) J.top.getContext('2d').getImageData(0, 0, 1, 1); } if (performance.now() >= end){ J.spent += performance.now() - t0; return false; } }
+    J.spent += performance.now() - t0; J.it = null;
   }
   // V16.1: the pine needles along the ant trails go into the ground too (they used to be laid over it every frame)
   if (trailsShown()){
@@ -6739,11 +6760,54 @@ function stepGround(ms){
     g.setTransform(G.rs*G.z, 0, 0, G.rs*G.z, G.rs*(G.ox + G.mx), G.rs*(G.oy + G.my)); g.globalAlpha = 1;
     g.drawImage(tc, a.x0, a.y0, a.nx*ANT_CELL, a.ny*ANT_CELL);
   }
+  return true;
+}
+// paint on for up to ms milliseconds; true once the new ground is on screen
+function stepGround(ms){
+  const J = groundJob; if (!J) return true;
+  if (!runGroundJob(J, ms)) return false;
+  gMot.cost = lerp(gMot.cost, clamp(J.spent, 20, 3000), 0.35);   // (Ground ahead: how long a ground takes to paint, for planning ahead)
   if (groundCv && groundCv !== J.cv){ groundSpare = { cv: groundCv, top: groundTopCv }; groundSpareT = performance.now(); }
   groundCv = J.cv; groundTopCv = J.top; groundCam = J.cam; groundJob = null;
   return true;
 }
 function buildGround(c){ startGround(c); stepGround(Infinity); }
+// Ground ahead: the backdrop: the whole lot (and the road out to where the truck camera follows the truck off) at low resolution
+function backRect(){
+  const zmin = zoomLimits()[0], B = camBounds(zmin), O = owned(), hw = W/2/zmin, mid = (B.x0 + B.x1)/2;
+  // (all of the lot and the woods round it, the whole view when zoomed right out, and the road to the left)
+  const x0 = Math.min(B.x0, O.x0 - 200, mid - hw, PARK - 480 - W/2.8) - 60, x1 = Math.max(B.x1, O.x1 + 200, mid + hw) + 120;
+  const y0 = Math.min(B.y0, O.y0 - 200, B.y1 - H/zmin) - 120, y1 = Math.max(B.y1, ROAD) + 40;
+  return { x0, x1, y0, y1 };
+}
+function backSig(){ const b = backRect(); return groundSig() + '|' + [b.x0, b.x1, b.y0, b.y1].map(Math.round).join(','); }
+function startBack(){
+  const b = backRect(), area = (b.x1 - b.x0)*(b.y1 - b.y0), s = Math.min(1, Math.sqrt((RAINY ? 1.6e6 : 2.4e6)/area));
+  const G = { z: s, ox: -b.x0*s, oy: -b.y0*s, mx: 0, my: 0, rs: 1 };
+  const L = groundLayers(Math.ceil((b.x1 - b.x0)*s), Math.ceil((b.y1 - b.y0)*s), true);
+  backJob = groundJobFor(G, L, { x0: b.x0 - 30, x1: b.x1 + 30, y0: b.y0 - 30, y1: b.y1 + 30 });
+  backJob.bsig = backSig();
+}
+function stepBack(ms){
+  if (!backJob) return;
+  if (!runGroundJob(backJob, ms)) return;
+  const J = backJob; backJob = null;
+  if (groundBack) for (const c of [groundBack.cv, groundBack.top]) if (c){ c.width = c.height = 0; }
+  groundBack = { cv: J.cv, top: J.top, cam: J.cam, sig: J.bsig };
+}
+// the screen rectangle of a ground painted for camera G, as drawn now
+function groundRectNow(G, cv){
+  const k = cam.z/G.z;
+  return { x: cam.ox - (G.ox + G.mx)*k, y: cam.oy - (G.oy + G.my)*k, w: cv.width*k/G.rs, h: cv.height*k/G.rs };
+}
+// draw the backdrop where the sharp ground (rect m) doesn't reach (layer: 'cv' or 'top'); called in screen pixels
+function drawBackdrop(c, m, layer){
+  const B = groundBack; if (!B || !B[layer]) return;
+  if (m.x <= 0 && m.y <= 0 && m.x + m.w >= W && m.y + m.h >= H) return;   // (the sharp ground fills the screen)
+  const r = groundRectNow(B.cam, B[layer]);
+  c.save(); c.beginPath(); c.rect(0, 0, W, H); c.rect(m.x, m.y, m.w, m.h); c.clip('evenodd');
+  c.drawImage(B[layer], r.x, r.y, r.w, r.h); c.restore();
+}
 // is the ground painted for camera G good for the view now: about the same zoom, and the view inside it (with slack,
 // a share of its margins left over)
 function groundFits(G, slack){
@@ -6757,11 +6821,34 @@ function groundCover(G){
   const w = Math.max(0, Math.min(V.x1, x1) - Math.max(V.x0, x0)), h = Math.max(0, Math.min(V.y1, y1) - Math.max(V.y0, y0));
   return w*h/Math.max(1e-6, (V.x1 - V.x0)*(V.y1 - V.y0));
 }
+// Ground ahead: seconds until the view, moving as it does now, runs off the ground painted for camera G (Infinity if it's still)
+function gTimeLeft(G){
+  const V = visRect(), x0 = -(G.ox + G.mx)/G.z, x1 = (W + G.mx - G.ox)/G.z, y0 = -(G.oy + G.my)/G.z, y1 = (H + G.my - G.oy)/G.z;
+  let t = Infinity;
+  if (gMot.vx > 1) t = Math.min(t, (x1 - V.x1)/gMot.vx); else if (gMot.vx < -1) t = Math.min(t, (V.x0 - x0)/-gMot.vx);
+  if (gMot.vy > 1) t = Math.min(t, (y1 - V.y1)/gMot.vy); else if (gMot.vy < -1) t = Math.min(t, (V.y0 - y0)/-gMot.vy);
+  return Math.max(0, t);
+}
+// Ground ahead: seconds a new ground takes to paint at ms a frame
+const gPaintSecs = (ms, done) => Math.max(0, gMot.cost - (done || 0))/Math.max(1, ms)*gMot.frame;
 let groundGapT = 0, groundLastT = 0;
 const sameGroundCam = (a, b) => !!a && !!b && Math.abs(a.z/b.z - 1) < 0.002 && Math.abs(a.ox - b.ox) < 1 && Math.abs(a.oy - b.oy) < 1;
 function updGround(){
   const now = performance.now(), fdt = Math.min(0.1, (now - (groundLastT || now))/1000); groundLastT = now;
-  const stable = !camAnim && now - camMovedT > 140;
+  // Ground ahead: how the camera moves (world units a second at the centre of the view, zoom rate), smoothed
+  const ctr = s2w(W/2, H/2);
+  if (gMot.cx != null && fdt > 0){
+    const a = Math.min(1, fdt*8);
+    gMot.vx = lerp(gMot.vx, (ctr.x - gMot.cx)/fdt, a); gMot.vy = lerp(gMot.vy, (ctr.y - gMot.cy)/fdt, a);
+    gMot.zr = lerp(gMot.zr, Math.log(cam.z/gMot.z)/fdt, a); gMot.frame = lerp(gMot.frame, fdt, 0.1);
+  }
+  gMot.cx = ctr.x; gMot.cy = ctr.y; gMot.z = cam.z;
+  const speed = Math.hypot(gMot.vx, gMot.vy), moving = speed > 8, zooming = Math.abs(gMot.zr) > 0.06;
+  const lead = T => moving && !zooming ? { x: gMot.vx*T, y: gMot.vy*T } : null;
+  // the backdrop: painted once (and again when the land or the window changes) a little at a time, a bit quicker when
+  // the sharp ground isn't being painted
+  if (!backJob && (!groundBack || groundBack.sig !== backSig())) startBack();
+  if (backJob) stepBack(groundJob || moving || zooming ? 1.5 : GROUND_BUDGET);
   // V17.1: while the camera glides somewhere (the story camera going back, a new plot), paint the ground for where it's
   // going, so it's ready when it gets there (it used to wait until the camera stopped, and a ground painted for a
   // zoomed-in view could leave half the screen bare for a while)
@@ -6772,34 +6859,47 @@ function updGround(){
     return;
   }
   // a safety net: never leave part of the view without ground for long; past ~1 s, finish the painting in one go
-  const gap = 1 - groundCover(groundCam);
-  groundGapT = gap > 0.03 ? groundGapT + fdt : 0;
+  // (Ground ahead: only when there's no backdrop to show there; with it, the painting just gets more time a frame)
+  const gap = 1 - groundCover(groundCam), backOK = !!groundBack;
+  groundGapT = gap > 0.03 && !backOK ? groundGapT + fdt : 0;
   if (groundGapT > 1){
     groundGapT = 0;
     if (!groundJob || !groundFits(groundJob.cam, 0) || groundJob.cam.sig !== groundSig()) startGround(cam);
     stepGround(Infinity); return;
   }
   if (groundJob){
-    // the one being painted no longer fits the view (zoomed or panned on): start over once the camera settles
-    if (groundJob.cam.sig !== groundSig() || (!groundFits(groundJob.cam, 0) && stable)) startGround(cam);
+    // the one being painted no longer fits the view (zoomed or panned on): start over once the zoom settles (Ground ahead: a
+    // moving camera doesn't wait to stop; the new one is painted ahead of it)
+    if (groundJob.cam.sig !== groundSig() || (!groundFits(groundJob.cam, 0) && !zooming)) startGround(cam, lead(gPaintSecs(12) + 0.4));
     // a bit at a time while the old ground still fills the screen; quicker while part of the view has none (after a
-    // big zoom out or a fast pan)
-    stepGround(gap > 0.2 ? 32 : gap > 0.01 ? 12 : GROUND_BUDGET);
+    // big zoom out or a fast pan). Ground ahead: while moving, as much as it takes to be done before the view runs off the
+    // ground on screen now (and off the new one), within reason
+    let ms = gap > 0.2 ? 32 : gap > 0.01 ? 12 : GROUND_BUDGET;
+    if (moving && gap <= 0.2){
+      const left = Math.min(gTimeLeft(groundCam), gTimeLeft(groundJob.cam)) - 0.15, todo = Math.max(0, gMot.cost - groundJob.spent);
+      ms = Math.max(ms, Math.min(20, todo/Math.max(1, left/gMot.frame)));
+    }
+    stepGround(ms);
     return;
   }
   // (the spare pair is big; let it go once nothing has been painted for a few seconds)
   if (groundSpare && performance.now() - groundSpareT > 4000){ for (const c of [groundSpare.cv, groundSpare.top]) if (c){ c.width = c.height = 0; } groundSpare = null; }
   if (groundCam.sig !== groundSig()){ startGround(cam); return; }
+  // Ground ahead: moving: start the next one as soon as the view would run off this one before a new one could be painted
+  if (moving && !zooming && groundFits(groundCam, 0)){
+    const need = gPaintSecs(GROUND_BUDGET*2) + 0.5;
+    if (gTimeLeft(groundCam) < need){ startGround(cam, lead(gPaintSecs(10) + 0.4)); return; }
+  }
   if (groundFits(groundCam, 0.45)){
-    // close enough, but painted at a slightly different zoom: once the camera has been still for a moment, paint it
+    // close enough, but painted at a slightly different zoom: once the zoom has been still for a moment, paint it
     // again at this zoom (sharper, and quicker to lay on)
-    if (Math.abs(cam.z/groundCam.z - 1) > 0.002 && !camAnim && performance.now() - camMovedT > 400) startGround(cam);
+    if (Math.abs(cam.z/groundCam.z - 1) > 0.002 && !zooming && !camAnim && performance.now() - camMovedT > 400) startGround(cam, lead(gPaintSecs(GROUND_BUDGET) + 0.4));
     return;
   }
-  // the view has (nearly) run off the painted ground: paint a new one once the camera settles, or already while
-  // panning at the same zoom, so it's usually ready before the edge shows
+  // the view has (nearly) run off the painted ground: paint a new one once the zoom settles (or while zooming, when
+  // it's still about the same zoom), ahead of the camera if it's moving
   const sameZoom = Math.abs(cam.z/groundCam.z - 1) <= 0.12;
-  if (stable || (sameZoom && !camAnim)) startGround(cam);
+  if (!zooming || sameZoom) startGround(cam, lead(gPaintSecs(10) + 0.4));
 }
 // V16.1: the puddles' still water, painted with the ground (see startGround)
 function* paintPuddleWater(g, V, O){
@@ -9255,7 +9355,8 @@ function cardShows(o){
   const k = cardOpen.kind;
   if (o.obj === cardOpen.obj) return true;
   if (o.id === 'tech'){ const tk = TECH[o.key].track, kind = tk === 'blow' || tk === 'dig' || tk === 'stoke' ? 'blower' : tk === 'shake' ? 'shaker' : 'robot'; return k === kind; }
-  if (k === 'bin') return o.id === 'bagger' || o.obj === 'bagger' || o.id === 'plant' || o.id === 'metalSlot';
+  if (k === 'bin') return o.id === 'bagger' || o.obj === 'bagger';
+  if (k === 'tub') return S.metalSlot && o.id === 'plant';
   if (k === 'spot') return o.id === 'metalSlot' || (o.id === 'up' && (o.key === 'metalBin' || o.key === 'metalPrice') && S.metalSlot && SPOTS[cardOpen.i] && SPOTS[cardOpen.i].land <= S.land);   // (V40: the tub and price rows are on the mine card too; V41: and on the vein once the slot is built)
   if (k === 'shed') return o.id === 'hive';
   return false;
@@ -9389,7 +9490,7 @@ function tutUse(k){ TUT.n[k] = (TUT.n[k] || 0) + 1; if (!simMode && !tutUsed(k))
 const tutCount = k => TUT.n[k] || 0;
 const tutDid = k => !!TUT.on && tutCount(k) > ((TUT.on.n0 && TUT.on.n0[k]) || 0);   // done since this step began
 // building cards (for the "every building has its own upgrades" lesson)
-const TUT_SHOPS = { bin: 'leaf bin', sign: 'pickup sign', shed: 'workshop', hive: 'beehive', bagger: 'bagging table', plant: 'smelting plant', sale: 'For Sale sign', spot: 'rocks' };
+const TUT_SHOPS = { bin: 'leaf bin', tub: 'metal tub', sign: 'pickup sign', shed: 'workshop', hive: 'beehive', bagger: 'bagging table', plant: 'smelting plant', sale: 'For Sale sign', spot: 'rocks' };
 const shopOf = obj => obj && obj.startsWith('spot') ? 'spot' : obj;
 const tutCardIs = (kind, i) => !!cardOpen && !card.hidden && cardOpen.kind === kind && (i == null || cardOpen.i === i);
 const robotCardOpen = () => tutCardIs('robot') || tutCardIs('blower') || tutCardIs('shaker');
@@ -10352,13 +10453,17 @@ function draw(){
   const G = groundCam, k = cam.z/G.z, gw = groundCv.width*k/G.rs, gh = groundCv.height*k/G.rs;
   let gx = cam.ox - (G.ox + G.mx)*k, gy = cam.oy - (G.oy + G.my)*k;
   if (Math.abs(k - 1) < 1e-9 && Math.abs(G.rs - DPR) < 1e-9){ gx = Math.round(gx*DPR)/DPR; gy = Math.round(gy*DPR)/DPR; }
+  // Ground ahead: where the sharp ground doesn't reach yet (the camera moving on faster than it's painted), the low-resolution
+  // backdrop of the whole lot shows instead of bare background (the hole is 1 px smaller, so no seam shows)
+  const gm = { x: gx + 1, y: gy + 1, w: gw - 2, h: gh - 2 };
+  drawBackdrop(c, gm, 'cv');
   c.drawImage(groundCv, gx, gy, gw, gh);
   c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy);
   const V = visRect(); V.x0 -= 20; V.x1 += 20; V.y0 -= 20; V.y1 += 20;
   if (RAINY){
     // V14: wet tracks and the puddles' water (with their reflections), then what stands up out of the ground over it
     drawTracks(V); if (!DBG.includes('nopud')) drawPuddles(V);
-    if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); c.drawImage(groundTopCv, gx, gy, gw, gh); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
+    if (groundTopCv){ c.setTransform(DPR, 0, 0, DPR, 0, 0); drawBackdrop(c, gm, 'top'); c.drawImage(groundTopCv, gx, gy, gw, gh); c.setTransform(DPR*cam.z, 0, 0, DPR*cam.z, DPR*cam.ox, DPR*cam.oy); }
     if (FIRE_STORY && !DBG.includes('nopud')) drawFireInWater(V);   // V17.1
     drawSplashes(V);
   }
@@ -10582,7 +10687,7 @@ function eyeScan(){
   }
   const waitRow = (k, icon, what, verb, go, at) => { const L = wait[k]; if (L.length) hi.push({ key:'wait' + k, w: 10 + 5*L.length, icon: ic(icon), what, why: eyeThumbs(L.map(i => ['robot', i])) + ' ' + L.length + ' ' + (L.length > 1 ? 'Robots' : 'Robot') + ' ' + verb, go, at }); };
   waitRow('bin', 'bin', 'Bin full', 'waiting to tip leaves', ['bin'], { x: BIN.x, y: BIN.y - 30 });
-  waitRow('metal', 'tub', S.plant.built && hopperRoom() <= 0 && tubRoom() <= 0 ? 'Tub and hopper full' : 'Metal tub full', 'waiting to tip metal', ['bin'], { x: TUB.x, y: TUB.y - 30 });
+  waitRow('metal', 'tub', S.plant.built && hopperRoom() <= 0 && tubRoom() <= 0 ? 'Tub and hopper full' : 'Metal tub full', 'waiting to tip metal', ['tub'], { x: TUB.x, y: TUB.y - 30 });
   waitRow('pallet', 'pallet', COAL ? 'Coal pallet full' : 'Ingot pallet full', 'waiting to unload', ['plant'], { x: PALLET.x, y: PALLET.y - 20 });
   // ── buildings standing still because something is missing
   const cover = (t, kind) => { const cv = eyeCover(t, kind); return cv.ok ? '' : cv.txt; };
@@ -11816,8 +11921,10 @@ const fromTo = (a, b, unit, maxed) => maxed ? '<b>' + a + '</b>' + (unit || '') 
 // V42: each yard saves its last five pickup receipts. Live production is a session-local 30-second game-time window.
 const PRODUCTION_WINDOW = 30;
 const PROD = { owner:null, start:0, last:0, extra:{}, samples:[] };
+const PROD_DISPLAY = { next:0, rates:null };
 let receiptIndex = 0, overviewReturn = null;
 function resetProduction(){
+  PROD_DISPLAY.next = 0; PROD_DISPLAY.rates = null;
   PROD.owner = S; PROD.start = PROD.last = S.t; PROD.extra = { picked:0, converted:0, made:0 };
   PROD.samples = [{ t:S.t, v:productionValues() }]; receiptIndex = 0;
 }
@@ -11845,6 +11952,16 @@ function productionRate(k){
   const base = lerp(left.v[k] || 0, right.v[k] || 0, f);
   return Math.max(0, ((now.v[k] || 0) - base)/dt);
 }
+// Freeze all displayed rates together for one real second, including at fast game speeds.
+function displayedProductionRate(k){
+  productionReady();
+  const now = performance.now();
+  if (!PROD_DISPLAY.rates || now >= PROD_DISPLAY.next){
+    PROD_DISPLAY.rates = Object.fromEntries(Object.keys(productionValues()).map(key => [key, productionRate(key)]));
+    PROD_DISPLAY.next = now + 1000;
+  }
+  return PROD_DISPLAY.rates[k] || 0;
+}
 function recordSale(T, bonus, credit, total){
   const counts = { leaf:T.takeL, bag:T.takeB, metal:T.takeM, ingot:T.takeI, jar:T.takeH, gift:T.takeG };
   const prices = { leaf:leafPrice(), bag:bagPrice(), metal:metalPrice(), ingot:ingotPrice(), jar:honeyPrice(), gift:giftJarPrice() };
@@ -11860,52 +11977,157 @@ function saleLabel(k){
 }
 const receiptMoney = n => '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const receiptPrice = n => '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:4});
+// V44: the receipt is a tally board on the card's paper. One bar per thing sold, sized by what it brought in; a faint mark
+// shows its usual (the average of the other saved pickups), so anything far below it stands out. The cleanup bonus sits with
+// the leaves it comes from. A strip of the five saved pickups along the bottom picks which one is shown.
+const RECEIPT_LOW = .6;    // flagged when a line brings in under 60% of its usual
+const RECEIPT_HISTORY_UI = false; // Keep saved history and its renderer available for a later history view.
+const RECEIPT_ORDER = ['leaf','bag','bonus','metal','ingot','jar','gift'];
+const RECEIPT_KEYS = { leaf:['leaf','bag','bonus'], honey:['jar','gift'], metal:['metal'], plant:['ingot'] };
+function receiptAmounts(sale, keys){
+  const out = {};
+  if (!sale) return out;
+  for (const q of sale.items || []) if (!keys || keys.includes(q.k)) out[q.k] = q;
+  if ((!keys || keys.includes('bonus')) && sale.bonus > 0) out.bonus = { k:'bonus', n:0, amount:sale.bonus };
+  return out;
+}
+const receiptSum = (sale, keys) => keys ? Object.values(receiptAmounts(sale, keys)).reduce((n,q) => n + q.amount, 0) : (sale ? sale.total : 0);
+function receiptLook(k){
+  const cans = ANTS && S.flags.antHill;
+  return { leaf:'leaf', bag:DRY_BENCH ? 'dry' : 'bag', bonus:'bonus', metal:COAL ? 'log' : 'metal', ingot:COAL ? 'coal' : 'ingot', jar:cans ? 'can' : 'jar', gift:cans ? 'dop' : 'gift' }[k];
+}
 function receiptPanel(group, history){
-  const sales = Array.isArray(S.sales) ? S.sales : [], index = history ? Math.min(receiptIndex, Math.max(0, sales.length - 1)) : 0, sale = sales[index];
-  const keys = { leaf:['leaf','bag'], honey:['jar','gift'], metal:['metal'], plant:['ingot'] }[group];
-  const items = sale ? sale.items.filter(q => (!keys || keys.includes(q.k)) && q.n > 0) : [];
-  let html = '<section class="activity receipt"><div class="activity-head"><b>' + (history && index ? 'Earlier pickup' : 'Last pickup') + '</b>';
-  if (sale) html += '<small>' + mmss(sale.t) + ' · yard time</small>';
+  const sales = Array.isArray(S.sales) ? S.sales : [], index = RECEIPT_HISTORY_UI ? Math.min(receiptIndex, Math.max(0, sales.length - 1)) : 0, sale = sales[index];
+  const keys = RECEIPT_KEYS[group], others = sales.filter((_, j) => j !== index);
+  const total = sale ? receiptSum(sale, keys) : 0;
+  let html = '<section class="activity receipt tally"><div class="rc-head"><div class="rc-title"><b>' + ic('truck') + (index ? 'Earlier pickup' : 'Last pickup') + '</b>';
+  if (sale) html += '<small>' + mmss(sale.t) + '</small>';
   html += '</div>';
-  if (!sale) html += '<p class="none">The next pickup will leave a receipt here.</p>';
-  else {
-    const leaves = sale.items.filter(q => q.k === 'leaf' || q.k === 'bag'), leafN = leaves.reduce((n,q) => n + q.n*(q.k === 'bag' ? BAG_SIZE : 1), 0);
-    if ((!group || group === 'leaf') && leafN) html += '<p class="receipt-note">' + leafN + ' leaves sold · ' + (leaves.find(q => q.k === 'bag')?.n || 0)*BAG_SIZE + (DRY_BENCH ? ' dried' : ' in bags') + '</p>';
-    for (const q of items){
-      const count = q.k === 'bag' && DRY_BENCH ? q.n*BAG_SIZE : q.n, price = q.k === 'bag' && DRY_BENCH ? q.price/BAG_SIZE : q.price;
-      html += '<div class="receipt-line"><span>' + ic(q.k === 'metal' ? 'ore' : q.k) + saleLabel(q.k) + '<small>' + count + ' × ' + receiptPrice(price) + (q.k === 'bag' && !DRY_BENCH ? ' · ' + BAG_SIZE + ' leaves/bag' : '') + '</small></span><b>' + receiptMoney(q.amount) + '</b></div>';
-    }
-    const bonus = !group || group === 'leaf' ? sale.bonus : 0;
-    if (bonus) html += '<div class="receipt-line"><span>' + ic('cleanup') + 'Cleanup bonus</span><b>' + receiptMoney(bonus) + '</b></div>';
-    if (sale.credit && (!group || group === 'plant')) html += '<p class="receipt-note">Charcoal includes ' + receiptMoney(sale.credit) + ' carried-over credit.</p>';
-    const total = group ? items.reduce((n,q) => n + q.amount, 0) + bonus : sale.total;
-    if (!items.length && !bonus) html += '<p class="none">' + (group === 'metal' ? 'No raw ' + (COAL ? 'logs' : 'metal') + ' sold on this pickup.' : group ? 'None of this resource sold on this pickup.' : 'Nothing sold on this pickup.') + '</p>';
-    html += '<div class="receipt-total"><span>' + (group === 'metal' ? 'Raw ' + (COAL ? 'log' : 'metal') + ' contribution' : group ? 'Contribution' : 'Total paid') + '</span><b>' + receiptMoney(total) + '</b></div>';
-    const kept = sale.kept || {};
-    const notes = [
-      ['leaf', 'leaf', ' leaves kept for bagging', !group || group === 'leaf'],
-      ['metal', 'ore', COAL ? ' logs kept for charcoal' : ' metal kept for smelting', !group || group === 'metal' || group === 'plant'],
-      ['jar', 'jar', ANTS && S.flags.antHill ? ' cans kept for certifying' : ' jars kept for wrapping', !group || group === 'honey'],
-    ];
-    for (const [key, icon, label, shown] of notes) if (shown && kept[key] > 0) html += '<p class="receipt-note retained">' + ic(icon) + num(kept[key]) + label + '</p>';
-    if (group === 'metal'){
-      const finished = sale.items.find(q => q.k === 'ingot');
-      if (finished && finished.n > 0) html += '<p class="receipt-note finished-sales">' + ic('ingot') + (COAL ? 'Charcoal' : 'Ingots') + ' sold across the yard: <b>' + receiptMoney(finished.amount) + '</b> <button class="link" data-act="finishedsales">See finished sales ›</button></p>';
-    }
+  if (sale){
+    const share = group && sale.total > 0 ? Math.round(total/sale.total*100) + '% of ' + receiptMoney(sale.total) : '';
+    html += '<div class="rc-total"><b>' + ic('coin') + receiptMoney(total) + '</b><small>' + (group === 'metal' ? 'Raw ' + (COAL ? 'log' : 'metal') + ' contribution' : group ? 'Contribution' : 'Total paid') + (share ? ' · ' + share : '') + '</small></div>';
   }
-  if (history && sales.length > 1) html += '<div class="receipt-nav"><button class="link" data-act="receipt:newer"' + (index === 0 ? ' disabled' : '') + '>‹ Newer</button><small>' + (index + 1) + ' / ' + sales.length + '</small><button class="link" data-act="receipt:older"' + (index >= sales.length - 1 ? ' disabled' : '') + '>Older ›</button></div>';
-  return { sig:'receipt' + group + index + JSON.stringify(sale), html:html + '</section>' };
+  html += '</div>';
+  if (!sale){ html += '<p class="none">The next pickup will leave a receipt here.</p></section>'; return { sig:'receipt' + group + 'none', html }; }
+
+  const now = receiptAmounts(sale, keys), usual = {};
+  for (const k of RECEIPT_ORDER){
+    if (!others.length) break;
+    usual[k] = others.reduce((n, o) => n + (receiptAmounts(o, keys)[k]?.amount || 0), 0)/others.length;
+  }
+  const usualTotal = Object.values(usual).reduce((n, v) => n + v, 0);
+  const rows = RECEIPT_ORDER.filter(k => (now[k] && now[k].amount > 0) || usual[k] > 0);
+  const scale = Math.max(1e-9, ...rows.map(k => Math.max(now[k]?.amount || 0, usual[k] || 0)));
+  let body = '';
+  for (const k of rows){
+    const q = now[k] || { k, n:0, price:0, amount:0 }, u = usual[k] || 0, amt = q.amount || 0;
+    const low = others.length >= 2 && u > 0 && amt < u*RECEIPT_LOW && u >= usualTotal*.03;
+    let detail = '', tip = '';
+    if (k === 'bonus') { detail = 'per 100 leaves'; tip = 'The cleanup contract pays this for every 100 leaves the truck takes, bagged leaves too'; }
+    else if (q.n > 0){
+      const count = k === 'bag' && DRY_BENCH ? q.n*BAG_SIZE : q.n, price = k === 'bag' && DRY_BENCH ? q.price/BAG_SIZE : q.price;
+      detail = count + ' × ' + receiptPrice(price);
+      if (k === 'bag' && !DRY_BENCH) tip = BAG_SIZE + ' leaves in a bag';
+    } else detail = 'none this time';
+    const w = amt > 0 ? Math.max(3, amt/scale*100) : 0, at = u/scale*100;
+    if (others.length) tip += (tip ? '. ' : '') + 'Usual: ' + receiptMoney(u) + ' (average of the other ' + others.length + ' saved pickup' + (others.length > 1 ? 's' : '') + ')';
+    const pct = u > 0 ? Math.round((amt - u)/u*100) : 0;
+    body += '<div class="rc-row rc-' + receiptLook(k) + (low ? ' low' : '') + '"' + (tip ? ' title="' + tip + '"' : '') + '>' + ic(k === 'bonus' ? 'cleanup' : k === 'metal' ? 'ore' : k) +
+      '<div class="rc-mid"><div class="rc-name">' + (k === 'bonus' ? 'Cleanup bonus' : saleLabel(k)) + '<small>' + detail + '</small></div>' +
+      '<div class="rc-track"><i class="rc-bar" style="width:' + w.toFixed(1) + '%"></i>' + (others.length && u > 0 ? '<i class="rc-tick" style="left:' + Math.min(99, at).toFixed(1) + '%"></i>' : '') + '</div></div>' +
+      '<b class="rc-v">' + receiptMoney(amt) + (low ? '<small class="rc-flag">' + pct + '%</small>' : '') + '</b></div>';
+    if (k === 'bonus' && rows.some(r => ['metal','ingot','jar','gift'].includes(r)) && !group) body += '<div class="rc-gap"></div>';
+    else if (k === 'bag' && !rows.includes('bonus') && !group && rows.some(r => ['metal','ingot','jar','gift'].includes(r))) body += '<div class="rc-gap"></div>';
+  }
+  if (!rows.some(k => now[k] && now[k].amount > 0)) body = '<p class="none">' + (group === 'metal' ? 'No raw ' + (COAL ? 'logs' : 'metal') + ' sold on this pickup.' : group ? 'None of this resource sold on this pickup.' : 'Nothing sold on this pickup.') + '</p>' + body;
+  html += '<div class="rc-rows">' + body + '</div>';
+
+  let notes = '';
+  const leaves = (sale.items || []).filter(q => q.k === 'leaf' || q.k === 'bag'), leafN = leaves.reduce((n,q) => n + q.n*(q.k === 'bag' ? BAG_SIZE : 1), 0);
+  if ((!group || group === 'leaf') && leafN) notes += '<p class="receipt-note">' + ic('leaf') + leafN + ' leaves sold · ' + (leaves.find(q => q.k === 'bag')?.n || 0)*BAG_SIZE + (DRY_BENCH ? ' dried' : ' in bags') + '</p>';
+  if (sale.credit && (!group || group === 'plant')) notes += '<p class="receipt-note">' + ic('coal') + 'Charcoal includes ' + receiptMoney(sale.credit) + ' carried-over credit.</p>';
+  const kept = sale.kept || {};
+  const keptNotes = [
+    ['leaf', 'leaf', ' leaves kept for bagging', !group || group === 'leaf'],
+    ['metal', 'ore', COAL ? ' logs kept for charcoal' : ' metal kept for smelting', !group || group === 'metal' || group === 'plant'],
+    ['jar', 'jar', ANTS && S.flags.antHill ? ' cans kept for certifying' : ' jars kept for wrapping', !group || group === 'honey'],
+  ];
+  for (const [key, icon, label, shown] of keptNotes) if (shown && kept[key] > 0) notes += '<p class="receipt-note retained">' + ic(icon) + num(kept[key]) + label + '</p>';
+  if (group === 'metal'){
+    const finished = (sale.items || []).find(q => q.k === 'ingot');
+    if (finished && finished.n > 0) notes += '<p class="receipt-note finished-sales">' + ic('ingot') + (COAL ? 'Charcoal' : 'Ingots') + ' sold across the yard: <b>' + receiptMoney(finished.amount) + '</b> <button class="link" data-act="finishedsales">See finished sales ›</button></p>';
+  }
+  if (RECEIPT_HISTORY_UI && notes) html += '<div class="rc-notes">' + notes + '</div>';
+
+  if (RECEIPT_HISTORY_UI && sales.length > 1){
+    const vals = sales.map(o => receiptSum(o, keys)), top = Math.max(1e-9, ...vals);
+    html += '<div class="rc-strip"><small>Last ' + sales.length + '</small><div class="rc-hist">';
+    for (let j = sales.length - 1; j >= 0; j--){
+      const h = vals[j] > 0 ? Math.max(10, vals[j]/top*100) : 4, lbl = (j ? j + ' pickup' + (j > 1 ? 's' : '') + ' before' : 'Last pickup') + ': ' + receiptMoney(vals[j]);
+      html += '<button class="rc-hb' + (j === index ? ' on' : '') + '" data-act="receipt:' + j + '" title="' + lbl + '" aria-label="' + lbl + '"' + (j === index ? ' aria-pressed="true"' : '') + '><i style="height:' + h.toFixed(0) + '%"></i></button>';
+    }
+    html += '</div>' + (others.length ? '<span class="rc-key"><i class="rc-tick"></i>usual</span>' : '') + '</div>';
+  }
+  return { sig:'receipt' + group + index + JSON.stringify(sales), html:html + '</section>' };
+}
+// V44: recent production as flows, in the receipt's look. Each chain starts with what comes in and follows it through the
+// yard; every bar is measured in the chain's own unit (leaves, nectar, metal), so a stage with a short bar is where less
+// gets through. The values stay per second; nothing says how the average is taken.
+const prodRate = r => r > 0 && r < .01 ? '<0.01' : r.toFixed(2);
+function productionChains(group){
+  const cans = ANTS && S.flags.antHill, jn = jarNectar(), mpi = metalPerIngot();
+  const leaf = [{ key:'picked', icon:'leaf', name:'Leaves picked', look:'leaf' }];
+  if (S.bag.built) leaf.push({ key:'bagged', icon:'bag', name:DRY_BENCH ? 'Leaves dried' : 'Leaves bagged', look:DRY_BENCH ? 'dry' : 'bag', also:['bags', DRY_BENCH ? 'trays' : 'bags'] });
+  const honey = [
+    { key:'nectar', icon:'nectar', name:cans ? 'Mushrooms brought in' : 'Nectar brought in', look:'jar' },
+    { key:'converted', icon:'honey', name:cans ? 'Mushrooms sorted' : 'Turned into honey', look:'jar', also:['made', cans ? 'cans’ worth' : 'jars’ worth'] },
+    { key:'jars', icon:'jar', name:cans ? 'Cans filled' : 'Jars filled', look:cans ? 'can' : 'jar', per:jn },
+  ];
+  if (S.hive.packing) honey.push({ key:'gifts', icon:'gift', name:cans ? 'D.O.P. cans sealed' : 'Jars wrapped', look:cans ? 'dop' : 'gift', per:jn });
+  const metal = [{ key:'metal', icon:'ore', name:COAL ? 'Logs delivered' : 'Metal delivered', look:COAL ? 'log' : 'metal' }];
+  const made = { key:'ingots', icon:'ingot', name:COAL ? 'Charcoal made' : 'Ingots made', look:COAL ? 'coal' : 'ingot', per:mpi };
+  if (group === 'leaf') return [leaf];
+  if (group === 'honey') return [honey];
+  if (group === 'metal') return [metal];
+  if (group === 'plant') return [[...metal, made]];
+  const out = [leaf];
+  if (S.hive.built && !hiveGrounded()) out.push(honey);
+  if (S.metalSlot || S.plant.built) out.push(S.plant.built ? [...metal, made] : metal);
+  return out;
 }
 function productionPanel(group){
-  const honey = ANTS && S.flags.antHill;
-  const sets = { leaf:[['picked','leaf','Leaves picked'], ['bags','bag',DRY_BENCH ? 'Trays dried' : 'Bags made'], ['bagged','leaf',DRY_BENCH ? 'Leaves dried' : 'Leaves bagged']], honey:[['nectar','nectar',honey ? 'Mushrooms brought in' : 'Nectar brought in'], ['converted','nectar',honey ? 'Mushrooms sorted' : 'Nectar converted'], ['made','honey',honey ? 'Cans’ worth sorted' : 'Honey · jars’ worth'], ['jars','jar',honey ? 'Cans filled' : 'Jars filled'], ['gifts','gift',honey ? 'D.O.P. cans sealed' : 'Jars wrapped']], metal:[['metal','ore',COAL ? 'Logs delivered' : 'Metal delivered']], plant:[['ingots','ingot',COAL ? 'Charcoal made' : 'Ingots made']] };
-  let entries = sets[group] || [...sets.leaf, ...(S.hive.built && !hiveGrounded() ? sets.honey : []), ...(S.metalSlot ? sets.metal : []), ...(S.plant.built ? sets.plant : [])];
-  entries = entries.filter(([key]) => (!['bags','bagged'].includes(key) || S.bag.built) && (key !== 'gifts' || S.hive.packing));
-  const elapsed = Math.min(PRODUCTION_WINDOW, Math.max(0, S.t - (PROD.owner === S ? PROD.start : S.t))), vals = entries.map(([key,icon,label]) => { const r = productionRate(key); return '<div><span>' + ic(icon) + label + '</span><b>' + (r > 0 && r < .01 ? '<0.01' : r.toFixed(2)) + '<small>/s</small></b></div>'; }).join('');
-  const html = '<section class="activity production"><div class="activity-head"><b title="Moving average over the last 30 seconds of game time. After opening the game, it uses the time measured so far. Pauses do not count.">Recent production</b><small>' + (elapsed < 30 ? 'collecting · ' + Math.floor(elapsed) + '/30 s' : 'last 30 s') + '</small></div><div class="production-grid">' + vals + '</div></section>';
-  return { sig:'production' + group + vals + Math.floor(elapsed), html };
+  let body = '', sig = '';
+  for (const chain of productionChains(group)){
+    const rates = chain.map(s => displayedProductionRate(s.key)), base = chain.map((s, j) => rates[j]*(s.per || 1));
+    const scale = Math.max(1e-9, ...base), first = base[0];
+    body += '<div class="pd-chain">';
+    chain.forEach((s, j) => {
+      const w = base[j] > 0 ? Math.max(3, base[j]/scale*100) : 0;
+      let detail = '';
+      if (s.also) detail = prodRate(displayedProductionRate(s.also[0])) + ' ' + s.also[1];
+      if (j && first > 0) detail += (detail ? ' · ' : '') + Math.round(Math.min(base[j]/first, 9.99)*100) + '%';
+      const bar = chain.length > 1 ? '<div class="rc-track"><i class="rc-bar" style="width:' + w.toFixed(1) + '%"></i></div>' : '';
+      const tip = j && first > 0 ? ' title="' + Math.round(Math.min(base[j]/first, 9.99)*100) + '% of the ' + chain[0].name.toLowerCase().replace(/ (picked|brought in|delivered)$/, '') + ' that ' + (chain[0].key === 'picked' ? 'gets picked' : 'comes in') + '"' : '';
+      body += '<div class="rc-row rc-' + s.look + (j ? ' pd-sub' : '') + (bar ? '' : ' pd-solo') + '"' + tip + '>' + ic(s.icon) + '<div class="rc-mid"><div class="rc-name">' + s.name + (detail ? '<small>' + detail + '</small>' : '') + '</div>' + bar + '</div>' +
+        '<b class="rc-v">' + prodRate(rates[j]) + '<small class="pd-u">/s</small></b></div>';
+      sig += s.key + prodRate(rates[j]) + w.toFixed(0) + detail;
+    });
+    body += '</div>';
+  }
+  const html = '<section class="activity production tally"><div class="rc-head"><div class="rc-title"><b>' + ic('robot') + 'Recent production</b></div></div><div class="rc-rows">' + body + '</div></section>';
+  return { sig:'production' + group + sig, html };
 }
 function keepMetalRow(){ return keepRow('M', 'ore', 'Keep for smelting', keepMetal() + ic('ore'), 'The truck leaves this much metal in the tub for the smelting plant. At 0 it takes everything.', S.keep.metal); }
+// Resource cards show just throughput and the latest contribution; the truck keeps the detailed breakdown.
+function resourceSummary(group){
+  const [key, icon] = { leaf:['picked','leaf'], metal:['metal','ore'], honey:['jars','jar'], plant:['ingots','ingot'] }[group];
+  const sale = (S.sales || [])[0], amount = sale ? receiptMoney(receiptSum(sale, RECEIPT_KEYS[group])) : '—';
+  return '<span class="resource-summary" data-resource="' + group + '"><span title="Recent production per second">' + prodRate(displayedProductionRate(key)) + '/s ' + ic(icon) + '</span><span title="Last pickup contribution">Last ' + ic('truck') + ' ' + amount + (sale ? ic('coin') : '') + '</span></span>';
+}
+function resourceHeading(label, group){
+  const html = '<div class="sect resource-heading">' + label + resourceSummary(group) + '</div>';
+  return { sig:html, html };
+}
 function visibleTasks(kind, cfg){ return KIND_TASKS[kind].filter(t => taskOpen(t, cfg)); }
 // ── yard upgrades (bin, truck, hive, plant): short names, a picture, and the value as number + unit picture
 const UP_ICON = { bin:ic('bin'), leafPrice:icp('leaf'), bagPrice:icp('bag'), metalPrice:icp('ore'), metalBin:ic('tub'), truck:ic('truck'), cleanup:ic('cleanup'),
@@ -12548,7 +12770,7 @@ const GEN_SHORT = { oil: () => '+' + Math.round(OIL_BONUS*100) + '% speed, every
   blueprint: () => 'Copied levels cost 30%', cutting: () => '+' + Math.round(CUT_BONUS*100) + '% drill speed', market: l => '+' + 10*(l + 1) + '% on every sale', charm: () => '+8% resource efficiency' };
 if (LOT.GEN_ICON) Object.assign(GEN_ICON, LOT.GEN_ICON);
 if (LOT.GEN_SHORT) Object.assign(GEN_SHORT, LOT.GEN_SHORT);
-const HEAD_ICON = { eye:'eye', letter:'letter', book:'book', bin:'bin', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
+const HEAD_ICON = { eye:'eye', letter:'letter', book:'book', bin:'bin', tub:'tub', sign:'truck', shed:'wrench', hive:'bee', bagger:'bag', plant:'flame', sound:'sound', sale:'land' };
 // V25: who works the bagging table / drying bench (and the hollow's stove), for the combined bin card
 function bagCrewRows(){
   const rows = [];
@@ -12602,9 +12824,11 @@ function cardModel(){
     // Keep for bagging and who works it (with Assign).
     const bag = S.bag.built || baggerShown(), bname = DRY_BENCH ? 'Drying bench' : 'Bagging table';
     title = bag ? (DRY_BENCH ? 'Bin & drying bench' : 'Bin & bagging') : 'Leaf bin'; live = 'bin';
-    if (bag) rows.push({ sig:'sLeaves', html:'<div class="sect">Leaves</div>' });
-    rows.push(upRow('bin', S.bag.built ? xt('+' + bagCap() + ic('bag'), 'Room for bags, on a shelf of their own') : ''));
-    rows.push(upRow('leafPrice', DRY_BENCH ? xt('dried', 'Wet leaves don’t sell: this is what each leaf is worth once it’s dried') : S.bag.built ? xt('raises bags too', 'A bag is ' + BAG_SIZE + ' leaves at this price × Better bags, so every step here makes bags dearer as well') : ''));
+    // Match the yard: the bagging/drying table is left of the leaf bin.
+    const leafRows = bag ? rows2 : rows;
+    leafRows.push(resourceHeading('Leaves', 'leaf'));
+    leafRows.push(upRow('bin', S.bag.built ? xt('+' + bagCap() + ic('bag'), 'Room for bags, on a shelf of their own') : ''));
+    leafRows.push(upRow('leafPrice', DRY_BENCH ? xt('dried', 'Wet leaves don’t sell: this is what each leaf is worth once it’s dried') : S.bag.built ? xt('raises bags too', 'A bag is ' + BAG_SIZE + ' leaves at this price × Better bags, so every step here makes bags dearer as well') : ''));
     if (bag){
       rows.push({ sig:'sBag' + S.bag.built, html:'<div class="sect">' + bname + '</div>' });
       if (!S.bag.built) rows.push(bagBuildRow());
@@ -12619,15 +12843,18 @@ function cardModel(){
         rows.push(...bagCrewRows());
       }
     }
-    if (!S.metalSlot){
-      if (metalSlotShown()) rows.push(metalSlotRow());
-      else if (!metalOpen()) rows.push({ sig:'metalsoon', html: row({ icon: ic('tub'), cls:'soon', name:'Metal slot', val:'No metal on this plot. Mining opens with the ' + AREAS[MINE_LAND].name.toLowerCase() }) });
-    }
-    else {
-      if (S.bag.built || baggerShown()) rows2.push({ sig:'sMetal', html:'<div class="sect">Metal</div>' });
-      rows2.push(upRow('metalBin')); rows2.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
-      if (S.plant.built) rows2.push(keepMetalRow());
-      if (plantGrade() && !S.plant.built) rows2.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html: row({ icon: ic('flame'), cls:'soon', name:'Smelting plant', val:'shows up once you’ve held ' + cash$(PLANT_COST*0.25), tip:'Turns metal into ingots worth a lot more' }) });
+  } else if (k === 'tub'){
+    title = 'Metal tub' + resourceSummary('metal'); live = 'tub';
+    rows.push(upRow('metalBin')); rows.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
+    if (S.plant.built) rows.push(keepMetalRow());
+    if (plantGrade() && !S.plant.built) rows.push(plantShown() ? plantBuildRow() : { sig:'plantsoon', html: row({ icon: ic('flame'), cls:'soon', name:'Smelting plant', val:'shows up once you’ve held ' + cash$(PLANT_COST*0.25), tip:'Turns metal into ingots worth a lot more' }) });
+    const mines = SPOTS.map((p, i) => i).filter(i => S.miners.includes(i) && SPOTS[i].land <= S.land);
+    if (mines.length) rows2.push({ sig:'sMines', html:'<div class="sect">Miners</div>' });
+    else rows.push({ sig:'noMines', html:'<p class="none">Open a metal vein to build your first miner.</p>' });
+    for (const i of mines){
+      const count = minerWorkers(i).length, shaft = S.shafts.includes(i);
+      rows2.push({ sig:'mineLink'+i+count+shaft, html:row({ icon:ic(shaft ? 'shaft' : 'vein'), name:(shaft ? 'Mine shaft' : 'Miner') + ' ' + (i + 1),
+        val:count + '/' + slotsAt(i) + ' Robots · ' + veinWord(i), btn:'<button class="buy ghost" data-act="minecard:' + i + '">Open ›</button>' }) });
     }
   } else if (k === 'sign'){
     title = 'Pickups'; live = 'truck';
@@ -12882,7 +13109,7 @@ function cardModel(){
         rows.push({ sig:'ex' + crew.sig + (ex ? hv(ex, 'dig') : '-') + learnt + S.blowers.length, html: row({ icon: ic('dig'), cls:'crewrow', name:'Excavator', tip:'A Blower sucking the dirt out makes mining here faster',
           val: crew.learned ? (ex ? '<span class="gain">+' + Math.round(hv(ex, 'dig')*100) + '%</span> mining<br>' : '') + crew.html : '<span class="none">' + (S.blowers.length ? 'a Blower can learn it (' + TRACKS.dig.label + ', on its card)' : 'build a Blower to dig here') + '</span>' }) });
       }
-      // V40: the metal tub's size and the metal's price can be bought here too (the same upgrades as on the bin card)
+      // The shared storage and price upgrades are available here and on the tub's own card.
       rows.push({ sig:'sTub', html:'<div class="sect">Metal tub &amp; price</div>' });
       rows.push(upRow('metalBin')); rows.push(upRow('metalPrice', S.plant.built ? xt(ic('ingot') + cash$(ingotPrice()), 'An ingot sells for') : ''));
     } else {
@@ -12907,10 +13134,9 @@ function cardModel(){
     }
   }
   if (k === 'sign'){ rows.push(productionPanel()); rows2.push(receiptPanel(null,true)); }
-  if (k === 'bin'){ rows.push(productionPanel('leaf'),receiptPanel('leaf')); if (S.metalSlot) rows2.push(productionPanel('metal'),receiptPanel('metal')); }
-  if (k === 'hive' && S.hive.built && !hiveGrounded()){ rows2.push(productionPanel('honey'),receiptPanel('honey')); }
-  if (k === 'plant' && (S.plant.built || palletShown())) rows.push(productionPanel('plant'),receiptPanel('plant'));
-  if (k === 'spot' && S.metalSlot && SPOTS[cardOpen.i].land <= S.land) rows2.push(productionPanel('metal'),receiptPanel('metal'));
+  if (k === 'hive' && S.hive.built && !hiveGrounded()) title += resourceSummary('honey');
+  if (k === 'plant' && (S.plant.built || palletShown())) title += resourceSummary('plant');
+  if (k === 'spot' && S.metalSlot && SPOTS[cardOpen.i].land <= S.land) title += resourceSummary('metal');
   if (overviewReturn && overviewReturn.owner === S && k !== 'eye') top = '<div class="overview-back"><button class="link" data-act="eyeback">‹ Back to overview</button></div>' + top;
   { const ao = assignOpts(k, cardOpen.i); if (ao.length) placeAssign(k, ao, rows, rows2); else assignOpen = false; }   // V21 (V22.2: under its row)
   return { title, tag, rows, rows2, top, foot, live, tabs, head };
@@ -13158,7 +13384,8 @@ function liveHTML(kind){
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
     + (PLANT_COAL ? meter('coal', Math.ceil(S.plant.coal), COAL_MAX, 'Coal in the bunker: it burns while anyone smelts, and a Robot tops it up at ' + COAL_LOW, S.plant.coal <= COAL_LOW ? 'coal low' : 'coal') : '') + slots('flame', busyIn('smelt'), SMELT_N, 'Furnaces working');   // (V18: and the coal)
-  if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves' : 'Bags') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now') : '') + (S.metalSlot ? meter('ore', S.binMetal, metalCap(), 'Metal in the tub') : '') + (S.plant.built ? meter('ingot', S.ingots, palletCap(), 'Ingots on the pallet') : '');
+  if (kind === 'bin') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves') + (S.bag.built ? meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves' : 'Bags') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now') : '');
+  if (kind === 'tub') return meter('ore', S.binMetal, metalCap(), 'Metal in the tub');
   if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + eyeStatus() + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '') + (eyeIgn().length ? '<button class="st eyign' + (EYE.showIgn ? ' on' : '') + '" data-act="eyeshowign" title="' + (EYE.showIgn ? 'Hide' : 'See') + ' what you’ve ignored" aria-pressed="' + EYE.showIgn + '">' + EYE_SLASH + eyeIgn().length + '</button>' : '');   // V33 (V33.3: the ignored toggle)
   if (kind === 'truck'){
     let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
@@ -13192,6 +13419,14 @@ function watchBtn(){
 // Before a rebuild we note the scroll position and an anchor (the button just tapped, else the first row in view, found
 // again by its name), and afterwards scroll so that anchor sits exactly where it was.
 let cardTouch = false, cardScrollT = 0, cardLastAct = null;
+// Keep click targets alive from press to release while the simulation refreshes the card.
+let cardPointer = null;
+card.addEventListener('pointerdown', e => { if (e.button === 0) cardPointer = e.pointerId; });
+const releaseCardPointer = e => { if (e.pointerId === cardPointer) cardPointer = null; };
+addEventListener('pointerup', releaseCardPointer);
+addEventListener('pointercancel', releaseCardPointer);
+addEventListener('blur', () => { cardPointer = null; });
+document.addEventListener('visibilitychange', () => { if (document.hidden) cardPointer = null; });
 card.addEventListener('scroll', () => { cardScrollT = performance.now(); }, true);
 card.addEventListener('touchstart', () => { cardTouch = true; }, { passive: true });
 addEventListener('touchend', () => { if (cardTouch){ cardTouch = false; cardScrollT = performance.now(); } }, { passive: true });
@@ -13239,7 +13474,7 @@ function renderCard(force){
   const sig = qb + undo + cardOpen.kind + (cardOpen.i ?? '') + (watching(cardOpen.kind, cardOpen.i) ? 'W' : '') + cardTab + (m.tabs ? m.tabs.peek : '') + m.title + m.tag + m.rows.map(r => r.sig).join(',') + '|' + m.rows2.map(r => r.sig).join(',') + m.top + m.foot + cardNote;
   // V25: while the player is scrolling the card (a finger down, or a fling still running) a plain refresh waits, so
   // the list isn't rebuilt under their finger; anything they tapped (force) still redraws at once
-  const scrollBusy = !force && (cardTouch || performance.now() - cardScrollT < 380);
+  const scrollBusy = !force && (cardPointer !== null || cardTouch || performance.now() - cardScrollT < 380);
   if ((sig !== cardSig || force) && !tdrag && !sliding && !scrollBusy){
     cardSig = sig;
     const keep = cardScrollSave();
@@ -13316,6 +13551,7 @@ function cardAnchor(){
   if (k === 'robot' || k === 'blower' || k === 'shaker'){ p = { x: cardOpen.ax, y: cardOpen.ay }; below = k === 'robot' ? 70 : 54; }
   else if (k === 'bin' && cardOpen.from === 'bagger'){ p = { x: BAGGER.x, y: BAGGER.y - 50 }; below = 54; }
   else if (k === 'bin'){ p = { x: BIN.x + 10, y: BIN.y - 62 }; below = 70; }
+  else if (k === 'tub'){ p = { x: TUB.x, y: TUB.y - 48 }; below = 56; }
   else if (k === 'sign'){ p = { x: SIGN.x, y: SIGN.y - 76 }; below = 80; }
   else if (k === 'shed'){ p = { x: SHED.x + 30, y: SHED.y - 100 }; below = 104; }
   else if (k === 'eye'){ p = { x: eyeRt.hx, y: eyeRt.hy }; below = 24; }   // V33
@@ -13335,6 +13571,7 @@ function cardAnchor(){
   return { x: s.x, y: s.y, below: below*cam.z };
 }
 function openCard(kind, i, still){
+  if (kind === 'tub' && !S.metalSlot) return;
   endSlider(); taskMenu = null;
   if (kind === 'eye') overviewReturn = null;
   if (kind === 'hive' && hiveLabOn()) kind = 'book';   // V15: the hollow's hive, while it's being researched
@@ -13344,6 +13581,7 @@ function openCard(kind, i, still){
   if (kind === 'hive' && labRt.fail) return;          // (and nothing to open while its bee is trying to fly)
 
   const obj = kind === 'robot' || kind === 'spot' || kind === 'blower' || kind === 'shaker' || kind === 'letter' || kind === 'lab' ? kind + i : kind;
+  if (!cardOpen || cardOpen.kind !== kind) receiptIndex = 0;   // V44: another card starts on the latest pickup
   cardOpen = { kind, i, obj, from }; card.style.minHeight = '';
   if (kind === 'robot'){ const r = R[i]; cardOpen.ax = r.x; cardOpen.ay = r.y - 62; }
   // V40: the first robot card opened with this code only notes which skills are already there (none highlighted)
@@ -13375,6 +13613,7 @@ card.addEventListener('click', e => {
   if (act === 'close'){ closeCard(); return; }
   if (act === 'assignmentundo'){ undoAssignment(); save(); renderCard(true); return; }
   if (act === 'finishedsales'){ openCard('plant'); return; }
+  if (act.startsWith('minecard:')){ const i = Number(act.slice(9)); if (S.metalSlot && S.miners.includes(i) && SPOTS[i] && SPOTS[i].land <= S.land) openCard('spot', i); return; }
   if (act.startsWith('taskmove:')){ if (!b.disabled) taskMove(act.slice(9)); return; }
   if (act === 'taskmenuclose'){ taskMenu = null; renderCard(true); return; }
   if (act === 'watch'){ if (watching(cardOpen.kind, cardOpen.i)){ camFollow = null; camMovedT = performance.now(); } else startWatch(cardOpen.kind, cardOpen.i); sfx('paper'); renderCard(true); return; }
@@ -13405,12 +13644,12 @@ card.addEventListener('click', e => {
   else if (act.startsWith('gen:')){ const k = act.slice(4); if (genAvail(k)) buy({ id:'gen', key:k, obj:'shed', cost:genCost(k) }); }
   else if (act === 'eye'){ if (S.eye.built){ openCard('eye'); return; } if (eyeBuyable()) buy({ id:'eye', obj:'shed', cost:EYE_COST }); }   // V33
   else if (act === 'eyeback'){ const back = overviewReturn; overviewReturn = null; if (back && back.owner === S) cardTab = back.tab; openCard('eye'); if (back && back.owner === S) cardScrollRestore(back.scroll); return; }
-  else if (act.startsWith('receipt:')){ receiptIndex = clamp(receiptIndex + (act === 'receipt:older' ? 1 : -1), 0, Math.max(0,(S.sales || []).length - 1)); renderCard(true); return; }
+  else if (act.startsWith('receipt:')){ const a = act.slice(8), n = (S.sales || []).length; receiptIndex = clamp(a === 'older' ? receiptIndex + 1 : a === 'newer' ? receiptIndex - 1 : (parseInt(a, 10) || 0), 0, Math.max(0, n - 1)); sfx('paper'); renderCard(true); return; }   // V44: the strip picks a pickup
   else if (act.startsWith('eyego:')){ eyeGo(act.slice(6)); return; }
   else if (act.startsWith('eyeign:')){ const o = EYE.lo.find(q => q.key === act.slice(7)); if (o && o.ign) for (const k of o.ign) if (!eyeIgnored(k)) eyeIgn().push(k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }   // V33.3
   else if (act.startsWith('eyeunig:')){ const k = act.slice(8); S.eye.ign = eyeIgn().filter(q => q !== k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }
   else if (act === 'eyeshowign'){ EYE.showIgn = !EYE.showIgn; sfx('paper'); renderCard(true); return; }
-  else if (act === 'metalSlot') buy({ id:'metalSlot', obj:'bin', cost:METAL_SLOT_COST });
+  else if (act === 'metalSlot'){ if (!S.metalSlot && cardOpen.kind === 'spot' && SPOTS[i].land <= S.land && metalSlotShown()) buy({ id:'metalSlot', obj:'spot'+i, cost:METAL_SLOT_COST }); }
   else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
   else if (act.startsWith('hiveUp:')){ const k = act.slice(7); if (HIVE_UP[k] && !S.hive.up[k]) buy({ id:'hiveUp', key:k, obj:'hive', cost:hiveUpCost() }); }
@@ -13460,7 +13699,8 @@ function hit(x, y){
   if (FIRE_STORY && S.fire.struck && !S.flags.fireDone && Math.abs(x - FIRE_BASE.x) < 46 && y > FIRE_BASE.y - FIRE_T.r*1.9 && y < FIRE_BASE.y + 26) return ['book'];
   if (saleVisible()){ const p = salePos(); if (Math.abs(x - p.x) < 38 && y > p.y - 80 && y < p.y + 6) return ['sale']; }
   if (truck.st !== 'away' && x > truck.x - 88 && x < truck.x + 76 && y > LANE - 56 && y < LANE + 8) return ['sign'];
-  if (x > BIN.x - 44 && x < BIN.x + (S.metalSlot ? 80 : 44) && y > BIN.y - 64 && y < BIN.y + 8) return ['bin'];
+  if (S.metalSlot && x > Math.max(BIN.x + 40, TUB.x - 28) && x < TUB.x + 28 && y > TUB.y - 56 && y < TUB.y + 8) return ['tub'];
+  if (x > BIN.x - 44 && x < BIN.x + 44 && y > BIN.y - 64 && y < BIN.y + 8) return ['bin'];
   if (Math.abs(x - SIGN.x) < 30 && y > SIGN.y - 74 && y < SIGN.y + 6) return ['sign'];
   if (Math.abs(x - SHED.x) < 58 && y > SHED.y - 98 && y < SHED.y + 8) return ['shed'];
   for (let i=0;i<SPOTS.length;i++){ const p = SPOTS[i], built = S.miners.includes(i); if (Math.abs(x - p.x) < 44 && y > p.y - (S.shafts.includes(i) ? 104 : built ? 72 : 30) && y < p.y + 22) return ['spot', i]; }

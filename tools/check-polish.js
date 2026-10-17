@@ -43,7 +43,7 @@ const root=path.resolve(__dirname,'../public');
    for(const card of ['sign','bin','hive','plant','spot','robot','shed','eye']){
     await dev(p,`openCard('${card}',0);updHud(.1);draw();`);
     const bounds=await p.evaluate(()=>{const c=document.getElementById('card'),b=c.getBoundingClientRect();return{overflow:c.scrollWidth>c.clientWidth+2,x:b.x,right:b.right,w:innerWidth,text:c.textContent};});
-    ok(!bounds.overflow);ok(bounds.x>=-1&&bounds.right<=bounds.w+1);if(card==='plant')ok(bounds.text.includes('Keep for'));if(card==='hive'){ok(bounds.text.includes('Processing:'));ok(bounds.text.includes('Recent production'));}if(['sign','hive'].includes(card))await p.screenshot({path:path.resolve(__dirname,`../runs/v42-ui/${lot}-${mobile?'mobile':'desktop'}-${card}.png`)});
+    ok(!bounds.overflow);ok(bounds.x>=-1&&bounds.right<=bounds.w+1);if(card==='plant')ok(bounds.text.includes('Keep for'));if(card==='hive'){ok(bounds.text.includes('Processing:'));ok(bounds.text.includes('Last'));}if(['sign','hive'].includes(card))await p.screenshot({path:path.resolve(__dirname,`../runs/v42-ui/${lot}-${mobile?'mobile':'desktop'}-${card}.png`)});
    }
    await dev(p,`EYE.issues=[{key:'test',what:'Test',why:'Test',go:['bin'],at:BIN,w:20}];openCard('eye');card.querySelector('.cbody').scrollTop=100;eyeGo('test');`);
    await p.waitForFunction(()=>document.querySelector('[data-act="eyeback"]'),null,{polling:50});
