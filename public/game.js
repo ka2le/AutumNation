@@ -5519,7 +5519,7 @@ function updLeaves(dt){
 // new flowers on each piece of land. V7: fewer, most of all on the cottage plot, so honey grows with the yard
 const FLOWER_N = LOT.FLOWER_N || [12, 30, 95];
 const FLOWER_REGROW = 11;               // seconds for a sipped flower to bloom again (each one a little different)
-const BEE_SPEED = 52, SIP_TIME = 2.8, FLOOR_RATE = 2;   // V8: bees sip longer (was 1.8 s), so it takes more bees to work the flowers   // each floor of the hive turns 2 nectar a second into honey
+const BEE_SPEED = 52, SIP_TIME = 2.8, FLOOR_RATE = 3;   // Added floors catch up from 3 nectar/s to the original full-hive rate.
 let FLOWERS = [], flowerSpr = [];
 let B = [];                                            // bees (runtime)
 const hiveRt = { jars: 0, popT: 0, making: 0, builtT: -10, shownT: -10, bump: 0 };
@@ -5688,7 +5688,7 @@ const HIVE_UP = {
   wings:   { name:'Quicker wings',  bee:true, desc:'Bees fly <b>25%</b> faster.' },
   third:   { name:'Longer rounds',  bee:true, desc:'Each bee visits <b>3 flowers</b> a trip instead of 2.' },
   tongue:  { name:'Long tongues',   bee:true, desc:'Bees take <b>5 nectar</b> from each flower instead of 4.' },
-  fan:     { name:'Faster fanning',           desc:'The hive turns nectar into honey <b>50%</b> faster. Worth it when the nectar tank keeps filling up.' },
+  fan:     { name:'Faster fanning',           desc:'<b>+50% conversion speed at every hive size.</b> This boost applies to the starting hive and every floor you add. Worth it when the nectar tank keeps filling up.' },
   recipe:  { name:'Better recipe',            get desc(){ return 'A jar of honey takes <b>' + jarNectarAt(true) + ' nectar</b> instead of ' + jarNectarAt(false) + '.'; } },
   nursery: { name:'Bee nursery',              desc:'New bees cost <b>40%</b> less.' },
 };
@@ -5707,7 +5707,8 @@ const honeyCap = () => val('hiveStore');
 const honeyPrice = () => val('honeyPrice')*sellMul();
 const giftJarPrice = () => val('honeyPrice')*val('giftPrice')*sellMul();
 const jarNectar = () => jarNectarAt(S.hive.up.recipe);
-const fanRate = () => hiveFloors()*FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1);
+const fanRateAt = (floors, fan = S.hive.up.fan) => (3 + (floors - 4)*FLOOR_RATE)*(fan ? 1.5 : 1);
+const fanRate = () => fanRateAt(hiveFloors());
 // every second tank or store upgrade adds a floor (V7: there are more, smaller steps now, and the tower can't grow forever)
 const hiveFloors = () => 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore)/2);
 const HV = LOT.HV || { plinth: 14, fh: 12, r: 21, k: 0.32 };
@@ -12370,7 +12371,7 @@ function upRow(k, extra){
   if (k === 'metalPrice' && S.plant.built) extra = moneyEffect(COAL ? 'Charcoal value' : 'Ingot value', L => (COAL ? COAL_UNIT : ORE_PER_INGOT)*u.val(L)*val('ingotGrade')*sellMul());
   if (k === 'honeyPrice' && S.hive.packing) extra = (extra || '') + moneyEffect(ANTS && S.flags.antHill ? 'D.O.P. can' : 'Gift jar', L => u.val(L)*val('giftPrice')*sellMul());
   if (k === 'hiveTank' || k === 'hiveStore'){
-    const floors = 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore + (maxed ? 0 : 1))/2), rate = floors*FLOOR_RATE*(S.hive.up.fan ? 1.5 : 1);
+    const floors = 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore + (maxed ? 0 : 1))/2), rate = fanRateAt(floors);
     extra = '<br><small>' + (floors > hiveFloors() ? '+1 floor · ' : '') + 'Processing: ' + fromTo(fanRate().toFixed(2), rate.toFixed(2), ' nectar/s', maxed || rate === fanRate()) + '<br>' + fromTo((fanRate()/jarNectar()).toFixed(2), (rate/jarNectar()).toFixed(2), ' jars’ worth/s', maxed || rate === fanRate()) + '</small>';
   }
   if (k === 'pallet') extra = (extra || '') + '<br><small>' + (COAL ? 'Kiln shelf: ' : 'Furnace rack: ') + fromTo(u.val(l), u.val(maxed ? l : l + 1), ic('ingot'), maxed) + '</small>';
@@ -12641,7 +12642,8 @@ const ASSIGN_ROWS = {
 function assignmentInfo(kind, i, t){
   const c = cfgsOf(kind)[i], who = eyeWho(kind, i), sp = t === 'mine' && cardOpen && cardOpen.kind === 'spot' ? cardOpen.i : null;
   const atMine = sp != null && c.miner === sp, full = sp != null && !atMine && minerWorkers(sp).length >= slotsAt(sp);
-  const on = taskTop(c,t) && c.prio[0].length === 1 && (sp == null || atMine);
+  const researching = t === 'research' && who && (kind === 'robot' ? RESEARCH_STATES.includes(who.st) : who.task === t);
+  const on = ((taskTop(c,t) && (c.prio[0].length === 1 || t === 'research')) || researching) && (sp == null || atMine);
   let current = !who ? 'Idle' : kind === 'robot' ? robotDoing(who)[1] : who.task && TASKS[who.task] ? TASKS[who.task].short : 'Idle';
   if (kind === 'robot' && c.miner != null && who && who.task === 'mine') current += ' · mine ' + (c.miner + 1);
   const context = full ? 'Mine full · ' + minerWorkers(sp).length + '/' + slotsAt(sp) : on ? 'Already assigned here' : current;
@@ -12976,7 +12978,7 @@ const HIVE_SHORT = {
   get wings(){ return '+25% bee speed: more trips a minute'; },
   get third(){ return '2 → 3 flowers a trip: +50% nectar a trip'; },
   get tongue(){ return '4 → 5 nectar a sip: +25% a trip'; },
-  get fan(){ const f = hiveFloors()*FLOOR_RATE; return f + ' → ' + Math.round(f*15)/10 + ' nectar/s made into honey'; },
+  get fan(){ return '+50% conversion speed at every hive size<br>' + fanRateAt(hiveFloors(), false) + ' → ' + fanRateAt(hiveFloors(), true) + ' nectar/s made into honey'; },
   get recipe(){ const a = jarNectarAt(false), b = jarNectarAt(true); return a + ' → ' + b + ' nectar a jar: each nectar worth ' + cash$(honeyPrice()/a) + ' → ' + cash$(honeyPrice()/b); },
   get nursery(){ const c = beeCost(); return S.hive.up.nursery ? 'Bees 40% cheaper' : 'Bees 40% cheaper: next ' + cash$(c) + ' → ' + cash$(niceCost(c*0.6)); },
 };
@@ -14253,9 +14255,14 @@ function hardReset(){
   assignmentUndo = null; taskMenu = null; endSlider();
   // V13: starting over wipes every lot and goes back to the first yard
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
+  try { sessionStorage.removeItem(HOP_KEY); sessionStorage.removeItem(JUMP_KEY); } catch(e){}
+  for (const key of Object.keys(FRESH_SAVES)) delete FRESH_SAVES[key];
+  for (const key of Object.keys(WORLD)) delete WORLD[key];
+  WORLD.cur = 'home'; WORLD.runT = 0;
+  setSpeed(1); setPaused(false);
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
-  delete WORLD.arrive; delete WORLD.ids; delete WORLD.tech; delete WORLD.gen; driver = null; guest.on = false; truck.riders = []; truck.arriving = false;   // (V24: the shared robots too)
-  IDL = {}; WORLD.runT = 0;   // Clear the runtime roster before bindIds can merge old skills into the new robot.
+  driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
+  IDL = {};   // Clear the runtime roster before bindIds can merge old skills into the new robot.
   S = freshState(); bindIds(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
   resetEyeMemory(); resetProduction();
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
@@ -14263,6 +14270,7 @@ function hardReset(){
   closeCard(); syncRobots(); seedLeaves();
   userCam = false; $('recenter').hidden = true;
   Object.assign(cam, camTarget(0)); camAnim = null; buildGround(cam);
+  save();
 }
 setInterval(save, 5000);
 addEventListener('pagehide', save);

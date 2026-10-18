@@ -46,6 +46,32 @@ const root=path.resolve(__dirname,'../public');
    await p.close();
   }
   let p=await page();
+  // A robot already studying the book stays checked, even with a shared/lower task row.
+  await dev(p,"S.story.found=true;S.story.opened=true;S.robots.push(newRobotCfg());bindIds();syncRobots();S.robots[0].prio=[['research','leaves']];R[0].st='study';bookRt.by=0;bookRt.held=true;openCard('book')");
+  for(const prio of [[['research','leaves']],[['leaves'],['research']]]){
+   await dev(p,`S.robots[0].prio=${JSON.stringify(prio)};assignOpen='test';card.innerHTML=assignPicker([['robot','research']])`);
+   eq(await p.locator('[data-act="asg:robot:0:research"]').getAttribute('aria-selected'),'true');
+   eq(await p.locator('[data-act="asg:robot:1:research"]').getAttribute('aria-selected'),'false');
+  }
+  await dev(p,"S.robots[0].prio=[['research','leaves']];R[0].st='seek'");
+  ok(await dev(p,"assignmentInfo('robot',0,'research').on"),'shared first-priority research remains assigned while travelling');
+  await p.close();
+  for(const lot of ['home','hollow']){
+   p=await page(lot);await dev(p,`${mature}S.lv.hiveTank=0;S.lv.hiveStore=0;S.hive.up.fan=false`);
+   eq(await dev(p,'fanRate()'),3);
+   await dev(p,'S.hive.up.fan=true');eq(await dev(p,'fanRate()'),4.5);
+   ok(/4\.50[\s\S]*9\.00/.test(await dev(p,"upRow('hiveTank').html")),'storage preview matches the next floor rate');
+   ok((await dev(p,'HIVE_SHORT.fan')).includes('3 → 4.5'));
+   ok((await dev(p,'HIVE_SHORT.fan')).includes('+50% conversion speed at every hive size'));
+   for(let step=0;step<=10;step++){
+    await dev(p,`S.lv.hiveTank=Math.min(${step},UP.hiveTank.max);S.lv.hiveStore=${step}-S.lv.hiveTank`);
+    eq(await dev(p,'fanRate()'),(3+Math.ceil(step/2)*3)*1.5);
+   }
+   eq(await dev(p,'fanRate()'),27);
+   await dev(p,'S.hive.up.fan=false');eq(await dev(p,'fanRate()'),18);
+   await p.close();
+  }
+  p=await page();
   await dev(p,`${mature}S.robots[0].prio=[['leaves']];putOff(S.robots[0],'mine');openCard('spot',0);`);
   const before=await dev(p,'assignmentState(S.robots[0])');await click(p,'send');
   eq(await dev(p,'S.robots[0].prio[0]'),['mine']);eq(await dev(p,'S.robots[0].miner'),0);ok(await dev(p,'assignmentUndoValid()'));

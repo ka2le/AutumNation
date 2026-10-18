@@ -77,8 +77,27 @@ const root = path.resolve(__dirname, '../public');
     await upgrade();
     await reset();
     assert.deepEqual(await snapshot(), initial, 'fresh-mode reset clears trained identities');
+    // A jump through the hollow and back carries its old save in FRESH_SAVES.
+    const dev = code => page.evaluate(code => __leafYard.dev(code), code);
+    const waitLot = lot => page.waitForFunction(lot => window.__leafYard && __leafYard.dev('LH_READY && !travelling && LOT_ID === ' + JSON.stringify(lot)), lot, { polling:50 });
+    await Promise.all([page.waitForEvent('load'), dev("startJump('back')")]);
+    await waitLot('home');
+    assert(await dev("!!readLot('hollow').plant.built"), 'jump has left a developed hollow behind');
+    await dev("WORLD.staleRunFlag = true; sessionStorage.setItem(HOP_KEY, '{}'); sessionStorage.setItem(JUMP_KEY, '{}'); setSpeed(4); setPaused(true)");
+    await reset();
+    assert(await dev("Object.keys(FRESH_SAVES).length === 0 && readLot('hollow') === null"), 'temporary yard saves are wiped');
+    assert(await dev("WORLD.cur === 'home' && !WORLD.staleRunFlag && !WORLD.arrive && TIME_SCALE === 1 && !gamePaused"), 'world and test controls are fresh');
+    assert(await dev("sessionStorage.getItem(HOP_KEY) === null && sessionStorage.getItem(JUMP_KEY) === null"), 'pending travel and jump data are wiped');
+    // Reach the hollow again through the normal travel path, without startJump clearing saves for us.
+    await Promise.all([page.waitForEvent('load'), dev("applyKit('homeQuests'); jumpGo({letter:'hollow'})")]);
+    await waitLot('hollow');
+    assert(await dev("!S.plant.built && !S.hive.built && !S.flags.antHill && S.totals.kilnSold === 0"), 'returning to the hollow starts with a fresh yard');
+    // A restart directly in a fresh-mode hollow also discards the handoff and reloads home.
+    await Promise.all([page.waitForEvent('load'), reset()]);
+    await waitLot('home');
+    assert.deepEqual(await snapshot(), initial, 'fresh-mode reset from the hollow restores home');
     assert.deepEqual(errors, []);
-    console.log('Reset checks passed: repeated resets, retraining, saved reloads, other-yard reset, and fresh mode; zero browser errors.');
+    console.log('Reset checks passed: repeated resets, retraining, saved reloads, other-yard reset, fresh-mode jumps and hollow revisits; zero browser errors.');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
