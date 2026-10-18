@@ -1004,7 +1004,7 @@ function freshState(){
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
       beeFail:false, antHill:false, dryTold:false, v15:true,   // V15: the hollow's beehive story and drying bench
       fireDone:false, coalKnown:false, coalFound:false,
-      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true }   // V32: compact late skills; new saves already use the new indices.
+      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true, popGrab:0, popMine:0, popLucky:0 }   // V32: compact late skills; new saves already use the new indices.
   };
 }
 let S = freshState();
@@ -1242,7 +1242,7 @@ function treeDrop(force){
   }
   treeShake[o.i] = 1.6; S.totals.drops = (S.totals.drops || 0) + 1;
   if (!simMode){
-    pop(o.t.x, o.t.y - o.t.r*0.55, 'whoosh!', 'note', 20);
+    pop(o.t.x, o.t.y - o.t.r*0.55, 'Whoosh!', 'note', 20);
     for (let k=0;k<4;k++) spawnFg();
   }
   return true;
@@ -1761,6 +1761,17 @@ function aimClaw(r, h){
   r.armTo = { x: c.x, y: c.y };
   r.fingers = r.plan.length > 1 ? r.plan.map(l => ({ x: l.x, y: l.y })) : null;
 }
+// V46: the little per-action pops (×N leaves in one grab, +1 / +2 lucky at a mine) show only for the Robot you're looking
+// at (its card open, or followed) or the mine whose card is open, plus the first few of each kind in a save. With 6–10
+// Robots they used to float all over the yard, over the For Sale sign too.
+const FOCUS_POP_FREE = 3;
+function focusPop(r, kind, spot){
+  if (cardOpen && ((cardOpen.kind === 'robot' && cardOpen.i === r.id) || (spot != null && cardOpen.kind === 'spot' && cardOpen.i === spot))) return true;
+  if (watching('robot', r.id)) return true;
+  const k = 'pop' + kind, n = S.flags[k] || 0;
+  if (n < FOCUS_POP_FREE){ S.flags[k] = n + 1; return true; }
+  return false;
+}
 function grabLeaves(r){
   const room = leafCap(r.id) - r.carryL;
   const got = (r.plan || []).filter(l => l.st === 'ground' && l.claim === r).slice(0, Math.max(0, room));
@@ -1773,7 +1784,7 @@ function grabLeaves(r){
   }
   for (const l of r.plan || []) if (l.claim === r) l.claim = null;
   r.plan = null;   // the fingers stay drawn while the arm pulls back
-  if (got.length >= 2) pop(r.x, r.y - 70, '×' + got.length, 'note', 15);
+  if (got.length >= 2 && !simMode && focusPop(r, 'Grab')) pop(r.x, r.y - 70, '×' + got.length, 'note', 15);
 }
 
 function updRobot(r, dt){
@@ -1915,8 +1926,8 @@ function updRobot(r, dt){
         // the magnet sometimes catches a second chunk (it may ride along one over the basket limit)
         const lucky = Math.random() < doubleChance(r.id), n = lucky ? 2 : 1;
         r.mineP -= 1; r.carryM += n;
-        if (lucky){ S.totals.lucky = (S.totals.lucky || 0) + 1; pop(m.x, m.y - 80, '+2 lucky!', 'metal', 17); }
-        else pop(m.x, m.y - 76, '+1', 'metal', 15);
+        if (lucky){ S.totals.lucky = (S.totals.lucky || 0) + 1; if (!simMode && focusPop(r, 'Lucky', m.sp)) pop(m.x, m.y - 80, '+2 lucky!', 'metal', 17); }
+        else if (!simMode && focusPop(r, 'Mine', m.sp)) pop(m.x, m.y - 76, '+1', 'metal', 15);
         { const a = sndAt(m.x, m.y); sfx('tink', a.pan, a.vol*0.7); if (lucky && !simMode) setTimeout(() => sfx('tink', a.pan, a.vol*0.8), 110); }
         for (let i=0;i<n;i++) flyTo('metal', m.x + i*6, m.y - 4, r.x - 6, r.y - 38, 0.35 + i*0.08, 20 + i*8, {});
         if (r.carryM >= metalCarry(r.id)){ r.st = 'idle'; r.mineP = 0; }
@@ -2028,7 +2039,7 @@ function updRobot(r, dt){
   // V14 (WET_WOOD): dry bundles out in the rain get wet, one by one, unless a blower holds the wood umbrella over them
   if (WET_WOOD && r.carryI > (r.wetI || 0) && r.moving && !underRoof(r) && !umbrellaOver(r)){
     const dry = r.carryI - (r.wetI || 0), k = WET_RATE*dt*(rainLevel(S.t)/0.7);
-    for (let i=0;i<dry;i++) if (Math.random() < k){ r.wetI = (r.wetI || 0) + 1; if (!simMode){ pop(r.x, r.y - 72, 'soaked!', 'wet', 13); for (let q=0;q<4;q++) parts.push({ k:'drop', x: r.x - r.face*8 + rand(-5, 5), y: r.y - 34, vx: rand(-20, 20), vy: rand(-20, 10), g: 200, life: rand(.4, .7), t: 0 }); } }
+    for (let i=0;i<dry;i++) if (Math.random() < k){ r.wetI = (r.wetI || 0) + 1; if (!simMode){ pop(r.x, r.y - 72, 'Soaked!', 'wet', 13); for (let q=0;q<4;q++) parts.push({ k:'drop', x: r.x - r.face*8 + rand(-5, 5), y: r.y - 34, vx: rand(-20, 20), vy: rand(-20, 10), g: 200, life: rand(.4, .7), t: 0 }); } }
   }
   r.full = (r.st === 'wait' || r.st === 'waitI') && (r.carryL > 0 || r.carryM > 0 || r.carryI > 0);
   if (!simMode && styleOf(r.id).dust && r.moving && Math.random() < dt*2.5) parts.push({ k:'dust', x: r.x - r.face*10, y: r.y - 2, vx: -r.face*rand(4,12), vy: rand(-10,-4), g:0, life: rand(.6,1), t:0, r: rand(2.5,4.5) });
@@ -3492,7 +3503,7 @@ function updFireHelper(h, dt){
     else if (h.fs === 'lift'){ if (h.modeT <= 0){ h.fs = 'walk'; h.holding = 'log'; S.fire.camp = Math.max(0, S.fire.camp - 1); } }
     else if (h.fs === 'walk'){ if (moveTo(h, B.x, B.y, sp*0.6, dt)){ h.fs = 'put'; h.modeT = 1.2; h.face = 1; } }
     else if (h.fs === 'put'){
-      if (h.modeT <= 0.6 && h.holding){ h.holding = null; S.fire.bench = true; fireRt.benchCall = false; benchFirstLog(); if (!simMode){ sparkle(BAGGER.x - 2, BAGGER.y - 14); pop(BAGGER.x, BAGGER.y - 70, 'the stove is lit!', 'note', 16); const a = sndAt(BAGGER.x, BAGGER.y); sfx('crackle', a.pan, a.vol); } }
+      if (h.modeT <= 0.6 && h.holding){ h.holding = null; S.fire.bench = true; fireRt.benchCall = false; benchFirstLog(); if (!simMode){ sparkle(BAGGER.x - 2, BAGGER.y - 14); pop(BAGGER.x, BAGGER.y - 70, 'The stove is lit!', 'note', 16); const a = sndAt(BAGGER.x, BAGGER.y); sfx('crackle', a.pan, a.vol); } }
       if (h.modeT <= 0){ h.fs = 'home'; }
     } else if (moveTo(h, home.x, home.y, sp, dt)){ h.fm = 'watch'; h.modeT = rand(3, 6); }
   }
@@ -3564,7 +3575,7 @@ function updPlantCoal(dt){
   if (busyIn('smelt') > 0){
     const was = S.plant.coal;
     S.plant.coal = Math.max(0, S.plant.coal - COAL_BURN*dt);
-    if (was > 0 && S.plant.coal <= 0 && !simMode) pop(BUNKER.x, BUNKER.y - 50, 'out of coal!', 'note', 15);
+    if (was > 0 && S.plant.coal <= 0 && !simMode) pop(BUNKER.x, BUNKER.y - 50, 'Out of coal!', 'note', 15);
   }
   if (plantRt.coalBump > 0) plantRt.coalBump -= dt;
 }
@@ -4592,6 +4603,11 @@ const DRY_TRAY = i => ({ x: BAGGER.x + (i ? 8 : -8), y: BAGGER.y - 31 });   // w
 const DRY_LAB_NEED = 15;   // (V28.1: was 45)
 const dryLabOn = () => DRY_BENCH && !!S.flags.dryLab && !S.flags.dryKnown;
 const dryLabK = () => clamp((S.flags.dryProg || 0)/DRY_LAB_NEED, 0, 1);
+// V46: one research clock for the drying and spent-flower research too, as for the finds (S.story.eta): time left at this
+// pace while someone works on it, the time left when they stopped once they stop, '?' before anyone has started. Card and
+// yard timer both use it (the card used to say '?' while the bench's timer showed a guess).
+const labEta = {};
+function labEtaText(id){ const L = labInfo(id), v = L.rate(); if (v > 0) labEta[id] = Math.max(0, L.need - L.prog())/v; return labEta[id] != null && L.prog() > 0 ? mmss(labEta[id]) : '?'; }
 // V36: the two research projects that aren't finds (drying leaves in the hollow, spent flowers at home): what their
 // research card shows. who(): the helpers working on it or on their way
 function labInfo(id){
@@ -4608,7 +4624,7 @@ function labInfo(id){
 function labLinkRow(id){
   const L = labInfo(id), n = L.who().length;
   return { sig:'llink' + id + n + Math.round(L.prog()/L.need*40), html: row({ icon: ic('research'), name: 'Research: ' + L.title.toLowerCase(), cls:'crewrow',
-    val: meter('research', Math.round(L.prog()/L.need*100), 100, 'Worked out') + '<br>' + (n ? L.who().map(h => helperStyle(h).name).join(', ') : '<span class="none">nobody yet</span>'),
+    val: pctMeter('research', L.prog()/L.need, 'Worked out') + '<br>' + (n ? L.who().map(h => helperStyle(h).name).join(', ') : '<span class="none">nobody yet</span>'),
     btn: '<button class="buy ghost" data-act="lab:' + id + '">Open</button>' }) };
 }
 const dryLabRate = () => HB.filter(h => h.kind === 'blower' && h.st === 'dryLab').length;
@@ -4728,7 +4744,7 @@ function updSnipLab(h, dt){
         if (F.t > 1.4){
           fl.cut = true; h.target = null;
           SLAB_FL.push({ x: fl.x + 9, y: fl.y + 4, ty: fl.ty, s: fl.s, rot: rand(-0.4, 0.4), t: 0 }); while (SLAB_FL.length > 9) SLAB_FL.shift();
-          pop(fl.x, fl.y - flowerHead(fl) - 14, 'snip!', 'note', 13);
+          pop(fl.x, fl.y - flowerHead(fl) - 14, 'Snip!', 'note', 13);
           F.st = 'hush'; F.t = 0; h.lookX = 0.6;
         }
       } else if (F.st === 'hush'){
@@ -4784,7 +4800,7 @@ function updSnipLab(h, dt){
       }
       if (h.modeT > 1.6){
         h.carry = { ty: f.ty, s: f.s, rot: rand(-0.3, 0.3) }; h.slabLast = { x: f.x, y: f.y };
-        if (Math.random() < 0.4) pop(f.x, f.y - flowerHead(f) - 14, 'snip!', 'note', 12);
+        if (Math.random() < 0.4) pop(f.x, f.y - flowerHead(f) - 14, 'Snip!', 'note', 12);
         slabSet(h, 'carry');
       }
       break;
@@ -5174,7 +5190,7 @@ function updHelper(h, dt){
           if (!simMode){
             const hy = f.y - flowerHead(f);
             for (let k=0;k<5;k++) parts.push({ k:'petal', x: f.x + rand(-3, 3), y: hy + rand(-2, 2), vx: rand(-26, 26), vy: rand(-40, -10), g: 90, life: rand(.6, 1), t: 0, col: '#8a7a4a' });
-            if (Math.random() < 0.35) pop(f.x, hy - 16, 'snip!', 'note', 13);
+            if (Math.random() < 0.35) pop(f.x, hy - 16, 'Snip!', 'note', 13);
           }
         }
       }
@@ -5351,7 +5367,7 @@ function updTruck(dt){
       } else {
         // (V28: in the hollow, wet leaves in the bin get a no from the truck; the first no opens the drying research)
         const wet = DRY_BENCH && S.binLeaves > 0, first = wet && !S.flags.dryLab && !S.flags.dryKnown;
-        pop(BIN.x, BIN.y - 104, wet ? 'can’t accept wet leaves, dry them first!' : 'nothing to take today', 'note', 16, 0, first ? DRY_REFUSE_HOLD + 1.6 : 0);
+        pop(BIN.x, BIN.y - 104, wet ? 'Can’t accept wet leaves, dry them first!' : 'Nothing to take today', wet ? 'tagw' : 'tag', 16, 0, first ? DRY_REFUSE_HOLD + 1.6 : 0);
         if (first) openDryLab();
         T.st = 'leave'; T.v = 10;
       }
@@ -5395,7 +5411,10 @@ function puffExhaust(T, dt, k){
 
 // ───────────────────────── particles & popups
 function flyTo(kind, x0, y0, x1, y1, dur, arc, o){ if (simMode) return; parts.push(Object.assign({ k:'fly', kind, x0, y0, x1, y1, dur, arc, t:0, life:dur, rot: rand(0,TAU) }, o)); }
-function pop(x, y, text, kind, size, delay, life){ if (simMode) return null; const q = { x, y, text: sayT(text), kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'note' ? 2.6 : 1.7) }; pops.push(q); return q; }
+// V46: every pop starts with a capital letter (one style: "The stove is lit!", not "the stove is lit!"), checked here so
+// new pops can't drift back. Kinds 'tag' / 'tagw' are drawn as status tags (paper, no tail; tagw with the red edge).
+const popCase = t => /^[a-z]/.test(t) ? t[0].toUpperCase() + t.slice(1) : t;
+function pop(x, y, text, kind, size, delay, life){ if (simMode) return null; const q = { x, y, text: popCase(sayT(text)), kind, size: size || 18, t: -(delay||0), life: life || (kind === 'cash' ? 3.4 : kind === 'tag' || kind === 'tagw' ? 3 : kind === 'note' ? 2.6 : 1.7) }; pops.push(q); return q; }
 function sparkle(x, y){ if (simMode) return; for (let i=0;i<14;i++){ const a = rand(0,TAU), v = rand(40,110); parts.push({ k:'star', x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - 30, g: 90, life: rand(.5,.9), t:0 }); } }
 function updParts(dt){
   for (const p of parts){
@@ -6186,7 +6205,7 @@ function drawHive(){
     if (on){ c.fillStyle = 'rgba(255,179,71,.3)'; ell(c, tx, ty, 4.2, 4.2); c.fill(); }
   }
   c.restore();
-  if (snipLabOn() && (snipLabRate() > 0 || S.flags.snipProg > 0)){ const rate = snipLabRate(), left = SNIP_LAB_NEED - (S.flags.snipProg || 0); timers.push({ x: HIVE.x, y: HIVE.y - hiveTopZ() - 44, t: rate ? mmss(left/rate) : '?', k: snipLabK(), on: rate > 0, open: ['lab', 'snip'] }); }   // V31
+  if (snipLabOn() && (snipLabRate() > 0 || S.flags.snipProg > 0)){ const rate = snipLabRate(); timers.push({ x: HIVE.x, y: HIVE.y - hiveTopZ() - 44, t: labEtaText('snip'), k: snipLabK(), on: rate > 0, open: ['lab', 'snip'] }); }   // V31
   if (HIVE_STORY) drawHiveLab();   // V15: the umbrella, the pine needles and the portholes the robots add while they research it
   if (grow >= 1 && !hiveGrounded()){
     if (H.honey >= honeyCap() - 1e-6) bubbles.push({ x: HIVE.x, y: HIVE.y + top - 34, t: 'honey full' });
@@ -7832,7 +7851,7 @@ function drawPlot(c, w, h, label, appearT, sx){
 // of flat ones. A robot behind each stand fills a bag from the bin, ties it, and it goes in the bin for the truck.
 function drawBagger(){
   if (!baggerShown()) return;
-  if (dryLabOn()) timers.push({ open: ['lab', 'dry'], x: BAGGER.x, y: BAGGER.y - 78, t: dryLabRate() ? mmss((DRY_LAB_NEED - (S.flags.dryProg || 0))/dryLabRate()) : (S.flags.dryProg ? mmss(DRY_LAB_NEED - S.flags.dryProg) : '?'), k: dryLabK(), on: dryLabRate() > 0 });   // V27
+  if (dryLabOn()) timers.push({ open: ['lab', 'dry'], x: BAGGER.x, y: BAGGER.y - 78, t: labEtaText('dry'), k: dryLabK(), on: dryLabRate() > 0 });   // V27
   if (ART.drawBagger){ ART.drawBagger(); if (gl('market')){ ctx.save(); ctx.translate(BAGGER.x, BAGGER.y); drawMarketBand(ctx, 31, -23.6); ctx.restore(); } return; }   // V15: the hollow's drying bench (V37: with the Market stall's bunting)
   const c = ctx;
   c.save(); c.translate(BAGGER.x, BAGGER.y);
@@ -9461,6 +9480,7 @@ function drawPops(){
     c.save(); c.globalAlpha = a; c.translate(s.x, y); c.scale(sc, sc);
     const size = Math.round(p.size*textScale());
     if (p.kind === 'pay'){ drawPayPop(c, p, size); c.restore(); continue; }
+    if (p.kind === 'tag' || p.kind === 'tagw'){ drawPopTag(c, p, size); c.restore(); continue; }   // V46: the truck's messages
     c.font = (p.kind === 'note' ? '700 ' : '800 ') + size + 'px ' + (p.kind === 'note' ? 'Caveat, cursive' : '"Baloo 2", sans-serif');
     c.textAlign = 'center'; c.textBaseline = 'middle';
     const w = c.measureText(p.text).width;
@@ -9477,6 +9497,16 @@ function drawPops(){
     if (p.kind === 'ingot') drawIngot(c, tx - w/2 - 10, 3, 13, 0);
     c.restore();
   }
+}
+// V46: a message from the truck in the status-tag look of V36's bin/metal full tags (paper, a coloured edge, no tail), so it
+// reads on any ground, the Rainy hollow's too. 'tagw' (a problem to fix) has the red edge, 'tag' a quiet brown one.
+function drawPopTag(c, p, size){
+  c.font = '700 ' + size + 'px Caveat, cursive'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const warn = p.kind === 'tagw', w = c.measureText(p.text).width + size*0.9, h = size*1.25;
+  c.fillStyle = 'rgba(60,30,10,.25)'; rr(c, -w/2, -h/2 + 2, w, h, 5); c.fill();
+  c.fillStyle = 'rgba(246,234,212,.96)'; rr(c, -w/2, -h/2, w, h, 5); c.fill();
+  c.strokeStyle = warn ? 'rgba(168,54,29,.75)' : 'rgba(107,74,46,.6)'; c.lineWidth = 1.4; rr(c, -w/2, -h/2, w, h, 5); c.stroke();
+  c.fillStyle = warn ? '#a8361d' : '#5a3f28'; c.fillText(p.text, 0, 1);
 }
 // a sale number: pops up over the bin (or tub, pallet, crate) it came from, sits there a moment, then flies into the truck
 function drawSalePop(c, p){
@@ -12120,6 +12150,12 @@ function nuts(l, groups){
 function upGroups(k){ const u = UP[k]; if (!u.gaps) return [{ n: u.max }]; let left = u.max; const out = []; for (const g of u.gaps){ out.push({ n: g.n }); left -= g.n; } if (left > 0) out.push({ n: left }); return out; }
 function trackGroups(k){ const cap = trackCap(k), out = []; let acc = 0; for (const g of TRACKS[k].gens){ if (!g.n) continue; out.push({ n: g.n, lk: acc >= cap }); acc += g.n; } return out; }
 // a meter: icon, a little bar, and have/room (turns warm red when full)
+// V46: research progress as a percentage everywhere (the goal pills already said 32%; cards said 1920/6000). Floored, so
+// 100% only shows once it's done.
+function pctMeter(icon, frac, tip, cls){
+  const f = clamp(frac || 0, 0, 1);
+  return '<span class="mt' + (f >= 1 ? ' full' : '') + (cls ? ' ' + cls : '') + '"' + (tip ? ' title="' + tip + '"' : '') + '>' + ic(icon) + '<span class="bar"><i style="width:' + (f*100).toFixed(1) + '%"></i></span><span class="mv"><b>' + Math.floor(f*100 + 1e-9) + '</b>%</span></span>';
+}
 function meter(icon, have, cap, tip, cls){
   const f = cap > 0 ? clamp(have/cap, 0, 1) : 0;
   return '<span class="mt' + (f >= 1 ? ' full' : '') + (cls ? ' ' + cls : '') + '"' + (tip ? ' title="' + tip + '"' : '') + '>' + ic(icon) + '<span class="bar"><i style="width:' + (f*100).toFixed(1) + '%"></i></span><span class="mv"><b>' + num(have) + '</b>/' + num(cap) + '</span></span>';
@@ -12734,7 +12770,9 @@ function crewRow(icon, label, task, tagOf){
   const title = ri => attr(styleOf(ri).name + ' · ' + (R[ri] ? robotDoing(R[ri])[1] : 'Idle'));
   const portraits = who.length > 4 ? '<span class="huddle">' + who.map(ri => '<img class="crew-state ' + (active(ri) ? 'working' : 'waiting') + '" src="' + botThumb(ri) + '" alt="' + styleOf(ri).name + '" title="' + title(ri) + '">').join('') + '</span>' + (same && tags[0] ? '<b class="each">' + tags[0] + ' <small>each</small></b>' : '')
     : who.map(ri => '<span class="crew-state' + (active(ri) ? ' working' : ' waiting') + '">' + crewBot(ri, tagOf ? tagOf(ri) : '').replace('title="' + styleOf(ri).name + '"','title="' + title(ri) + '"') + '</span>').join('');
-  const body = who.length ? portraits + '<small class="crew-count">' + who.filter(active).length + ' on task · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
+  const names = list => list.map(ri => styleOf(ri).name).join(', '), on = who.filter(active), off = who.filter(ri => !active(ri));
+  // V46: one short count for every crew (Robots and helpers alike), who is where in the tooltip
+  const body = who.length ? portraits + '<small class="crew-count" title="' + attr((on.length ? 'On task: ' + names(on) : '') + (on.length && off.length ? ' · ' : '') + (off.length ? 'Not on it right now: ' + names(off) : '')) + '">' + on.length + ' on task · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
   return { sig: 'crew' + task + who.map(ri => ri + ':' + (R[ri] ? R[ri].st : '') + ':' + active(ri) + (tagOf ? tagOf(ri) : '')).join(','), html: '<div class="row crewrow"><div class="ri">' + ic(icon) + '</div><div class="rm"><div class="n">' + label + '</div><div class="crews">' + body + '</div></div><div class="btn"></div></div>' };
 }
 
@@ -12755,7 +12793,7 @@ function helperCrew(task, at){
   };
   const statuses = who.map(state), counts = { working:0, travelling:0, waiting:0 };
   statuses.forEach(s => counts[s.key]++);
-  const html = who.length ? '<span class="helper-crews">' + who.map((q,j) => '<span class="helper-member crew-state ' + statuses[j].key + '"><img src="' + kindThumb(kind,q.i) + '" alt=""><span>' + helperStyleOf(kind,q.i).name + '<small>' + statuses[j].text + '</small></span></span>').join('') + '</span><small class="crew-count">' + counts.working + ' working · ' + counts.travelling + ' on the way · ' + counts.waiting + ' waiting · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
+  const html = who.length ? '<span class="helper-crews">' + who.map((q,j) => '<span class="helper-member crew-state ' + statuses[j].key + '"><img src="' + kindThumb(kind,q.i) + '" alt=""><span>' + helperStyleOf(kind,q.i).name + '<small>' + statuses[j].text + '</small></span></span>').join('') + '</span><small class="crew-count" title="' + counts.working + ' working · ' + counts.travelling + ' on the way · ' + counts.waiting + ' waiting">' + (counts.working + counts.travelling) + ' on task · ' + who.length + ' assigned</small>' : '<span class="none">nobody yet · use Assign</span>';
   return { learned, html, sig:who.map((q,j) => q.i + ':' + statuses[j].key + ':' + statuses[j].text).join('|') };
 }
 
@@ -13591,13 +13629,14 @@ function liveHTML(kind){
   }
   if (kind === 'lab'){   // V36: the drying and spent-flower research
     const L = labInfo(cardOpen.i), v = L.rate();
-    return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : L.prog() > 0 ? 'Paused' : 'Not started yet') + '">' + ic('clock') + (v > 0 ? mmss((L.need - L.prog())/v) : '?') + '</span>' +
-      meter('research', Math.floor(L.prog()), L.need, 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + Math.round(v*10)/10 + '<small>/s</small></span>' : L.prog() > 0 ? '<span class="st"><small>paused</small></span>' : '');
+    const eta = labEtaText(cardOpen.i);   // V46: the same clock as the timer over the bench / hive
+    return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : eta !== '?' ? 'Paused: time left when they stopped' : L.prog() > 0 ? 'Paused' : 'Not started yet') + '">' + ic('clock') + eta + '</span>' +
+      pctMeter('research', L.prog()/L.need, 'Research done', 'blue') + (v <= 0 && L.prog() > 0 ? '<span class="st"><small>paused</small></span>' : '');
   }
   if (kind === 'book'){
     const v = researchRate();
     return '<span class="st big" title="' + (v > 0 ? 'Time left at this pace' : researchETA() == null ? 'Not started yet' : 'Paused: time left when they stopped') + '">' + ic('clock') + etaText() + '</span>' +
-      meter('research', Math.floor(S.story.prog), researchNeed(), 'Research done', 'blue') + (v > 0 ? '<span class="st" title="Research a second">' + ic('research') + Math.round(v*10)/10 + '<small>/s</small></span>' : S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');
+      pctMeter('research', S.story.prog/researchNeed(), 'Research done', 'blue') + (v <= 0 && S.story.prog > 0 ? '<span class="st"><small>paused</small></span>' : '');   // (V46: %, the clock says the pace)
   }
   if (kind === 'bagger') return meter('leaf', S.binLeaves, binCap(), DRY_BENCH ? 'Wet leaves in the bin' : 'Loose leaves in the bin') + meter('bag', S.bag.bags, bagCap(), DRY_BENCH ? 'Sacks of dry leaves in the bin' : 'Bags in the bin') + slots('bag', DRY_BENCH ? dryingN() : busyIn('bag'), 2, DRY_BENCH ? 'Drying now' : 'Bagging now');
   if (kind === 'plant') return meter('hopper', Math.floor(S.plant.ore), hopperCap(), 'Ore in the hopper') + meter('ingot', S.plant.rack, rackCap(), 'Ingots on the rack') + meter('pallet', S.ingots, palletCap(), 'Ingots on the pallet by the road')
@@ -14264,7 +14303,7 @@ function hardReset(){
   driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
   IDL = {};   // Clear the runtime roster before bindIds can merge old skills into the new robot.
   S = freshState(); bindIds(); R = []; HB = []; B = []; parts = []; pops = []; dispCash = 0; truck.st = 'away'; truck.fill = 0; resetStations();
-  resetEyeMemory(); resetProduction();
+  resetEyeMemory(); resetProduction(); for (const k in labEta) delete labEta[k];
   camFollow = null; bookRt.by = null; bookRt.held = false; bookRt.landT = 0;
   for (const f of FLOWERS){ f.full = true; f.t = 0; f.claim = null; }
   closeCard(); syncRobots(); seedLeaves();
