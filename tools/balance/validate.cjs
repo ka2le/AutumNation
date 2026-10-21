@@ -12,6 +12,15 @@ function audit(r) {
     assert(s.elapsed>0);assert(s.state.cash>=-1e-7);
     assert(s.purchases.every(p=>Number.isFinite(p.cost)&&p.cost>0&&p.t>=0&&p.t<=s.elapsed));
     assert(s.events.every(e=>e.t>=0&&e.t<=s.elapsed));
+    const e=s.experiment;
+    if(e?.target){
+      assert(e.maxed&&e.finished,'Honey target was not actually reached');
+      assert(!e.grantedCapital&&!e.fixturePurchases.length,'Paid honey strategy received fixture capital');
+      assert.equal(e.end.hive.bees,e.target.population);assert(e.end.hive.packing);
+      for(const key of e.target.generalUpgrades)assert(e.end.hive.up[key],'Missing hive upgrade '+key);
+      for(const [key,level]of Object.entries(e.target.levels))assert.equal(e.end.lv[key],level);
+      assert(e.maxState.packingLevels.filter(v=>v===e.target.packingLevel).length>=e.target.packers,'Honey packers were not fully trained');
+    }
   }
   const [home,hollow,final]=r.stages;
   assert.equal(home.initial.cash,0);assert.equal(home.initial.robots.length,1);
@@ -36,7 +45,7 @@ async function main(){
   const output=path.resolve(process.env.RESULT_DIR||'runs/smart-validation');
   const config=JSON.parse(fs.readFileSync(process.env.CONFIG||path.join(__dirname,'completion-policy.json'),'utf8'));
   const runner=await createRunner(output), results=[], seeds=(process.env.SEEDS||'101,102,103,104,105,106').split(',').map(Number);
-  const policies=(process.env.POLICIES||'legacy,smart-balanced,smart').split(',');
+  const policies=(process.env.POLICIES||'legacy,smart-balanced,smart-skip,smart').split(',');
   assert(policies.includes('smart'),'Validation needs the smart policy for replay');
   const fidelity=process.env.FIDELITY||'sim',jobs=seeds.flatMap(seed=>policies.map(name=>({name,seed,config:name.startsWith('legacy')?{}:config,fidelity})));
   let ix=0;

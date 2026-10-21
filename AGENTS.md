@@ -10,3 +10,8 @@ desired mix. The target is useful mixed development across phases, with no sourc
 made irrelevant and no consistently dominant shortcut that ignores the others.
 Distinguish paid progression from fully upgraded capacity fixtures. Historical
 balance concerns must be rechecked against current game code and capable players.
+
+Honey's intended identity is a commitment choice: minimal investment or a fully
+developed, multiplying engine can both be valid. Leaves provide the starting
+economy and a lasting foundation. Do not cheapen honey merely because partial
+development loses; compare a properly staffed, fully developed honey strategy.

@@ -2,7 +2,9 @@
 
 Follow the [standing balance-testing standard](../../BALANCE.md#standing-standard-for-future-balance-work)
 when evaluating or changing the economy. It defines the main benchmark, challengers and evidence requirements.
-The latest price/effect changes and before/after validation are in [the economy tuning report](economy-tuning.md).
+The latest benchmark and retained $180 hive/ant price are in [the honey-maxing report](honey-max.md).
+The final seven-step alloy ladder and later metal-grade prices are tested in [the alloy report](alloy-steps.md).
+The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.
 
 Use the paid full-campaign runner for pacing and completion comparisons. It runs the **current `public/` game**,
 freezes its inputs, and preserves the earned home → hollow → home route. The old browser `__leafYard.sim()` and
@@ -20,7 +22,7 @@ Playwright package directory and `CHROME_PATH` to a browser executable. It does 
 normal browser profile. On platforms without the Windows Chrome path it uses Playwright's Chromium.
 
 ```powershell
-# Six paired seeds; archived buyer, balanced smart reference, current completion tester; exact replay.
+# Six paired seeds; archived, balanced smart, honey-skipping and current honey-maxing players; exact replay.
 npm run balance:check
 
 # Normal gameplay branches, including the presentations skipped by simMode.
@@ -41,7 +43,7 @@ Supported overrides:
 
 | Variable | Meaning |
 |---|---|
-| `POLICIES` | Comma-separated `smart` (main), `smart-balanced` (previous smart reference), `legacy`, `legacy-goal`, `legacy-industrial`, `legacy-bank` |
+| `POLICIES` | Comma-separated `smart` (main honey-maxing route), `smart-skip` (previous main), `smart-balanced` (earlier reference), `legacy`, `legacy-goal`, `legacy-industrial`, `legacy-bank` |
 | `SEEDS` | Explicit comma-separated seed numbers, **not a count** |
 | `CONFIG` | JSON policy configuration; defaults to `completion-policy.json` |
 | `RESULT_DIR` | Output directory; use a new directory for each experiment |
@@ -100,10 +102,20 @@ See [the current audit](smart-tester.md) for results, balance implications and r
 ## Source balance and completion shortcuts
 
 See [the source balance assessment](source-balance.md) and [numerical evidence](source-benchmark-2026-10-21.json).
-The main tester includes the validated shortcut of retaining the starter home hive after its first honey
-milestone, and hires/trains spare Blowers to excavate shafts once the home furnace is operating.
-It is a benchmark the economy must withstand, not a recommendation that honey should be optional.
-`selected-policy.json` preserves the earlier smart reference; `completion-policy.json` defines the main tester.
+The main tester retains the starter home hive initially, then deliberately maxes productive honey/ant upgrades
+at each repair unlock before developing industry, keeping two trained honey packers. It also staffs shaft
+excavation. The old honey-skipping route remains `smart-skip`; a competent full honey strategy beats it in the
+held-out checks even with $180 general upgrades. `selected-policy.json` preserves the earlier smart reference;
+`completion-policy.json` defines the current main tester. Its optional `honeyMax` maps phase-specific paid
+interventions; explicit experiments override it. No progress or money is granted.
+
+For dedicated honey comparisons, `honey-max.cjs` trains on seeds 1–3 by default. Set `MODE=validate` to load
+`selected-honey-max.json`, with `SEEDS`, `GAME_ROOT`, `FIDELITY` and a fresh `RESULT_DIR`. Set `COMBINED=1` to
+test maxing both yards; `ARMS` optionally limits named strategies (for example `smart,honey-productive-both`).
+Its `smart` control deliberately omits the new intervention so it remains the historical skipping benchmark.
+`full` requires maximum storage too; `productive` requires population, production/value upgrades and two
+maximum-pack workers but leaves storage to the purchasing strategy. Both preserve productive spare workers.
+All maxing runs are checked for actually reaching their advertised target. See [the results](honey-max.md).
 
 ```powershell
 # Paid source-priority experiments, earned repair-unlock checkpoints, then real completion.

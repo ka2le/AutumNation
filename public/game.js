@@ -218,7 +218,7 @@ const UP = {
   // $2,200 / $4,000 / $7,500, so leaves stay worth upgrading once the regular economy has developed. Loose leaves, dry
   // leaves and bags get them; the cleanup deals' bonus per 100 leaves doesn't
   // V34: the cottage-full sorting steps are $100 / $220; the first five and late ladder are unchanged.
-  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:10, gaps:[{n:5}, {n:2}], costs:[0.8, 1.25, 2.25, 4, 6.75, 100, 220, 2200, 4000, 7500], late:[1, 1.25, 1.25*1.3, 1.25*1.3*1.35], val:l=>0.13*Math.pow(1.2,Math.min(l, 7))*(l > 7 ? UP.leafPrice.late[l - 7] : 1)*pressMul(), show:v=>money(v)+' / leaf' },
+  leafPrice:  { obj:'bin',  name:'Sort leaves',       max:10, gaps:[{n:5}, {n:2}], costs:[0.8, 1.25, 2.25, 4, 6.75, 100, 220, 2200, 4000, 6000], late:[1, 1.25, 1.25*1.3, 1.25*1.3*1.35], val:l=>0.13*Math.pow(1.2,Math.min(l, 7))*(l > 7 ? UP.leafPrice.late[l - 7] : 1)*pressMul(), show:v=>money(v)+' / leaf' },
   // bags: a tied bag of BAG_SIZE leaves is worth more than the same leaves loose, and better bags are worth more again
   // V8: five more steps after the pumpkin bags (harvest bags with a gold tie, then a sprig on top). V9: priced against what
   // bags actually earn (bagging is limited by leaves and packers), so each step pays for itself within ~5 minutes
@@ -229,7 +229,7 @@ const UP = {
   // metal comes later now: dearer to start and to upgrade, but every chunk is worth a lot more.
   // V6: two grades open the smelting plant. V8: grading goes on after that (four more steps), and since an ingot's
   // price is its metal's grade × the alloy, every grade makes ingots worth more too
-  metalPrice: { obj:'tub',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[300, 600, 1100, 3500, 7000, 13000],   // V32.1: metal comes after the hive, so the first grades are dearer (were 40 / 76 / 380). V32: later sale values are investments; physical furnace upgrades retain their prices.
+  metalPrice: { obj:'tub',  name:'Grade the metal',   max:6, gaps:[{n:2}],  costs:[300, 600, 1100, 4500, 8500, 15000],   // Preserve the first three prices; later grades also multiply ingot value.
                 vals:[4.8, 6, 7.5, 9.2, 11.2, 13.6, 16.5], val:l=>UP.metalPrice.vals[l],
                 show:v=>money(v)+' / metal' + (S.plant.built ? ' · ' + money(ORE_PER_INGOT*v*val('ingotGrade')*sellMul()) + ' / ingot' : '') },
   // Raw metal and logs have their own storage; finished-goods pallets use the separate pallet track.
@@ -238,9 +238,9 @@ const UP = {
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // Three one-off deals: a fixed bonus per 100 leaves, including bagged leaves (not multiplied by bag value).
-  // Home prices target about 3 / 4 / 5 minute marginal payback at the audited developed mixed crew's leaf rate.
+  // Home contract prices: $400 / $1,000 / $2,000. Sort leaves and bags are separate value multipliers.
   // The hollow retains its separate local ladder.
-  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[200, 350, 530],
+  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[400, 1000, 2000],
                
                 vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
@@ -260,8 +260,8 @@ const UP = {
   smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[290, 860, 2880],   // V32.1: +20% (were 240 / 720 / 2,400)
                 vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
-  // Last four alloy increments reduced 20% (maximum 3.6 -> 3.23), preserving prices and physical throughput.
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[360, 6000, 14000, 23000, 36000], vals:[1.45, 1.75, 2.07, 2.43, 2.83, 3.23], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  // Six smaller late investments, still capped at $36k per purchase. Total $114,360; maximum 3.12x.
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:7, costs:[360, 6000, 10000, 14000, 20000, 28000, 36000], vals:[1.45, 1.75, 1.95, 2.15, 2.38, 2.62, 2.87, 3.12], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
   slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[325, 960, 4200],   // V32.1: +20% (were 270 / 800 / 3,500)
                 vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
@@ -1004,7 +1004,7 @@ function freshState(){
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
       beeFail:false, antHill:false, dryTold:false, v15:true,   // V15: the hollow's beehive story and drying bench
       fireDone:false, coalKnown:false, coalFound:false,
-      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true, popGrab:0, popMine:0, popLucky:0 }   // V32: compact late skills; new saves already use the new indices.
+      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true, alloySevenSteps:true, popGrab:0, popMine:0, popLucky:0 }   // New saves already use the current skill/alloy indices.
   };
 }
 let S = freshState();
@@ -5700,7 +5700,7 @@ function drawFlowers(V){
 const HIVE_COST = 120;
 const MAX_BEES = 40;   // V19.1: was 60
 // Six one-off hive upgrades, all at one fixed price, so the order is up to you and buying one never makes the others
-// dearer. Shared bee/ant price: $140 each after the completion-player balance audit (previously $180).
+// dearer. Shared bee/ant price stays $180: a fully developed engine is competitive at this price.
 // V22: a jar takes 18 nectar (Better recipe 12); the hollow's ants need 12 mushrooms a can (Tight packing 6)
 const jarNectarAt = recipe => ANTS ? (recipe ? 6 : 12) : (recipe ? 12 : 18);
 const HIVE_UP = {
@@ -5711,7 +5711,7 @@ const HIVE_UP = {
   recipe:  { name:'Better recipe',            get desc(){ return 'A jar of honey takes <b>' + jarNectarAt(true) + ' nectar</b> instead of ' + jarNectarAt(false) + '.'; } },
   nursery: { name:'Bee nursery',              desc:'New bees cost <b>40%</b> less.' },
 };
-const HIVE_UP_COST = 140;   // Shared one-off upgrades; worker population prices and upgrade effects are unchanged.
+const HIVE_UP_COST = 180;   // Retain the commitment tradeoff; partial hive development need not match a maxed engine.
 const hiveUpCost = () => HIVE_UP_COST;
 // V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
 // prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.
@@ -7800,7 +7800,7 @@ function drawIngot(c, x, y, s, rot, grade, wet){
   if (ART.drawIngot) return ART.drawIngot(c, x, y, s, rot, grade, wet);
   // a cast bar seen from the front and a little above; better alloys are brighter
   grade = grade == null ? S.lv.ingotGrade : grade;
-  const G = [['#5f666a','#8f979b','#40464a'], ['#6d777d','#a9b2b7','#495155'], ['#7f8a90','#c3ccd1','#555e63'], ['#93a0a7','#e3e9ec','#606b71'], ['#a39a7c','#ece2bc','#6e6650'], ['#b8933c','#f7dc8a','#7c5e1e']][clamp(grade, 0, 5)];
+  const G = [['#5f666a','#8f979b','#40464a'], ['#6d777d','#a9b2b7','#495155'], ['#768187','#b6bfc4','#4f585c'], ['#7f8a90','#c3ccd1','#555e63'], ['#93a0a7','#e3e9ec','#606b71'], ['#9b9d92','#e8e6d4','#676961'], ['#a39a7c','#ece2bc','#6e6650'], ['#b8933c','#f7dc8a','#7c5e1e']][clamp(grade, 0, 7)];
   c.save(); c.translate(x, y); if (rot) c.rotate(rot); c.scale(s/10, s/10);
   c.fillStyle = G[2]; c.beginPath(); c.moveTo(-5.2, 0); c.lineTo(5.2, 0); c.lineTo(4, -2.8); c.lineTo(-4, -2.8); c.closePath(); c.fill();
   c.fillStyle = G[0]; c.beginPath(); c.moveTo(-4.6, -0.3); c.lineTo(4.6, -0.3); c.lineTo(3.8, -2.6); c.lineTo(-3.8, -2.6); c.closePath(); c.fill();
@@ -14115,6 +14115,11 @@ function load(data){
       S.lv.bagPrice = investmentLevel('bagPrice', S.lv.bagPrice);
     }
     S.flags.investmentV32 = true;
+    // Preserve approximate owned progress when spreading the old four late alloy steps over six.
+    // The old maximum stays maxed; prices/effects use the new balance. Hollow briquettes keep their indices.
+    if (!(src.flags && src.flags.alloySevenSteps) && !COAL)
+      S.lv.ingotGrade = [0, 1, 3, 4, 6, 7][clamp(S.lv.ingotGrade | 0, 0, 5)];
+    S.flags.alloySevenSteps = true;
     // V7: per-robot arrow keys became one key per track
     for (const k in S.seen){ const m = /^(?:rup:\d+|hup:[a-z]+\d+):(\w+)$/.exec(k); if (m) S.seen['trk:' + m[1]] = 1; }
     if (!src.seen){

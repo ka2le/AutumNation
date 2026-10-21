@@ -61,8 +61,9 @@ async function createRunner(output) {
   const source = files['game.js'].toString(), adapted = headless(source);
   const baseline = fs.readFileSync(path.join(__dirname,'legacy-policy.js'),'utf8');
   const smart = fs.existsSync(path.join(__dirname,'smart-policy.js')) ? fs.readFileSync(path.join(__dirname,'smart-policy.js'),'utf8') : '';
+  const honeySource='if(window.__experimentOptions.byPhase)window.__experimentOptions=window.__experimentOptions.byPhase[window.__phase];\n'+fs.readFileSync(path.join(__dirname,'source-experiment.js'),'utf8');
   const manifest = { sources:Object.fromEntries(sourceFiles.map(f => [f,hash(files[f])])),
-    baseline:hash(baseline), smart:hash(smart), harness:hash(fs.readFileSync(__filename)), setup:hash(setup.toString()),
+    baseline:hash(baseline), smart:hash(smart), honeyMax:hash(honeySource), harness:hash(fs.readFileSync(__filename)), setup:hash(setup.toString()),
     method:'20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled.' };
   fs.mkdirSync(output,{recursive:true});
   const frozen = path.join(output,'sources'); fs.mkdirSync(path.join(frozen,'lots'),{recursive:true});
@@ -89,7 +90,9 @@ async function createRunner(output) {
     browser=await playwright.chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{})});
   }catch(e){await new Promise(r=>server.close(r));throw e;}
   async function run({name='smart', seed=1, config={}, maxMinutes=150, phases=[0,3,4], fidelity='sim', experiment=null}) {
-    if(name==='smart-balanced')config={...config,freezeHomeHoneyAfterGoal:false,excavation:false};
+    if(name==='smart-balanced')config={...config,freezeHomeHoneyAfterGoal:false,excavation:false,honeyMax:null};
+    if(name==='smart-skip')config={...config,honeyMax:null};
+    if(config.honeyMax&&!name.startsWith('legacy')&&!experiment)experiment={source:honeySource,options:{phases:Object.keys(config.honeyMax).map(Number),byPhase:config.honeyMax}};
     const context = await browser.newContext({viewport:{width:1280,height:800}}), page = await context.newPage();
     assert(['sim','live'].includes(fidelity),'Unknown fidelity');
     const result = {name,seed,config,fidelity,manifest,experiment:experiment && {options:experiment.options,hash:hash(experiment.source)},stages:[],errors:[],total:0,complete:false};

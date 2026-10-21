@@ -34,6 +34,7 @@ async function main(){
   const names=(process.env.VARIANTS||'baseline,cleanup,alloy,hive120,hive140,hive160').split(',');
   const policies=(process.env.POLICIES||'skip,develop').split(',');
   const config=JSON.parse(fs.readFileSync(path.join(__dirname,'completion-policy.json'),'utf8'));
+  delete config.honeyMax; // Reproduce this historical price experiment's pre-maxing player.
   const fidelity=process.env.FIDELITY||'sim',label=process.env.LABEL||'screen';
   for(const name of names){
     assert(variants[name],'Unknown frozen variant');process.env.GAME_ROOT=path.join(output,'games',name);

@@ -11,7 +11,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
  try{
   const home=await fresh();
   const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,robotCosts:ROBOT_COST.slice(0,ROBOT_MAX),discount:DISCOUNT,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
-  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,140);eq(data.tinker,750);
+  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
   eq(data.robotCosts,[0,8,40,100,220,360,700,1200,2000,3200]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
   eq(await home.evaluate(()=>__leafYard.dev('INGOT_GOAL')),1000);
@@ -24,12 +24,12 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.tracks.speed.gens[2].cost,[100,190]);eq(data.tracks.carry.gens[2].cost,[140,300]);eq(data.tracks.pick.gens.slice(2).flatMap(g=>g.cost),[85,250]);
   eq(data.tracks.blow.gens.flatMap(g=>g.cost),[6,18,38,70]);eq(data.tracks.shake.gens.flatMap(g=>g.cost),[5,9,18,45,70,90]);
   eq(data.up.bin.costs,[.4,.8,1.5,4,30,100,260,650]);eq(data.up.truck.costs,[2,8,50,140,260,700,1800]);
-  eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,7500]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
+  eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,6000]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
   eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,3000,6000]);
-  eq(data.up.cleanup.costs,[200,350,530]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
-  eq(data.up.ingotGrade.vals,[1.45,1.75,2.07,2.43,2.83,3.23]);
-  eq(data.up.metalPrice.costs,[300,600,1100,3500,7000,13000]);
+  eq(data.up.cleanup.costs,[400,1000,2000]);eq(data.up.ingotGrade.costs,[360,6000,10000,14000,20000,28000,36000]);
+  eq(data.up.ingotGrade.vals,[1.45,1.75,1.95,2.15,2.38,2.62,2.87,3.12]);
+  eq(data.up.metalPrice.costs,[300,600,1100,4500,8500,15000]);
   const expected={speed:3.3,carry:38,pick:.32,grab:12,reach:125,pack:4.6,drill:1.35,magnet:.72,study:10.5,blow:6.4,shake:38,dig:.95,stoke:1,dry:6.5};
   for(const[k,v]of Object.entries(expected))eq(data.tracks[k].vals.at(-1),v);
   for(const t of Object.values(data.tracks)){eq(t.gens.reduce((n,g)=>n+g.n,0),t.vals.length-1);for(const g of t.gens)eq(g.cost.length,g.n);}
@@ -49,14 +49,25 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   });
   eq(paid.n,57);eq(paid.matched,9);
   eq(paid.hires,data.robotCosts.slice(2));
+  const alloy=await home.evaluate(()=>{
+   const Y=__leafYard;Y.dev('S.plant.built=true;S.lv.ingotGrade=0;S.cash=1e6;');
+   const costs=[],values=[];
+   while(true){const o=Y.fn().offers().find(o=>o.id==='up'&&o.key==='ingotGrade');if(!o)break;
+    const before=Y.state().cash;if(!Y.buy(o))throw Error('Alloy purchase rejected');
+    costs.push(before-Y.state().cash);values.push(Y.dev("val('ingotGrade')"));
+    if(costs.length>7)throw Error('Alloy cap exceeded');
+   }
+   return {costs,values,level:Y.state().lv.ingotGrade,price:Y.dev('ingotPrice()')};
+  });
+  eq(alloy.costs,data.up.ingotGrade.costs);eq(alloy.values,data.up.ingotGrade.vals.slice(1));eq(alloy.level,7);eq(Number.isFinite(alloy.price),true);
   eq(Math.round(paid.copyCost*100),Math.round(data.tracks.carry.gens.flatMap(g=>g.cost).reduce((s,c)=>s+nice(c*.1),0)*100));
   await home.close();
   const hollow=await fresh('hollow');
   const hd=await hollow.evaluate(()=>__leafYard.dev('({gen:GEN,up:UP,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),mining:[METAL_SLOT_COST,MINER_COST],cash:S.cash})'));
-  eq(hd.cash,0);eq(hd.hiveCost,140);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);
+  eq(hd.cash,0);eq(hd.hiveCost,180);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);
   eq(hd.mining,[450,500]);
   for(const k of ['oil','cutting','market','charm']){eq(hd.gen[k].max,data.gen[k].max);eq(hd.gen[k].name,data.gen[k].name);assert(hd.gen[k].cost[0]<data.gen[k].cost[0]);checks++;}
-  eq(hd.up.ingotGrade.costs,[240,600,1140]);eq(hd.up.ingotGrade.vals,[1,1.25,1.5,1.8]);eq(hd.up.metalPrice.costs,[300,600,1100]);await hollow.close();
+  eq(hd.up.ingotGrade.costs,[240,600,1140]);eq(hd.up.ingotGrade.vals,[1,1.25,1.5,1.8]);eq(hd.up.metalPrice.costs,[300,600,1100]);eq(hd.up.leafPrice.costs.at(-1),6000);await hollow.close();
   const legacy=await fresh();
   const migration=await legacy.evaluate(()=>{
    const Y=__leafYard,old=JSON.parse(JSON.stringify(Y.state()));delete old.flags.investmentV32;
@@ -65,6 +76,22 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
    return{first,second:Y.state()};
   });
   eq(migration.first.robots[0].lv,{speed:9,carry:9,pick:8,grab:4,reach:4,drill:0,magnet:0,pack:7,study:0});eq(migration.first.lv.bagPrice,8);eq(migration.first.flags.investmentV32,true);eq(migration.first.cash,123);eq(migration.first.robots,migration.second.robots);await legacy.close();
+  for(const lot of ['', 'hollow']){
+   const page=await fresh(lot);
+   const rows=await page.evaluate(lot=>{
+    const Y=__leafYard,base=JSON.parse(JSON.stringify(Y.state())),rows=[];
+    for(const old of [true,false])for(let level=0;level<=(lot?3:old?5:7);level++){
+     const save=JSON.parse(JSON.stringify(base));save.lv.ingotGrade=level;save.cash=123;
+     if(old)delete save.flags.alloySevenSteps;
+     Y.dev(`load({S:${JSON.stringify(save)}})`);const first=JSON.parse(JSON.stringify(Y.state()));
+     Y.dev(`load({S:${JSON.stringify(first)}})`);
+     rows.push({old,level,mapped:first.lv.ingotGrade,reloaded:Y.state().lv.ingotGrade,cash:Y.state().cash,flag:first.flags.alloySevenSteps});
+    }return rows;
+   },lot);
+   for(const row of rows){const expected=row.old&&!lot?[0,1,3,4,6,7][row.level]:row.level;
+    eq([row.mapped,row.reloaded,row.cash,row.flag],[expected,expected,123,true]);
+   }await page.close();
+  }
   const ending=await fresh();
   const goal=await ending.evaluate(()=>{
    const Y=__leafYard;

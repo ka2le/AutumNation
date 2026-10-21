@@ -50,7 +50,7 @@ for(let i=0;i<3;i++){
   const delta=[18,24,28][i],a=[400,2200,4000][i],b=[200,350,530][i];
   out.cleanupPayback.push({tier:i+1,oldCost:a,newCost:b,oldMinutes:mean(old.map(r=>a/(r.rate.nL*delta/100))),newMinutes:mean(old.map(r=>b/(r.rate.nL*delta/100))),leafRates:old.map(r=>({seed:r.seed,leavesPerMinute:r.rate.nL}))});
 }
-const finalSource=fs.readFileSync(path.join(root,'public/game.js'),'utf8');
+const finalSource=fs.readFileSync(path.join(base,'default-smoke/sources/game.js'),'utf8');
 out.deliveredGameHash=crypto.createHash('sha256').update(finalSource).digest('hex');
 const smoke=read(path.join(base,'default-smoke/smart-701-57dbca7366.json'));audit(smoke);
 const frozenRow=out.validation.combined140.results.find(r=>r.seed===701&&r.name==='skip');

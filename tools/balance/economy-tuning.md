@@ -1,5 +1,11 @@
 # Cleanup, alloy and hive tuning — October 21, 2026
 
+**Follow-up:** The $140 hive/ant-hill trial below was reverted to **$180** after a stronger honey-maxing strategy
+proved competitive at the original price. Home cleanup was subsequently set to $400 / $1,000 / $2,000 and final
+Sort leaves to $6,000 in both yards. Alloy was subsequently spread over [more, smaller steps](alloy-steps.md).
+See [the newer honey test](honey-max.md),
+which also supersedes the partial-development buyer's conclusions about honey. This report preserves the trial.
+
 Implemented a modest economy adjustment following the [source audit](source-balance.md).
 The [numerical evidence](economy-tuning-2026-10-21.json) records configurations, game hashes, all candidate
 summaries and held-out comparisons. This supersedes the earlier audit's prices, not its historical results.

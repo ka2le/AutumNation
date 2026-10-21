@@ -51,5 +51,35 @@
     }
   },
   "freezeHomeHoneyAfterGoal": true,
-  "excavation": true
+  "excavation": true,
+  "honeyMax": {
+    "3": {
+      "mode": "paid",
+      "phase": 3,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "productive",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    },
+    "4": {
+      "mode": "paid",
+      "phase": 4,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "productive",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    }
+  }
 }

@@ -2,6 +2,20 @@
 
 ## Current snapshot
 
+**Final alloy ladder (2026-10-21):** Better alloy has seven purchases totaling $114,360 (up 44.1%), with a
+slightly lower 3.12x endpoint and the same $36,000 highest purchase. Grade the metal preserves the first three
+prices, then costs $4,500 / $8,500 / $15,000. Twenty paid campaign/replay checks and 185 economy/save invariants
+pass. Main honey-maxing completion is unchanged across four paired seeds; developed industrial income is
+still dominant. See `tools/balance/alloy-steps.md`. This supersedes the earlier five-step alloy recommendation.
+
+**Final prices and honey benchmark (2026-10-21):** Home cleanup is $400 / $1,000 / $2,000; final Sort leaves
+is $6,000 in both yards. Hollow cleanup stays unchanged. General hive/ant upgrades are restored to $180:
+proper honey maxing is competitive at that price. The new main tester keeps initial honey minimal, then
+maxes production/value and two packers at repair unlocks before adding industry. The previous main is
+`smart-skip`. Three paired seeds at $180 average 133.25 vs 136.22 minutes; a normal-gameplay pair confirms
+133.95 vs 139.49 (before the final leaf-price revision). See `tools/balance/honey-max.md` for the final price
+checks. Honey's minimal-or-committed investment pattern is intentional.
+
 **Economy tuning (2026-10-21):** Home cleanup costs $200 / $350 / $530 (about 3 / 4 / 5 minute marginal
 payback at the audited developed leaf rate). Better alloy's final four increments are 20% smaller, with
 unchanged prices; general hive/ant upgrades cost $140 instead of $180. All 66 paid campaign runs and 12

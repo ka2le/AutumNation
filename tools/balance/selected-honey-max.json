@@ -1,0 +1,62 @@
+{
+  "3": {
+    "full": {
+      "mode": "paid",
+      "phase": 3,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "full",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    },
+    "productive": {
+      "mode": "paid",
+      "phase": 3,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "productive",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    }
+  },
+  "4": {
+    "full": {
+      "mode": "paid",
+      "phase": 4,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "full",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    },
+    "productive": {
+      "mode": "paid",
+      "phase": 4,
+      "focus": "honey",
+      "staffing": "specialist",
+      "maxHoney": "productive",
+      "secondary": "raw",
+      "snippers": 1,
+      "bias": 16,
+      "packers": 2,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 90
+    }
+  }
+}

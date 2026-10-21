@@ -1,0 +1,6655 @@
+{
+  "date": "2026-10-21",
+  "method": "Frozen policy, paired paid campaigns on held-out seeds 1201-1203; normal-game branches on seed 1301. Same requested cleanup/Sort leaves prices and $180 hive price in both arms. Full actual-game purchase/cash/travel/ending audits and exact replay per suite.",
+  "changes": {
+    "before": {
+      "ingotGrade": {
+        "costs": [
+          360,
+          6000,
+          14000,
+          23000,
+          36000
+        ],
+        "vals": [
+          1.45,
+          1.75,
+          2.07,
+          2.43,
+          2.83,
+          3.23
+        ]
+      },
+      "metalPrice": {
+        "costs": [
+          300,
+          600,
+          1100,
+          3500,
+          7000,
+          13000
+        ],
+        "vals": [
+          4.8,
+          6,
+          7.5,
+          9.2,
+          11.2,
+          13.6,
+          16.5
+        ]
+      }
+    },
+    "after": {
+      "ingotGrade": {
+        "costs": [
+          360,
+          6000,
+          10000,
+          14000,
+          20000,
+          28000,
+          36000
+        ],
+        "vals": [
+          1.45,
+          1.75,
+          1.95,
+          2.15,
+          2.38,
+          2.62,
+          2.87,
+          3.12
+        ]
+      },
+      "metalPrice": {
+        "costs": [
+          300,
+          600,
+          1100,
+          4500,
+          8500,
+          15000
+        ],
+        "vals": [
+          4.8,
+          6,
+          7.5,
+          9.2,
+          11.2,
+          13.6,
+          16.5
+        ]
+      }
+    }
+  },
+  "suites": {
+    "before": {
+      "manifest": {
+        "sources": {
+          "game.js": "89c01a2c27fd38f8b636f063ae742e5c06459065262c9820e93addfc74658d32",
+          "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+          "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+          "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+          "style.css": "2485ac6e17ed4eeef63da4a9b36e5416aab69de703ce290733a49fc824f6471c",
+          "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+          "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+          "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+        },
+        "baseline": "a68291632836a51adfcbce5e9dd0b62ef407464567ec98a0616e3abdcdda725d",
+        "smart": "c889af0fc4bae18b7cfe9bb71818945481c90f5700e68aecad3d6e93a7630c11",
+        "honeyMax": "637e9f70036d188d35369b4934b5caca1c5fb660d9ba0b8f8ff8849a84e95aec",
+        "harness": "066922672829c1a11713d9c6263dbd6d013fc41314c305e16e736abd9c44ed77",
+        "setup": "be2ae8483b2898fb4626e7c8f8f2415c64e9dbe6513df4ae7d08f1e1a10f54ae",
+        "method": "20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled."
+      },
+      "config": {
+        "phases": {
+          "0": {
+            "growth": 1,
+            "helpers": 2,
+            "goals": 10,
+            "research": 10,
+            "industry": 6,
+            "prices": 2,
+            "costPower": 0.75,
+            "payback": 8,
+            "packers": 1,
+            "researchCrew": 3,
+            "bankIncome": 40,
+            "readiness": "all",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "3": {
+            "growth": 2,
+            "helpers": 8,
+            "goals": 20,
+            "research": 10,
+            "industry": 3,
+            "prices": 2,
+            "costPower": 1.15,
+            "payback": 8,
+            "packers": 2,
+            "researchCrew": 2,
+            "bankIncome": 25,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "4": {
+            "growth": 8,
+            "helpers": 8,
+            "goals": 2,
+            "research": 10,
+            "industry": 3,
+            "prices": 4,
+            "costPower": 0.75,
+            "payback": 5,
+            "packers": 2,
+            "researchCrew": 3,
+            "bankIncome": 1000000000,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3,
+            "skillStaffing": true
+          }
+        },
+        "freezeHomeHoneyAfterGoal": true,
+        "excavation": true,
+        "honeyMax": {
+          "3": {
+            "mode": "paid",
+            "phase": 3,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          },
+          "4": {
+            "mode": "paid",
+            "phase": 4,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          }
+        }
+      },
+      "fidelity": "sim",
+      "seeds": [
+        1201,
+        1202,
+        1203
+      ],
+      "replayIdentical": true,
+      "cashConservationMaxError": 4.3655745685100555e-11,
+      "results": [
+        {
+          "file": "smart-1201-41def2dc27.json",
+          "name": "smart",
+          "seed": 1201,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 122.9408333334884,
+          "stageMinutes": [
+            44.43666666668223,
+            48.158333333362435,
+            30.345833333443732
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.134166666667718
+              },
+              {
+                "id": "robot2",
+                "minute": 10.434166666666306
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.03416666666576
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "robot3",
+                "minute": 25.400833333319362
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.26749999998433
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.284166666650982
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.667499999982148
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.300833333314905
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 31.517499999980465
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 33.934166666644934
+              },
+              {
+                "id": "land",
+                "minute": 33.96749999997824
+              },
+              {
+                "id": "quests",
+                "minute": 34.03416666664484
+              },
+              {
+                "id": "deadheading",
+                "minute": 35.484166666649664
+              },
+              {
+                "id": "mine",
+                "minute": 40.00083333333276
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "read:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 43.73416666667968
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.8841666666678885
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.900833333334559
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 8.100833333334604
+              },
+              {
+                "id": "robot3",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "ants",
+                "minute": 14.650833333329137
+              },
+              {
+                "id": "shaker",
+                "minute": 14.667499999995789
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 15.66749999999488
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.600833333326456
+              },
+              {
+                "id": "saw",
+                "minute": 20.63416666665703
+              },
+              {
+                "id": "canned200",
+                "minute": 22.450833333322045
+              },
+              {
+                "id": "logs100",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "strike",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.68416666664971
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.950833333314314
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.75083333331268
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.76749999997933
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 43.70083333334622
+              },
+              {
+                "id": "coal100",
+                "minute": 46.71750000002386
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 47.350833333359496
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 47.350833333359496
+              },
+              {
+                "id": "returnTrip",
+                "minute": 47.350833333359496
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.650833333335701
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 20.78416666674228
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.000833333409734
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 21.367500000077733
+              },
+              {
+                "id": "blower2",
+                "minute": 21.95083333341319
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 29.700833333441384
+              },
+              {
+                "id": "letter:final",
+                "minute": 30.184166666776477
+              },
+              {
+                "id": "read:final",
+                "minute": 30.184166666776477
+              },
+              {
+                "id": "endingTrip",
+                "minute": 30.184166666776477
+              }
+            ]
+          ],
+          "earned": [
+            3178.3784480000004,
+            36558.373602432,
+            196312.26259987202
+          ],
+          "spent": [
+            3002.25,
+            31292.25,
+            90014.80000000003
+          ],
+          "endCash": [
+            176.12844799999976,
+            5266.123602431999,
+            106473.591047872
+          ],
+          "purchaseCounts": [
+            116,
+            372,
+            409
+          ],
+          "pricePurchases": [
+            [],
+            [],
+            [
+              {
+                "t": 1370.0500000049842,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.124271916257723,
+                "why": "price"
+              },
+              {
+                "t": 1397.0500000050824,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.109274563834968,
+                "why": "price"
+              },
+              {
+                "t": 1398.050000005086,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.2710570269780765,
+                "why": "price"
+              },
+              {
+                "t": 1452.0500000052825,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.2491572900501176,
+                "why": "price"
+              },
+              {
+                "t": 1535.0500000055845,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 4.228080120952645,
+                "why": "price"
+              },
+              {
+                "t": 1617.0500000058828,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 3.434006905167295,
+                "why": "price"
+              },
+              {
+                "t": 1681.0500000061156,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 7000,
+                "maxed": false,
+                "payback": 1.4997750505051435,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1201-7b5a60eea2.json",
+          "name": "smart-skip",
+          "seed": 1201,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 131.32666666685225,
+          "stageMinutes": [
+            44.43666666668223,
+            43.91166666668032,
+            42.97833333348969
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.134166666667718
+              },
+              {
+                "id": "robot2",
+                "minute": 10.434166666666306
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.03416666666576
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "robot3",
+                "minute": 25.400833333319362
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.26749999998433
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.284166666650982
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.667499999982148
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.300833333314905
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 31.517499999980465
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 33.934166666644934
+              },
+              {
+                "id": "land",
+                "minute": 33.96749999997824
+              },
+              {
+                "id": "quests",
+                "minute": 34.03416666664484
+              },
+              {
+                "id": "deadheading",
+                "minute": 35.484166666649664
+              },
+              {
+                "id": "mine",
+                "minute": 40.00083333333276
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "read:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 43.73416666667968
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.8841666666678885
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.900833333334559
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 8.100833333334604
+              },
+              {
+                "id": "robot3",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "ants",
+                "minute": 14.650833333329137
+              },
+              {
+                "id": "shaker",
+                "minute": 14.667499999995789
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 15.66749999999488
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.600833333326456
+              },
+              {
+                "id": "saw",
+                "minute": 20.63416666665703
+              },
+              {
+                "id": "canned200",
+                "minute": 22.450833333322045
+              },
+              {
+                "id": "logs100",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "strike",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.68416666664971
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.950833333314314
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.75083333331268
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.76749999997933
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.784166666650755
+              },
+              {
+                "id": "coal100",
+                "minute": 42.4675000000084
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 43.100833333344035
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 43.100833333344035
+              },
+              {
+                "id": "returnTrip",
+                "minute": 43.100833333344035
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 25.634166666759924
+              },
+              {
+                "id": "firstIngot",
+                "minute": 25.850833333427378
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 26.234166666762107
+              },
+              {
+                "id": "blower2",
+                "minute": 31.734166666782116
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 42.05083333348632
+              },
+              {
+                "id": "letter:final",
+                "minute": 42.68416666682195
+              },
+              {
+                "id": "read:final",
+                "minute": 42.68416666682195
+              },
+              {
+                "id": "endingTrip",
+                "minute": 42.68416666682195
+              }
+            ]
+          ],
+          "earned": [
+            3178.3784480000004,
+            12321.642302976006,
+            128828.62571934718
+          ],
+          "spent": [
+            3002.25,
+            11508.249999999998,
+            67985.20000000001
+          ],
+          "endCash": [
+            176.12844799999976,
+            813.3923029759992,
+            61019.55416734719
+          ],
+          "purchaseCounts": [
+            116,
+            225,
+            367
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2440.050000000111,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.618163054712362,
+                "why": "measured price payback 4.62m"
+              },
+              {
+                "t": 2475.0500000002385,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.89878542511176,
+                "why": "measured price payback 2.90m"
+              },
+              {
+                "t": 2511.0500000003694,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.7684210526452886,
+                "why": "measured price payback 3.77m"
+              }
+            ],
+            [
+              {
+                "t": 1465.0500000053298,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.7809829060002995,
+                "why": "price"
+              },
+              {
+                "t": 1720.0500000062575,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.387254901976745,
+                "why": "price"
+              },
+              {
+                "t": 1757.050000006392,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.735449735466963,
+                "why": "price"
+              },
+              {
+                "t": 1976.0500000071888,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.4471288515531584,
+                "why": "price"
+              },
+              {
+                "t": 2231.0500000081165,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 3.7909042501832153,
+                "why": "price"
+              },
+              {
+                "t": 2343.050000008524,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 3.3137073002092055,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-1202-1f75d77ba2.json",
+          "name": "smart",
+          "seed": 1202,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 126.59416666683502,
+          "stageMinutes": [
+            45.080000000017904,
+            49.31833333336666,
+            32.19583333345046
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "robot2",
+                "minute": 10.467499999999609
+              },
+              {
+                "id": "bookFound",
+                "minute": 10.984166666665805
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.46749999999779
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "robot3",
+                "minute": 25.867499999985604
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.217499999984376
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.25083333331768
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.200833333315906
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 32.15083333331322
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 34.984166666647845
+              },
+              {
+                "id": "land",
+                "minute": 35.00083333331457
+              },
+              {
+                "id": "quests",
+                "minute": 35.08416666664821
+              },
+              {
+                "id": "deadheading",
+                "minute": 36.43416666665312
+              },
+              {
+                "id": "mine",
+                "minute": 41.35083333333767
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "read:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 44.3008333333484
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "ants",
+                "minute": 13.68416666666335
+              },
+              {
+                "id": "shaker",
+                "minute": 13.700833333330001
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.33416666666094
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "robot3",
+                "minute": 23.73416666665421
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 24.217499999987105
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "canned200",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "strike",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 29.267499999982512
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.55083333331377
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalFound",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.85083333331168
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 44.83416666668368
+              },
+              {
+                "id": "coal100",
+                "minute": 47.867500000028045
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "returnTrip",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7841666666695194
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 21.734166666745736
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.95083333341319
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 22.284166666747737
+              },
+              {
+                "id": "blower2",
+                "minute": 22.917500000083372
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 31.40083333344757
+              },
+              {
+                "id": "letter:final",
+                "minute": 32.03416666678321
+              },
+              {
+                "id": "read:final",
+                "minute": 32.03416666678321
+              },
+              {
+                "id": "endingTrip",
+                "minute": 32.03416666678321
+              }
+            ]
+          ],
+          "earned": [
+            3180.3506847999997,
+            36473.104027136,
+            215436.03725030398
+          ],
+          "spent": [
+            3065.25,
+            31428.2,
+            90372.30000000003
+          ],
+          "endCash": [
+            115.10068479999957,
+            5044.904027135999,
+            125178.83793510399
+          ],
+          "purchaseCounts": [
+            116,
+            349,
+            404
+          ],
+          "pricePurchases": [
+            [],
+            [],
+            [
+              {
+                "t": 1446.0500000052607,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.9061526992240925,
+                "why": "price"
+              },
+              {
+                "t": 1483.0500000053953,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 3.9884135472515867,
+                "why": "price"
+              },
+              {
+                "t": 1484.050000005399,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.55818691114467,
+                "why": "price"
+              },
+              {
+                "t": 1558.0500000056682,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.178338001882616,
+                "why": "price"
+              },
+              {
+                "t": 1665.0500000060574,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 3.2540721349740247,
+                "why": "price"
+              },
+              {
+                "t": 1739.0500000063266,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 2.5888552990230735,
+                "why": "price"
+              },
+              {
+                "t": 1775.0500000064576,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 7000,
+                "maxed": false,
+                "payback": 1.5310203640573339,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1202-ef55a6e32b.json",
+          "name": "smart-skip",
+          "seed": 1202,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 130.12083333351453,
+          "stageMinutes": [
+            45.080000000017904,
+            45.678333333353415,
+            39.3625000001432
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "robot2",
+                "minute": 10.467499999999609
+              },
+              {
+                "id": "bookFound",
+                "minute": 10.984166666665805
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.46749999999779
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "robot3",
+                "minute": 25.867499999985604
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.217499999984376
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.25083333331768
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.200833333315906
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 32.15083333331322
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 34.984166666647845
+              },
+              {
+                "id": "land",
+                "minute": 35.00083333331457
+              },
+              {
+                "id": "quests",
+                "minute": 35.08416666664821
+              },
+              {
+                "id": "deadheading",
+                "minute": 36.43416666665312
+              },
+              {
+                "id": "mine",
+                "minute": 41.35083333333767
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "read:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 44.3008333333484
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "ants",
+                "minute": 13.68416666666335
+              },
+              {
+                "id": "shaker",
+                "minute": 13.700833333330001
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.33416666666094
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "robot3",
+                "minute": 23.73416666665421
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 24.217499999987105
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "canned200",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "strike",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 29.267499999982512
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.55083333331377
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalFound",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.85083333331168
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.73416666665057
+              },
+              {
+                "id": "coal100",
+                "minute": 44.234166666681496
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 44.86750000001713
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 44.86750000001713
+              },
+              {
+                "id": "returnTrip",
+                "minute": 44.86750000001713
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 25.000833333424286
+              },
+              {
+                "id": "firstIngot",
+                "minute": 25.40083333342574
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 25.53416666675956
+              },
+              {
+                "id": "blower2",
+                "minute": 29.23416666677302
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 38.65083333347395
+              },
+              {
+                "id": "letter:final",
+                "minute": 39.20083333347595
+              },
+              {
+                "id": "read:final",
+                "minute": 39.20083333347595
+              },
+              {
+                "id": "endingTrip",
+                "minute": 39.20083333347595
+              }
+            ]
+          ],
+          "earned": [
+            3180.3506847999997,
+            11954.954403712,
+            122998.57627074559
+          ],
+          "spent": [
+            3065.25,
+            10446.75,
+            61879.70000000001
+          ],
+          "endCash": [
+            115.10068479999957,
+            1508.2044037119992,
+            61233.976955545586
+          ],
+          "purchaseCounts": [
+            116,
+            189,
+            370
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2617.050000000755,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 3.4636222910342718,
+                "why": "measured price payback 3.46m"
+              },
+              {
+                "t": 2618.0500000007587,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.89878542511176,
+                "why": "measured price payback 2.90m"
+              },
+              {
+                "t": 2654.0500000008897,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.6253164557093913,
+                "why": "measured price payback 3.63m"
+              }
+            ],
+            [
+              {
+                "t": 1248.0500000045404,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.972222222240312,
+                "why": "price"
+              },
+              {
+                "t": 1690.0500000061484,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 3.3901515151638493,
+                "why": "price"
+              },
+              {
+                "t": 1722.0500000062648,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.0442176870859043,
+                "why": "price"
+              },
+              {
+                "t": 1815.050000006603,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.244356566167678,
+                "why": "price"
+              },
+              {
+                "t": 2099.0500000076363,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 2.8852353320543376,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-1203-759941c043.json",
+          "name": "smart",
+          "seed": 1203,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 137.0566666668731,
+          "stageMinutes": [
+            56.86500000006078,
+            47.04583333335839,
+            33.145833333453915
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 8.800833333334458
+              },
+              {
+                "id": "bookFound",
+                "minute": 12.050833333331502
+              },
+              {
+                "id": "bookDone",
+                "minute": 13.46749999999688
+              },
+              {
+                "id": "robot2",
+                "minute": 14.56749999999588
+              },
+              {
+                "id": "robot3",
+                "minute": 26.13416666665203
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 36.16749999998548
+              },
+              {
+                "id": "beeFound",
+                "minute": 36.18416666665221
+              },
+              {
+                "id": "beeDone",
+                "minute": 38.417499999993666
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 39.700833333331666
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 40.41750000000094
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 43.95083333334713
+              },
+              {
+                "id": "quests",
+                "minute": 44.03416666668077
+              },
+              {
+                "id": "land",
+                "minute": 45.35083333335222
+              },
+              {
+                "id": "deadheading",
+                "minute": 45.467500000019314
+              },
+              {
+                "id": "mine",
+                "minute": 53.134166666713874
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "read:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 56.05083333339115
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "robot3",
+                "minute": 14.967499999995516
+              },
+              {
+                "id": "ants",
+                "minute": 15.134166666662031
+              },
+              {
+                "id": "shaker",
+                "minute": 15.167499999995334
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 16.384166666660896
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.700833333326365
+              },
+              {
+                "id": "saw",
+                "minute": 20.134166666657485
+              },
+              {
+                "id": "canned200",
+                "minute": 23.15083333332141
+              },
+              {
+                "id": "logs100",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "strike",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.90083333331618
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.184166666647435
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.35083333331213
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 42.56750000000876
+              },
+              {
+                "id": "coal100",
+                "minute": 45.60083333335313
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 46.23416666668877
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 46.23416666668877
+              },
+              {
+                "id": "returnTrip",
+                "minute": 46.23416666668877
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7675000000027922
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 23.234166666751193
+              },
+              {
+                "id": "firstIngot",
+                "minute": 23.50083333341883
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 23.834166666753376
+              },
+              {
+                "id": "blower2",
+                "minute": 24.46750000008901
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 32.35083333345103
+              },
+              {
+                "id": "letter:final",
+                "minute": 32.98416666678666
+              },
+              {
+                "id": "read:final",
+                "minute": 32.98416666678666
+              },
+              {
+                "id": "endingTrip",
+                "minute": 32.98416666678666
+              }
+            ]
+          ],
+          "earned": [
+            3204.7598035200003,
+            38803.7699529856,
+            204265.39492256
+          ],
+          "spent": [
+            3050.75,
+            33341.7,
+            91626.80000000003
+          ],
+          "endCash": [
+            154.00980351999976,
+            5462.0699529856,
+            112792.60472608
+          ],
+          "purchaseCounts": [
+            111,
+            367,
+            410
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2739.050000001199,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.8412698412801776,
+                "why": "measured price payback 2.84m"
+              }
+            ],
+            [
+              {
+                "t": 1503.050000005468,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.756590136071726,
+                "why": "price"
+              },
+              {
+                "t": 1544.0500000056172,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.5202020202184645,
+                "why": "price"
+              },
+              {
+                "t": 1545.0500000056209,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.55818691114467,
+                "why": "price"
+              },
+              {
+                "t": 1613.0500000058682,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.642597779869573,
+                "why": "price"
+              },
+              {
+                "t": 1728.0500000062866,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 4.257039573835882,
+                "why": "price"
+              },
+              {
+                "t": 1796.050000006534,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 3.5879451457437597,
+                "why": "price"
+              },
+              {
+                "t": 1868.050000006796,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 7000,
+                "maxed": false,
+                "payback": 1.4182083372320566,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1203-c245594b20.json",
+          "name": "smart-skip",
+          "seed": 1203,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 142.7950000002273,
+          "stageMinutes": [
+            56.86500000006078,
+            42.1925000000074,
+            43.737500000159116
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 8.800833333334458
+              },
+              {
+                "id": "bookFound",
+                "minute": 12.050833333331502
+              },
+              {
+                "id": "bookDone",
+                "minute": 13.46749999999688
+              },
+              {
+                "id": "robot2",
+                "minute": 14.56749999999588
+              },
+              {
+                "id": "robot3",
+                "minute": 26.13416666665203
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 36.16749999998548
+              },
+              {
+                "id": "beeFound",
+                "minute": 36.18416666665221
+              },
+              {
+                "id": "beeDone",
+                "minute": 38.417499999993666
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 39.700833333331666
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 40.41750000000094
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 43.95083333334713
+              },
+              {
+                "id": "quests",
+                "minute": 44.03416666668077
+              },
+              {
+                "id": "land",
+                "minute": 45.35083333335222
+              },
+              {
+                "id": "deadheading",
+                "minute": 45.467500000019314
+              },
+              {
+                "id": "mine",
+                "minute": 53.134166666713874
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "read:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 56.05083333339115
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "robot3",
+                "minute": 14.967499999995516
+              },
+              {
+                "id": "ants",
+                "minute": 15.134166666662031
+              },
+              {
+                "id": "shaker",
+                "minute": 15.167499999995334
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 16.384166666660896
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.700833333326365
+              },
+              {
+                "id": "saw",
+                "minute": 20.134166666657485
+              },
+              {
+                "id": "canned200",
+                "minute": 23.15083333332141
+              },
+              {
+                "id": "logs100",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "strike",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.90083333331618
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.184166666647435
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.35083333331213
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 34.68416666664675
+              },
+              {
+                "id": "coal100",
+                "minute": 40.750833333335486
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 41.38416666667113
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 41.38416666667113
+              },
+              {
+                "id": "returnTrip",
+                "minute": 41.38416666667113
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.6675000000024284
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 27.284166666765927
+              },
+              {
+                "id": "firstIngot",
+                "minute": 27.684166666767382
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 28.334166666769747
+              },
+              {
+                "id": "blower2",
+                "minute": 33.0675000001203
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 43.034166666823225
+              },
+              {
+                "id": "letter:final",
+                "minute": 43.584166666825226
+              },
+              {
+                "id": "read:final",
+                "minute": 43.584166666825226
+              },
+              {
+                "id": "endingTrip",
+                "minute": 43.584166666825226
+              }
+            ]
+          ],
+          "earned": [
+            3204.7598035200003,
+            12846.188556159996,
+            124350.4857053184
+          ],
+          "spent": [
+            3050.75,
+            11569.749999999998,
+            68250.70000000001
+          ],
+          "endCash": [
+            154.00980351999976,
+            1276.4385561599995,
+            56253.795508838375
+          ],
+          "purchaseCounts": [
+            111,
+            224,
+            373
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2336.049999999733,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.442789774153665,
+                "why": "measured price payback 4.44m"
+              },
+              {
+                "t": 2337.0499999997364,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 3.8650472334823465,
+                "why": "measured price payback 3.87m"
+              },
+              {
+                "t": 2409.0499999999984,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.2179775281015948,
+                "why": "measured price payback 3.22m"
+              }
+            ],
+            [
+              {
+                "t": 1511.0500000054972,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.972222222240312,
+                "why": "price"
+              },
+              {
+                "t": 1826.0500000066431,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.261904761920268,
+                "why": "price"
+              },
+              {
+                "t": 1857.050000006756,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.371184371200274,
+                "why": "price"
+              },
+              {
+                "t": 2078.05000000756,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.2066314898168913,
+                "why": "price"
+              },
+              {
+                "t": 2361.0500000085894,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 2.5935585361909212,
+                "why": "price"
+              },
+              {
+                "t": 2424.0500000088186,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 3.0159538906251897,
+                "why": "price"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "after": {
+      "manifest": {
+        "sources": {
+          "game.js": "eb29dc55bc707639369ca94681582af4d11c53c22b9f42edb221b0a46fe14e5c",
+          "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+          "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+          "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+          "style.css": "2485ac6e17ed4eeef63da4a9b36e5416aab69de703ce290733a49fc824f6471c",
+          "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+          "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+          "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+        },
+        "baseline": "a68291632836a51adfcbce5e9dd0b62ef407464567ec98a0616e3abdcdda725d",
+        "smart": "c889af0fc4bae18b7cfe9bb71818945481c90f5700e68aecad3d6e93a7630c11",
+        "honeyMax": "637e9f70036d188d35369b4934b5caca1c5fb660d9ba0b8f8ff8849a84e95aec",
+        "harness": "066922672829c1a11713d9c6263dbd6d013fc41314c305e16e736abd9c44ed77",
+        "setup": "be2ae8483b2898fb4626e7c8f8f2415c64e9dbe6513df4ae7d08f1e1a10f54ae",
+        "method": "20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled."
+      },
+      "config": {
+        "phases": {
+          "0": {
+            "growth": 1,
+            "helpers": 2,
+            "goals": 10,
+            "research": 10,
+            "industry": 6,
+            "prices": 2,
+            "costPower": 0.75,
+            "payback": 8,
+            "packers": 1,
+            "researchCrew": 3,
+            "bankIncome": 40,
+            "readiness": "all",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "3": {
+            "growth": 2,
+            "helpers": 8,
+            "goals": 20,
+            "research": 10,
+            "industry": 3,
+            "prices": 2,
+            "costPower": 1.15,
+            "payback": 8,
+            "packers": 2,
+            "researchCrew": 2,
+            "bankIncome": 25,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "4": {
+            "growth": 8,
+            "helpers": 8,
+            "goals": 2,
+            "research": 10,
+            "industry": 3,
+            "prices": 4,
+            "costPower": 0.75,
+            "payback": 5,
+            "packers": 2,
+            "researchCrew": 3,
+            "bankIncome": 1000000000,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3,
+            "skillStaffing": true
+          }
+        },
+        "freezeHomeHoneyAfterGoal": true,
+        "excavation": true,
+        "honeyMax": {
+          "3": {
+            "mode": "paid",
+            "phase": 3,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          },
+          "4": {
+            "mode": "paid",
+            "phase": 4,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          }
+        }
+      },
+      "fidelity": "sim",
+      "seeds": [
+        1201,
+        1202,
+        1203
+      ],
+      "replayIdentical": true,
+      "cashConservationMaxError": 5.820766091346741e-11,
+      "results": [
+        {
+          "file": "smart-1201-41def2dc27.json",
+          "name": "smart",
+          "seed": 1201,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 122.9408333334884,
+          "stageMinutes": [
+            44.43666666668223,
+            48.158333333362435,
+            30.345833333443732
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.134166666667718
+              },
+              {
+                "id": "robot2",
+                "minute": 10.434166666666306
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.03416666666576
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "robot3",
+                "minute": 25.400833333319362
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.26749999998433
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.284166666650982
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.667499999982148
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.300833333314905
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 31.517499999980465
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 33.934166666644934
+              },
+              {
+                "id": "land",
+                "minute": 33.96749999997824
+              },
+              {
+                "id": "quests",
+                "minute": 34.03416666664484
+              },
+              {
+                "id": "deadheading",
+                "minute": 35.484166666649664
+              },
+              {
+                "id": "mine",
+                "minute": 40.00083333333276
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "read:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 43.73416666667968
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.8841666666678885
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.900833333334559
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 8.100833333334604
+              },
+              {
+                "id": "robot3",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "ants",
+                "minute": 14.650833333329137
+              },
+              {
+                "id": "shaker",
+                "minute": 14.667499999995789
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 15.66749999999488
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.600833333326456
+              },
+              {
+                "id": "saw",
+                "minute": 20.63416666665703
+              },
+              {
+                "id": "canned200",
+                "minute": 22.450833333322045
+              },
+              {
+                "id": "logs100",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "strike",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.68416666664971
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.950833333314314
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.75083333331268
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.76749999997933
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 43.70083333334622
+              },
+              {
+                "id": "coal100",
+                "minute": 46.71750000002386
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 47.350833333359496
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 47.350833333359496
+              },
+              {
+                "id": "returnTrip",
+                "minute": 47.350833333359496
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.650833333335701
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 20.78416666674228
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.000833333409734
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 21.367500000077733
+              },
+              {
+                "id": "blower2",
+                "minute": 21.95083333341319
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 29.700833333441384
+              },
+              {
+                "id": "letter:final",
+                "minute": 30.184166666776477
+              },
+              {
+                "id": "read:final",
+                "minute": 30.184166666776477
+              },
+              {
+                "id": "endingTrip",
+                "minute": 30.184166666776477
+              }
+            ]
+          ],
+          "earned": [
+            3178.3784480000004,
+            36558.373602432,
+            172900.52541753597
+          ],
+          "spent": [
+            3002.25,
+            31292.25,
+            78014.80000000003
+          ],
+          "endCash": [
+            176.12844799999976,
+            5266.123602431999,
+            95061.85386553597
+          ],
+          "purchaseCounts": [
+            116,
+            372,
+            407
+          ],
+          "pricePurchases": [
+            [],
+            [],
+            [
+              {
+                "t": 1370.0500000049842,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.124271916257723,
+                "why": "price"
+              },
+              {
+                "t": 1397.0500000050824,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.109274563834968,
+                "why": "price"
+              },
+              {
+                "t": 1398.050000005086,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.2710570269780765,
+                "why": "price"
+              },
+              {
+                "t": 1452.0500000052825,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.2491572900501176,
+                "why": "price"
+              },
+              {
+                "t": 1591.0500000057882,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 2.927132391428754,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1201-7b5a60eea2.json",
+          "name": "smart-skip",
+          "seed": 1201,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 130.72583333351673,
+          "stageMinutes": [
+            44.43666666668223,
+            43.91166666668032,
+            42.37750000015417
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.134166666667718
+              },
+              {
+                "id": "robot2",
+                "minute": 10.434166666666306
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.03416666666576
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.1841666666538
+              },
+              {
+                "id": "robot3",
+                "minute": 25.400833333319362
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.26749999998433
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.284166666650982
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.667499999982148
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.300833333314905
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 31.517499999980465
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 33.934166666644934
+              },
+              {
+                "id": "land",
+                "minute": 33.96749999997824
+              },
+              {
+                "id": "quests",
+                "minute": 34.03416666664484
+              },
+              {
+                "id": "deadheading",
+                "minute": 35.484166666649664
+              },
+              {
+                "id": "mine",
+                "minute": 40.00083333333276
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "read:hollow",
+                "minute": 40.61750000000167
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 43.73416666667968
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.8841666666678885
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.900833333334559
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 8.100833333334604
+              },
+              {
+                "id": "robot3",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "ants",
+                "minute": 14.650833333329137
+              },
+              {
+                "id": "shaker",
+                "minute": 14.667499999995789
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 15.66749999999488
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.600833333326456
+              },
+              {
+                "id": "saw",
+                "minute": 20.63416666665703
+              },
+              {
+                "id": "canned200",
+                "minute": 22.450833333322045
+              },
+              {
+                "id": "logs100",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "strike",
+                "minute": 28.517499999983194
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.68416666664971
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.950833333314314
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.75083333331268
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.76749999997933
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.784166666650755
+              },
+              {
+                "id": "coal100",
+                "minute": 42.4675000000084
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 43.100833333344035
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 43.100833333344035
+              },
+              {
+                "id": "returnTrip",
+                "minute": 43.100833333344035
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 25.634166666759924
+              },
+              {
+                "id": "firstIngot",
+                "minute": 25.850833333427378
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 26.234166666762107
+              },
+              {
+                "id": "blower2",
+                "minute": 31.734166666782116
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 41.450833333484134
+              },
+              {
+                "id": "letter:final",
+                "minute": 42.08416666681977
+              },
+              {
+                "id": "read:final",
+                "minute": 42.08416666681977
+              },
+              {
+                "id": "endingTrip",
+                "minute": 42.08416666681977
+              }
+            ]
+          ],
+          "earned": [
+            3178.3784480000004,
+            12321.642302976006,
+            122379.82574566398
+          ],
+          "spent": [
+            3002.25,
+            11508.249999999998,
+            62985.20000000001
+          ],
+          "endCash": [
+            176.12844799999976,
+            813.3923029759992,
+            59570.75419366399
+          ],
+          "purchaseCounts": [
+            116,
+            225,
+            366
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2440.050000000111,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.618163054712362,
+                "why": "measured price payback 4.62m"
+              },
+              {
+                "t": 2475.0500000002385,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.89878542511176,
+                "why": "measured price payback 2.90m"
+              },
+              {
+                "t": 2511.0500000003694,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.7684210526452886,
+                "why": "measured price payback 3.77m"
+              }
+            ],
+            [
+              {
+                "t": 1465.0500000053298,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.7809829060002995,
+                "why": "price"
+              },
+              {
+                "t": 1720.0500000062575,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.387254901976745,
+                "why": "price"
+              },
+              {
+                "t": 1757.050000006392,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.735449735466963,
+                "why": "price"
+              },
+              {
+                "t": 1976.0500000071888,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.4471288515531584,
+                "why": "price"
+              },
+              {
+                "t": 2342.0500000085203,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 2.335594989570083,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-1202-1f75d77ba2.json",
+          "name": "smart",
+          "seed": 1202,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 126.59416666683502,
+          "stageMinutes": [
+            45.080000000017904,
+            49.31833333336666,
+            32.19583333345046
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "robot2",
+                "minute": 10.467499999999609
+              },
+              {
+                "id": "bookFound",
+                "minute": 10.984166666665805
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.46749999999779
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "robot3",
+                "minute": 25.867499999985604
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.217499999984376
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.25083333331768
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.200833333315906
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 32.15083333331322
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 34.984166666647845
+              },
+              {
+                "id": "land",
+                "minute": 35.00083333331457
+              },
+              {
+                "id": "quests",
+                "minute": 35.08416666664821
+              },
+              {
+                "id": "deadheading",
+                "minute": 36.43416666665312
+              },
+              {
+                "id": "mine",
+                "minute": 41.35083333333767
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "read:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 44.3008333333484
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "ants",
+                "minute": 13.68416666666335
+              },
+              {
+                "id": "shaker",
+                "minute": 13.700833333330001
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.33416666666094
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "robot3",
+                "minute": 23.73416666665421
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 24.217499999987105
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "canned200",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "strike",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 29.267499999982512
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.55083333331377
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalFound",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.85083333331168
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 44.83416666668368
+              },
+              {
+                "id": "coal100",
+                "minute": 47.867500000028045
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "returnTrip",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7841666666695194
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 21.734166666745736
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.95083333341319
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 22.284166666747737
+              },
+              {
+                "id": "blower2",
+                "minute": 22.917500000083372
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 31.40083333344757
+              },
+              {
+                "id": "letter:final",
+                "minute": 32.03416666678321
+              },
+              {
+                "id": "read:final",
+                "minute": 32.03416666678321
+              },
+              {
+                "id": "endingTrip",
+                "minute": 32.03416666678321
+              }
+            ]
+          ],
+          "earned": [
+            3180.3506847999997,
+            36473.104027136,
+            219091.20938995195
+          ],
+          "spent": [
+            3065.25,
+            31428.2,
+            92872.30000000003
+          ],
+          "endCash": [
+            115.10068479999957,
+            5044.904027135999,
+            126334.01007475199
+          ],
+          "purchaseCounts": [
+            116,
+            349,
+            404
+          ],
+          "pricePurchases": [
+            [],
+            [],
+            [
+              {
+                "t": 1446.0500000052607,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.9061526992240925,
+                "why": "price"
+              },
+              {
+                "t": 1483.0500000053953,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 3.9884135472515867,
+                "why": "price"
+              },
+              {
+                "t": 1484.050000005399,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.55818691114467,
+                "why": "price"
+              },
+              {
+                "t": 1558.0500000056682,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.178338001882616,
+                "why": "price"
+              },
+              {
+                "t": 1667.0500000060647,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 4.183807030680889,
+                "why": "price"
+              },
+              {
+                "t": 1740.0500000063303,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 4.2806253635100155,
+                "why": "price"
+              },
+              {
+                "t": 1775.0500000064576,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 8500,
+                "maxed": false,
+                "payback": 2.2851076642489043,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1202-ef55a6e32b.json",
+          "name": "smart-skip",
+          "seed": 1202,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 129.59583333351262,
+          "stageMinutes": [
+            45.080000000017904,
+            45.678333333353415,
+            38.83750000014129
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "robot2",
+                "minute": 10.467499999999609
+              },
+              {
+                "id": "bookFound",
+                "minute": 10.984166666665805
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.46749999999779
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 24.317499999987014
+              },
+              {
+                "id": "robot3",
+                "minute": 25.867499999985604
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 27.217499999984376
+              },
+              {
+                "id": "beeFound",
+                "minute": 27.25083333331768
+              },
+              {
+                "id": "beeDone",
+                "minute": 29.200833333315906
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 32.15083333331322
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 34.984166666647845
+              },
+              {
+                "id": "land",
+                "minute": 35.00083333331457
+              },
+              {
+                "id": "quests",
+                "minute": 35.08416666664821
+              },
+              {
+                "id": "deadheading",
+                "minute": 36.43416666665312
+              },
+              {
+                "id": "mine",
+                "minute": 41.35083333333767
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "read:hollow",
+                "minute": 42.067500000006945
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 44.3008333333484
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "ants",
+                "minute": 13.68416666666335
+              },
+              {
+                "id": "shaker",
+                "minute": 13.700833333330001
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.33416666666094
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "robot3",
+                "minute": 23.73416666665421
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 24.217499999987105
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "canned200",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "strike",
+                "minute": 29.067499999982694
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 29.267499999982512
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.55083333331377
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalFound",
+                "minute": 33.31749999997883
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.85083333331168
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.73416666665057
+              },
+              {
+                "id": "coal100",
+                "minute": 44.234166666681496
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 44.86750000001713
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 44.86750000001713
+              },
+              {
+                "id": "returnTrip",
+                "minute": 44.86750000001713
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 25.000833333424286
+              },
+              {
+                "id": "firstIngot",
+                "minute": 25.40083333342574
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 25.53416666675956
+              },
+              {
+                "id": "blower2",
+                "minute": 29.23416666677302
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 38.1341666668054
+              },
+              {
+                "id": "letter:final",
+                "minute": 38.6841666668074
+              },
+              {
+                "id": "read:final",
+                "minute": 38.6841666668074
+              },
+              {
+                "id": "endingTrip",
+                "minute": 38.6841666668074
+              }
+            ]
+          ],
+          "earned": [
+            3180.3506847999997,
+            11954.954403712,
+            115435.12431846398
+          ],
+          "spent": [
+            3065.25,
+            10446.75,
+            62879.70000000001
+          ],
+          "endCash": [
+            115.10068479999957,
+            1508.2044037119992,
+            52670.52500326399
+          ],
+          "purchaseCounts": [
+            116,
+            189,
+            370
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2617.050000000755,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 3.4636222910342718,
+                "why": "measured price payback 3.46m"
+              },
+              {
+                "t": 2618.0500000007587,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.89878542511176,
+                "why": "measured price payback 2.90m"
+              },
+              {
+                "t": 2654.0500000008897,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.6253164557093913,
+                "why": "measured price payback 3.63m"
+              }
+            ],
+            [
+              {
+                "t": 1248.0500000045404,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.972222222240312,
+                "why": "price"
+              },
+              {
+                "t": 1690.0500000061484,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 3.3901515151638493,
+                "why": "price"
+              },
+              {
+                "t": 1722.0500000062648,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.0442176870859043,
+                "why": "price"
+              },
+              {
+                "t": 1815.050000006603,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.244356566167678,
+                "why": "price"
+              },
+              {
+                "t": 2162.0500000078655,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 1.9828961361291555,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-1203-759941c043.json",
+          "name": "smart",
+          "seed": 1203,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 137.0566666668731,
+          "stageMinutes": [
+            56.86500000006078,
+            47.04583333335839,
+            33.145833333453915
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 8.800833333334458
+              },
+              {
+                "id": "bookFound",
+                "minute": 12.050833333331502
+              },
+              {
+                "id": "bookDone",
+                "minute": 13.46749999999688
+              },
+              {
+                "id": "robot2",
+                "minute": 14.56749999999588
+              },
+              {
+                "id": "robot3",
+                "minute": 26.13416666665203
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 36.16749999998548
+              },
+              {
+                "id": "beeFound",
+                "minute": 36.18416666665221
+              },
+              {
+                "id": "beeDone",
+                "minute": 38.417499999993666
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 39.700833333331666
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 40.41750000000094
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 43.95083333334713
+              },
+              {
+                "id": "quests",
+                "minute": 44.03416666668077
+              },
+              {
+                "id": "land",
+                "minute": 45.35083333335222
+              },
+              {
+                "id": "deadheading",
+                "minute": 45.467500000019314
+              },
+              {
+                "id": "mine",
+                "minute": 53.134166666713874
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "read:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 56.05083333339115
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "robot3",
+                "minute": 14.967499999995516
+              },
+              {
+                "id": "ants",
+                "minute": 15.134166666662031
+              },
+              {
+                "id": "shaker",
+                "minute": 15.167499999995334
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 16.384166666660896
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.700833333326365
+              },
+              {
+                "id": "saw",
+                "minute": 20.134166666657485
+              },
+              {
+                "id": "canned200",
+                "minute": 23.15083333332141
+              },
+              {
+                "id": "logs100",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "strike",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.90083333331618
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.184166666647435
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.35083333331213
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 42.56750000000876
+              },
+              {
+                "id": "coal100",
+                "minute": 45.60083333335313
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 46.23416666668877
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 46.23416666668877
+              },
+              {
+                "id": "returnTrip",
+                "minute": 46.23416666668877
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7675000000027922
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 23.234166666751193
+              },
+              {
+                "id": "firstIngot",
+                "minute": 23.50083333341883
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 23.834166666753376
+              },
+              {
+                "id": "blower2",
+                "minute": 24.46750000008901
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 32.35083333345103
+              },
+              {
+                "id": "letter:final",
+                "minute": 32.98416666678666
+              },
+              {
+                "id": "read:final",
+                "minute": 32.98416666678666
+              },
+              {
+                "id": "endingTrip",
+                "minute": 32.98416666678666
+              }
+            ]
+          ],
+          "earned": [
+            3204.7598035200003,
+            38803.7699529856,
+            195187.54572665598
+          ],
+          "spent": [
+            3050.75,
+            33341.7,
+            88126.80000000003
+          ],
+          "endCash": [
+            154.00980351999976,
+            5462.0699529856,
+            107214.75553017599
+          ],
+          "purchaseCounts": [
+            111,
+            367,
+            409
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2739.050000001199,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.8412698412801776,
+                "why": "measured price payback 2.84m"
+              }
+            ],
+            [
+              {
+                "t": 1503.050000005468,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.756590136071726,
+                "why": "price"
+              },
+              {
+                "t": 1544.0500000056172,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.5202020202184645,
+                "why": "price"
+              },
+              {
+                "t": 1545.0500000056209,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.55818691114467,
+                "why": "price"
+              },
+              {
+                "t": 1613.0500000058682,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.642597779869573,
+                "why": "price"
+              },
+              {
+                "t": 1760.050000006403,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 3.8791608876701447,
+                "why": "price"
+              },
+              {
+                "t": 1833.0500000066686,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 8500,
+                "maxed": false,
+                "payback": 3.12898964174978,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1203-c245594b20.json",
+          "name": "smart-skip",
+          "seed": 1203,
+          "fidelity": "sim",
+          "complete": true,
+          "totalMinutes": 142.2700000002254,
+          "stageMinutes": [
+            56.86500000006078,
+            42.1925000000074,
+            43.212500000157206
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 8.800833333334458
+              },
+              {
+                "id": "bookFound",
+                "minute": 12.050833333331502
+              },
+              {
+                "id": "bookDone",
+                "minute": 13.46749999999688
+              },
+              {
+                "id": "robot2",
+                "minute": 14.56749999999588
+              },
+              {
+                "id": "robot3",
+                "minute": 26.13416666665203
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 33.284166666645525
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 36.16749999998548
+              },
+              {
+                "id": "beeFound",
+                "minute": 36.18416666665221
+              },
+              {
+                "id": "beeDone",
+                "minute": 38.417499999993666
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 39.700833333331666
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 40.41750000000094
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 43.95083333334713
+              },
+              {
+                "id": "quests",
+                "minute": 44.03416666668077
+              },
+              {
+                "id": "land",
+                "minute": 45.35083333335222
+              },
+              {
+                "id": "deadheading",
+                "minute": 45.467500000019314
+              },
+              {
+                "id": "mine",
+                "minute": 53.134166666713874
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "read:hollow",
+                "minute": 53.86750000004987
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 56.05083333339115
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.2008333333343995
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.334166666667763
+              },
+              {
+                "id": "robot3",
+                "minute": 14.967499999995516
+              },
+              {
+                "id": "ants",
+                "minute": 15.134166666662031
+              },
+              {
+                "id": "shaker",
+                "minute": 15.167499999995334
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 16.384166666660896
+              },
+              {
+                "id": "logCrib",
+                "minute": 17.700833333326365
+              },
+              {
+                "id": "saw",
+                "minute": 20.134166666657485
+              },
+              {
+                "id": "canned200",
+                "minute": 23.15083333332141
+              },
+              {
+                "id": "logs100",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "strike",
+                "minute": 28.617499999983103
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.90083333331618
+              },
+              {
+                "id": "fireDone",
+                "minute": 31.184166666647435
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.86749999997924
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.35083333331213
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 34.68416666664675
+              },
+              {
+                "id": "coal100",
+                "minute": 40.750833333335486
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 41.38416666667113
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 41.38416666667113
+              },
+              {
+                "id": "returnTrip",
+                "minute": 41.38416666667113
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.6675000000024284
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 27.284166666765927
+              },
+              {
+                "id": "firstIngot",
+                "minute": 27.684166666767382
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 28.334166666769747
+              },
+              {
+                "id": "blower2",
+                "minute": 33.0675000001203
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 42.500833333487954
+              },
+              {
+                "id": "letter:final",
+                "minute": 43.050833333489955
+              },
+              {
+                "id": "read:final",
+                "minute": 43.050833333489955
+              },
+              {
+                "id": "endingTrip",
+                "minute": 43.050833333489955
+              }
+            ]
+          ],
+          "earned": [
+            3204.7598035200003,
+            12846.188556159996,
+            112135.20761523198
+          ],
+          "spent": [
+            3050.75,
+            11569.749999999998,
+            61275.70000000001
+          ],
+          "endCash": [
+            154.00980351999976,
+            1276.4385561599995,
+            51013.51741875199
+          ],
+          "purchaseCounts": [
+            111,
+            224,
+            368
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2336.049999999733,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.442789774153665,
+                "why": "measured price payback 4.44m"
+              },
+              {
+                "t": 2337.0499999997364,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 3.8650472334823465,
+                "why": "measured price payback 3.87m"
+              },
+              {
+                "t": 2409.0499999999984,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.2179775281015948,
+                "why": "measured price payback 3.22m"
+              }
+            ],
+            [
+              {
+                "t": 1511.0500000054972,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.972222222240312,
+                "why": "price"
+              },
+              {
+                "t": 1826.0500000066431,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.261904761920268,
+                "why": "price"
+              },
+              {
+                "t": 1857.050000006756,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.371184371200274,
+                "why": "price"
+              },
+              {
+                "t": 2078.05000000756,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.2066314898168913,
+                "why": "price"
+              },
+              {
+                "t": 2424.0500000088186,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 2.1196475937932355,
+                "why": "price"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "live-before": {
+      "manifest": {
+        "sources": {
+          "game.js": "89c01a2c27fd38f8b636f063ae742e5c06459065262c9820e93addfc74658d32",
+          "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+          "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+          "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+          "style.css": "2485ac6e17ed4eeef63da4a9b36e5416aab69de703ce290733a49fc824f6471c",
+          "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+          "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+          "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+        },
+        "baseline": "a68291632836a51adfcbce5e9dd0b62ef407464567ec98a0616e3abdcdda725d",
+        "smart": "c889af0fc4bae18b7cfe9bb71818945481c90f5700e68aecad3d6e93a7630c11",
+        "honeyMax": "637e9f70036d188d35369b4934b5caca1c5fb660d9ba0b8f8ff8849a84e95aec",
+        "harness": "066922672829c1a11713d9c6263dbd6d013fc41314c305e16e736abd9c44ed77",
+        "setup": "be2ae8483b2898fb4626e7c8f8f2415c64e9dbe6513df4ae7d08f1e1a10f54ae",
+        "method": "20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled."
+      },
+      "config": {
+        "phases": {
+          "0": {
+            "growth": 1,
+            "helpers": 2,
+            "goals": 10,
+            "research": 10,
+            "industry": 6,
+            "prices": 2,
+            "costPower": 0.75,
+            "payback": 8,
+            "packers": 1,
+            "researchCrew": 3,
+            "bankIncome": 40,
+            "readiness": "all",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "3": {
+            "growth": 2,
+            "helpers": 8,
+            "goals": 20,
+            "research": 10,
+            "industry": 3,
+            "prices": 2,
+            "costPower": 1.15,
+            "payback": 8,
+            "packers": 2,
+            "researchCrew": 2,
+            "bankIncome": 25,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "4": {
+            "growth": 8,
+            "helpers": 8,
+            "goals": 2,
+            "research": 10,
+            "industry": 3,
+            "prices": 4,
+            "costPower": 0.75,
+            "payback": 5,
+            "packers": 2,
+            "researchCrew": 3,
+            "bankIncome": 1000000000,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3,
+            "skillStaffing": true
+          }
+        },
+        "freezeHomeHoneyAfterGoal": true,
+        "excavation": true,
+        "honeyMax": {
+          "3": {
+            "mode": "paid",
+            "phase": 3,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          },
+          "4": {
+            "mode": "paid",
+            "phase": 4,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          }
+        }
+      },
+      "fidelity": "live",
+      "seeds": [
+        1301
+      ],
+      "replayIdentical": true,
+      "cashConservationMaxError": 8.731149137020111e-11,
+      "results": [
+        {
+          "file": "smart-1301-db28d2f22c.json",
+          "name": "smart",
+          "seed": 1301,
+          "fidelity": "live",
+          "complete": true,
+          "totalMinutes": 129.20916666684454,
+          "stageMinutes": [
+            49.443333333367114,
+            49.48000000003391,
+            30.285833333443513
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.200833333332275
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "robot2",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "robot3",
+                "minute": 27.967499999983694
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "beeFound",
+                "minute": 30.084166666648436
+              },
+              {
+                "id": "beeDone",
+                "minute": 32.050833333313314
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 33.5674999999786
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 34.2841666666453
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 37.81749999999148
+              },
+              {
+                "id": "quests",
+                "minute": 37.98416666665876
+              },
+              {
+                "id": "deadheading",
+                "minute": 39.650833333331484
+              },
+              {
+                "id": "land",
+                "minute": 39.93416666666585
+              },
+              {
+                "id": "mine",
+                "minute": 45.58416666668641
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "read:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.400833333334445
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.567500000001149
+              },
+              {
+                "id": "robot3",
+                "minute": 12.100833333331456
+              },
+              {
+                "id": "ants",
+                "minute": 13.717499999996653
+              },
+              {
+                "id": "shaker",
+                "minute": 13.90083333332982
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 14.500833333329274
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.934166666660396
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "canned200",
+                "minute": 21.784166666655985
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "strike",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.5841666666498
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.850833333314405
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.21749999997892
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 44.83416666668368
+              },
+              {
+                "id": "coal100",
+                "minute": 47.867500000028045
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "returnTrip",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.650833333335701
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 21.000833333409734
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.234166666743917
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 21.367500000077733
+              },
+              {
+                "id": "blower2",
+                "minute": 21.88416666674628
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 29.584166666774294
+              },
+              {
+                "id": "letter:final",
+                "minute": 30.000833333442475
+              },
+              {
+                "id": "read:final",
+                "minute": 30.000833333442475
+              },
+              {
+                "id": "endingTrip",
+                "minute": 30.000833333442475
+              }
+            ]
+          ],
+          "earned": [
+            3585.868178559999,
+            37736.45119936,
+            192553.48855910395
+          ],
+          "spent": [
+            3370.25,
+            32095.75,
+            91784.30000000003
+          ],
+          "endCash": [
+            215.61817855999973,
+            5640.701199359999,
+            100984.806737664
+          ],
+          "purchaseCounts": [
+            117,
+            364,
+            410
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2876.0500000016973,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.9537953795486995,
+                "why": "measured price payback 2.95m"
+              }
+            ],
+            [
+              {
+                "t": 1352.0500000049187,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.26971223572273,
+                "why": "price"
+              },
+              {
+                "t": 1410.0500000051297,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.237689393954811,
+                "why": "price"
+              },
+              {
+                "t": 1411.0500000051334,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.287938675306053,
+                "why": "price"
+              },
+              {
+                "t": 1470.050000005348,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.255847793674765,
+                "why": "price"
+              },
+              {
+                "t": 1541.0500000056063,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 3.4338551258565673,
+                "why": "price"
+              },
+              {
+                "t": 1612.0500000058646,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 2.955277895192493,
+                "why": "price"
+              },
+              {
+                "t": 1671.0500000060792,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 7000,
+                "maxed": false,
+                "payback": 1.7924140847500494,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1301-1f6e768c51.json",
+          "name": "smart-skip",
+          "seed": 1301,
+          "fidelity": "live",
+          "complete": true,
+          "totalMinutes": 132.4575000001897,
+          "stageMinutes": [
+            49.443333333367114,
+            43.981666666680574,
+            39.032500000142
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.200833333332275
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "robot2",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "robot3",
+                "minute": 27.967499999983694
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "beeFound",
+                "minute": 30.084166666648436
+              },
+              {
+                "id": "beeDone",
+                "minute": 32.050833333313314
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 33.5674999999786
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 34.2841666666453
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 37.81749999999148
+              },
+              {
+                "id": "quests",
+                "minute": 37.98416666665876
+              },
+              {
+                "id": "deadheading",
+                "minute": 39.650833333331484
+              },
+              {
+                "id": "land",
+                "minute": 39.93416666666585
+              },
+              {
+                "id": "mine",
+                "minute": 45.58416666668641
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "read:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.400833333334445
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.567500000001149
+              },
+              {
+                "id": "robot3",
+                "minute": 12.100833333331456
+              },
+              {
+                "id": "ants",
+                "minute": 13.717499999996653
+              },
+              {
+                "id": "shaker",
+                "minute": 13.90083333332982
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 14.500833333329274
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.934166666660396
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "canned200",
+                "minute": 21.784166666655985
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "strike",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.5841666666498
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.850833333314405
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.21749999997892
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.73416666665057
+              },
+              {
+                "id": "coal100",
+                "minute": 42.41750000000822
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 43.05083333334385
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 43.05083333334385
+              },
+              {
+                "id": "returnTrip",
+                "minute": 43.05083333334385
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 22.9341666667501
+              },
+              {
+                "id": "firstIngot",
+                "minute": 23.217500000084463
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 23.467500000085373
+              },
+              {
+                "id": "blower2",
+                "minute": 28.234166666769383
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 38.16750000013885
+              },
+              {
+                "id": "letter:final",
+                "minute": 38.71750000014085
+              },
+              {
+                "id": "read:final",
+                "minute": 38.71750000014085
+              },
+              {
+                "id": "endingTrip",
+                "minute": 38.71750000014085
+              }
+            ]
+          ],
+          "earned": [
+            3585.868178559999,
+            10757.33032256,
+            119842.76973885436
+          ],
+          "spent": [
+            3370.25,
+            9637.8,
+            66494.20000000001
+          ],
+          "endCash": [
+            215.61817855999973,
+            1119.5303225599994,
+            53564.18791741438
+          ],
+          "purchaseCounts": [
+            117,
+            193,
+            372
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2508.0500000003585,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.618163054712362,
+                "why": "measured price payback 4.62m"
+              },
+              {
+                "t": 2509.050000000362,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 3.8650472334823465,
+                "why": "measured price payback 3.87m"
+              },
+              {
+                "t": 2545.050000000493,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.2179775281015948,
+                "why": "measured price payback 3.22m"
+              }
+            ],
+            [
+              {
+                "t": 1313.0500000047768,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.939293598251965,
+                "why": "price"
+              },
+              {
+                "t": 1535.0500000055845,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.972222222240311,
+                "why": "price"
+              },
+              {
+                "t": 1597.05000000581,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.735449735466963,
+                "why": "price"
+              },
+              {
+                "t": 1754.0500000063812,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.178338001882616,
+                "why": "price"
+              },
+              {
+                "t": 2070.050000007531,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 3500,
+                "maxed": false,
+                "payback": 2.327819392434602,
+                "why": "price"
+              },
+              {
+                "t": 2133.05000000776,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 6000,
+                "maxed": false,
+                "payback": 2.842907355917187,
+                "why": "price"
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "live-after": {
+      "manifest": {
+        "sources": {
+          "game.js": "eb29dc55bc707639369ca94681582af4d11c53c22b9f42edb221b0a46fe14e5c",
+          "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+          "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+          "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+          "style.css": "2485ac6e17ed4eeef63da4a9b36e5416aab69de703ce290733a49fc824f6471c",
+          "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+          "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+          "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+        },
+        "baseline": "a68291632836a51adfcbce5e9dd0b62ef407464567ec98a0616e3abdcdda725d",
+        "smart": "c889af0fc4bae18b7cfe9bb71818945481c90f5700e68aecad3d6e93a7630c11",
+        "honeyMax": "637e9f70036d188d35369b4934b5caca1c5fb660d9ba0b8f8ff8849a84e95aec",
+        "harness": "066922672829c1a11713d9c6263dbd6d013fc41314c305e16e736abd9c44ed77",
+        "setup": "be2ae8483b2898fb4626e7c8f8f2415c64e9dbe6513df4ae7d08f1e1a10f54ae",
+        "method": "20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled."
+      },
+      "config": {
+        "phases": {
+          "0": {
+            "growth": 1,
+            "helpers": 2,
+            "goals": 10,
+            "research": 10,
+            "industry": 6,
+            "prices": 2,
+            "costPower": 0.75,
+            "payback": 8,
+            "packers": 1,
+            "researchCrew": 3,
+            "bankIncome": 40,
+            "readiness": "all",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "3": {
+            "growth": 2,
+            "helpers": 8,
+            "goals": 20,
+            "research": 10,
+            "industry": 3,
+            "prices": 2,
+            "costPower": 1.15,
+            "payback": 8,
+            "packers": 2,
+            "researchCrew": 2,
+            "bankIncome": 25,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3
+          },
+          "4": {
+            "growth": 8,
+            "helpers": 8,
+            "goals": 2,
+            "research": 10,
+            "industry": 3,
+            "prices": 4,
+            "costPower": 0.75,
+            "payback": 5,
+            "packers": 2,
+            "researchCrew": 3,
+            "bankIncome": 1000000000,
+            "readiness": "gathering",
+            "finalPolicy": "legacy",
+            "endHorizon": 3,
+            "skillStaffing": true
+          }
+        },
+        "freezeHomeHoneyAfterGoal": true,
+        "excavation": true,
+        "honeyMax": {
+          "3": {
+            "mode": "paid",
+            "phase": 3,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          },
+          "4": {
+            "mode": "paid",
+            "phase": 4,
+            "focus": "honey",
+            "staffing": "specialist",
+            "maxHoney": "productive",
+            "secondary": "raw",
+            "snippers": 1,
+            "bias": 16,
+            "packers": 2,
+            "costPower": 0.85,
+            "payback": 8,
+            "minutes": 90
+          }
+        }
+      },
+      "fidelity": "live",
+      "seeds": [
+        1301
+      ],
+      "replayIdentical": true,
+      "cashConservationMaxError": 2.9103830456733704e-11,
+      "results": [
+        {
+          "file": "smart-1301-db28d2f22c.json",
+          "name": "smart",
+          "seed": 1301,
+          "fidelity": "live",
+          "complete": true,
+          "totalMinutes": 129.20916666684454,
+          "stageMinutes": [
+            49.443333333367114,
+            49.48000000003391,
+            30.285833333443513
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.200833333332275
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "robot2",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "robot3",
+                "minute": 27.967499999983694
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "beeFound",
+                "minute": 30.084166666648436
+              },
+              {
+                "id": "beeDone",
+                "minute": 32.050833333313314
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 33.5674999999786
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 34.2841666666453
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 37.81749999999148
+              },
+              {
+                "id": "quests",
+                "minute": 37.98416666665876
+              },
+              {
+                "id": "deadheading",
+                "minute": 39.650833333331484
+              },
+              {
+                "id": "land",
+                "minute": 39.93416666666585
+              },
+              {
+                "id": "mine",
+                "minute": 45.58416666668641
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "read:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.400833333334445
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.567500000001149
+              },
+              {
+                "id": "robot3",
+                "minute": 12.100833333331456
+              },
+              {
+                "id": "ants",
+                "minute": 13.717499999996653
+              },
+              {
+                "id": "shaker",
+                "minute": 13.90083333332982
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 14.500833333329274
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.934166666660396
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "canned200",
+                "minute": 21.784166666655985
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "strike",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.5841666666498
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.850833333314405
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.21749999997892
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 44.83416666668368
+              },
+              {
+                "id": "coal100",
+                "minute": 47.867500000028045
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 48.51750000003041
+              },
+              {
+                "id": "returnTrip",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.15083333333388207
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.650833333335701
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 21.000833333409734
+              },
+              {
+                "id": "firstIngot",
+                "minute": 21.234166666743917
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 21.367500000077733
+              },
+              {
+                "id": "blower2",
+                "minute": 21.88416666674628
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 29.584166666774294
+              },
+              {
+                "id": "letter:final",
+                "minute": 30.000833333442475
+              },
+              {
+                "id": "read:final",
+                "minute": 30.000833333442475
+              },
+              {
+                "id": "endingTrip",
+                "minute": 30.000833333442475
+              }
+            ]
+          ],
+          "earned": [
+            3585.868178559999,
+            37736.45119936,
+            176319.23870636802
+          ],
+          "spent": [
+            3370.25,
+            32095.75,
+            88284.30000000003
+          ],
+          "endCash": [
+            215.61817855999973,
+            5640.701199359999,
+            88250.55688492801
+          ],
+          "purchaseCounts": [
+            117,
+            364,
+            409
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2876.0500000016973,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 2.9537953795486995,
+                "why": "measured price payback 2.95m"
+              }
+            ],
+            [
+              {
+                "t": 1352.0500000049187,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.26971223572273,
+                "why": "price"
+              },
+              {
+                "t": 1410.0500000051297,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.237689393954811,
+                "why": "price"
+              },
+              {
+                "t": 1411.0500000051334,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.287938675306053,
+                "why": "price"
+              },
+              {
+                "t": 1470.050000005348,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 3.255847793674765,
+                "why": "price"
+              },
+              {
+                "t": 1592.0500000057918,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 2.48943035158894,
+                "why": "price"
+              },
+              {
+                "t": 1669.050000006072,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 8500,
+                "maxed": false,
+                "payback": 2.2285908802304646,
+                "why": "price"
+              }
+            ]
+          ]
+        },
+        {
+          "file": "smart-skip-1301-1f6e768c51.json",
+          "name": "smart-skip",
+          "seed": 1301,
+          "fidelity": "live",
+          "complete": true,
+          "totalMinutes": 131.89416666685432,
+          "stageMinutes": [
+            49.443333333367114,
+            43.981666666680574,
+            38.469166666806615
+          ],
+          "events": [
+            [
+              {
+                "id": "bagger",
+                "minute": 7.95083333333457
+              },
+              {
+                "id": "bookFound",
+                "minute": 11.200833333332275
+              },
+              {
+                "id": "bookDone",
+                "minute": 12.600833333331002
+              },
+              {
+                "id": "robot2",
+                "minute": 13.734166666663304
+              },
+              {
+                "id": "letter:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "read:moreLeaves",
+                "minute": 27.15083333331777
+              },
+              {
+                "id": "robot3",
+                "minute": 27.967499999983694
+              },
+              {
+                "id": "leavesGoal",
+                "minute": 30.03416666664848
+              },
+              {
+                "id": "beeFound",
+                "minute": 30.084166666648436
+              },
+              {
+                "id": "beeDone",
+                "minute": 32.050833333313314
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 33.5674999999786
+              },
+              {
+                "id": "firstHoneySale",
+                "minute": 34.2841666666453
+              },
+              {
+                "id": "honeyGoal",
+                "minute": 37.81749999999148
+              },
+              {
+                "id": "quests",
+                "minute": 37.98416666665876
+              },
+              {
+                "id": "deadheading",
+                "minute": 39.650833333331484
+              },
+              {
+                "id": "land",
+                "minute": 39.93416666666585
+              },
+              {
+                "id": "mine",
+                "minute": 45.58416666668641
+              },
+              {
+                "id": "letter:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "read:hollow",
+                "minute": 46.317500000022406
+              },
+              {
+                "id": "tinkerReady",
+                "minute": 48.51750000003041
+              }
+            ],
+            [
+              {
+                "id": "dryLabOpen",
+                "minute": 0.9008333333333177
+              },
+              {
+                "id": "dryLabDone",
+                "minute": 1.300833333333295
+              },
+              {
+                "id": "firstDrySale",
+                "minute": 1.7341666666666038
+              },
+              {
+                "id": "robot2",
+                "minute": 2.5508333333333426
+              },
+              {
+                "id": "blower2",
+                "minute": 5.03416666666724
+              },
+              {
+                "id": "hiveBuilt",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "dry500",
+                "minute": 7.184166666667729
+              },
+              {
+                "id": "hiveResearchFound",
+                "minute": 7.400833333334445
+              },
+              {
+                "id": "hiveResearchStart",
+                "minute": 7.567500000001149
+              },
+              {
+                "id": "robot3",
+                "minute": 12.100833333331456
+              },
+              {
+                "id": "ants",
+                "minute": 13.717499999996653
+              },
+              {
+                "id": "shaker",
+                "minute": 13.90083333332982
+              },
+              {
+                "id": "firstAntSale",
+                "minute": 14.500833333329274
+              },
+              {
+                "id": "logCrib",
+                "minute": 16.934166666660396
+              },
+              {
+                "id": "saw",
+                "minute": 19.96749999999097
+              },
+              {
+                "id": "canned200",
+                "minute": 21.784166666655985
+              },
+              {
+                "id": "logs100",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "strike",
+                "minute": 28.450833333316588
+              },
+              {
+                "id": "fireResearchStart",
+                "minute": 28.5841666666498
+              },
+              {
+                "id": "fireDone",
+                "minute": 30.850833333314405
+              },
+              {
+                "id": "dryAfterFire300",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalFound",
+                "minute": 32.70083333331272
+              },
+              {
+                "id": "coalDone",
+                "minute": 33.21749999997892
+              },
+              {
+                "id": "kilnBuilt",
+                "minute": 35.73416666665057
+              },
+              {
+                "id": "coal100",
+                "minute": 42.41750000000822
+              },
+              {
+                "id": "letter:fireHome",
+                "minute": 43.05083333334385
+              },
+              {
+                "id": "read:fireHome",
+                "minute": 43.05083333334385
+              },
+              {
+                "id": "returnTrip",
+                "minute": 43.05083333334385
+              }
+            ],
+            [
+              {
+                "id": "robot2",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "robot3",
+                "minute": 0.000833333333336365
+              },
+              {
+                "id": "ruinFound",
+                "minute": 0.18416666666733666
+              },
+              {
+                "id": "ruinDone",
+                "minute": 0.7008333333358829
+              },
+              {
+                "id": "plantBuilt",
+                "minute": 22.9341666667501
+              },
+              {
+                "id": "firstIngot",
+                "minute": 23.217500000084463
+              },
+              {
+                "id": "firstIngotSale",
+                "minute": 23.467500000085373
+              },
+              {
+                "id": "blower2",
+                "minute": 28.234166666769383
+              },
+              {
+                "id": "ingotsGoal",
+                "minute": 37.63416666680358
+              },
+              {
+                "id": "letter:final",
+                "minute": 38.18416666680558
+              },
+              {
+                "id": "read:final",
+                "minute": 38.18416666680558
+              },
+              {
+                "id": "endingTrip",
+                "minute": 38.18416666680558
+              }
+            ]
+          ],
+          "earned": [
+            3585.868178559999,
+            10757.33032256,
+            112035.64939863037
+          ],
+          "spent": [
+            3370.25,
+            9637.8,
+            63794.20000000001
+          ],
+          "endCash": [
+            215.61817855999973,
+            1119.5303225599994,
+            48457.06757719039
+          ],
+          "purchaseCounts": [
+            117,
+            193,
+            372
+          ],
+          "pricePurchases": [
+            [],
+            [
+              {
+                "t": 2508.0500000003585,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.618163054712362,
+                "why": "measured price payback 4.62m"
+              },
+              {
+                "t": 2509.050000000362,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 240,
+                "maxed": false,
+                "payback": 3.8650472334823465,
+                "why": "measured price payback 3.87m"
+              },
+              {
+                "t": 2545.050000000493,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 3.2179775281015948,
+                "why": "measured price payback 3.22m"
+              }
+            ],
+            [
+              {
+                "t": 1313.0500000047768,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 300,
+                "maxed": false,
+                "payback": 4.939293598251965,
+                "why": "price"
+              },
+              {
+                "t": 1535.0500000055845,
+                "id": "up",
+                "key": "ingotGrade",
+                "obj": "plant",
+                "cost": 360,
+                "maxed": false,
+                "payback": 4.972222222240311,
+                "why": "price"
+              },
+              {
+                "t": 1597.05000000581,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 600,
+                "maxed": false,
+                "payback": 4.735449735466963,
+                "why": "price"
+              },
+              {
+                "t": 1754.0500000063812,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 1100,
+                "maxed": false,
+                "payback": 4.178338001882616,
+                "why": "price"
+              },
+              {
+                "t": 2133.05000000776,
+                "id": "up",
+                "key": "metalPrice",
+                "obj": "tub",
+                "cost": 4500,
+                "maxed": false,
+                "payback": 2.1228652751500374,
+                "why": "price"
+              }
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "smart": {
+      "before": 128.8638888890655,
+      "after": 128.8638888890655,
+      "pairs": [
+        {
+          "seed": 1201,
+          "before": 122.9408333334884,
+          "after": 122.9408333334884,
+          "delta": 0
+        },
+        {
+          "seed": 1202,
+          "before": 126.59416666683502,
+          "after": 126.59416666683502,
+          "delta": 0
+        },
+        {
+          "seed": 1203,
+          "before": 137.0566666668731,
+          "after": 137.0566666668731,
+          "delta": 0
+        }
+      ]
+    },
+    "smart-skip": {
+      "before": 134.74750000019802,
+      "after": 134.19722222241828,
+      "pairs": [
+        {
+          "seed": 1201,
+          "before": 131.32666666685225,
+          "after": 130.72583333351673,
+          "delta": -0.6008333333355154
+        },
+        {
+          "seed": 1202,
+          "before": 130.12083333351453,
+          "after": 129.59583333351262,
+          "delta": -0.5250000000019099
+        },
+        {
+          "seed": 1203,
+          "before": 142.7950000002273,
+          "after": 142.2700000002254,
+          "delta": -0.5250000000019099
+        }
+      ]
+    },
+    "live-smart": {
+      "before": 129.20916666684454,
+      "after": 129.20916666684454,
+      "pairs": [
+        {
+          "seed": 1301,
+          "before": 129.20916666684454,
+          "after": 129.20916666684454,
+          "delta": 0
+        }
+      ]
+    },
+    "live-smart-skip": {
+      "before": 132.4575000001897,
+      "after": 131.89416666685432,
+      "pairs": [
+        {
+          "seed": 1301,
+          "before": 132.4575000001897,
+          "after": 131.89416666685432,
+          "delta": -0.5633333333353789
+        }
+      ]
+    }
+  },
+  "fixedThroughput": {
+    "method": "Analytic repricing of the previous three-seed fully developed mixed home capacity fixture (explicit free capital). Physical output and maximum metal grade held fixed. Not paid checkpoint earnings or a new staffing search.",
+    "originalManifest": {
+      "sources": {
+        "game.js": "670e6a6016093b891e749a909151b1d05e72d5cf79eaf5e9323027d5529fa7ac",
+        "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+        "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+        "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+        "style.css": "2485ac6e17ed4eeef63da4a9b36e5416aab69de703ce290733a49fc824f6471c",
+        "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+        "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+        "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+      },
+      "baseline": "7ddba443e47ac2a36d5edf017b1626a6402b397aff3e59932181a0cf91cef73a",
+      "smart": "80fb0f304ce94eb85f22a9b11ebc8ba22f5745e62380aaec82fe714f4d7ead39",
+      "harness": "85e7ac4dafa3f5b5371cfc6788c3687bbf329c0c753106117a0f86411081e317",
+      "setup": "1a494f15bd8e48f4202895cd5c644a2e71c937f98aecad01372ad84fa186c871",
+      "method": "20 Hz actual game economy; one-second decisions; actual offers and charges; real research, letters and boarding; home/hollow/return; no grants, jumps or injected progress. Finale begins at finish; cinematic duration excluded. Seed resets each visit. Browser timers/rendering disabled."
+    },
+    "observations": [
+      {
+        "seed": 401,
+        "rate": {
+          "leaf": 17.93396547065475,
+          "bag": 4484.288432795717,
+          "metal": 0,
+          "ingot": 83521.15199969611,
+          "jar": 0,
+          "gift": 2964.1624999892165,
+          "clean": 279.99999999898137,
+          "nL": 401.49999999853935,
+          "nM": 0,
+          "nI": 270.3999999990163,
+          "nJ": 49.29999999982065,
+          "nLoose": 13.499999999950887,
+          "nBags": 38.79999999985885,
+          "nPlain": 0,
+          "nGift": 49.29999999982065
+        }
+      },
+      {
+        "seed": 402,
+        "rate": {
+          "leaf": 5.712300112875218,
+          "bag": 3975.760878561153,
+          "metal": 0,
+          "ingot": 83891.80799969479,
+          "jar": 0,
+          "gift": 2958.1499999892385,
+          "clean": 244.9999999991087,
+          "nL": 348.2999999987329,
+          "nM": 0,
+          "nI": 271.5999999990119,
+          "nJ": 49.19999999982101,
+          "nLoose": 4.299999999984356,
+          "nBags": 34.39999999987485,
+          "nPlain": 0,
+          "nGift": 49.19999999982101
+        }
+      },
+      {
+        "seed": 403,
+        "rate": {
+          "leaf": 12.48735373512257,
+          "bag": 4484.288432795716,
+          "metal": 0,
+          "ingot": 83026.94399969799,
+          "jar": 0,
+          "gift": 2940.112499989304,
+          "clean": 279.99999999898137,
+          "nL": 397.3999999985543,
+          "nM": 0,
+          "nI": 268.79999999902213,
+          "nJ": 48.8999999998221,
+          "nLoose": 9.399999999965804,
+          "nBags": 38.79999999985885,
+          "nPlain": 0,
+          "nGift": 48.8999999998221
+        }
+      }
+    ],
+    "variants": {
+      "before": {
+        "alloyTotal": 79360,
+        "metalTotal": 25500,
+        "alloySteps": [
+          {
+            "level": 1,
+            "cost": 360,
+            "value": 1.75,
+            "gain": 0.2068965517241379,
+            "marginalMinutes": 0.05174987446402599
+          },
+          {
+            "level": 2,
+            "cost": 6000,
+            "value": 2.07,
+            "gain": 0.18285714285714283,
+            "marginalMinutes": 0.8085917885004067
+          },
+          {
+            "level": 3,
+            "cost": 14000,
+            "value": 2.43,
+            "gain": 0.17391304347826098,
+            "marginalMinutes": 1.677079265037878
+          },
+          {
+            "level": 4,
+            "cost": 23000,
+            "value": 2.83,
+            "gain": 0.1646090534979423,
+            "marginalMinutes": 2.4796814847345803
+          },
+          {
+            "level": 5,
+            "cost": 36000,
+            "value": 3.23,
+            "gain": 0.14134275618374548,
+            "marginalMinutes": 3.8812405848019513
+          }
+        ],
+        "finalMetalMarginalMinutes": 0.9875403075098376,
+        "totalIncomePerMinute": 82449.38118753955,
+        "ingotShare": 0.9084368665232411
+      },
+      "after": {
+        "alloyTotal": 114360,
+        "metalTotal": 30000,
+        "alloySteps": [
+          {
+            "level": 1,
+            "cost": 360,
+            "value": 1.75,
+            "gain": 0.2068965517241379,
+            "marginalMinutes": 0.05174987446402599
+          },
+          {
+            "level": 2,
+            "cost": 6000,
+            "value": 1.95,
+            "gain": 0.11428571428571432,
+            "marginalMinutes": 1.2937468616006507
+          },
+          {
+            "level": 3,
+            "cost": 10000,
+            "value": 2.15,
+            "gain": 0.10256410256410264,
+            "marginalMinutes": 2.1562447693344176
+          },
+          {
+            "level": 4,
+            "cost": 14000,
+            "value": 2.38,
+            "gain": 0.10697674418604652,
+            "marginalMinutes": 2.6249936322332035
+          },
+          {
+            "level": 5,
+            "cost": 20000,
+            "value": 2.62,
+            "gain": 0.10084033613445387,
+            "marginalMinutes": 3.5937412822240247
+          },
+          {
+            "level": 6,
+            "cost": 28000,
+            "value": 2.87,
+            "gain": 0.09541984732824438,
+            "marginalMinutes": 4.829988283309095
+          },
+          {
+            "level": 7,
+            "cost": 36000,
+            "value": 3.12,
+            "gain": 0.08710801393728218,
+            "marginalMinutes": 6.209984935683122
+          }
+        ],
+        "finalMetalMarginalMinutes": 1.179643192772476,
+        "totalIncomePerMinute": 79898.60438754882,
+        "ingotShare": 0.9055140532878796
+      }
+    }
+  },
+  "checks": {
+    "paidCampaigns": 20,
+    "exactReplays": 4,
+    "economyInvariants": 185,
+    "unchangedEarlierStageTimes": true,
+    "oldAlloyLevelMapping": [
+      0,
+      1,
+      3,
+      4,
+      6,
+      7
+    ],
+    "hollowBriquettesUnchanged": true
+  },
+  "limitations": "Small fixed-policy sensitivity check, not a new global optimization or complete source-strategy search. Late alloy purchases were mostly skipped before the final sold-ingot goal; unchanged completion time does not establish their usefulness for speedruns. Fully developed home industry remains dominant. Higher grade prices can improve a heuristic route by changing buying priorities, not by making the underlying economy richer.",
+  "candidateGameHash": "eb29dc55bc707639369ca94681582af4d11c53c22b9f42edb221b0a46fe14e5c"
+}

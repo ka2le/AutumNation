@@ -17,6 +17,10 @@ This standard governs future tests and tuning; older tables and pacing targets b
   priorities, plus strategies that stop further investment after a source's first milestone. Do not force the
   player to invest in everything to conceal a profitable shortcut. Count raw materials used in processing as
   useful output, even when their direct sales disappear.
+- **Respect different investment patterns.** Honey is intentionally a commitment choice: keeping it minimal
+  or building the full multiplying engine can both be worthwhile. Partial investment need not match those
+  routes. Leaves establish the starting economy and remain a foundation. Test a genuinely maxed honey engine
+  before treating a weak partial-development strategy as evidence for cheaper hive upgrades.
 - **Separate affordability from capacity.** Run paid campaigns and matched forks from earned checkpoints,
   especially the start of smelter repair. Separately measure fully upgraded output with explicitly granted
   capital. Include the whole crew and its alternative uses: two honey packers leave other workers productive.
@@ -35,19 +39,46 @@ This standard governs future tests and tuning; older tables and pacing targets b
   instructions in [tools/balance/README.md](tools/balance/README.md). Treat finite strategy searches as evidence,
   not proof of global optimality.
 
-### Economy adjustment — October 21, 2026
+### Final alloy steps — October 21, 2026
+
+Better alloy now has seven purchases, ending at 3.12×: $360 / $6,000 / $10,000 / $14,000 / $20,000 /
+$28,000 / $36,000. Six smaller late improvements replace four; total cost rises 44.1% while maximum value
+falls 3.4%. Grade the metal keeps its first three prices, then costs $4,500 / $8,500 / $15,000. The main
+honey-maxing route retains its finish times across three paired simulations and one normal-gameplay pair.
+Developed industrial cash remains dominant; this is a modest adjustment, not equalization of sources.
+See [the final alloy report](tools/balance/alloy-steps.md) for evidence, paybacks and save handling.
+
+### Honey strategy follow-up — October 21, 2026
+
+**Final requested leaf prices:** home cleanup is **$400 / $1,000 / $2,000**; the last Sort leaves upgrade is
+**$6,000 in both yards**. Hollow cleanup stays $150 / $700 / $1,500. This supersedes the earlier cleanup trial
+and its five-minute target. Honey stays at $180. The subsequent alloy ladder is documented above;
+[the honey report](tools/balance/honey-max.md) preserves the earlier comparison.
+
+General beehive and ant-hill upgrades are **$180**, restored after testing the $140 trial against a properly
+maxed engine. At $180, the new honey-maxing route averages **133.25 minutes**, versus **136.22** for the previous
+main honey-skipping tester across three held-out seeds. The $140 version averaged 132.91: only about 21 seconds
+faster. Honey development is viable without the discount; the earlier partial-investment policy understated it.
+
+`npm run balance` now uses the stronger route: retain the starter home hive initially, then max productive
+honey/ant upgrades and two packers at each repair unlock before adding industry. Keep `smart-skip` as a
+permanent challenger, along with full-storage maxing. See [the honey test](tools/balance/honey-max.md).
+Cleanup and alloy now use the final requested ladders above.
+
+### Earlier economy adjustment — October 21, 2026
 
 Home cleanup now costs **$200 / $350 / $530**, targeting marginal payback of about **3 / 4 / 5 minutes** at
 the audited developed leaf rate. Better alloy's final four increments are 20% smaller (maximum 3.6 → 3.23)
-with unchanged prices. General hive/ant-hill upgrades cost **$140**, previously $180. Physical production,
+with unchanged prices. The trial $140 hive/ant-hill price has since been reverted to **$180**. Physical production,
 goals and hollow cleanup/briquettes are unchanged. See [the tuning report](tools/balance/economy-tuning.md)
 for the candidate comparisons, held-out tests and evidence.
 
 The three-seed main route stays almost unchanged, 128.78 → 128.50 minutes; continued honey development
 improves 137.00 → 135.48. One normal-gameplay pair does not improve the development route, and retaining
 the starter hive still wins. Home maximum mixed income falls about 9.4%, but ingots remain about 91% of it.
-These are modest adjustments; honey skipping and industrial dominance remain open concerns. The measurements
-below predate this tuning and are retained as baseline evidence.
+Those runs used the earlier partial-development buyer; the honey-maxing follow-up above supersedes its conclusion
+about honey investment. Industrial dominance at maximum capacity remains distinct from paid progression. The
+measurements below predate this tuning and are retained as baseline evidence.
 
 ### Pre-tuning measurement update — October 21, 2026
 

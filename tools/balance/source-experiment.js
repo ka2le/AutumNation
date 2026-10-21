@@ -3,14 +3,15 @@
  * as campaign completion evidence. No production source is changed. */
 (() => {
   const Y=__leafYard,F=Y.fn(),O=window.__experimentOptions;
-  const D=Y.dev('({TRACKS,TECH,UP,GEN,DRY_BENCH,ROBOT_MAX,MAX_BEES,SPOTS})');
+  const D=Y.dev('({TRACKS,TECH,UP,GEN,DRY_BENCH,ROBOT_MAX,MAX_BEES,SPOTS,HIVE_UP})');
   const base=window.__policy,baseChoose=window.__choose;
   const clone=x=>JSON.parse(JSON.stringify(x));
   let active=false,start=0,finished=false,assignmentKey='',assignment=[];
   const E=window.__experiment={options:O,checkpoint:null,points:[],fixturePurchases:[],spend:{leaf:0,honey:0,raw:0,industry:0,shared:0}};
   const totals=()=>({t:Y.state().t-start,cash:Y.state().cash,earned:Y.state().totals.cash,src:clone(window.__src),
     lv:clone(Y.state().lv),gen:clone(Y.state().gen),bees:Y.state().hive.bees,crew:Y.state().robots.length,
-    plant:Y.state().plant.built,totals:clone(Y.state().totals),jobs:clone(Y.state().robots.map(c=>c.prio))});
+    plant:Y.state().plant.built,totals:clone(Y.state().totals),jobs:clone(Y.state().robots.map(c=>c.prio)),
+    ...(O.maxHoney?{hive:clone(Y.state().hive),packingLevels:assignment.map((role,i)=>role==='honey'?Y.state().robots[i].lv.pack:null).filter(v=>v!==null)}:{})});
   function group(o){
     if(['hive','bee','hiveUp','honeyPack'].includes(o.id)||['hiveTank','hiveStore','honeyPrice','giftPrice','snip','clover','seeding'].includes(o.key))return'honey';
     if(['plant'].includes(o.id)||['smeltSpeed','ingotGrade','slag','hopper','pallet','stoke'].includes(o.key)&&o.id!=='tech')return'industry';
@@ -40,6 +41,8 @@
       assignment=Y.state().robots.map(c=>{const row=c.prio.find(row=>!row.includes('research'))||[];return row.includes('mine')?'mine':row.includes('smelt')?'smelt':row.includes('haul')?'haul':row.includes('jar')?'honey':row.includes('bag')?'bag':'leaf';});return;
     }
     const S=Y.state(),n=S.robots.length,rs=roles(S).slice(0,n);
+    // Keep the paid, trained honey specialists on honey when the furnace joins the engine.
+    if(O.maxHoney||O.keepHoneyStaff)rs.sort((a,b)=>(a==='honey'?0:1)-(b==='honey'?0:1));
     const key=JSON.stringify([rs,S.robots.map(c=>c.lv)]);
     if(key!==assignmentKey){
       assignmentKey=key;
@@ -77,6 +80,7 @@
       if(industry&&i===0)rows=[['stoke']];
       else if(mining&&O.excavation!==false&&i<(industry?3:2))rows=[['dig'],...(D.DRY_BENCH?[['bag']]:[]),['blow']];
       else if(D.DRY_BENCH)rows=[['bag'],['blow']];
+      if(O.mode==='paid'&&S.trip?.crew?.includes('blower')&&i===0)rows.unshift(['travel']);
       set(c,rows,'blower',i);
     });
     S.shakers.forEach((c,i)=>set(c,i<(O.snippers??(O.focus==='leaf'?0:1))?[['snip'],['shake']]:[['shake'],['snip']],'shaker',i));
@@ -110,6 +114,12 @@
     const add=(o,why)=>{if(o)pool.set([o.id,o.key,o.kind,o.ri,o.arg].join(':'),[o,why]);};
     // The old candidate generator misses excavation and dedicated flower tending.
     for(const o of all){
+      if(O.maxHoney){
+        // A maxing challenger must be allowed to buy the full engine, not only upgrades
+        // admitted by the reference buyer's backward-looking revenue estimate.
+        if(['hive','bee','hiveUp','honeyPack'].includes(o.id)||o.id==='up'&&['hiveTank','hiveStore','honeyPrice','giftPrice'].includes(o.key))add(o,'maximize honey');
+        if(o.id==='tech'&&D.TECH[o.key]?.track==='pack')add(o,'unlock honey packing');
+      }
       if(o.id==='hup'&&o.key==='dig'&&assignment.includes('mine'))add(o,'staffed excavation');
       if(o.id==='hup'&&o.key==='snip'&&assignment.includes('honey'))add(o,'staffed flower tending');
       if(o.id==='tech'&&['cyclone','forge'].includes(o.key)&&assignment.includes(o.key==='cyclone'?'mine':'smelt'))add(o,'unlock staffed helper');
@@ -136,7 +146,7 @@
     if(O.focus in weights)weights[O.focus]=O.bias??8;
     if(O.focus==='industry')weights.raw=3;
     if(O.focus==='honey'&&O.secondary==='raw')weights.raw=2;
-    const score=([o,why])=>Math.pow(Math.max(.05,o.cost),O.costPower??.85)/weights[group(o)]/
+    const score=([o,why])=>Math.pow(Math.max(.05,o.cost),O.costPower??.85)/(why==='unlock honey packing'?weights.honey:weights[group(o)])/
       (o.id==='robot'?(S.robots.length<6?12:4):['repair required plant','start smelting'].includes(why)?5:o.payback?2:1);
     return candidates.sort((a,b)=>score(a)-score(b))[0]||null;
   }
@@ -146,13 +156,28 @@
       if(!(O.phase===4?S.flags.ruinKnown:S.flags.coalKnown)||S.plant.built)return base();
       active=true;start=S.t;
       E.checkpoint={state:clone(S),src:clone(window.__src),rng:window.__rngState(),runtime:Y.dev('(()=>{const seen=new WeakSet();return JSON.parse(JSON.stringify({R,HB,B,truck,STN,FLOWERS},(k,v)=>{if(v&&typeof v==="object"){if(seen.has(v))return "[reference]";seen.add(v);}return v;}));})()')};
+      if(O.maxHoney||O.keepHoneyStaff){
+        const previous=window.__auditFilter;
+        window.__auditFilter=(o,state)=>group(o)==='honey'?
+          !(o.id==='hiveUp'&&o.key==='nursery'&&state.hive.bees>=25):previous(o,state);
+      }
+      if(O.maxHoney){
+        E.target={population:D.MAX_BEES,generalUpgrades:Object.keys(D.HIVE_UP).filter(k=>k!=='nursery'),
+          levels:Object.fromEntries((O.maxHoney==='full'?['hiveTank','hiveStore','honeyPrice','giftPrice']:['honeyPrice','giftPrice']).map(k=>[k,F.UP[k].max])),
+          packers:2,packingLevel:D.TRACKS.pack.vals.length-1};
+      }
       if(O.mode==='capacity')fixture();
       if(O.mode==='paid'&&O.focus!=='main'&&O.staffing!=='main')window.__assignStaff=()=>{staff();return 10;};
       E.points.push(totals());
     }
     if(finished)return base();
-    if(S.t-start>=(O.minutes??20)*60){
+    const maxed=O.maxHoney&&S.hive.bees===E.target.population&&S.hive.packing&&
+      E.target.generalUpgrades.every(k=>S.hive.up[k])&&Object.entries(E.target.levels).every(([k,v])=>S.lv[k]===v)&&
+      assignment.filter((role,i)=>role==='honey'&&S.robots[i].lv.pack===E.target.packingLevel).length>=E.target.packers;
+    if(maxed||S.t-start>=(O.minutes??20)*60){
+      if(O.maxHoney){E.maxed=!!maxed;E.maxMinute=maxed?(S.t-start)/60:null;E.maxState=totals();}
       E.points.push(totals());E.end=clone(S);E.finished=true;finished=true;window.__choose=baseChoose;delete window.__assignStaff;
+      if(O.maxHoney||O.keepHoneyStaff){O.focus='mixed';window.__assignStaff=()=>{staff();return 10;};}
       if(O.mode==='capacity'||O.stop){window.__experimentDone=true;return;}
       return base();
     }
