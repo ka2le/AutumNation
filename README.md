@@ -66,6 +66,13 @@ Test copies of the game live in their own folders next to the real one: `public/
 
 ### Balance simulation
 
+For current balance work, run **`npm run balance`** for a paid home → hollow → home campaign with the archived
+buyer and the completion-oriented tester. **`npm run balance:check`** compares multiple seeds and checks goals,
+purchase accounting, travel and deterministic replay. See [the testing guide](tools/balance/README.md) and
+[the October 21 audit](tools/balance/smart-tester.md). Game prices and effects are unchanged by the tester.
+
+The older console helper below is a single-yard sanity check, not a full-campaign completion benchmark.
+
 Open the browser console on the game page and run:
 
 ```js

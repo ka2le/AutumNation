@@ -2,6 +2,13 @@
 
 ## Current snapshot
 
+**Completion-oriented tester (2026-10-21):** `npm run balance` compares the archived buyer with a tuned full-campaign
+policy against the current game. `npm run balance:check` validates goals, paid purchases, travel, frozen home saves
+and deterministic replay. Six unseen paired seeds finish in 142.5 vs 157.0 minutes; three normal-gameplay-path
+pairs confirm the improvement. Faster home/hollow progression is partly offset by a longer return funding phase.
+No economy values changed. See `tools/balance/smart-tester.md`, its committed numerical evidence, and
+`tools/balance/README.md`. Historical V34 completion forecasts are not current optimal-player estimates.
+
 This workspace contains **AutumNation** (code and saves still say Leaf Yard in places), a cozy autumn incremental game, ready to publish as a static site with GitHub Pages and installable as an app.
 
 The game is a browser-only canvas experience. One robot gathers falling leaves into a bin; a truck sells the collected resources; upgrades expand the yard operation into additional robots and metal mining. The UI displays the resource and cash totals with upgrade cards rendered by the game logic.

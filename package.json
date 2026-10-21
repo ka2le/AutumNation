@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "serve": "node server.js --no-open"
+    "serve": "node server.js --no-open",
+    "balance": "node tools/balance/campaign.cjs",
+    "balance:search": "node tools/balance/search.cjs",
+    "balance:check": "node tools/balance/validate.cjs"
   }
 }

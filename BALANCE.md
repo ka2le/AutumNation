@@ -5,6 +5,18 @@ it, how to measure it with the headless tools, the current numbers (V9), and wha
 `PROJECT_NOTES.md` has the history of every change; this file explains *why* the numbers are what they are and *how*
 to check them.
 
+### Current measurement update — October 21, 2026
+
+The completion-oriented campaign tester changes the pacing evidence without changing the economy.
+On the current V46 source, six unseen paired seeds average **142.5 minutes** with the selected buyer versus
+**157.0** with the previous balanced buyer (9.3% faster; six wins). Three normal-gameplay-path pairs confirm the
+direction: **139.1 versus 156.9 minutes**. The faster opening and hollow are partly offset by a longer return
+funding phase; plant construction, rather than extra time producing the final ingots, explains most of that gap.
+
+Use [the audit](tools/balance/smart-tester.md), [commands](tools/balance/README.md), and
+[versioned evidence](tools/balance/benchmark-2026-10-21.json) for current comparisons. Old balance tables and
+campaign forecasts below are historical. The new strategy is empirically stronger, not proven globally optimal.
+
 ### Current direction (V34, October 16, 2026)
 
 The V9 tables and five-minute payback rule below are historical guidance. The current priority is **meaningful
