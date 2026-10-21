@@ -1,5 +1,8 @@
 # Campaign balance testing
 
+Follow the [standing balance-testing standard](../../BALANCE.md#standing-standard-for-future-balance-work)
+when evaluating or changing the economy. It defines the main benchmark, challengers and evidence requirements.
+
 Use the paid full-campaign runner for pacing and completion comparisons. It runs the **current `public/` game**,
 freezes its inputs, and preserves the earned home → hollow → home route. The old browser `__leafYard.sim()` and
 `tools/balance-player.js` remain available for historical single-yard checks.

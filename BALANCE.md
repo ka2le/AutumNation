@@ -5,6 +5,36 @@ it, how to measure it with the headless tools, the current numbers (V9), and wha
 `PROJECT_NOTES.md` has the history of every change; this file explains *why* the numbers are what they are and *how*
 to check them.
 
+### Standing standard for future balance work
+
+This standard governs future tests and tuning; older tables and pacing targets below are historical evidence.
+
+- **Benchmark capable play.** Use `npm run balance` and the current completion-focused policy as the main
+  benchmark, retaining the balanced smart reference and legacy player as comparisons. Optimize legal play for
+  completing the actual campaign, including goals and travel, rather than terminal cash or purchase counts.
+- **Test the desired balance honestly.** Mixed development should remain useful across phases; sources need
+  not earn equal amounts. Compare optimized mixed staffing with leaf, honey, raw-material and processing
+  priorities, plus strategies that stop further investment after a source's first milestone. Do not force the
+  player to invest in everything to conceal a profitable shortcut. Count raw materials used in processing as
+  useful output, even when their direct sales disappear.
+- **Separate affordability from capacity.** Run paid campaigns and matched forks from earned checkpoints,
+  especially the start of smelter repair. Separately measure fully upgraded output with explicitly granted
+  capital. Include the whole crew and its alternative uses: two honey packers leave other workers productive.
+  Never present free-capital output as attainable income at the repair checkpoint.
+- **Improve the strategies before blaming the economy.** Optimize staffing, logistics, helpers and purchase
+  priorities on training seeds. Freeze policies before paired held-out runs and confirm material findings
+  through normal gameplay branches. Keep checkpoint state, actors and RNG matched for strategy forks.
+- **Measure costs and completion.** Report investment, source contributions, goal and finish times, finish
+  rates and seed variation. Evaluate an upgrade's marginal benefit against its bottleneck and remaining goal
+  horizon; a maximum-output payback estimate alone does not establish a fair progression price.
+- **Validate changes against a frozen baseline.** Compare candidate prices or effects with identical policies
+  and seeds, then retune challengers and validate again on fresh seeds. Change one economic lever at a time
+  where practical. Do not restore an old runtime merely because a stronger player finishes sooner.
+- **Keep results reproducible.** Preserve game hashes, policy configurations and paired evidence in the
+  balance reports. Run relevant legal-purchase, goal-boundary and exact-replay checks using the harness
+  instructions in [tools/balance/README.md](tools/balance/README.md). Treat finite strategy searches as evidence,
+  not proof of global optimality.
+
 ### Current measurement update — October 21, 2026
 
 **Source-strategy follow-up:** The completion-focused player is now the default tester. The
