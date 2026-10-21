@@ -2,6 +2,8 @@
 
 Follow the [standing balance-testing standard](../../BALANCE.md#standing-standard-for-future-balance-work)
 when evaluating or changing the economy. It defines the main benchmark, challengers and evidence requirements.
+Read the [common testing blind spots](../../BALANCE.md#common-testing-blind-spots--read-before-drawing-balance-conclusions)
+first: partial honey, automatic spending, equal worker splits and endgame-only income can all hide good paths.
 The latest benchmark and retained $180 hive/ant price are in [the honey-maxing report](honey-max.md).
 The final seven-step alloy ladder and later metal-grade prices are tested in [the alloy report](alloy-steps.md).
 The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.

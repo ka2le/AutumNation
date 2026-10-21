@@ -2,6 +2,9 @@
 
 A cozy autumn idle game. An old robot rakes falling leaves into a bin, a compost truck buys them, and you grow into more robots and metal miners.
 
+**Working on balance?** Start with the [testing blind spots](BALANCE.md#common-testing-blind-spots--read-before-drawing-balance-conclusions)
+and the [main tester commands](tools/balance/README.md). Test committed strategies and intentional skips alongside mixed development.
+
 ## Run it
 
 - **Easiest:** double-click `start.bat`. It opens http://localhost:8080 in your browser.

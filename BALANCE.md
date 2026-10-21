@@ -5,6 +5,53 @@ it, how to measure it with the headless tools, the current numbers (V9), and wha
 `PROJECT_NOTES.md` has the history of every change; this file explains *why* the numbers are what they are and *how*
 to check them.
 
+### Common testing blind spots — read before drawing balance conclusions
+
+**A competent, committed strategy beating an average buyer can be good balance.** The aim is several useful
+paths with different timing and investment patterns, not equal returns from buying a little of everything.
+Use the checklist below alongside the current completion benchmark; never mistake one buyer's habits for
+the game's limits.
+
+- **Partial investment can hide a strong engine.** Honey's population, production, value upgrades and trained
+  packers multiply one another. Test a deliberate productive build with two trained packers before concluding
+  honey is weak. Buying some upgrades opportunistically is a separate strategy. Full productive development
+  does not require unnecessary storage: compare that separately. The $180 honey-maxing follow-up reversed the
+  earlier partial buyer's conclusion; see [the evidence](tools/balance/honey-max.md).
+- **Stopping is a strategy too.** Compare stopping further investment after the first required milestone,
+  continuing immediately, and delaying a committed build until a later phase. Minimal early home honey and
+  a strong later honey engine can belong to the same winning route. A skipped upgrade is not automatically
+  overpriced, and a viable optional skip is not automatically a balance defect.
+- **Worker concentration changes the answer.** Compare deliberate source-focused staffing with optimized
+  mixed staffing, including appropriate skills, helpers, gathering, processing, hauling and selling capacity.
+  Test putting all useful workers into the chosen engine, then test moving excess workers elsewhere when
+  it saturates. Two honey packers can leave most workers productive on other sources; do not manufacture a
+  sacrifice by idling them or force an arbitrary equal split. Count both investment and alternative worker uses.
+- **An available-purchase buyer is only a reference.** Write down each challenger as a concrete hypothesis:
+  which milestone or engine it targets, what it saves for, what it intentionally skips, how it staffs the
+  bottlenecks, and when it switches plans. Let it save for complementary upgrades instead of spending every
+  spare dollar. Verify that the tester actually executed the strategy, including travel and research, before
+  treating a failure as an economic result. A strong best-known heuristic still is not a global optimum.
+- **Phase and objective matter.** Separate early foundation, repair unlock, paid development, fastest ending
+  and continued endgame growth. An upgrade may be excellent over a long horizon but correctly skipped near
+  the finish. Leaves' early funding and ore/logs consumed by processing remain useful even when their late
+  direct-sale share is small. Report phase income and physical contributions, not only terminal cash shares.
+- **A fully upgraded fixture does not pay its own entry cost.** Free-capital capacity answers what a developed
+  engine can produce. Paid forks from matching earned checkpoints answer how long it takes to build and repay.
+  Keep those results separate; include setup time, training, crew and logistics in the paid comparison.
+- **Changing a price also changes a heuristic's decisions.** A more expensive upgrade can make a buyer finish
+  sooner by avoiding a badly timed purchase. That does not make the upgrade intrinsically better. Inspect the
+  purchase trace and bottleneck, compare fixed policies, then improve the competing strategies and validate
+  on fresh seeds. Do not tune prices simply to make an average buyer behave as intended.
+- **Neither a single winner nor equal income shares define balance.** A successful specialization is welcome
+  when it has a real investment path and tradeoffs. Investigate a shortcut that consistently makes other paths
+  irrelevant across phases and capable challengers. Compare repeated paired runs and normal-gameplay checks;
+  record which assumptions were tested, what was learned, and what remains untested.
+
+Before recommending a change, state the strongest mixed, committed and milestone-stop strategies tested,
+whether their advertised builds were reached, their paid finish times and investment, and whether the concern
+comes from paid progression or maximum capacity. If a relevant contender is missing, mark that conclusion
+as provisional rather than filling the gap with an assumption.
+
 ### Standing standard for future balance work
 
 This standard governs future tests and tuning; older tables and pacing targets below are historical evidence.
