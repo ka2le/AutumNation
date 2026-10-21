@@ -2,7 +2,13 @@
 
 ## Current snapshot
 
-**Completion-oriented tester (2026-10-21):** `npm run balance` compares the archived buyer with a tuned full-campaign
+**Source balance audit (2026-10-21):** `npm run balance` now runs the main completion tester: retain the starter
+home hive after its first honey milestone and staff shaft excavation after repairing the home furnace. The
+honey-investment shortcut wins 9/9 paired full campaigns. Paid source priorities and fully upgraded layouts are
+tested separately from matching earned repair unlocks; the home endgame is much more ingot-heavy than the
+hollow. See `tools/balance/source-balance.md` and its versioned evidence. No game economy values changed.
+
+**Earlier completion tester (2026-10-21):** The original benchmark compared the archived buyer with a tuned full-campaign
 policy against the current game. `npm run balance:check` validates goals, paid purchases, travel, frozen home saves
 and deterministic replay. Six unseen paired seeds finish in 142.5 vs 157.0 minutes; three normal-gameplay-path
 pairs confirm the improvement. Faster home/hollow progression is partly offset by a longer return funding phase.

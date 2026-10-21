@@ -1,5 +1,9 @@
 # Completion-oriented balance audit — 21 October 2026
 
+This is the **earlier smart reference** retained in `selected-policy.json`. The default tester has since
+improved through the [source-strategy audit](source-balance.md), which tests honey/leaf skipping and production
+portfolios. The measurements below remain evidence for the original comparison, not the new default's times.
+
 The improved tester finishes **9.3% sooner** than the previous balanced campaign buyer on six unseen seeds:
 **142.5 versus 157.0 simulated minutes**, winning all six comparisons. Its advantage ranges from 5.3 to 27.9
 minutes. Three additional paired runs through the normal gameplay branches finish in **139.1 versus 156.9

@@ -7,6 +7,15 @@ to check them.
 
 ### Current measurement update — October 21, 2026
 
+**Source-strategy follow-up:** The completion-focused player is now the default tester. The
+[source assessment](tools/balance/source-balance.md) adds 48 paid source comparisons and 60 capacity fixtures.
+Stopping new home honey investment after its first milestone wins 9/9 paired runs; the main tester includes
+that shortcut and productive shaft excavation. A fully developed mixed home crew earns about $91k/min, but
+91.7% comes from ingots. The hollow is more diversified (about $42k/min, with 27.7% from leaves). Late home
+cleanup pays back much more slowly than metal grades. These results call for testing the honey development
+path and late industrial cash multipliers; they do not justify a blanket production slowdown. No prices,
+effects or goals were changed. The earlier benchmark below remains the reference for the original smart buyer.
+
 The completion-oriented campaign tester changes the pacing evidence without changing the economy.
 On the current V46 source, six unseen paired seeds average **142.5 minutes** with the selected buyer versus
 **157.0** with the previous balanced buyer (9.3% faster; six wins). Three normal-gameplay-path pairs confirm the

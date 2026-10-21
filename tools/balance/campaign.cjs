@@ -88,15 +88,18 @@ async function createRunner(output) {
     const chrome=process.env.CHROME_PATH||(process.platform==='win32'&&'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe');
     browser=await playwright.chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{})});
   }catch(e){await new Promise(r=>server.close(r));throw e;}
-  async function run({name='smart', seed=1, config={}, maxMinutes=150, phases=[0,3,4], fidelity='sim'}) {
+  async function run({name='smart', seed=1, config={}, maxMinutes=150, phases=[0,3,4], fidelity='sim', experiment=null}) {
+    if(name==='smart-balanced')config={...config,freezeHomeHoneyAfterGoal:false,excavation:false};
     const context = await browser.newContext({viewport:{width:1280,height:800}}), page = await context.newPage();
     assert(['sim','live'].includes(fidelity),'Unknown fidelity');
-    const result = {name,seed,config,fidelity,manifest,stages:[],errors:[],total:0,complete:false};
+    const result = {name,seed,config,fidelity,manifest,experiment:experiment && {options:experiment.options,hash:hash(experiment.source)},stages:[],errors:[],total:0,complete:false};
+    if(experiment)fs.writeFileSync(path.join(frozen,`experiment-${hash(experiment.source).slice(0,12)}.js`),experiment.source);
     page.on('pageerror',e => result.errors.push(e.message));
     await page.route(/^https:\/\//,r => r.abort());
     await page.addInitScript(seed => {
       let a=seed*103;
       Math.random=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
+      window.__rngState=()=>a;
       window.requestAnimationFrame=()=>0;window.setTimeout=()=>0;window.setInterval=()=>0;
     },seed);
     try {
@@ -110,12 +113,17 @@ async function createRunner(output) {
         if(fidelity==='live')await page.evaluate(()=>{window.__liveCampaign=true;__leafYard.dev('simMode=false;closeCard();');});
         await page.evaluate(config => window.__config=config,config);
         if (!name.startsWith('legacy')) { assert(smart,'Smart policy missing'); await page.evaluate(smart); }
+        if(experiment && (experiment.options.phases||[experiment.options.phase]).includes(phase)){
+          await page.evaluate(options=>window.__experimentOptions=options,experiment.options);
+          await page.evaluate(experiment.source);
+        }
         let status;
         for (let chunk=0;chunk<Math.ceil(maxMinutes/2);chunk++) {
-          status=await page.evaluate(()=>{const s=window.__advance(120);return {departed:s.departed,finished:s.finished};});
-          if (status.departed || status.finished) break;
+          status=await page.evaluate(()=>{const s=window.__advance(120);return {departed:s.departed,finished:s.finished,experimentDone:!!window.__experimentDone};});
+          if (status.departed || status.finished || status.experimentDone) break;
         }
         const stage=await page.evaluate(()=>window.__advance(0));
+        stage.experiment=await page.evaluate(()=>window.__experiment||null);
         stage.offset=result.total;result.total+=stage.elapsed;result.stages.push(stage);
         console.log(`${name} seed ${seed} stage ${phase}: ${(stage.elapsed/60).toFixed(2)}m ${stage.finished?'finished':stage.departed?'travel':'INCOMPLETE'}`);
         if (stage.finished) { result.complete=true;break; }
@@ -125,7 +133,7 @@ async function createRunner(output) {
     } catch(e) { result.errors.push(e.stack); }
     finally { await context.close(); }
     result.complete &&= !result.errors.length;
-    const id=hash(JSON.stringify({name,seed,config,fidelity})).slice(0,10);
+    const id=hash(JSON.stringify({name,seed,config,fidelity,experiment:result.experiment})).slice(0,10);
     result.file=`${name}-${seed}-${id}.json`;
     fs.writeFileSync(path.join(output,result.file),JSON.stringify(result));
     return result;
@@ -136,8 +144,8 @@ if (require.main===module) (async()=>{
   const output=path.resolve(process.env.RESULT_DIR || 'runs/smart-tester');
   const runner=await createRunner(output);
   try {
-    const seeds=(process.env.SEEDS || '1').split(',').map(Number), names=(process.env.POLICIES || 'legacy,smart').split(',');
-    const configFile=process.env.CONFIG||path.join(__dirname,'selected-policy.json');
+    const seeds=(process.env.SEEDS || '1').split(',').map(Number), names=(process.env.POLICIES || 'smart').split(',');
+    const configFile=process.env.CONFIG||path.join(__dirname,'completion-policy.json');
     const config=JSON.parse(fs.readFileSync(configFile,'utf8'));
     for(const seed of seeds) for(const name of names) {
       const r=await runner.run({name,seed,config:name.startsWith('legacy')?{}:config,maxMinutes:+(process.env.MAX_MINUTES||150),fidelity:process.env.FIDELITY||'sim'});

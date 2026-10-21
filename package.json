@@ -9,6 +9,9 @@
     "serve": "node server.js --no-open",
     "balance": "node tools/balance/campaign.cjs",
     "balance:search": "node tools/balance/search.cjs",
-    "balance:check": "node tools/balance/validate.cjs"
+    "balance:check": "node tools/balance/validate.cjs",
+    "balance:sources": "node tools/balance/sources.cjs",
+    "balance:source-search": "node tools/balance/source-search.cjs",
+    "balance:ablations": "node tools/balance/source-ablations.cjs"
   }
 }

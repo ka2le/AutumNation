@@ -7,8 +7,8 @@ function setup({phase,profile,crew}){
  const snapshot=()=>{const S=Y.state();return{cash:S.cash,earned:S.totals.cash,robots:S.robots.length,blowers:S.blowers.length,shakers:S.shakers.length,bees:S.hive.bees,story:{item:S.story.item,prog:S.story.prog,need:C.researchNeed(),rate:C.researchRate()},totals:{...S.totals},lv:{...S.lv},gen:{...S.gen},land:S.land,miners:S.miners.length,study:S.robots.map(c=>c.lv.study),researchers:Y.robots().filter(r=>['study','assist','fireDo'].includes(r.st)).length};};
  window.__mark=(id,ok)=>{if(ok&&!window.__seen.has(id)){window.__seen.add(id);window.__events.push({id,t:Y.state().t-window.__stageStart,...snapshot()});}};
  window.__advance=seconds=>{
-  for(let q=0;q<seconds*20&&!window.__departed&&!window.__finished;q++){
-   C.step(.05);if(q%window.__decisionTicks!==0)continue;let S=Y.state(),m=window.__mark;
+  for(let q=0;q<seconds*20&&!window.__departed&&!window.__finished&&!window.__experimentDone;q++){
+   C.step(.05);if(window.__departed||window.__finished)break;if(q%window.__decisionTicks!==0)continue;let S=Y.state(),m=window.__mark;
    for(let i=0;i<S.letters.length;i++)if(!S.letters[i].read){m('letter:'+S.letters[i].id,true);C.readLetter(i);m('read:'+S.letters[i].id,true);}
    window.__policy();window.__maintain();S=Y.state();
    const atHome=phase===0,atRain=phase===3,atFinal=phase===4,story=S.story;

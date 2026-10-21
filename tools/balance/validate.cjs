@@ -34,11 +34,11 @@ const compact=r=>({file:r.file,name:r.name,seed:r.seed,fidelity:r.fidelity,compl
 const replayTrace=r=>JSON.stringify(r.stages.map(s=>({elapsed:s.elapsed,events:s.events,purchases:s.purchases,state:s.state})));
 async function main(){
   const output=path.resolve(process.env.RESULT_DIR||'runs/smart-validation');
-  const config=JSON.parse(fs.readFileSync(process.env.CONFIG||path.join(__dirname,'selected-policy.json'),'utf8'));
+  const config=JSON.parse(fs.readFileSync(process.env.CONFIG||path.join(__dirname,'completion-policy.json'),'utf8'));
   const runner=await createRunner(output), results=[], seeds=(process.env.SEEDS||'101,102,103,104,105,106').split(',').map(Number);
-  const policies=(process.env.POLICIES||'legacy,legacy-goal,legacy-industrial,smart').split(',');
+  const policies=(process.env.POLICIES||'legacy,smart-balanced,smart').split(',');
   assert(policies.includes('smart'),'Validation needs the smart policy for replay');
-  const fidelity=process.env.FIDELITY||'sim',jobs=seeds.flatMap(seed=>policies.map(name=>({name,seed,config:name==='smart'?config:{},fidelity})));
+  const fidelity=process.env.FIDELITY||'sim',jobs=seeds.flatMap(seed=>policies.map(name=>({name,seed,config:name.startsWith('legacy')?{}:config,fidelity})));
   let ix=0;
   try{
     await Promise.all(Array.from({length:Math.min(3,jobs.length)},async()=>{

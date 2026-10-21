@@ -14,6 +14,18 @@
   window.__staffOptions={pack:p.packers};
   const definitions=Y.dev('({TRACKS,TECH,INGOT_GOAL,TINKER_GOAL,HONEY_CASH,CANNED_CASH,COAL_GOAL,LOGS_GOAL})');
   const D=definitions, key=o=>[o.id,o.key,o.kind,o.ri,o.arg,o.sty].join(':');
+  // Validated completion shortcut. Keep this visible as a balance challenger:
+  // retaining the starter hive can beat developing it after its first milestone.
+  // The balanced reference remains available with this flag false.
+  if(p.freezeHomeHoneyAfterGoal&&window.__phase!==3){
+    const previous=window.__auditFilter;
+    window.__auditFilter=(o,S)=>previous(o,S)&&!(S.totals.honeyCash>=D.HONEY_CASH&&
+      (['hive','bee','hiveUp','honeyPack'].includes(o.id)||['hiveTank','hiveStore','honeyPrice','giftPrice','snip','clover','seeding'].includes(o.key)));
+  }
+  if(p.excavation)window.__blowerRows=(S,i,rows)=>{
+    if(window.__phase!==4||!S.plant.built||!S.shafts.length||i===0||rows.flat().some(t=>['research','travel'].includes(t)))return rows;
+    return [['dig'],['blow']];
+  };
   // Maximum-weight role matching over the current crew (<=10): bitmask dynamic
   // programming, O(n^2*2^n). These skill-based rates are estimates; full rollouts
   // decide whether this assignment mode helps. Cache until crew/skills change.
@@ -57,6 +69,13 @@
     const remaining=D.INGOT_GOAL-(S.totals.ingotsSold||0);
     const endMinutes=phase===4&&r?.nI>0 ? remaining/r.nI : Infinity;
     const horizon=Math.min(p.payback,endMinutes);
+    if(p.excavation&&phase===4&&S.plant.built&&S.shafts.length&&endMinutes>2){
+      if(S.blowers.length<Math.min(3,1+S.shafts.length)){
+        const helper=all.find(o=>o.id==='blower');if(helper)old.push([helper,'staff excavation']);
+      }
+      for(const o of all)if(o.id==='hup'&&o.key==='dig'&&o.ri>0||o.id==='tech'&&o.key==='cyclone'&&S.blowers.length>1)
+        old.push([o,'staffed excavation']);
+    }
     if(phase===4&&p.finalPolicy==='legacy'){
       const value={'need land':3,'start bees':3,'start metal':3,'start smelting':3,bagging:3,price:2,'bin full':1.5,'hive full':1.5,'tub full':1.5,'packer busy':1.5,'feed smelter':1.5};
       return old.filter(([o])=>!(o.payback>horizon)).sort((a,b)=>a[0].cost/(value[a[1]]||1)-b[0].cost/(value[b[1]]||1))[0]||null;

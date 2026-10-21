@@ -43,6 +43,7 @@ function income(){
 }
 // task lists: a packer once there's packing to do and 3+ robots, miners for every mine slot, smelters and a hauler
 function setTasks(S){
+  if(window.__assignStaff)return window.__assignStaff(S);
   const n=S.robots.length, active=[];
   const plant=S.plant.built?Math.min(window.__staffOptions?.plant ?? 3,Math.max(1,Math.floor(n/3))):0;
   let pack=(S.bag.built && !window.AUDIT_DRY || S.hive.built && (!window.AUDIT_DRY || S.flags.antHill)) && n>=3 ? 1:0;
@@ -79,6 +80,7 @@ function setTasks(S){
     if(i===window.__researchBlower(S)&&window.__researchReady(S)&&S.story.found&&!S.story.done&&['hive','fire'].includes(S.story.item))rows.unshift(['research']);
     if(window.AUDIT_DRY&&S.flags.dryLab&&!S.flags.dryKnown&&i===0)rows.unshift(['research']);
     if(S.trip?.crew?.includes('blower')&&i===0)rows.unshift(['travel']);
+    if(window.__blowerRows)rows=window.__blowerRows(S,i,rows);
     const changed=JSON.stringify(c.prio)!==JSON.stringify(rows);c.prio=rows;c.off=['bag','blow','dig','stoke','research','travel'].filter(t=>!rows.flat().includes(t));
     if(changed)Y.dev("taskListChanged('blower',"+i+")");
   });

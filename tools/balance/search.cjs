@@ -12,7 +12,8 @@ function candidates(count=24) {
     research:pick([2,5,10]), industry:pick([1,3,6]), prices:pick([1,2,4]),
     costPower:pick([.75,1,1.15]), payback:pick([3,5,8]), packers:pick([1,2]),
     researchCrew:pick([2,3]), bankIncome:pick([15,25,40,1e9]),
-    readiness:pick(['all','gathering']), finalPolicy:pick(['legacy','legacy','smart']), endHorizon:3
+    readiness:pick(['all','gathering']), finalPolicy:pick(['legacy','legacy','smart']), endHorizon:3,
+    freezeHomeHoneyAfterGoal:pick([false,true])
   });
   return out;
 }

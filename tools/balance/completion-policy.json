@@ -1,0 +1,55 @@
+{
+  "phases": {
+    "0": {
+      "growth": 1,
+      "helpers": 2,
+      "goals": 10,
+      "research": 10,
+      "industry": 6,
+      "prices": 2,
+      "costPower": 0.75,
+      "payback": 8,
+      "packers": 1,
+      "researchCrew": 3,
+      "bankIncome": 40,
+      "readiness": "all",
+      "finalPolicy": "legacy",
+      "endHorizon": 3
+    },
+    "3": {
+      "growth": 2,
+      "helpers": 8,
+      "goals": 20,
+      "research": 10,
+      "industry": 3,
+      "prices": 2,
+      "costPower": 1.15,
+      "payback": 8,
+      "packers": 2,
+      "researchCrew": 2,
+      "bankIncome": 25,
+      "readiness": "gathering",
+      "finalPolicy": "legacy",
+      "endHorizon": 3
+    },
+    "4": {
+      "growth": 8,
+      "helpers": 8,
+      "goals": 2,
+      "research": 10,
+      "industry": 3,
+      "prices": 4,
+      "costPower": 0.75,
+      "payback": 5,
+      "packers": 2,
+      "researchCrew": 3,
+      "bankIncome": 1000000000,
+      "readiness": "gathering",
+      "finalPolicy": "legacy",
+      "endHorizon": 3,
+      "skillStaffing": true
+    }
+  },
+  "freezeHomeHoneyAfterGoal": true,
+  "excavation": true
+}

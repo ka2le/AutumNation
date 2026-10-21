@@ -1,0 +1,160 @@
+{
+  "3": {
+    "mixed": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "mixed",
+      "staffing": "main",
+      "bias": 16,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "leaf": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "leaf",
+      "staffing": "main",
+      "bias": 16,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "honey": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "honey",
+      "staffing": "main",
+      "bias": 8,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "raw": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "raw",
+      "staffing": "main",
+      "bias": 8,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "industry": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "industry",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "skip-honey": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "skip-honey",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "skip-leaf": {
+      "phase": 3,
+      "mode": "paid",
+      "focus": "skip-leaf",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    }
+  },
+  "4": {
+    "mixed": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "mixed",
+      "staffing": "main",
+      "bias": 16,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "leaf": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "leaf",
+      "staffing": "main",
+      "bias": 16,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "honey": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "honey",
+      "staffing": "main",
+      "bias": 8,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "raw": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "raw",
+      "staffing": "main",
+      "bias": 8,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "industry": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "industry",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "skip-honey": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "skip-honey",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    },
+    "skip-leaf": {
+      "phase": 4,
+      "mode": "paid",
+      "focus": "skip-leaf",
+      "staffing": "main",
+      "bias": 4,
+      "costPower": 0.85,
+      "payback": 8,
+      "minutes": 20,
+      "secondary": "leaf"
+    }
+  }
+}
