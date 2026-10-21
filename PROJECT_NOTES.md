@@ -2,6 +2,13 @@
 
 ## Current snapshot
 
+**Economy tuning (2026-10-21):** Home cleanup costs $200 / $350 / $530 (about 3 / 4 / 5 minute marginal
+payback at the audited developed leaf rate). Better alloy's final four increments are 20% smaller, with
+unchanged prices; general hive/ant upgrades cost $140 instead of $180. All 66 paid campaign runs and 12
+capacity fixtures complete their checks. Main completion pace stays similar; honey development improves
+in the three-seed simulation comparison but not the single normal-gameplay pair. Honey skipping remains
+stronger and home ingots still dominate. See `tools/balance/economy-tuning.md` for evidence and limits.
+
 **Source balance audit (2026-10-21):** `npm run balance` now runs the main completion tester: retain the starter
 home hive after its first honey milestone and staff shaft excavation after repairing the home furnace. The
 honey-investment shortcut wins 9/9 paired full campaigns. Paid source priorities and fully upgraded layouts are

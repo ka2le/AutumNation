@@ -237,9 +237,10 @@ const UP = {
                  vals:[8, 12, 18, 27, 40, 60, 90, 135, 200], val:l=>UP.metalBin.vals[l], show:v=>v+' metal' },
   // more pickups is a big lever (it makes bin size matter less): V7 makes it dear from the second step on
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
-  // three one-off deals with the truck: a cash bonus for every 100 leaves it takes. With Sort & bag maxed ($0.62),
-  // the top deal brings a leaf to about $1.20. Each tier is a big jump that costs a lot at the time you can first afford it.
-  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[400, 2200, 4000],   // V32: the hollow has a gentler local ladder.
+  // Three one-off deals: a fixed bonus per 100 leaves, including bagged leaves (not multiplied by bag value).
+  // Home prices target about 3 / 4 / 5 minute marginal payback at the audited developed mixed crew's leaf rate.
+  // The hollow retains its separate local ladder.
+  cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[200, 350, 530],
                
                 vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
@@ -259,9 +260,8 @@ const UP = {
   smeltSpeed: { obj:'plant', name:'Hotter furnace',  max:3, costs:[290, 860, 2880],   // V32.1: +20% (were 240 / 720 / 2,400)
                 vals:[1, 1.3, 1.65, 2.1], val:l=>UP.smeltSpeed.vals[l], show:v=>v.toFixed(2)+'× furnace heat' },
   // V8: an ingot is worth ORE_PER_INGOT metal at the current grade × the alloy (was a flat $36 → $66), two more steps
-  // V29: Better alloy is the main brake on the late ingot income: same multipliers and the same $300 first step, steps 2–5 were
-  // 1,050 / 2,000 / 3,600 / 5,200. At a 5-minute payback each step wants about $2.6k / 6.2k / 9.9k / 17.4k of ingot income a minute
-  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[360, 6000, 14000, 23000, 36000], vals:[1.45, 1.75, 2.15, 2.6, 3.1, 3.6], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
+  // Last four alloy increments reduced 20% (maximum 3.6 -> 3.23), preserving prices and physical throughput.
+  ingotGrade: { obj:'plant', name:'Better alloy',    max:5, costs:[360, 6000, 14000, 23000, 36000], vals:[1.45, 1.75, 2.07, 2.43, 2.83, 3.23], val:l=>UP.ingotGrade.vals[l], show:v=>money(ORE_PER_INGOT*val('metalPrice')*v*sellMul())+' / ingot' },
   // V6.3: every ingot takes 4 whole metal; slag recovery adds bonus ingots (a counter fills up, so it's always whole ingots)
   slag:       { obj:'plant', name:'Slag recovery',   max:3, costs:[325, 960, 4200],   // V32.1: +20% (were 270 / 800 / 3,500)
                 vals:[0, 0.11, 0.25, 0.43], val:l=>UP.slag.vals[l], show:v=>v ? '+' + Math.round(v*100) + '% ingots' : 'no extra ingots' },
@@ -5700,7 +5700,7 @@ function drawFlowers(V){
 const HIVE_COST = 120;
 const MAX_BEES = 40;   // V19.1: was 60
 // Six one-off hive upgrades, all at one fixed price, so the order is up to you and buying one never makes the others
-// dearer. V30: $150 each (V22: $120).
+// dearer. Shared bee/ant price: $140 each after the completion-player balance audit (previously $180).
 // V22: a jar takes 18 nectar (Better recipe 12); the hollow's ants need 12 mushrooms a can (Tight packing 6)
 const jarNectarAt = recipe => ANTS ? (recipe ? 6 : 12) : (recipe ? 12 : 18);
 const HIVE_UP = {
@@ -5711,7 +5711,7 @@ const HIVE_UP = {
   recipe:  { name:'Better recipe',            get desc(){ return 'A jar of honey takes <b>' + jarNectarAt(true) + ' nectar</b> instead of ' + jarNectarAt(false) + '.'; } },
   nursery: { name:'Bee nursery',              desc:'New bees cost <b>40%</b> less.' },
 };
-const HIVE_UP_COST = 180;   // V32: a modest shared bee/ant increase; worker population prices are unchanged.
+const HIVE_UP_COST = 140;   // Shared one-off upgrades; worker population prices and upgrade effects are unchanged.
 const hiveUpCost = () => HIVE_UP_COST;
 // V13: the hive isn't something you can just buy any more: the robots have to know about bees first (the dead bee on the
 // prairie, or a bee brought home from there). After a bee has come home, the first yard's hive costs less.

@@ -35,7 +35,21 @@ This standard governs future tests and tuning; older tables and pacing targets b
   instructions in [tools/balance/README.md](tools/balance/README.md). Treat finite strategy searches as evidence,
   not proof of global optimality.
 
-### Current measurement update — October 21, 2026
+### Economy adjustment — October 21, 2026
+
+Home cleanup now costs **$200 / $350 / $530**, targeting marginal payback of about **3 / 4 / 5 minutes** at
+the audited developed leaf rate. Better alloy's final four increments are 20% smaller (maximum 3.6 → 3.23)
+with unchanged prices. General hive/ant-hill upgrades cost **$140**, previously $180. Physical production,
+goals and hollow cleanup/briquettes are unchanged. See [the tuning report](tools/balance/economy-tuning.md)
+for the candidate comparisons, held-out tests and evidence.
+
+The three-seed main route stays almost unchanged, 128.78 → 128.50 minutes; continued honey development
+improves 137.00 → 135.48. One normal-gameplay pair does not improve the development route, and retaining
+the starter hive still wins. Home maximum mixed income falls about 9.4%, but ingots remain about 91% of it.
+These are modest adjustments; honey skipping and industrial dominance remain open concerns. The measurements
+below predate this tuning and are retained as baseline evidence.
+
+### Pre-tuning measurement update — October 21, 2026
 
 **Source-strategy follow-up:** The completion-focused player is now the default tester. The
 [source assessment](tools/balance/source-balance.md) adds 48 paid source comparisons and 60 capacity fixtures.

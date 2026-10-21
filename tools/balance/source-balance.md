@@ -1,5 +1,8 @@
 # Source balance assessment — October 21, 2026
 
+This is the **pre-tuning baseline**. See [the subsequent economy adjustment](economy-tuning.md) for the
+implemented cleanup, alloy and hive changes and their new comparisons. Historical results below are unchanged.
+
 **The current economy has useful diversification, but it does not yet meet the goal that a fast player should
 keep developing every source.** The clearest counterexample is the home hive: retaining its starter production
 and stopping new honey investment after the first milestone beats the earlier smart completion route. Leaves

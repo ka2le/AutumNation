@@ -11,7 +11,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
  try{
   const home=await fresh();
   const data=await home.evaluate(()=>__leafYard.dev(`({tracks:TRACKS,up:UP,tech:TECH,gen:GEN,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),carry:[METAL_CARRY,INGOT_CARRY,COAL_CARRY],tinker:TINKER_GOAL,robotCosts:ROBOT_COST.slice(0,ROBOT_MAX),discount:DISCOUNT,mining:[METAL_SLOT_COST,MINER_COST],times:[BAG_TIME,JAR_TIME,WRAP_TIME,SMELT_TIME]})`));
-  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,180);eq(data.tinker,750);
+  eq(data.times,[4,2.5,2.6,13.5]);eq(data.hiveCost,140);eq(data.tinker,750);
   eq(data.robotCosts,[0,8,40,100,220,360,700,1200,2000,3200]);eq(data.discount,.5);
   eq(data.mining,[450,500]);
   eq(await home.evaluate(()=>__leafYard.dev('INGOT_GOAL')),1000);
@@ -27,7 +27,8 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,7500]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
   eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,3000,6000]);
-  eq(data.up.cleanup.costs,[400,2200,4000]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
+  eq(data.up.cleanup.costs,[200,350,530]);eq(data.up.ingotGrade.costs,[360,6000,14000,23000,36000]);
+  eq(data.up.ingotGrade.vals,[1.45,1.75,2.07,2.43,2.83,3.23]);
   eq(data.up.metalPrice.costs,[300,600,1100,3500,7000,13000]);
   const expected={speed:3.3,carry:38,pick:.32,grab:12,reach:125,pack:4.6,drill:1.35,magnet:.72,study:10.5,blow:6.4,shake:38,dig:.95,stoke:1,dry:6.5};
   for(const[k,v]of Object.entries(expected))eq(data.tracks[k].vals.at(-1),v);
@@ -52,10 +53,10 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   await home.close();
   const hollow=await fresh('hollow');
   const hd=await hollow.evaluate(()=>__leafYard.dev('({gen:GEN,up:UP,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),mining:[METAL_SLOT_COST,MINER_COST],cash:S.cash})'));
-  eq(hd.cash,0);eq(hd.hiveCost,180);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);
+  eq(hd.cash,0);eq(hd.hiveCost,140);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);
   eq(hd.mining,[450,500]);
   for(const k of ['oil','cutting','market','charm']){eq(hd.gen[k].max,data.gen[k].max);eq(hd.gen[k].name,data.gen[k].name);assert(hd.gen[k].cost[0]<data.gen[k].cost[0]);checks++;}
-  eq(hd.up.ingotGrade.costs,[240,600,1140]);eq(hd.up.metalPrice.costs,[300,600,1100]);await hollow.close();
+  eq(hd.up.ingotGrade.costs,[240,600,1140]);eq(hd.up.ingotGrade.vals,[1,1.25,1.5,1.8]);eq(hd.up.metalPrice.costs,[300,600,1100]);await hollow.close();
   const legacy=await fresh();
   const migration=await legacy.evaluate(()=>{
    const Y=__leafYard,old=JSON.parse(JSON.stringify(Y.state()));delete old.flags.investmentV32;
