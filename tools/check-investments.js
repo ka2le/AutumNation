@@ -27,7 +27,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   eq(data.up.leafPrice.costs,[.8,1.25,2.25,4,6.75,100,220,2200,4000,6000]);eq(data.up.bagPrice.costs,[11,19,28,170,299,507,735,1053]);
   eq(data.up.bagPrice.costs.slice(0,3),[11,19,28]);eq(data.up.bagPrice.vals.at(-1),8.7);
   eq(data.gen.basket.cost,[150]);eq(data.gen.market.cost,[1200,3000,6000]);
-  eq(data.up.cleanup.costs,[400,1000,2000]);eq(data.up.ingotGrade.costs,[360,6000,10000,14000,20000,28000,36000]);
+  eq(data.up.cleanup.costs,[400,1000,2000]);eq(data.up.cleanup.vals,[0,18,42,140]);eq(data.up.ingotGrade.costs,[360,6000,10000,14000,20000,28000,36000]);
   eq(data.up.ingotGrade.vals,[1.45,1.75,1.95,2.15,2.38,2.62,2.87,3.12]);
   eq(data.up.metalPrice.costs,[300,600,1100,4500,8500,15000]);
   const expected={speed:3.3,carry:38,pick:.32,grab:12,reach:125,pack:4.6,drill:1.35,magnet:.72,study:10.5,blow:6.4,shake:38,dig:.95,stoke:1,dry:6.5};
@@ -64,7 +64,7 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
   await home.close();
   const hollow=await fresh('hollow');
   const hd=await hollow.evaluate(()=>__leafYard.dev('({gen:GEN,up:UP,hiveCost:HIVE_UP_COST,bees:Array.from({length:40},(_,n)=>beeCost(n)),mining:[METAL_SLOT_COST,MINER_COST],cash:S.cash})'));
-  eq(hd.cash,0);eq(hd.hiveCost,180);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);
+  eq(hd.cash,0);eq(hd.hiveCost,180);eq(hd.bees,data.bees);eq(hd.gen.market.cost,[700,1500,2800]);eq(hd.gen.basket.cost,[150]);eq(hd.up.cleanup.costs,[150,700,1500]);eq(hd.up.cleanup.vals,[0,18,42,140]);
   eq(hd.mining,[450,500]);
   for(const k of ['oil','cutting','market','charm']){eq(hd.gen[k].max,data.gen[k].max);eq(hd.gen[k].name,data.gen[k].name);assert(hd.gen[k].cost[0]<data.gen[k].cost[0]);checks++;}
   eq(hd.up.ingotGrade.costs,[240,600,1140]);eq(hd.up.ingotGrade.vals,[1,1.25,1.5,1.8]);eq(hd.up.metalPrice.costs,[300,600,1100]);eq(hd.up.leafPrice.costs.at(-1),6000);await hollow.close();
@@ -111,6 +111,30 @@ const gameRoot=process.env.GAME_ROOT?path.resolve(process.env.GAME_ROOT):path.jo
     const a={from:'home',to:'hollow',skillVersion:version,crew:[{kind:'robot',sty:0,home:0,bot:{lv,prio:[['leaves']],off:[]}}]};Y.dev(`arrive(${JSON.stringify(a)},true)`);return Y.state().robots[0].lv;
    },version);for(const[k,v]of Object.entries({speed:9,carry:9,pick:8,grab:4,reach:4,pack:7}))eq(result[k],v);await page.close();
   }
-  eq(errors,[]);console.log('Economy checks passed: '+checks+' invariants, real paid skill purchases, hires and bulk matching, legacy save/reload, old/new arrivals, local prices, and unchanged bee/ant population curve.');
+  for(const lot of ['', 'hollow']){
+   const page=await fresh(lot);
+   const cleanup=await page.evaluate(lot=>{
+    const Y=__leafYard;Y.dev('simMode=true;S.cash=10000;S.peak=10000;');
+    const costs=[],rewards=[];
+    while(true){const o=Y.fn().offers().find(o=>o.id==='up'&&o.key==='cleanup');if(!o)break;
+     const before=Y.state().cash;if(!Y.buy(o))throw Error('Cleanup offer rejected');
+     costs.push(before-Y.state().cash);rewards.push(Y.dev('cleanupBonus()'));
+     if(costs.length>3)throw Error('Cleanup cap exceeded');
+    }
+    const save=JSON.parse(JSON.stringify(Y.state()));Y.dev(`load({S:${JSON.stringify(save)}});simMode=true;S.cleanN=17;`);
+    const before=Y.state().cash,earned=Y.state().totals.cash;
+    // A real truck sale: mixed loose/bagged leaves at home; only dried bags in the hollow.
+    const leaves=lot?0:30,bags=lot?10:7;
+    const expected=Y.dev(`${leaves}*leafPrice()+${bags}*bagPrice()+140`);
+    Y.dev(`Object.assign(truck,{st:'load',timer:0,takeL:${leaves},takeB:${bags},takeM:0,takeI:0,takeH:0,takeG:0});step(.05);`);
+    return {costs,rewards,level:Y.state().lv.cleanup,bonus:Y.dev('cleanupBonus()'),display:Y.dev('UP.cleanup.show(cleanupBonus())'),
+     payout:Y.state().cash-before,earned:Y.state().totals.cash-earned,expected,remainder:Y.state().cleanN};
+   },lot);
+   eq(cleanup.costs,lot?[150,700,1500]:[400,1000,2000]);eq(cleanup.rewards,[18,42,140]);eq(cleanup.level,3);
+   eq(cleanup.bonus,140);eq(cleanup.display,'$140 per 100 leaves');eq(cleanup.remainder,17);
+   eq(Math.abs(cleanup.payout-cleanup.expected)<1e-7,true);eq(Math.abs(cleanup.earned-cleanup.expected)<1e-7,true);
+   await page.close();
+  }
+  eq(errors,[]);console.log('Economy checks passed: '+checks+' invariants, real paid skills and cleanup purchases/payouts, hires and bulk matching, legacy save/reload, old/new arrivals, local prices, and unchanged bee/ant population curve.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

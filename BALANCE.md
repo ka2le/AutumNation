@@ -86,6 +86,16 @@ This standard governs future tests and tuning; older tables and pacing targets b
   instructions in [tools/balance/README.md](tools/balance/README.md). Treat finite strategy searches as evidence,
   not proof of global optimality.
 
+### Final cleanup reward — October 22, 2026
+
+The final cleanup deal now pays **$140 per 100 leaves**, up from $70, in both yards. The first two rewards
+stay $18 / $42; home prices stay $400 / $1,000 / $2,000 and hollow prices stay $150 / $700 / $1,500.
+This is a stronger optional reward for committed leaf development. At measured developed output, the final
+home purchase repays in about 1.5 minutes for leaf-only staffing, 2.3 minutes for the requested mixed crew,
+and 5.6 minutes for the industrial mixed crew. Whole-yard income rises about 6.2%, 1.1% and 0.3% respectively.
+Six paired seeds for three paid completion policies retain identical traces because they skip home cleanup;
+this does not establish the best paid leaf strategy. See [the cleanup study](tools/balance/cleanup-study.md).
+
 ### Final alloy steps — October 21, 2026
 
 Better alloy now has seven purchases, ending at 3.12×: $360 / $6,000 / $10,000 / $14,000 / $20,000 /
@@ -207,7 +217,7 @@ These are the design rules every balance pass is checked against.
 |---|---|---|---|
 | Loose leaves | leaf fall and shaking (land, shakers), robots gathering, bin and truck | `0.13 × 1.2^Sort` | Sort leaves, market |
 | Bags | packers' time (Packing), loose leaves in the bin | `10 × leaf price × bag mult` | Sort, Better bags, market |
-| Cleanup bonus | all leaves sold, bagged ones included (`nL`) | `$18/42/70 per 100 leaves` | none (market does not apply) |
+| Cleanup bonus | all leaves sold, bagged ones included (`nL`) | `$18/42/140 per 100 leaves` | none (market does not apply) |
 | Raw metal | miners (veins, drill, magnet, shafts, excavating, cutting oil) | `grade` | Grade the metal, market |
 | Ingots | the same ore smelted (4 ore an ingot, plus Slag recovery), smelter time | `4 × grade × alloy` | grade, Better alloy, Slag, market |
 | Honey jars | nectar (bees, flowers, hive upgrades, tank) and **packers** filling jars | `label` | labels, market |
@@ -458,6 +468,9 @@ Re-measure everything that stacks with it. A multiplier on a compounding source 
 ---
 
 ## 5. Current balance (V9, Oct 11)
+
+**October 22 override:** cleanup rewards are $18 / $42 / $140 per 100 leaves in both yards. Home costs
+$400 / $1,000 / $2,000; hollow costs $150 / $700 / $1,500. The V9 tables below are historical.
 
 ### V30 trial override (16 October 2026)
 

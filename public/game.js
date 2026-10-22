@@ -239,10 +239,10 @@ const UP = {
   truck:      { obj:'sign', name:'Book more pickups', max:7,  costs:[2, 8, 50, 140, 260, 700, 1800], val:l=>[45,38,32,27,23,19,16,14][l], show:v=>'every '+v+'s' },
   // Three one-off deals: a fixed bonus per 100 leaves, including bagged leaves (not multiplied by bag value).
   // Home contract prices: $400 / $1,000 / $2,000. Sort leaves and bags are separate value multipliers.
-  // The hollow retains its separate local ladder.
+  // Both yards share the $18 / $42 / $140 rewards; the hollow retains its separate local prices.
   cleanup:    { obj:'sign', name:l=>['Join the cleanup program', 'Town cleanup contract', 'County compost deal'][Math.min(l, 2)], max:3, costs:[400, 1000, 2000],
                
-                vals:[0, 18, 42, 70], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
+                vals:[0, 18, 42, 140], val:l=>UP.cleanup.vals[l], show:v=>v ? '$'+v+' per 100 leaves' : 'no bonus yet' },
   // the beehive. V7: more, smaller steps priced against what the honey earns, so the store keeps up with the bees
 
   hiveTank:   { obj:'hive', name:'Bigger nectar tank', max:4, costs:[75, 240, 650, 1750], vals:[70, 140, 270, 470, 800], val:l=>UP.hiveTank.vals[l], show:v=>v+' nectar' },

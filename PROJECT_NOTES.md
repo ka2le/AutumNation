@@ -2,6 +2,13 @@
 
 ## Current snapshot
 
+**Final cleanup reward (2026-10-22):** The County compost deal now pays $140 per 100 leaves, double the
+previous $70, in both yards. Earlier rewards and all cleanup prices are unchanged. This gives committed
+leaf builds a stronger optional finishing purchase: about 1.5-minute marginal payback in the best tested
+leaf yard and 2.3 minutes in the requested mixed layout, with modest total-income gains. Six paired seeds
+across three completion policies retain identical campaign traces; those buyers skip home cleanup.
+See `tools/balance/cleanup-study.md` for capacity, earned-yard paybacks and the test evidence.
+
 **Final alloy ladder (2026-10-21):** Better alloy has seven purchases totaling $114,360 (up 44.1%), with a
 slightly lower 3.12x endpoint and the same $36,000 highest purchase. Grade the metal preserves the first three
 prices, then costs $4,500 / $8,500 / $15,000. Twenty paid campaign/replay checks and 185 economy/save invariants

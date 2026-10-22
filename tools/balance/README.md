@@ -7,6 +7,8 @@ first: partial honey, automatic spending, equal worker splits and endgame-only i
 The latest benchmark and retained $180 hive/ant price are in [the honey-maxing report](honey-max.md).
 The final seven-step alloy ladder and later metal-grade prices are tested in [the alloy report](alloy-steps.md).
 The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.
+The [cleanup and staffing study](cleanup-study.md) measures current cleanup payback, the leaf-only ceiling,
+the requested 2-smelter/3-packer/2-leaf/3-miner layout, earned mature yards and a doubled final cleanup reward.
 
 Use the paid full-campaign runner for pacing and completion comparisons. It runs the **current `public/` game**,
 freezes its inputs, and preserves the earned home → hollow → home route. The old browser `__leafYard.sim()` and
