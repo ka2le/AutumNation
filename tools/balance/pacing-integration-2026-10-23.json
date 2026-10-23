@@ -1,0 +1,374 @@
+{
+  "seeds": [
+    1701,
+    1702,
+    1703
+  ],
+  "pairs": [
+    {
+      "seed": 1701,
+      "name": "smart-skip",
+      "normalMinutes": 124.2725000002018,
+      "slowMinutes": 149.1272222227405,
+      "spent": 76751.25000000001,
+      "ratio": 1.2000017881872365,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-skip-1701-2712cb02c2.json",
+        "slow": "smart-skip-1701-2712cb02c2.json"
+      },
+      "baselineTraceHash": "a233ea13c7b86bed135f2f5448d4dcd199f7317539cd9dac634fc9ddb1171ad6"
+    },
+    {
+      "seed": 1701,
+      "name": "smart",
+      "normalMinutes": 123.42250000023724,
+      "slowMinutes": 148.10722222272753,
+      "spent": 119484.30000000003,
+      "ratio": 1.2000018005018764,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-1701-575973d648.json",
+        "slow": "smart-1701-575973d648.json"
+      },
+      "baselineTraceHash": "1041b5f26d135c0a5b07366ec1d17d6f1908d492a1315c2ac4a22032216e483c"
+    },
+    {
+      "seed": 1701,
+      "name": "smart-balanced",
+      "normalMinutes": 131.65527777807358,
+      "slowMinutes": 157.98666666729775,
+      "spent": 100193.80000000003,
+      "ratio": 1.2000025318666678,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-balanced-1701-7b2c33ccb3.json",
+        "slow": "smart-balanced-1701-7b2c33ccb3.json"
+      },
+      "baselineTraceHash": "bd394b6fc904c3cd1f2cd08c24f3b79cc5b5a1b092a461b6e3eb2bd7766f9d70"
+    },
+    {
+      "seed": 1702,
+      "name": "smart-skip",
+      "normalMinutes": 126.78138888912264,
+      "slowMinutes": 152.13805555611216,
+      "spent": 78974.70000000001,
+      "ratio": 1.2000030673994693,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-skip-1702-d72babe714.json",
+        "slow": "smart-skip-1702-d72babe714.json"
+      },
+      "baselineTraceHash": "66939d4a1eb10e198041517746ef4c4245d4d5d978571e9ef8bd76945d78acf9"
+    },
+    {
+      "seed": 1702,
+      "name": "smart",
+      "normalMinutes": 122.78861111132228,
+      "slowMinutes": 147.34666666716228,
+      "spent": 129518.30000000002,
+      "ratio": 1.2000027146945675,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-1702-0a672bdc98.json",
+        "slow": "smart-1702-0a672bdc98.json"
+      },
+      "baselineTraceHash": "4a5e725790bf2cde1e3f2396a1c8d61a4eea8faada0cde51c47b8aae7406373f"
+    },
+    {
+      "seed": 1702,
+      "name": "smart-balanced",
+      "normalMinutes": 133.04611111142464,
+      "slowMinutes": 159.65555555620787,
+      "spent": 102908.80000000003,
+      "ratio": 1.2000016702667704,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-balanced-1702-e7dacd1773.json",
+        "slow": "smart-balanced-1702-e7dacd1773.json"
+      },
+      "baselineTraceHash": "93f441998a0b4a8e83060bae583e024d17997621b133a94e681a8f39b34518b5"
+    },
+    {
+      "seed": 1703,
+      "name": "smart-skip",
+      "normalMinutes": 129.23666666693168,
+      "slowMinutes": 155.08444444503857,
+      "spent": 75193.20000000001,
+      "ratio": 1.2000034389986374,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-skip-1703-a5c1ea7859.json",
+        "slow": "smart-skip-1703-a5c1ea7859.json"
+      },
+      "baselineTraceHash": "63877af522a16a4237f96c4a282b410e85c1ceca594c482476c1b97871b2aee6"
+    },
+    {
+      "seed": 1703,
+      "name": "smart",
+      "normalMinutes": 125.79083333358928,
+      "slowMinutes": 150.94944444498594,
+      "spent": 122042.35000000003,
+      "ratio": 1.2000035332040262,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-1703-43c5ee90cd.json",
+        "slow": "smart-1703-43c5ee90cd.json"
+      },
+      "baselineTraceHash": "ca271648e99c10b40a99914d9e4c7180debd2cddc2901d6a900470c4a29b2488"
+    },
+    {
+      "seed": 1703,
+      "name": "smart-balanced",
+      "normalMinutes": 133.90777777810226,
+      "slowMinutes": 160.68972222288772,
+      "spent": 88217.75000000003,
+      "ratio": 1.2000029041566627,
+      "economyIdentical": true,
+      "normalMatchesFrozenBaseline": true,
+      "files": {
+        "normal": "smart-balanced-1703-1072ef8a3f.json",
+        "slow": "smart-balanced-1703-1072ef8a3f.json"
+      },
+      "baselineTraceHash": "9c0387ac4e45585025aa27b7f056b6991f4a0a8d3f4b55203e6eced5ac86bafc"
+    }
+  ],
+  "sourceHashes": {
+    "game.js": "92209007c2e6bdd07a817655934cf4f8115774d53351d12c09280a4455440443",
+    "lots/hollow.js": "8e91c7cb8a04d86fbc4187859b1bf42ac0253f7dd1f6464dbb547371359c5197",
+    "lots/prairie.js": "e8765270cc089137b15b159536a94777f011bd26e9768e2c7fc6fd22e6298475",
+    "index.html": "cb2846edb6ca33c3035c798deb534e23c96e4f23828f0721f080096c85ed2211",
+    "style.css": "8f5d60d78e0583d55c83a6d7064453dc6a1a9d66883e3eed3b3cbd924dcdc730",
+    "audio.js": "38bf8a02c5f41b02b453efbac9fe320f737b2c62a391884dc7158a4f5d91fd34",
+    "ending.js": "0affe7b4c6298edde60682204022f62660235f63d7b7c16ce3eed715dc72b5bf",
+    "tips.js": "8f0eabd2f0d6f22b695b10fdeee6e8b29baf95a5ff58de4e4e19383a373cdb74"
+  },
+  "adapterHash": "843bd0bfc88f828b7a386b427f98025918d5d54430c8992151ddd28bb1caf73f",
+  "exactReplay": true,
+  "controls": {
+    "checks": 136,
+    "cadence": [
+      {
+        "duration": 0.25,
+        "hz": 30,
+        "world": 12.000000000000176,
+        "real": 3.000000000000044,
+        "done": 11.999999999999996,
+        "acc": 2.491062911502695e-15
+      },
+      {
+        "duration": 0.25,
+        "hz": 60,
+        "world": 12.000000000000176,
+        "real": 3.000000000000044,
+        "done": 11.999999999999977,
+        "acc": 2.0816681711721685e-17
+      },
+      {
+        "duration": 0.25,
+        "hz": 120,
+        "world": 12.000000000000176,
+        "real": 3.000000000000044,
+        "done": 11.999999999999968,
+        "acc": 0
+      },
+      {
+        "duration": 0.5,
+        "hz": 30,
+        "world": 5.999999999999984,
+        "real": 2.999999999999992,
+        "done": 5.999999999999998,
+        "acc": 2.0816681711721685e-17
+      },
+      {
+        "duration": 0.5,
+        "hz": 60,
+        "world": 5.999999999999984,
+        "real": 2.999999999999992,
+        "done": 5.9999999999999885,
+        "acc": 0
+      },
+      {
+        "duration": 0.5,
+        "hz": 120,
+        "world": 5.999999999999984,
+        "real": 2.999999999999992,
+        "done": 5.999999999999984,
+        "acc": 0
+      },
+      {
+        "duration": 1,
+        "hz": 30,
+        "world": 2.9999999999999942,
+        "real": 2.9999999999999942,
+        "done": 2.999999999999999,
+        "acc": 0
+      },
+      {
+        "duration": 1,
+        "hz": 60,
+        "world": 2.9999999999999942,
+        "real": 2.9999999999999942,
+        "done": 2.9999999999999942,
+        "acc": 0
+      },
+      {
+        "duration": 1,
+        "hz": 120,
+        "world": 2.9999999999999942,
+        "real": 2.9999999999999942,
+        "done": 2.9999999999999942,
+        "acc": 0
+      },
+      {
+        "duration": 1.1,
+        "hz": 30,
+        "world": 2.716666666666662,
+        "real": 2.988333333333342,
+        "done": 2.7166666666666663,
+        "acc": 0.010606060606060598
+      },
+      {
+        "duration": 1.1,
+        "hz": 60,
+        "world": 2.716666666666662,
+        "real": 2.988333333333342,
+        "done": 2.716666666666662,
+        "acc": 0.010606060606060601
+      },
+      {
+        "duration": 1.1,
+        "hz": 120,
+        "world": 2.716666666666662,
+        "real": 2.988333333333342,
+        "done": 2.716666666666662,
+        "acc": 0.010606060606060605
+      },
+      {
+        "duration": 1.2,
+        "hz": 30,
+        "world": 2.499999999999996,
+        "real": 3.000000000000002,
+        "done": 2.5,
+        "acc": 4.0939474033052647e-16
+      },
+      {
+        "duration": 1.2,
+        "hz": 60,
+        "world": 2.499999999999996,
+        "real": 3.000000000000002,
+        "done": 2.499999999999996,
+        "acc": 4.128641872824801e-16
+      },
+      {
+        "duration": 1.2,
+        "hz": 120,
+        "world": 2.499999999999996,
+        "real": 3.000000000000002,
+        "done": 2.499999999999996,
+        "acc": 0
+      },
+      {
+        "duration": 1.5,
+        "hz": 30,
+        "world": 1.9999999999999978,
+        "real": 2.9999999999999933,
+        "done": 2.0000000000000004,
+        "acc": 6.938893903907228e-18
+      },
+      {
+        "duration": 1.5,
+        "hz": 60,
+        "world": 1.9999999999999978,
+        "real": 2.9999999999999933,
+        "done": 1.9999999999999978,
+        "acc": 3.469446951953614e-18
+      },
+      {
+        "duration": 1.5,
+        "hz": 120,
+        "world": 1.9999999999999978,
+        "real": 2.9999999999999933,
+        "done": 1.9999999999999978,
+        "acc": 0
+      },
+      {
+        "duration": 2,
+        "hz": 30,
+        "world": 1.4999999999999996,
+        "real": 2.999999999999999,
+        "done": 1.4999999999999996,
+        "acc": 0
+      },
+      {
+        "duration": 2,
+        "hz": 60,
+        "world": 1.4999999999999996,
+        "real": 2.999999999999999,
+        "done": 1.4999999999999996,
+        "acc": 0
+      },
+      {
+        "duration": 2,
+        "hz": 120,
+        "world": 1.4999999999999996,
+        "real": 2.999999999999999,
+        "done": 1.4999999999999996,
+        "acc": 0
+      },
+      {
+        "duration": 4,
+        "hz": 30,
+        "world": 0.7500000000000007,
+        "real": 3.0000000000000027,
+        "done": 0.7500000000000007,
+        "acc": 0
+      },
+      {
+        "duration": 4,
+        "hz": 60,
+        "world": 0.7500000000000007,
+        "real": 3.0000000000000027,
+        "done": 0.7500000000000007,
+        "acc": 0
+      },
+      {
+        "duration": 4,
+        "hz": 120,
+        "world": 0.7500000000000007,
+        "real": 3.0000000000000027,
+        "done": 0.7500000000000007,
+        "acc": 0
+      }
+    ],
+    "economic": [
+      {
+        "lot": "home",
+        "identical": true
+      },
+      {
+        "lot": "hollow",
+        "identical": true
+      }
+    ],
+    "errors": []
+  },
+  "checks": {
+    "economyInvariants": 203,
+    "controlAssertions": 349,
+    "compactSummaries": true,
+    "endingReplay": true,
+    "goalDismissal": true,
+    "reset": true,
+    "pwa": true,
+    "campaignBoundary": true
+  }
+}

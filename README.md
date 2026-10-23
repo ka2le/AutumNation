@@ -56,6 +56,8 @@ Progress saves in the browser's localStorage (key `leaf-yard-save-v2`). The Work
 
 **Test panel:** tap the cash counter 3 times within 2 seconds to open a small test panel. It has buttons to add $10, $100, $500, $1k, $10k or $100k, and a **Next step** button that pushes the story along one beat (find the book or the dead bee, finish the research, earn enough for the letter, bring and read the letter, get the travel money, send the robot on the trip, earn the honey money...). The button says what it will do. Tap the cash 3 times again (or ×) to close it.
 
+**World duration:** in that panel, set how many real seconds one game second takes. **1.0 keeps the current pace; 1.2 makes actions take 20% longer.** The slider and number field accept 0.25–4, with quick presets. This test override lasts for the tab's session, including reloads, trips and starting over; a new tab defaults to 1.0. It is separate from fast-forward. Prices, capacities, recipes and upgrade effects stay the same. Countdown and rate displays account for the setting; elapsed-time history is preserved when it changes. Run `node tools/check-pacing.js` for the control and clock checks.
+
 ### Test locations (`?location2`)
 
 Test copies of the game live in their own folders next to the real one: `public/location2/` and so on. Each folder is a full copy of `index.html`, `style.css`, `audio.js` and `game.js`; nothing in the main game links to them.

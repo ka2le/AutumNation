@@ -31,7 +31,7 @@ const root = path.resolve(__dirname, '../public');
       const dev = s => p.evaluate(s => __leafYard.dev(s), s);
       await dev(`S.cash=S.peak=100000;S.land=1;S.metalSlot=true;S.bag.built=true;S.plant.built=true;S.hive.built=true;S.hive.bees=4;S.hive.packing=true;S.story.done=true;S.flags.antHill=true;S.flags.coalKnown=true;S.flags.ruinKnown=true;bindIds();syncRobots();syncBees();
         S.sales=[{t:30,items:[{k:'leaf',n:2,price:1,amount:2}],bonus:0,total:2},{t:20,items:[{k:'leaf',n:100,price:1,amount:100}],bonus:10,total:110},{t:10,items:[{k:'leaf',n:100,price:1,amount:100}],bonus:10,total:110}];
-        resetProduction();S.t+=30;productionAdd('picked',60);productionAdd('converted',30);productionAdd('made',30/jarNectar());S.totals.bags=1;S.totals.nectar=60;S.totals.jars=15/jarNectar();S.totals.gifts=6/jarNectar();sampleProduction();openCard('sign');`);
+        resetProduction();S.t+=30;S.realT+=30;productionAdd('picked',60);productionAdd('converted',30);productionAdd('made',30/jarNectar());S.totals.bags=1;S.totals.nectar=60;S.totals.jars=15/jarNectar();S.totals.gifts=6/jarNectar();sampleProduction();openCard('sign');`);
       assert.equal(await p.locator('.receipt .rc-row.low').count(), 2);
       assert.match(await p.locator('.receipt .rc-bonus').innerText(), /\$0\.00\s+-100%/);
       assert.equal(await p.locator('.rc-strip,.rc-notes,[data-act^="receipt:"]').count(), 0);
@@ -61,7 +61,7 @@ const root = path.resolve(__dirname, '../public');
             assert.equal(await p.locator('[data-resource="metal"]').count(), 0);
           }
           const previous = await p.locator('.resource-summary').first().innerText();
-          await dev('S.t+=30;sampleProduction();recordSale({takeL:0,takeB:0,takeM:0,takeI:0,takeH:0,takeG:0},0,0,0);window.__uiNow+=1000;renderCard(true)');
+          await dev('S.t+=30;S.realT+=30;sampleProduction();recordSale({takeL:0,takeB:0,takeM:0,takeI:0,takeH:0,takeG:0},0,0,0);window.__uiNow+=1000;renderCard(true)');
           assert.match(await p.locator('.resource-summary').first().innerText(), /0\.00\/s.*\$0\.00/s);
           if (kind === 'bin') assert.notEqual(await p.locator('.resource-summary').first().innerText(), previous);
         }

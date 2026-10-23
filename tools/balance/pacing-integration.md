@@ -1,0 +1,19 @@
+# Fixed clock and test-menu duration — October 23, 2026
+
+The main game now uses fixed 1/60-second world updates, scheduled by a duration value. **The default is 1.0**, preserving normal pace; prices, capacities, recipes, goals and upgrade effects are unchanged. The earlier [isolated study](pacing-study.md) records the choice of simulation step and the motion tradeoff.
+
+Open the test menu by tapping the cash counter three times. **World duration** has a slider, a number field accepting 0.25–4, and 1 / 1.1 / 1.2 / 1.5 / 2 presets. At 1.2, one world second takes 1.2 real seconds. The override is separate from fast-forward, has no ordinary-play speed badge, and persists for the tab's session across reloads, travel and starting over. New independent tabs default to 1.0.
+
+Durations and theoretical rates update when the setting changes. Production observations use accumulated elapsed time, so a window spanning two settings measures the actual blended rate. Saved elapsed time and receipt timestamps retain their history; old saves initialize their elapsed clocks from the previous normal-time timestamps. The wet-leaf introduction's delayed callbacks now follow world time, including pause or a setting change midway through the scene. Scripted cameras and the post-ending yard sequence follow completed world steps. The separate cinematic, player controls and UI retain their presentation timing.
+
+## Validation
+
+- Nine paired paid campaigns, seeds 1701–1703, with the committed-honey main player, honey-skipping challenger and earlier balanced player. All complete, conserve cash, preserve travel and reach the main player's advertised honey targets. Removing only the deliberately different elapsed-time metadata, state, purchases, milestones, source contributions, production samples and worker diagnostics match exactly at 1.0 and 1.2.
+- All nine 1.0 campaigns also match the previous frozen 60 Hz control, including its economic trace. Mean normal-play-equivalent completion is 124.00 → 148.80 minutes for the main player, 126.76 → 152.12 for honey-skipping, and 132.87 → 159.44 for balanced. The main player remains fastest in each pair. This preserves the tested economic ordering; it does not establish a global strategy optimum.
+- The 1.2 main player passes an additional exact seeded replay. The browser campaign driver invokes the same pacing entry point as the frame loop; it does not merely multiply output times.
+- 136 pacing assertions cover the real menu, presets and typed limits, 24 duration/refresh-rate combinations, pause, changing a pending world timer, reload/travel persistence, save-clock migration, historical receipts, blended production observations, and returning from extreme fast-forward without a processing backlog.
+- Existing checks pass: 203 economy/save invariants, 349 control/receipt assertions, compact production summaries, ending replay, goal dismissal, reset, campaign terminal boundaries and PWA/cache isolation.
+
+Run `node tools/check-pacing.js` for the focused controls and clock checks. Run `node tools/balance/pacing-integration.cjs` with a fresh `RESULT_DIR` for the campaign comparison and exact replay. It uses the main completion policy and unchanged challengers; no strategy search or economic retuning was needed. The committed [numerical evidence](pacing-integration-2026-10-23.json) includes canonical baseline trace hashes, so the comparison can run without the original ignored study runs. The independent clock fields `realT` / `runRealT` are the only fields excluded from economic comparisons.
+
+Raw evidence and the original pre-integration public files are under `runs/pacing-integration/`. Browser previews are development checks; comfort and possible motion judder at different duration values remain for hands-on play. At 1.2, world state advances on 50 of 60 rendered frames, while rendering and controls continue every frame.

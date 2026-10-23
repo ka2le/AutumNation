@@ -20,6 +20,26 @@ function mmss(s){ s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' +
 function shade(hex, k){ const n = parseInt(hex.slice(1), 16); const r = clamp(Math.round((n>>16)*k),0,255), g = clamp(Math.round((n>>8&255)*k),0,255), b = clamp(Math.round((n&255)*k),0,255); return 'rgb('+r+','+g+','+b+')'; }
 const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
 
+// Normal pace stays 1. Test overrides last for this tab's session, including travel.
+const DURATION_MIN = 0.25, DURATION_MAX = 4, DURATION_KEY = 'leaf-yard-duration';
+let WORLD_DURATION = (() => { try { const v = +sessionStorage.getItem(DURATION_KEY); return Number.isFinite(v) && v > 0 ? clamp(v, DURATION_MIN, DURATION_MAX) : 1; } catch(e){ return 1; } })();
+const realDuration = s => s*WORLD_DURATION;
+const realRate = v => v/WORLD_DURATION;
+const worldTimers = [];
+function worldLater(fn, seconds){ worldTimers.push({ owner:S, at:S.t + seconds, fn }); }
+function updateWorldTimers(){
+  for (let i=worldTimers.length - 1;i>=0;i--){
+    const q = worldTimers[i];
+    if (q.owner !== S || q.at <= S.t){ worldTimers.splice(i, 1); if (q.owner === S) q.fn(); }
+  }
+}
+function setDuration(v){
+  v = Number(v); if (!Number.isFinite(v) || v <= 0) return;
+  WORLD_DURATION = Math.round(clamp(v, DURATION_MIN, DURATION_MAX)*100)/100;
+  try { if (WORLD_DURATION === 1) sessionStorage.removeItem(DURATION_KEY); else sessionStorage.setItem(DURATION_KEY, String(WORLD_DURATION)); } catch(e){}
+  speedReal = TIME_SCALE; speedSig = ''; updSpeedUi(true);
+  if (cardOpen) renderCard(true);
+}
 const PARAMS = new URLSearchParams(location.search);
 // V21: the game speed can be changed from the test panel (0.25× to 10,000×); it lasts for the browser session, so it
 // survives a jump or a trip (sessionStorage), and ?speed= still sets it
@@ -427,8 +447,8 @@ const TECH = {
   arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Four reach upgrades. Pairs well with the claw rake.' },
   hubs:    { name:'Ball-bearing hubs', track:'speed', cost:90,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
   hopper:  { name:'Spring hopper',     track:'carry', cost:50,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
-  wrist:   { name:'Gyro wrist',        track:'pick',  cost:25,  needs:'servos', desc:'A faster pickup upgrade: 0.44 seconds a grab.' },
-  fineWrist:{ name:'Fine control',     track:'pick',  cost:55,  needs:'wrist', desc:'The final pickup upgrade: 0.32 seconds a grab.' },
+  wrist:   { name:'Gyro wrist',        track:'pick',  cost:25,  needs:'servos', get desc(){ return 'A faster pickup upgrade: ' + +realDuration(0.44).toFixed(3) + ' seconds a grab.'; } },
+  fineWrist:{ name:'Fine control',     track:'pick',  cost:55,  needs:'wrist', get desc(){ return 'The final pickup upgrade: ' + +realDuration(0.32).toFixed(3) + ' seconds a grab.'; } },
   diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
   // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
   horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
@@ -975,7 +995,7 @@ const helpersKnown = () => (S.story.done && (S.story.item || 'book') === 'book')
 const helperShown = kind => helpersKnown() && cfgsOf(kind).length < HELPER_MAX && newIdOK(kind) && (cfgsOf(kind).length > 0 || seenPrice(newHelperCost(kind)));
 function freshState(){
   return {
-    v:2, t:0, cash:0, peak:0, binLeaves:0, binMetal:0, land:0,
+    v:2, t:0, realT:0, cash:0, peak:0, binLeaves:0, binMetal:0, land:0,
     lv:{ bin:0, leafPrice:0, bagPrice:0, metalPrice:0, metalBin:0, truck:0, cleanup:0, hiveTank:0, hiveStore:0, honeyPrice:0, giftPrice:0, smeltSpeed:0, ingotGrade:0, slag:0, pallet:0, hopper:0 }, cleanN:0,
     hive:{ built:false, bees:0, nectar:0, honey:0, jars:0, packing:false, gift:0, up:{ wings:false, fan:false, nursery:false, third:false, tongue:false, recipe:false } },
     bag:{ built: DRY_BENCH, bags:0 }, plant:{ built:false, ore:0, rack:0, slagAcc:0, coal: COAL_MAX }, coalStand:0, ingots:0, coalCredit:0, shafts:[], keep:{ leaves:0, metal:0, jars:0 },
@@ -2382,7 +2402,7 @@ const researchLeft = () => Math.max(0, researchNeed() - S.story.prog);
 // time left at the current pace. When the work stops the clock freezes where it was (S.story.eta, set in updResearch);
 // before anyone has started it's unknown (null, shown as '?')
 const researchETA = () => { const v = researchRate(); return v > 0 ? researchLeft()/v : S.story.eta != null ? S.story.eta : null; };
-const etaText = () => { const e = researchETA(); return e == null ? '?' : mmss(e); };
+const etaText = () => { const e = researchETA(); return e == null ? '?' : mmss(realDuration(e)); };
 const researchers = () => R.filter(q => RESEARCH_STATES.includes(q.st));
 // where the book is in the world while a robot holds it (matches drawRobot's hands)
 function bookHand(r){
@@ -4607,7 +4627,7 @@ const dryLabK = () => clamp((S.flags.dryProg || 0)/DRY_LAB_NEED, 0, 1);
 // pace while someone works on it, the time left when they stopped once they stop, '?' before anyone has started. Card and
 // yard timer both use it (the card used to say '?' while the bench's timer showed a guess).
 const labEta = {};
-function labEtaText(id){ const L = labInfo(id), v = L.rate(); if (v > 0) labEta[id] = Math.max(0, L.need - L.prog())/v; return labEta[id] != null && L.prog() > 0 ? mmss(labEta[id]) : '?'; }
+function labEtaText(id){ const L = labInfo(id), v = L.rate(); if (v > 0) labEta[id] = Math.max(0, L.need - L.prog())/v; return labEta[id] != null && L.prog() > 0 ? mmss(realDuration(labEta[id])) : '?'; }
 // V36: the two research projects that aren't finds (drying leaves in the hollow, spent flowers at home): what their
 // research card shows. who(): the helpers working on it or on their way
 function labInfo(id){
@@ -4643,12 +4663,12 @@ function openDryLab(){
   if (h && !hid && ['lap', 'go', 'wander', 'rest', 'idle'].includes(h.st)){ h.st = 'rest'; h.timer = DRY_REFUSE_HOLD + 4.6; h.target = null; h.lap = null; }
   let fix = null; const spotH = () => hid ? { x: h.x, y: h.y - 4 } : fix || (fix = { x: h.x, y: h.y - 4 });   // (where it is when the camera turns to it)
   startFindCam(BIN.x, BIN.y - 96, h ? DRY_REFUSE_HOLD + 4.4 : 4.6, 2.4, h ? { t: DRY_REFUSE_HOLD, get: spotH } : null);
-  setTimeout(() => {
+  worldLater(() => {
     const at = h ? spotH() : { x: BAGGER.x, y: BAGGER.y };
     const q = pop(at.x, at.y - 54, 'New research: drying leaves', 'note', 17, 0, 4.4); if (q && h){ q.follow = h; q.fdy = -58; }
     sparkle(at.x, at.y - 30); sfx('chime', 'sale');
-  }, (DRY_REFUSE_HOLD + 1.1)*1000);
-  setTimeout(() => showToast('Too wet to sell', 'The truck won’t take wet leaves. ' + (S.blowers.some(c => !c.away) ? 'Tap the drying bench to research drying.' : 'Build a Blower to research drying.'), 9), (DRY_REFUSE_HOLD + 2.6)*1000);
+  }, DRY_REFUSE_HOLD + 1.1);
+  worldLater(() => showToast('Too wet to sell', 'The truck won’t take wet leaves. ' + (S.blowers.some(c => !c.away) ? 'Tap the drying bench to research drying.' : 'Build a Blower to research drying.'), 9), DRY_REFUSE_HOLD + 2.6);
 }
 // V31: the spent-flower research. Opens with $100 of honey sold (V39; was 50 jars, a hidden milestone): Research goes into every Shaker's Off pile
 function openSnipLab(){
@@ -6376,7 +6396,10 @@ function drawBees(V){
 
 // ───────────────────────── main step
 function step(dt){
+  if (!(S.realT >= 0)) S.realT = S.t;
+  S.realT += realDuration(dt);
   S.t += dt;
+  updateWorldTimers();
   updLeaves(dt);
   syncRobots(); syncHelpers();
   for (const r of R) updRobot(r, dt);
@@ -7445,7 +7468,7 @@ function drawSign(){
   c.fillStyle = '#c8bca6'; ell(c, -5, 3, 0.8, 0.8); c.fill(); ell(c, 5.5, 3, 0.8, 0.8); c.fill();
   c.restore();
   c.font = '700 14px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#4a3226';
-  c.fillText(truckHere() ? 'now' : mmss(S.truckT), 8, -57);
+  c.fillText(truckHere() ? 'now' : mmss(realDuration(S.truckT)), 8, -57);
   c.restore();
 }
 
@@ -11915,17 +11938,19 @@ function runJump(){
     return;
   }
   WORLD.runT = (JUMP_MIN[J.id] || 0)*60;   // V25.1: the run clock starts where a typical run gets to this point
+  WORLD.runRealT = realDuration(WORLD.runT);
   stop(); save();
   setTimeout(() => showToast('Test', 'Jumped to: ' + J.label, 5), 300);
 }
 let testSig = '', jumpArm = null, jumpQuiet = false;
-// V25.1: the run clock in the test panel: game time since the run started, over every yard (WORLD.runT, seconds; saved
-// with the world). It runs at the game's speed and stops while paused (and during the page change between yards).
-// Saves from before it start from the yards' own clocks added up. Start over and jumps wipe the world, so it restarts.
-function runClock(d){
+// Keep world time for old saves and accumulate elapsed playing time separately.
+// Changing duration affects new time only; developer fast-forward still applies.
+function runClock(d, elapsed = realDuration(d || 0)){
   if (simMode) return;
-  if (!(WORLD.runT >= 0)){ let t = 0; for (const k of ['home', ...Object.keys(window.LOTS || {})]) t += k === LOT_ID ? (+S.t || 0) : (+(readLot(k) || {}).t || 0); WORLD.runT = t; }
+  if (!(WORLD.runT >= 0)){ let t = 0; for (const k of ['home', ...Object.keys(window.LOTS || {})]) t += k === LOT_ID ? Math.max(0, (+S.t || 0) - (d || 0)) : (+(readLot(k) || {}).t || 0); WORLD.runT = t; }
+  if (!(WORLD.runRealT >= 0)) WORLD.runRealT = WORLD.runT;
   WORLD.runT += d || 0;
+  WORLD.runRealT += elapsed;
 }
 const runClockTxt = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t/60) % 60, s2 = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s2).padStart(2, '0'); };
 // where a jump sets the run clock, in minutes: the median campaign time of that point from the balance runs
@@ -11938,12 +11963,17 @@ function toggleTestPanel(force){
   if (!el){
     el = document.createElement('div'); el.id = 'testPanel'; el.hidden = true;
     el.innerHTML = '<div class="tph"><b>Test</b><button class="tpx" data-t="close" aria-label="Close">×</button></div>' +
-      '<div class="tpc" title="Game time since this run started, over every yard. Runs with the game speed, stops while paused."><span>Run time</span><b class="tpcv">0:00</b><button data-t="pause">⏸ Pause</button></div><div class="tpm">' +
+      '<div class="tpc" title="Playing time across every yard, accounting for world duration. Follows fast-forward and stops while paused."><span>Run time</span><b class="tpcv">0:00</b><button data-t="pause">⏸ Pause</button></div><div class="tpm">' +
       TEST_AMOUNTS.map(a => '<button data-t="cash:' + a + '">+' + (a >= 1000 ? (a/1000).toLocaleString('en-US') + 'k' : a) + '</button>').join('') +
       '</div><div class="tps"><div class="tpsh"><b>Speed</b><span class="tpsv"></span></div>' +
       '<input type="range" min="0" max="4" step="0.005" aria-label="Game speed">' +
       '<div class="tpsr"><input type="number" min="' + SPEED_MIN + '" max="' + SPEED_MAX + '" step="0.1" aria-label="Game speed, times normal"><span>×</span>' +
       SPEED_PRESETS.map(v => '<button data-t="speed:' + v + '">' + (v >= 1000 ? v/1000 + 'k' : v) + '×</button>').join('') + '</div></div>' +
+      '<div class="tps tpd"><div class="tpsh"><b>World duration</b><span class="tpsv tpdv"></span></div>' +
+      '<input type="range" min="' + DURATION_MIN + '" max="' + DURATION_MAX + '" step="0.01" aria-label="World duration">' +
+      '<div class="tpsr"><input type="number" min="' + DURATION_MIN + '" max="' + DURATION_MAX + '" step="0.01" aria-label="Seconds per game second"><span>s</span>' +
+      [1, 1.1, 1.2, 1.5, 2].map(v => '<button data-t="duration:' + v + '">' + v + '</button>').join('') + '</div>' +
+      '<small class="tpdh">1 game second takes this many real seconds.<br>1 = current pace; higher = slower.</small></div>' +
       '<button class="tpn" data-t="next"></button>' +
       '<div class="tpj"><select aria-label="Jump to a story point">' + JUMPS.map(J => '<option value="' + J.id + '">' + J.label + '</option>').join('') + '</select>' +
       '<button data-t="jump">Jump to this step</button></div><div class="tpw" hidden></div>' +
@@ -11955,6 +11985,7 @@ function toggleTestPanel(force){
       if (t === 'close') toggleTestPanel(false);
       else if (t.startsWith('cash:')) testCash(+t.slice(5));
       else if (t.startsWith('speed:')) setSpeed(+t.slice(6));
+      else if (t.startsWith('duration:')) setDuration(+t.slice(9));
       else if (t === 'pause') setPaused(!gamePaused);   // V25.1
       else if (t === 'tut'){ toggleTestPanel(false); tutStart(el.querySelector('.tpt select').value, true); }   // V23: plays it again, every step
       else if (t === 'next'){ const n = nextStep(); if (n){ n.run(); showToast('Test', n.label, 3); save(); } testSig = ''; updTestPanel(); }
@@ -11972,6 +12003,10 @@ function toggleTestPanel(force){
     rng.addEventListener('input', () => setSpeed(niceSpeed(Math.pow(10, +rng.value))));
     num.addEventListener('change', () => setSpeed(+num.value));
     num.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') num.blur(); });
+    const durationRange = el.querySelector('.tpd input[type=range]'), durationNum = el.querySelector('.tpd input[type=number]');
+    durationRange.addEventListener('input', () => setDuration(durationRange.value));
+    durationNum.addEventListener('change', () => { setDuration(durationNum.value); durationNum.value = WORLD_DURATION; updSpeedUi(true); });
+    durationNum.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') durationNum.blur(); });
     el.querySelector('.tpj select').addEventListener('change', () => { jumpArm = null; el.querySelector('.tpw').hidden = true; el.querySelector('[data-t="jump"]').textContent = 'Jump to this step'; });
     document.body.appendChild(el);
   }
@@ -11989,7 +12024,7 @@ function updSpeedUi(force){
   const on = TIME_SCALE !== 1 || gamePaused, lag = !gamePaused && TIME_SCALE > 4 && speedReal < TIME_SCALE*0.8;
   if (b){ b.hidden = !on; if (on){ const t = gamePaused ? '⏸ Paused' : '⏩ ' + speedTxt(TIME_SCALE) + (lag ? ' (~' + speedTxt(speedReal) + ')' : ''); if (b.textContent !== t) b.textContent = t; } }
   if (!el || el.hidden) return;
-  const sig = TIME_SCALE + '|' + (lag ? Math.round(speedReal) : 0) + '|' + gamePaused;
+  const sig = TIME_SCALE + '|' + (lag ? Math.round(speedReal) : 0) + '|' + gamePaused + '|' + WORLD_DURATION;
   const pb = el.querySelector('[data-t="pause"]'); if (pb){ pb.textContent = gamePaused ? '▶ Resume' : '⏸ Pause'; pb.classList.toggle('on', gamePaused); }
   if (!force && sig === speedSig) return; speedSig = sig;
   el.querySelector('.tpsv').textContent = speedTxt(TIME_SCALE) + (lag ? ' · running at ~' + speedTxt(speedReal) : '');
@@ -11997,12 +12032,17 @@ function updSpeedUi(force){
   if (document.activeElement !== rng) rng.value = Math.log10(Math.max(1, TIME_SCALE));
   if (document.activeElement !== num) num.value = TIME_SCALE;
   for (const q of el.querySelectorAll('[data-t^="speed:"]')) q.classList.toggle('on', +q.dataset.t.slice(6) === TIME_SCALE);
+  const durationRange = el.querySelector('.tpd input[type=range]'), durationNum = el.querySelector('.tpd input[type=number]');
+  if (document.activeElement !== durationRange) durationRange.value = WORLD_DURATION;
+  if (document.activeElement !== durationNum) durationNum.value = WORLD_DURATION;
+  el.querySelector('.tpdv').textContent = WORLD_DURATION === 1 ? 'Current pace' : Math.round(Math.abs(WORLD_DURATION - 1)*100) + '% ' + (WORLD_DURATION > 1 ? 'longer' : 'shorter');
+  for (const q of el.querySelectorAll('[data-t^="duration:"]')) q.classList.toggle('on', +q.dataset.t.slice(9) === WORLD_DURATION);
 }
 function updTestPanel(){
   updSpeedUi();
   const el = $('testPanel'); if (!el || el.hidden) return;
-  const cv = el.querySelector('.tpcv'), ct = runClockTxt(WORLD.runT || 0); if (cv && cv.textContent !== ct) cv.textContent = ct;   // V25.1
-  const top = Math.round($('hud').getBoundingClientRect().bottom + 10) + 'px'; if (el.style.top !== top) el.style.top = top;   // stays under the cash and goal pill
+  const cv = el.querySelector('.tpcv'), ct = runClockTxt(WORLD.runRealT ?? WORLD.runT ?? 0); if (cv && cv.textContent !== ct) cv.textContent = ct;
+  const top = Math.round($('hud').getBoundingClientRect().bottom + 10) + 'px'; if (el.style.top !== top){ el.style.top = top; el.style.setProperty('--test-top', top); }
   const n = nextStep(), sig = n ? n.label : '-';
   if (sig === testSig) return; testSig = sig;
   const b = el.querySelector('.tpn'); b.disabled = !n; b.textContent = n ? 'Next step: ' + n.label : 'No story step left here';
@@ -12178,25 +12218,25 @@ const PROD_DISPLAY = { next:0, rates:null };
 let receiptIndex = 0, overviewReturn = null;
 function resetProduction(){
   PROD_DISPLAY.next = 0; PROD_DISPLAY.rates = null;
-  PROD.owner = S; PROD.start = PROD.last = S.t; PROD.extra = { picked:0, converted:0, made:0 };
-  PROD.samples = [{ t:S.t, v:productionValues() }]; receiptIndex = 0;
+  PROD.owner = S; PROD.start = PROD.last = S.realT; PROD.extra = { picked:0, converted:0, made:0 };
+  PROD.samples = [{ t:S.realT, v:productionValues() }]; receiptIndex = 0;
 }
 function productionValues(){
   const t = S.totals;
   return { ...PROD.extra, bags:t.bags || 0, bagged:(t.bags || 0)*BAG_SIZE, nectar:t.nectar || 0, jars:t.jars || 0, gifts:t.gifts || 0, metal:t.metal || 0, ingots:(COAL ? t.coal : t.ingots) || 0 };
 }
-function productionReady(){ if (PROD.owner !== S || S.t < PROD.last) resetProduction(); }
+function productionReady(){ if (PROD.owner !== S || S.realT < PROD.last) resetProduction(); }
 function productionAdd(k, n){ if (simMode || !n) return; productionReady(); PROD.extra[k] = (PROD.extra[k] || 0) + n; }
 function sampleProduction(){
   if (simMode) return;
   productionReady();
-  if (S.t - PROD.last < 1) return;
-  PROD.last = S.t; PROD.samples.push({ t:S.t, v:productionValues() });
-  while (PROD.samples.length > 2 && PROD.samples[1].t <= S.t - PRODUCTION_WINDOW) PROD.samples.shift();
+  if (S.realT - PROD.last < 1) return;
+  PROD.last = S.realT; PROD.samples.push({ t:S.realT, v:productionValues() });
+  while (PROD.samples.length > 2 && PROD.samples[1].t <= S.realT - PRODUCTION_WINDOW) PROD.samples.shift();
 }
 function productionRate(k){
   productionReady();
-  const end = S.t, from = Math.max(PROD.start, end - PRODUCTION_WINDOW), dt = end - from;
+  const end = S.realT, from = Math.max(PROD.start, end - PRODUCTION_WINDOW), dt = end - from;
   if (dt < 1) return 0;
   const a = PROD.samples, now = { t:end, v:productionValues() };
   let left = a[0], right = now;
@@ -12219,7 +12259,7 @@ function recordSale(T, bonus, credit, total){
   const counts = { leaf:T.takeL, bag:T.takeB, metal:T.takeM, ingot:T.takeI, jar:T.takeH, gift:T.takeG };
   const prices = { leaf:leafPrice(), bag:bagPrice(), metal:metalPrice(), ingot:ingotPrice(), jar:honeyPrice(), gift:giftJarPrice() };
   const items = Object.keys(counts).map(k => ({ k, n:counts[k] || 0, price:prices[k], amount:(counts[k] || 0)*prices[k] + (k === 'ingot' ? credit : 0) }));
-  const receipt = { t:S.t, items, bonus, credit, total };
+  const receipt = { t:S.t, realT:S.realT, items, bonus, credit, total };
   if (T.kept) receipt.kept = { ...T.kept };
   if (!Array.isArray(S.sales)) S.sales = [];
   S.sales.unshift(receipt); S.sales.length = Math.min(5, S.sales.length);
@@ -12254,7 +12294,7 @@ function receiptPanel(group, history){
   const keys = RECEIPT_KEYS[group], others = sales.filter((_, j) => j !== index);
   const total = sale ? receiptSum(sale, keys) : 0;
   let html = '<section class="activity receipt tally"><div class="rc-head"><div class="rc-title"><b>' + ic('truck') + (index ? 'Earlier pickup' : 'Last pickup') + '</b>';
-  if (sale) html += '<small>' + mmss(sale.t) + '</small>';
+  if (sale) html += '<small>' + mmss(sale.realT ?? sale.t) + '</small>';
   html += '</div>';
   if (sale){
     const share = group && sale.total > 0 ? Math.round(total/sale.total*100) + '% of ' + receiptMoney(sale.total) : '';
@@ -12395,7 +12435,7 @@ const UP_TIP = {
   ingotGrade:'What an ingot sells for', slag:'Extra ingots from the same metal', hopper:'Ore waiting at the plant for the smelters', pallet:COAL ? 'Increases both the kiln shelf and the selling pallet at the roadside coal stand. Both hold the same number of coal units. The log crib is upgraded separately.' : 'Increases both the furnace rack and the selling pallet by the road. Both hold the same number of ingots. The metal tub is upgraded separately.' };
 const UP_VAL = {
   bin: v => [v, ic('leaf')], leafPrice: v => [cash$(v*sellMul()), ''], bagPrice: v => [cash$(BAG_SIZE*val('leafPrice')*v*sellMul()), ''],
-  metalPrice: v => [cash$(v*sellMul()*RAW_LOG_MUL), ''], metalBin: v => [v, ic('ore')], truck: v => [v + 's', ''], cleanup: v => [v ? '$' + v : '–', v ? '<small>/100</small>' + ic('leaf') : ''],
+  metalPrice: v => [cash$(v*sellMul()*RAW_LOG_MUL), ''], metalBin: v => [v, ic('ore')], truck: v => [+realDuration(v).toFixed(2) + 's', ''], cleanup: v => [v ? '$' + v : '–', v ? '<small>/100</small>' + ic('leaf') : ''],
   hiveTank: v => [v, ic('nectar')], hiveStore: v => [v, ic('jar')], honeyPrice: v => [cash$(v*sellMul()), ''], giftPrice: v => [cash$(val('honeyPrice')*v*sellMul()), ''],
   smeltSpeed: v => [v.toFixed(2) + '×', ''], ingotGrade: v => [cash$((COAL ? COAL_UNIT : ORE_PER_INGOT)*val('metalPrice')*v*sellMul()), ''], slag: v => [v ? '+' + Math.round(v*100) + '%' : '0%', ic('ingot')], hopper: v => [v, ic('ore')], pallet: v => [v, ic('ingot')],
 };
@@ -12408,7 +12448,7 @@ function upRow(k, extra){
   if (k === 'honeyPrice' && S.hive.packing) extra = (extra || '') + moneyEffect(ANTS && S.flags.antHill ? 'D.O.P. can' : 'Gift jar', L => u.val(L)*val('giftPrice')*sellMul());
   if (k === 'hiveTank' || k === 'hiveStore'){
     const floors = 4 + Math.ceil((S.lv.hiveTank + S.lv.hiveStore + (maxed ? 0 : 1))/2), rate = fanRateAt(floors);
-    extra = '<br><small>' + (floors > hiveFloors() ? '+1 floor · ' : '') + 'Processing: ' + fromTo(fanRate().toFixed(2), rate.toFixed(2), ' nectar/s', maxed || rate === fanRate()) + '<br>' + fromTo((fanRate()/jarNectar()).toFixed(2), (rate/jarNectar()).toFixed(2), ' jars’ worth/s', maxed || rate === fanRate()) + '</small>';
+    extra = '<br><small>' + (floors > hiveFloors() ? '+1 floor · ' : '') + 'Processing: ' + fromTo(realRate(fanRate()).toFixed(2), realRate(rate).toFixed(2), ' nectar/s', maxed || rate === fanRate()) + '<br>' + fromTo(realRate(fanRate()/jarNectar()).toFixed(2), realRate(rate/jarNectar()).toFixed(2), ' jars’ worth/s', maxed || rate === fanRate()) + '</small>';
   }
   if (k === 'pallet') extra = (extra || '') + '<br><small>' + (COAL ? 'Kiln shelf: ' : 'Furnace rack: ') + fromTo(u.val(l), u.val(maxed ? l : l + 1), ic('ingot'), maxed) + '</small>';
   const display = fromTo(a[0], b[0], a[1], maxed) + (extra || '');
@@ -12429,9 +12469,9 @@ const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in on
   dry:'How fast it dries a tray of ' + BAG_SIZE + ' wet leaves at the drying bench, blowing warm air over them' };
 if (LOT.trackTips) Object.assign(TRACK_TIP, LOT.trackTips);   // V19: a lot's own wording (the Rainy hollow's woodpile drying)
 const TRACK_VAL = {
-  speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [v.toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
-  drill: v => [v.toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small> +1</small>' + ic('ore')], pack: v => [v.toFixed(2) + '×', ''],
-  study: v => [RESEARCH_UNIT*v, '<small>/s</small>'], blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
+  speed: v => [v.toFixed(2) + '×', ''], carry: v => [v, ic('leaf')], pick: v => [realDuration(v).toFixed(2) + 's', ''], grab: v => [v, ic('leaf')], reach: v => [v, '<small>cm</small>'],
+  drill: v => [realDuration(v).toFixed(1) + 's', '<small>/</small>' + ic('ore')], magnet: v => [Math.round(v*100) + '%', '<small> +1</small>' + ic('ore')], pack: v => [v.toFixed(2) + '×', ''],
+  study: v => [+realRate(RESEARCH_UNIT*v).toFixed(2), '<small>/s</small>'], blow: v => [v.toFixed(2) + '×', ''], shake: v => [v, ic('leaf')], snip: v => [v ? 'yes' : 'no', ''], dig: v => ['+' + Math.round(v*100) + '%', ''], stoke: v => ['+' + Math.round(v*100) + '%', ''],
   brolly: v => [v ? 'yes' : 'no', ''], dry: v => [v ? v.toFixed(2) + '×' : 'no', ''],
 };
 function robotRow(ri, k, kind){
@@ -13016,7 +13056,7 @@ const HIVE_SHORT = {
   get wings(){ return '+25% bee speed: more trips a minute'; },
   get third(){ return '2 → 3 flowers a trip: +50% nectar a trip'; },
   get tongue(){ return '4 → 5 nectar a sip: +25% a trip'; },
-  get fan(){ return '+50% conversion speed at every hive size<br>' + fanRateAt(hiveFloors(), false) + ' → ' + fanRateAt(hiveFloors(), true) + ' nectar/s made into honey'; },
+  get fan(){ return '+50% conversion speed at every hive size<br>' + realRate(fanRateAt(hiveFloors(), false)) + ' → ' + realRate(fanRateAt(hiveFloors(), true)) + ' nectar/s made into honey'; },
   get recipe(){ const a = jarNectarAt(false), b = jarNectarAt(true); return a + ' → ' + b + ' nectar a jar: each nectar worth ' + cash$(honeyPrice()/a) + ' → ' + cash$(honeyPrice()/b); },
   get nursery(){ const c = beeCost(); return S.hive.up.nursery ? 'Bees 40% cheaper' : 'Bees 40% cheaper: next ' + cash$(c) + ' → ' + cash$(niceCost(c*0.6)); },
 };
@@ -13046,7 +13086,7 @@ function bagCrewRows(){
           // V17: the stove: logs burning in it dry leaves on their own; the robots with Fuel the dryer keep it fed
           rows.push({ sig:'stove' + S.bench.logs + benchRt.on + Math.round(S.bench.burn*10), html: row({ icon: ic('fuel'), name:'Stove', cls: S.bench.logs ? '' : 'soon',
             val: meter('ore', S.bench.logs, BENCH_LOGS, 'Logs') + (S.bench.logs ? xt(stoveSpeed().toFixed(1) + '×', 'Dries a tray on its own, as fast as a fully upgraded Blower. A Blower with Leaf drying above Warm air 1 drying beside it fans the stove: up to +' + Math.round(STOVE_DRAFT*100) + '% at the top level (only the best one counts)' + (stoveDraftBy() ? '. Now: ' + helperStyle(stoveDraftBy()).name + ', +' + Math.round(stoveDraft()*100) + '%' : '')) + (stoveDraft() > 0 ? xt(ic('blow') + '+' + Math.round(stoveDraft()*100) + '%', 'Fanned by ' + helperStyle(stoveDraftBy()).name + ' drying beside it') : '') : xt('out of logs', 'Add Fuel the dryer to a Robot: it brings logs from the log crib')),
-            tip:'A log burns for ' + LOG_BURN + ' seconds, wet leaves or not, and leaves a lump of coal behind' }) });
+            tip:'A log burns for ' + realDuration(LOG_BURN) + ' seconds, wet leaves or not, and leaves a lump of coal behind' }) });
           rows.push(crewRow('fuel', 'Fuellers', 'fuel', ri => metalCarry(ri) + '<small>/trip</small>'));
           if (S.flags.coalKnown) rows.push({ sig:'ash' + S.bench.coal, html: row({ icon: ic('ingot'), name:'Ash pan', val: meter('ingot', S.bench.coal, BENCH_COAL_MAX, 'Coal'), tip:'Coal from the logs burnt in the stove. Haulers take it to the coal stand.' }) });
         }
@@ -13275,8 +13315,8 @@ function cardModel(){
     top = '<div class="bookart' + (bee || hive || fire || coal || ruin ? ' beeart' : '') + '">' + (ruin ? RUIN_SVG : fire ? FIRE_SVG : coal ? COAL_SVG : hive ? HIVE_SVG : bee ? BEE_SVG : BOOK_SVG) + '</div><p class="story">' + story + '</p>';
     const chip = '<span class="chip mini" style="--tc:' + TASKS.research.col + '">' + ic('research') + 'Research</span>';
     const names = who.map(q => styleOf(q.id).name);
-    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'Every Robot on it does ' + RESEARCH_UNIT*F.robotMul + ' research a second here (more with Research upgrades), as long as the fire burns and a second Robot, a Blower and a Shaker are there too. Progress is kept if they stop.' : hive ? 'Every Robot on it does ' + RESEARCH_UNIT*F.robotMul + ' research a second here (more with Research upgrades), as long as the Blower keeps the rain off. Progress is kept if they stop.'
-        : 'Every Robot on it does ' + RESEARCH_UNIT + ' research a second (more with Research upgrades), whether it ' + (ruin ? 'leads or helps' : 'holds ' + F.holding + ' or helps') + '. Progress is kept if they stop.',
+    rows.push({ sig:'rw' + names.join(), html: row({ icon: ic('research'), name:'Research', tip: fire ? 'Every Robot on it does ' + +realRate(RESEARCH_UNIT*F.robotMul).toFixed(2) + ' research a second here (more with Research upgrades), as long as the fire burns and a second Robot, a Blower and a Shaker are there too. Progress is kept if they stop.' : hive ? 'Every Robot on it does ' + +realRate(RESEARCH_UNIT*F.robotMul).toFixed(2) + ' research a second here (more with Research upgrades), as long as the Blower keeps the rain off. Progress is kept if they stop.'
+        : 'Every Robot on it does ' + +realRate(RESEARCH_UNIT).toFixed(2) + ' research a second (more with Research upgrades), whether it ' + (ruin ? 'leads or helps' : 'holds ' + F.holding + ' or helps') + '. Progress is kept if they stop.',
       val: names.length ? names.join(', ') + (names.length > 1 ? ' are on it' : ' is on it') : '<span class="none">nobody yet · use Assign</span>' }) });
     if (fire){
       // V17: the fire: is it burning, and the blower and the shaker it needs
@@ -13286,18 +13326,18 @@ function cardModel(){
       for (const kind of ['blower', 'shaker']){
         const h = fireHelper(kind), asked = cfgsOf(kind).some(c => taskOn(c, 'research')), nm = kind === 'blower' ? 'Blower' : 'Shaker';
         rows.push({ sig:'fh' + kind + (h ? h.idx : '-') + asked + cfgsOf(kind).length + fireOn(), html: row({ icon: ic(kind === 'blower' ? 'blow' : 'shake'), name: nm, cls:'crewrow',
-          val: h ? helperStyle(h).name + ' <span class="gain">' + (kind === 'blower' ? 'keeps the fire going' : 'can hold a burning branch') + ' · +' + F[kind] + '/s</span>'
+          val: h ? helperStyle(h).name + ' <span class="gain">' + (kind === 'blower' ? 'keeps the fire going' : 'can hold a burning branch') + ' · +' + +realRate(F[kind]).toFixed(2) + '/s</span>'
             : '<span class="none">' + (asked ? (fireOn() ? 'on its way…' : 'waiting for the fire') : cfgsOf(kind).length ? 'needed · use Assign' : 'needed · build a ' + KN(kind) + ' in the workshop') + '</span>',
-          tip: kind === 'blower' ? 'Keeps the fire going while the Robots work. It adds ' + F.blower + ' research a second.' : 'Its claws can hold what a Robot’s hands can’t. It adds ' + F.shaker + ' research a second.' }) });
+          tip: kind === 'blower' ? 'Keeps the fire going while the Robots work. It adds ' + +realRate(F.blower).toFixed(2) + ' research a second.' : 'Its claws can hold what a Robot’s hands can’t. It adds ' + +realRate(F.shaker).toFixed(2) + ' research a second.' }) });
       }
     }
     if (hive){
       // V15: the blower that keeps the rain off (needed)
       const lb = labBlower(), asked = S.blowers.some(c => taskOn(c, 'research'));
       rows.push({ sig:'lb' + (lb ? lb.idx : '-') + asked + S.blowers.length, html: row({ icon: ic('blow'), name:'Blower', cls:'crewrow',
-        val: lb ? helperStyle(lb).name + ' <span class="gain">keeps the rain off · +' + F.blower + '/s</span>'
+        val: lb ? helperStyle(lb).name + ' <span class="gain">keeps the rain off · +' + +realRate(F.blower).toFixed(2) + '/s</span>'
           : '<span class="none">' + (asked ? 'on its way…' : S.blowers.length ? 'needed · use Assign' : 'needed · build a Blower in the workshop') + '</span>',
-        tip:'Nothing gets done in the rain: a Blower has to keep it off while the Robots work. It adds ' + F.blower + ' research a second on its own.' }) });
+        tip:'Nothing gets done in the rain: a Blower has to keep it off while the Robots work. It adds ' + +realRate(F.blower).toFixed(2) + ' research a second on its own.' }) });
     }
     if (going || F.robots > 1) rows.push({ sig:'two', html:'<div class="lockline tip2">' + ic('robot') + (F.robots > 1 ? 'It takes ' + F.robots + ' Robots' + (F.crew > F.robots ? ' (up to ' + F.crew + ')' : '') + '.' : F.crew ? 'Up to ' + F.crew + ' Robots can research this together.' : '2 Robots can research this for faster progress.') + '</div>' });
   } else if (k === 'lab'){
@@ -13353,7 +13393,7 @@ function cardModel(){
       title = shaft ? 'Mine shaft' : 'Miner'; head = shaft ? 'shaft' : 'vein';
       const ws = minerWorkers(i);
       for (const w of ws) rows.push({ sig:'w' + w + drillTimeAt(w, i).toFixed(1) + metalCarry(w) + doubleChance(w), html: '<div class="row crewrow"><div class="ri">' + crewBot(w) + '</div><div class="rm"><div class="n">' + styleOf(w).name + '</div><div class="v">' +
-        drillTimeAt(w, i).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small> +1</small>', 'Resource efficiency: chance of an extra chunk each time') : '') + '</div></div>' +
+        realDuration(drillTimeAt(w, i)).toFixed(1) + 's<small>/</small>' + ic('ore') + xt(metalCarry(w) + ic('ore') + '<small>a trip</small>') + (doubleChance(w) > 0 ? xt(Math.round(doubleChance(w)*100) + '%<small> +1</small>', 'Resource efficiency: chance of an extra chunk each time') : '') + '</div></div>' +
         '<div class="btn"><button class="buy ghost" data-act="release:' + w + '" title="Moves Mine metal to Off on ' + styleOf(w).name + '’s task list">Stop</button></div></div>' });
       if (ws.length < room){
         const candidate = sendMineCandidate(i);
@@ -13645,7 +13685,7 @@ function liveHTML(kind){
   if (kind === 'tub') return meter('ore', S.binMetal, metalCap(), 'Metal in the tub');
   if (kind === 'eye') return '<span class="st big' + (EYE.lvl >= 3 ? ' warn' : '') + '" title="How much it has found: the ring on the camera">' + eyeRing(eyeRt.fill, EYE_COL[EYE.lvl], 19) + Math.round(EYE.score) + '%<small>&nbsp;' + eyeStatus() + '</small></span>' + (EYE.issues.length ? '<span class="st" title="Things stuck">' + ic('clock') + EYE.issues.length + ' stuck</span>' : '') + (EYE.lo.length ? '<span class="st" title="With cheap upgrades missing">' + ic('coin') + EYE.lo.length + '</span>' : '') + (eyeIgn().length ? '<button class="st eyign' + (EYE.showIgn ? ' on' : '') + '" data-act="eyeshowign" title="' + (EYE.showIgn ? 'Hide' : 'See') + ' what you’ve ignored" aria-pressed="' + EYE.showIgn + '">' + EYE_SLASH + eyeIgn().length + '</button>' : '');   // V33 (V33.3: the ignored toggle)
   if (kind === 'truck'){
-    let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(S.truckT)) + '</span>';
+    let h = '<span class="st big" title="Next pickup">' + ic('truck') + (truckHere() ? 'here now' : mmss(realDuration(S.truckT))) + '</span>';
     if (S.lv.cleanup) h += meter('cleanup', S.cleanN | 0, 100, 'Leaves toward the next cleanup bonus', 'green');
     return h;
   }
@@ -14102,11 +14142,15 @@ function migrateCoalUnits(){
   S.flags.coalV22 = true;
 }
 function load(data){
+  worldAccumulator = 0; worldTimers.length = 0;
   let src = data && data.S;
   if (!src) src = readLot(LOT_ID);
   lotWasNew = !(src && src.v === 2);
   if (src && src.v === 2){
     S = merge(freshState(), src);
+    // Old clocks were all at normal pace. Preserve their history rather than
+    // stretching it when a test duration is changed later.
+    S.realT = Number.isFinite(src.realT) && src.realT >= 0 ? src.realT : (+src.t || 0);
     S.tech = Object.assign({}, src.tech || {});
     S.gen = Object.assign({}, src.gen || {});
     S.seen = Object.assign({}, src.seen || {});
@@ -14296,13 +14340,14 @@ function load(data){
 }
 function seedLeaves(){ leaves = []; for (let i=0;i<Math.round(AREAS[S.land].cap*0.6);i++) spawnCollectable(true); }
 function hardReset(){
+  worldAccumulator = 0; worldTimers.length = 0;
   assignmentUndo = null; taskMenu = null; endSlider();
   // V13: starting over wipes every lot and goes back to the first yard
   try { for (const id of ['home', ...Object.keys(window.LOTS || {})]) localStorage.removeItem(lotKey(id)); localStorage.removeItem(WORLD_KEY); } catch(e){}
   try { sessionStorage.removeItem(HOP_KEY); sessionStorage.removeItem(JUMP_KEY); } catch(e){}
   for (const key of Object.keys(FRESH_SAVES)) delete FRESH_SAVES[key];
   for (const key of Object.keys(WORLD)) delete WORLD[key];
-  WORLD.cur = 'home'; WORLD.runT = 0;
+  WORLD.cur = 'home'; WORLD.runT = 0; WORLD.runRealT = 0;
   setSpeed(1); setPaused(false);
   if (LOT_ID !== 'home'){ travelling = true; if (FRESH) location.search = '?fresh'; else location.reload(); return; }
   driver = null; guest.on = false; truck.riders = []; truck.arriving = false;
@@ -14321,19 +14366,30 @@ addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 
 // ───────────────────────── loop
+// Fixed world steps preserve work and resource ratios when changing duration.
+// Rendering and controls still run every frame; fast-forward has the same CPU budget.
+let worldAccumulator = 0;
+const WORLD_STEP = 1/60;
+function advanceWorld(realDt){
+  worldAccumulator += realDt*TIME_SCALE/WORLD_DURATION;
+  const t0 = performance.now();let done = 0;
+  while(worldAccumulator + 1e-10 >= WORLD_STEP){
+    step(WORLD_STEP);done += WORLD_STEP;worldAccumulator = Math.max(0, worldAccumulator-WORLD_STEP);
+    if (travelling || (EN && EN.on)){ worldAccumulator = 0; break; }
+    if (performance.now()-t0 > 30){ worldAccumulator %= WORLD_STEP; break; }
+  }
+  return done;
+}
 let last = 0;
 function frame(ts){
   const dt = Math.min(0.05, (ts - last)/1000 || 0.016); last = ts;
   // V20: while the ending plays, the yard stands still and ending.js draws everything
-  if (EN && EN.on){ runClock(dt); EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
+  if (EN && EN.on){ runClock(dt, dt); EN.frame(dt); if (SND) SND.update(dt, wind); requestAnimationFrame(frame); return; }
   if (endRt && endRt.waitHop){ const r = R[endRt.ri]; if (!r || (r.st !== 'ride' && r.st !== 'hopOut' && truck.st !== 'arrive')){ endRt.waitHop = false; if (r) startEndReturn(r); else setTimeout(() => showEndPopup(false), 1100); } }
-  // V21: fast-forward in steps of at most 1/20 s of game time (like the sim), and never more than ~30 ms of work a frame,
-  // so even 10,000× stays usable (it then runs as fast as the computer allows; speedReal says how fast that is)
+  let done = 0;
   if (!travelling && !gamePaused){   // (V13: everything stops while the page moves to another lot; V25.1: or while paused)
-    const want = dt*TIME_SCALE, n = TIME_SCALE <= 1 ? 1 : Math.ceil(want/0.05 - 1e-9), h = want/n, t0 = performance.now();
-    let done = 0;
-    for (let i=0;i<n;i++){ step(h); done += h; if (n > 1 && performance.now() - t0 > 30) break; }
-    if (dt > 0) speedReal += (done/dt - speedReal)*Math.min(1, dt*3);
+    done = advanceWorld(dt);
+    if (dt > 0) speedReal += (done*WORLD_DURATION/dt - speedReal)*Math.min(1, dt*3);
     runClock(done);   // V25.1: game time, so it follows the speed
   }
   if (camAnim){
@@ -14344,8 +14400,8 @@ function frame(ts){
     if (cardOpen) placeCard();
   }
   panKeys(dt);
-  updCamFollow(dt);
-  updEndReturn(dt);   // V21: Tinker's first leaves back home
+  updCamFollow(camFollow && !camFollow.watch && !camFollow.tut ? done : dt);
+  updEndReturn(done);   // Tinker's first leaves back home follow the same world clock.
   updGround();   // V16.1: a new ground is painted a little each frame when the view needs one
   updHud(dt);
   updEye(dt);   // V33: the Efficiency Overview
