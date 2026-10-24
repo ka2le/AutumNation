@@ -35,6 +35,10 @@ the game's limits.
   and continued endgame growth. An upgrade may be excellent over a long horizon but correctly skipped near
   the finish. Leaves' early funding and ore/logs consumed by processing remain useful even when their late
   direct-sale share is small. Report phase income and physical contributions, not only terminal cash shares.
+- **Judge early home development over the whole round trip.** A more established home yard may leave for
+  Hollow later and recover that time after returning. Compare home departure, Hollow, the return-home phase
+  and total completion, preserving the earned home investment. Saving early for a discount is not a substitute
+  for testing a deliberately developed early yard; do not dismiss that route from departure time alone.
 - **A fully upgraded fixture does not pay its own entry cost.** Free-capital capacity answers what a developed
   engine can produce. Paid forks from matching earned checkpoints answer how long it takes to build and repay.
   Keep those results separate; include setup time, training, crew and logistics in the paid comparison.

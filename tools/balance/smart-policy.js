@@ -37,7 +37,7 @@
     staffingKey=signature;
     const roles=Array.from({length:n},(_,j)=>j>=n-pack?'pack':j>=n-pack-plant?(plant===3&&j===n-pack-plant?'haul':'smelt'):j>0&&j<=wantMine?'mine':'leaves');
     const merit=(c,role)=>{
-      const v=k=>D.TRACKS[k].vals[c.lv[k]||0], speed=v('speed'),carry=v('carry')/3,pack=v('pack')/.6;
+      const v=k=>k==='reach'&&!D.TRACKS.reach?D.TRACKS.grab.reach[c.lv.grab||0]:D.TRACKS[k].vals[c.lv[k]||0], speed=v('speed'),carry=v('carry')/3,pack=v('pack')/.6;
       const drill=D.TRACKS.drill.vals[0]/v('drill'), extra=1+v('magnet');
       return Math.log(role==='smelt'?pack*drill*(1+.5*v('magnet')):role==='mine'?Math.sqrt(speed*carry)*drill*extra:
         role==='haul'?speed*carry*Math.sqrt(pack):role==='pack'?pack*Math.sqrt(speed):speed*Math.sqrt(carry*v('grab')*v('reach')/20)*1.3/v('pick'));

@@ -89,13 +89,14 @@ async function createRunner(output) {
     const chrome=process.env.CHROME_PATH||(process.platform==='win32'&&'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe');
     browser=await playwright.chromium.launch({headless:true,...(chrome?{executablePath:chrome}:{})});
   }catch(e){await new Promise(r=>server.close(r));throw e;}
-  async function run({name='smart', seed=1, config={}, maxMinutes=150, phases=[0,3,4], fidelity='sim', experiment=null}) {
+  async function run({name='smart', seed=1, config={}, maxMinutes=150, phases=[0,3,4], fidelity='sim', experiment=null, policyExtension=null}) {
     if(name==='smart-balanced')config={...config,freezeHomeHoneyAfterGoal:false,excavation:false,honeyMax:null};
     if(name==='smart-skip')config={...config,honeyMax:null};
     if(config.honeyMax&&!name.startsWith('legacy')&&!experiment)experiment={source:honeySource,options:{phases:Object.keys(config.honeyMax).map(Number),byPhase:config.honeyMax}};
     const context = await browser.newContext({viewport:{width:1280,height:800}}), page = await context.newPage();
     assert(['sim','live'].includes(fidelity),'Unknown fidelity');
-    const result = {name,seed,config,fidelity,manifest,experiment:experiment && {options:experiment.options,hash:hash(experiment.source)},stages:[],errors:[],total:0,complete:false};
+    const result = {name,seed,config,fidelity,manifest,experiment:experiment && {options:experiment.options,hash:hash(experiment.source)},...(policyExtension?{policyExtension:hash(policyExtension)}:{}),stages:[],errors:[],total:0,complete:false};
+    if(policyExtension)fs.writeFileSync(path.join(frozen,`policy-${hash(policyExtension).slice(0,12)}.js`),policyExtension);
     if(experiment)fs.writeFileSync(path.join(frozen,`experiment-${hash(experiment.source).slice(0,12)}.js`),experiment.source);
     page.on('pageerror',e => result.errors.push(e.message));
     await page.route(/^https:\/\//,r => r.abort());
@@ -116,6 +117,7 @@ async function createRunner(output) {
         if(fidelity==='live')await page.evaluate(()=>{window.__liveCampaign=true;__leafYard.dev('simMode=false;closeCard();');});
         await page.evaluate(config => window.__config=config,config);
         if (!name.startsWith('legacy')) { assert(smart,'Smart policy missing'); await page.evaluate(smart); }
+        if(policyExtension)await page.evaluate(policyExtension);
         if(experiment && (experiment.options.phases||[experiment.options.phase]).includes(phase)){
           await page.evaluate(options=>window.__experimentOptions=options,experiment.options);
           await page.evaluate(experiment.source);
@@ -136,7 +138,7 @@ async function createRunner(output) {
     } catch(e) { result.errors.push(e.stack); }
     finally { await context.close(); }
     result.complete &&= !result.errors.length;
-    const id=hash(JSON.stringify({name,seed,config,fidelity,experiment:result.experiment})).slice(0,10);
+    const id=hash(JSON.stringify({name,seed,config,fidelity,experiment:result.experiment,...(policyExtension?{policyExtension:result.policyExtension}:{})})).slice(0,10);
     result.file=`${name}-${seed}-${id}.json`;
     fs.writeFileSync(path.join(output,result.file),JSON.stringify(result));
     return result;

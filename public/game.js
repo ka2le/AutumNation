@@ -343,12 +343,9 @@ const TRACKS = {
     vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.44,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
-      { tech:'claw', name:'Claw rake', n:4, cost:[3, 9, 28, 243] } ],   // V32: first three skills unchanged; combine the last two at +30% cost.
-    vals:[1,2,3,5,12], show:v=>v === 1 ? '1 leaf a grab' : v+' leaves a grab' },
-  reach: { label:'Reach', gens:[
-      { name:'Stubby arm', n:0, cost:[] },
-      { tech:'arm', name:'Telescoping arm', n:4, cost:[2.5, 8, 24, 216] } ],
-    vals:[20,30,44,64,125], show:v=>v+' cm reach' },
+      { tech:'claw', name:'Telescoping claw rake', n:4, cost:[5.5, 17, 52, 459] } ],
+    // Each purchase combines the former Claw and Reach prices and effects.
+    vals:[1,2,3,5,12], reach:[20,30,44,64,125], show:v=>v === 1 ? '1 leaf a grab' : v+' leaves a grab' },
   // V19: one skill in every yard (was Drill here and Saw in the Rainy hollow): how well a robot runs the machines. It sets
   // how fast it mines metal or saws logs, and (with Load & pack) how fast it smelts ingots or burns charcoal
   drill: { label:'Operate machinery', gens:[
@@ -421,7 +418,7 @@ const TRACKS = {
     vals:[0, 1, 1.6, 2.45, 3.5, 4.8, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
 };
 
-const TRACK_ORDER = ['speed','carry','pick','grab','reach','pack','drill','magnet','study'];
+const TRACK_ORDER = ['speed','carry','pick','grab','pack','drill','magnet','study'];
 // V32: old purchased levels map to retained effect endpoints. No refunds or lost maximum skills.
 const INVESTMENT_LEVELS = {
   speed:[0,1,2,3,4,5,6,7,9,11], carry:[0,1,2,3,4,5,6,7,9,11],
@@ -435,6 +432,13 @@ function investmentLevel(key, old){
   return level;
 }
 function investmentSkills(lv){ const out = Object.assign({}, lv); for (const k in out) out[k] = investmentLevel(k, out[k]); return out; }
+// Old saves, in-flight travellers and developer kits retain their better purchased
+// endpoint. The complementary effect joins it without a refund or a second track.
+function mergeClawSkills(lv){
+  lv.grab = clamp(Math.max(lv.grab | 0, lv.reach | 0), 0, TRACKS.grab.vals.length - 1);
+  delete lv.reach;
+  return lv;
+}
 // which tracks each kind of robot has. Wheels are shared by every kind, so copied-level discounts work across all of them.
 const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', ...(DRY_BENCH ? ['dry'] : []), 'blow', 'dig', 'stoke', ...(WET_WOOD ? ['brolly'] : [])], shaker: ['speed', 'shake', 'snip'] };
 const TECH = {
@@ -443,8 +447,7 @@ const TECH = {
   treads:  { name:'Rubber treads',     track:'speed', cost:10,  desc:'Four new wheel upgrades for every Robot.' },
   hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Four new basket upgrades.' },
   servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Three faster pickup upgrades.' },
-  claw:    { name:'Claw rake',         track:'grab',  cost:6,   desc:'Robots scoop up several leaves in one grab. Four claw upgrades, up to 12 leaves.' },
-  arm:     { name:'Telescoping arm',   track:'reach', cost:7,   desc:'Robots grab leaves from further away. Four reach upgrades. Pairs well with the claw rake.' },
+  claw:    { name:'Telescoping claw rake', track:'grab', cost:13, desc:'Four combined claw and reach upgrades: scoop up more leaves from further away, up to 12 leaves a grab and 125 cm reach.' },
   hubs:    { name:'Ball-bearing hubs', track:'speed', cost:90,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
   hopper:  { name:'Spring hopper',     track:'carry', cost:50,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
   wrist:   { name:'Gyro wrist',        track:'pick',  cost:25,  needs:'servos', get desc(){ return 'A faster pickup upgrade: ' + +realDuration(0.44).toFixed(3) + ' seconds a grab.'; } },
@@ -607,7 +610,7 @@ const packOpen = () => !!(S.bag.built || S.hive.built || S.plant.built);
 // V11: the truck leaves this many plain jars in the crate so they can be wrapped first
 const keepJars = () => S.hive.packing ? Math.round(clamp(S.keep.jars || 0, 0, 1)*crateCap()) : 0;
 const truckEvery = () => val('truck');
-const rv = (ri, k) => TRACKS[k].vals[S.robots[ri].lv[k]];
+const rv = (ri, k) => k === 'reach' ? TRACKS.grab.reach[S.robots[ri].lv.grab] : TRACKS[k].vals[S.robots[ri].lv[k]];
 const leafCap = ri => rv(ri, 'carry');
 // V32: industrial carrying follows the retained Basket endpoints (0–9). Maximum capacities are unchanged.
 // (was metal 2 + level/2, up to 7; ingots a quarter and coal half of the leaves, up to 9 and 19). Leaves are unchanged
@@ -678,6 +681,9 @@ const newIdOK = kind => idCount(kind) < ID_MAX[kind];
 // Levels only ever go up, so anything out of step is merged by taking the higher level.
 function bindIds(){
   const w = idRoot();
+  // An old arm unlock becomes the combined unlock, in either local or world data.
+  if (S.tech.arm || w.tech.arm) S.tech.claw = w.tech.claw = true;
+  delete S.tech.arm; delete w.tech.arm;
   for (const kind of ['robot', 'blower', 'shaker']){
     const ids = w.ids[kind];
     const here = new Set(cfgsOf(kind).map((c, i) => String(cfgId(kind, c, i))));
@@ -687,6 +693,7 @@ function bindIds(){
       let e = ids[sty];
       if (!e || typeof e !== 'object') e = ids[sty] = {};
       if (!e.lv || typeof e.lv !== 'object') e.lv = {};
+      if (kind === 'robot'){ mergeClawSkills(c.lv); mergeClawSkills(e.lv); }
       if (e.lv !== c.lv){ for (const k of LV_KEYS[kind]) e.lv[k] = Math.max(e.lv[k] | 0, (c.lv && c.lv[k]) | 0); c.lv = e.lv; }
       for (const k of LV_KEYS[kind]) e.lv[k] = clamp(e.lv[k] | 0, 0, TRACKS[k].vals.length - 1);
     });
@@ -750,8 +757,8 @@ function maxPlan(kind, i, k){
 }
 // the first locked tier of a track, if it can be unlocked yet (prerequisites met and its price in sight)
 function nextUnlock(k){ for (const g of TRACKS[k].gens){ if (!g.tech) continue; if (!S.tech[g.tech]) return techAvailable(g.tech) ? g.tech : null; } return null; }
-// claw and reach rows show up on the robot card once their first unlock is in sight
-const rowShown = k => trackVisible(k) || ((k === 'grab' || k === 'reach') && nextUnlock(k));
+// The combined claw row shows once its unlock is in sight.
+const rowShown = k => trackVisible(k) || (k === 'grab' && nextUnlock(k));
 function techAvailable(id){ const t = TECH[id]; if (S.tech[id]) return false; if (t.needs && !S.tech[t.needs]) return false; if (t.needsMiner && !S.miners.length) return false; if (t.needsKind && !S[t.needsKind].length) return false; if (t.needsPack && !packOpen()) return false; if (t.needsShaft && !(S.shafts.length && S.blowers.length)) return false; if (t.needsPlantBlower && !(S.plant.built && S.blowers.some(b => b.lv.stoke > 0))) return false; if (t.needsDryBlower && !(DRY_BENCH && S.blowers.some(b => b.lv.dry > 0))) return false; return ALWAYS_SHOWN.includes(id) || seenPrice(t.cost); }
 // Unlocks stay hidden until you've once held a quarter of their price (S.peak is the most cash you've ever had).
 const ALWAYS_SHOWN = ['treads', 'hamper', 'servos'];
@@ -974,7 +981,7 @@ function taskReached(cfg, t){
 const DEFAULT_PRIO = { robot: [['bag', 'jar'], ...(FIRE_STORY ? [['fuel']] : []), ...(PLANT_COAL ? [['refuel']] : []), ['wrap'], ['smelt', 'haul'], ['mine'], ['leaves']],
   blower: [...(WET_WOOD ? [['dig', 'stoke'], ['brolly'], ['blow']] : COAL ? [['dig'], ['blow']] : [['dig', 'stoke'], ['blow']])], shaker: [['shake', 'snip']] };
 const defPrio = kind => DEFAULT_PRIO[kind].map(r => r.slice());
-function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, reach:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
+function newRobotCfg(){ return tasksFix({ prio:defPrio('robot'), off:[], miner:null, lv:{ speed:0, carry:0, pick:0, grab:0, drill:0, magnet:0, pack:0, study:0 } }, 'robot'); }
 function newHelperCfg(kind){ return kind === 'blower' ? tasksFix({ prio:defPrio('blower'), off:[], lv:{ speed:0, blow:0, dig:0, stoke: COAL && S && S.flags && S.flags.coalKnown ? 1 : 0, brolly:0, dry: DRY_BENCH && S && S.flags && S.flags.dryKnown ? 1 : 0 } }, 'blower')
  : tasksFix({ prio:defPrio('shaker'), off:[], lv:{ speed:0, shake:0, snip: SNIP_LAB && S && S.flags && S.flags.snipKnown ? 1 : 0 } }, 'shaker'); }   // (V35: free once deadheading is worked out)
 // V24: a new identity costs its place in the price list (how many of that kind exist in every yard); once there are as
@@ -2130,7 +2137,7 @@ function tinkerReady(){
   const c = S.robots[tinkerI()]; if (!c) return;
   for (let n = 0; n < 60 && tinkerWorth() < TINKER_GOAL; n++){
     let best = null, bc = 1e9;
-    for (const k of ['speed', 'carry', 'pick', 'grab', 'reach']){
+    for (const k of ['speed', 'carry', 'pick', 'grab']){
       const lv = c.lv[k] | 0, top = TRACKS[k].gens.reduce((a, g) => a + g.cost.length, 0); if (lv >= top) continue;
       const cost = lvWorth(k, lv + 1) - lvWorth(k, lv); if (cost < bc){ bc = cost; best = k; }
     }
@@ -10831,7 +10838,7 @@ const eyeStatus = () => EYE.issues.length ? EYE_WORD[EYE.lvl] : EYE.lo.length ? 
 const EYE_GRACE = { idle: 10, wait: 10, research: 12, station: 22, slow: 40, mine: 30, skill: 20 };   // game seconds before something counts
 // which skills help with which job (for the cheap-upgrade list)
 const EYE_TRACKS = {
-  robot: { leaves:['speed', 'carry', 'pick', 'grab', 'reach'], mine:['drill', 'magnet', 'carry', 'speed'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill', 'magnet'],
+  robot: { leaves:['speed', 'carry', 'pick', 'grab'], mine:['drill', 'magnet', 'carry', 'speed'], bag:['pack'], jar:['pack'], wrap:['pack'], smelt:['pack', 'drill', 'magnet'],
     haul:['carry', 'speed'], fuel:['carry', 'speed'], refuel:['speed'], research:['study'] },
   blower: { blow:['blow', 'speed'], bag:['dry', 'speed'], dig:['dig', 'speed'], stoke:['stoke', 'speed'] },
   shaker: { shake:['shake', 'speed'], snip:['snip', 'speed'] },
@@ -12459,7 +12466,7 @@ const xt = (h, tip) => ' <span class="xt"' + (tip ? ' title="' + tip + '"' : '')
 
 // ── robot upgrade tracks
 const TRACK_ICON = { study:'book', speed:'wheel', carry:'basket', pick:'pick', grab:'claw', reach:'reach', drill:'machine', magnet:'yield', pack:'pack', blow:'blow', shake:'shake', snip:'snip', dig:'dig', stoke:'stoke', brolly:'brolly', dry:'bag' };
-const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab', reach:'How far the arm reaches',
+const TRACK_TIP = { speed:'How fast it drives', carry:'How much it carries in one trip', pick:'How long one grab takes', grab:'Leaves in one grab and how far the claw reaches', reach:'How far the arm reaches',
   // V19: the machinery, yield and load & pack skills are the same in every yard, so their tips say where each one helps
   drill: KEEP + 'Running the machines, in every yard: how fast it mines metal or saws logs (seconds a piece), and together with Load & pack how fast it smelts ingots or burns charcoal',
   magnet: KEEP + 'Resource efficiency, in every yard. Mining metal or sawing logs: this is the chance of an extra chunk or log each time (30% = 3 extra in 10). At a kiln or furnace it is half as strong: +15% more ingots or charcoal from every batch at 30% (on top of Tight stacking / Slag recovery)',
@@ -12482,6 +12489,10 @@ function robotRow(ri, k, kind){
   const tid0 = locked ? nextUnlock(k) : null, peek = !!tid0;
   const a = TRACK_VAL[k](T.vals[L]), b = maxed || (locked && !peek) ? a : TRACK_VAL[k](T.vals[L + 1]);
   let val = fromTo(a[0], b[0], a[1], maxed || (locked && !peek)), btn = '', sig = '', lockx = '';
+  if (k === 'grab'){
+    const nx = maxed || (locked && !peek) ? L : L + 1;
+    val += xt(fromTo(T.reach[L], T.reach[nx], ' cm', nx === L), 'How far the claw reaches');
+  }
   if (k === 'carry' && S.metalSlot){
     const nx = maxed || (locked && !peek) ? L : L + 1, two = (f, i, tip) => { const a0 = f(L), a1 = f(nx); return xt((a1 !== a0 ? a0 + arrow + '<b>' + a1 + '</b>' : '<b>' + a0 + '</b>') + ic(i), tip); };
     val += two(metalCarryAt, 'ore', COAL ? 'Logs it carries' : 'Metal it carries');
@@ -14270,7 +14281,7 @@ function load(data){
     if (!(src.flags && src.flags.tiers5)){
       // older saves had 8 claw and 8 reach levels; move each robot to the new level with the closest value it already had
       const OLD = { grab:[1,2,3,4,5,6,8,10,12], reach:[20,32,44,56,68,82,96,110,125] };
-      for (const c of S.robots) for (const k in OLD){ const v = OLD[k][clamp(c.lv[k] | 0, 0, 8)], nv = TRACKS[k].vals; let L = 0; while (L + 1 < nv.length && nv[L + 1] <= v) L++; c.lv[k] = L; }
+      for (const c of S.robots) for (const k in OLD){ const v = OLD[k][clamp(c.lv[k] | 0, 0, 8)], nv = k === 'reach' ? TRACKS.grab.reach : TRACKS[k].vals; let L = 0; while (L + 1 < nv.length && nv[L + 1] <= v) L++; c.lv[k] = L; }
       S.flags.tiers5 = true;
     }
     if (firstV7){

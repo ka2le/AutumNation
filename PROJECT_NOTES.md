@@ -2,6 +2,15 @@
 
 ## Current snapshot
 
+**Combined Claw/Reach (2026-10-24):** One Claw track now buys both leaf count and reach, with the former
+prices added: $13 unlock, then $5.50 / $17 / $52 / $459. Maximum effects stay 12 leaves / 125 cm; old saves
+retain their higher purchased level. The automatic copied-skill discount stays unchanged. Paid full-route
+tests of removing it or restoring it through a $1,500/$3,000 Yard purchase add roughly 7–10 minutes to the
+main player's completion; deliberate purchase improves this little. See `tools/balance/claw-discount.md`
+and its 83-run numerical evidence. Early departure is not the objective: compare initial home, Hollow,
+the earned home yard after returning, and total completion. Saving early for a discount does not stand in
+for testing an established early-home engine; that challenger remains a limit of this study.
+
 **Final cleanup reward (2026-10-22):** The County compost deal now pays $140 per 100 leaves, double the
 previous $70, in both yards. Earlier rewards and all cleanup prices are unchanged. This gives committed
 leaf builds a stronger optional finishing purchase: about 1.5-minute marginal payback in the best tested

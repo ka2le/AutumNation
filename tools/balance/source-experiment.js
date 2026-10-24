@@ -49,7 +49,7 @@
       // Assign the most specialized jobs first, preserving productive trained workers.
       const available=new Set(Array.from({length:n},(_,i)=>i));assignment=[];
       for(const role of rs){
-        const merit=i=>{const c=S.robots[i],v=k=>D.TRACKS[k].vals[c.lv[k]||0];
+        const merit=i=>{const c=S.robots[i],v=k=>k==='reach'&&!D.TRACKS.reach?D.TRACKS.grab.reach[c.lv.grab||0]:D.TRACKS[k].vals[c.lv[k]||0];
           return role==='smelt'?v('pack')*(1+.5*(4/v('drill')-1))*(1+.5*v('magnet')):
             role==='mine'?Math.sqrt(v('speed')*v('carry'))/v('drill')*(1+v('magnet')):
             role==='haul'?v('speed')*v('carry'):['honey','bag'].includes(role)?v('pack')*Math.sqrt(v('speed')):

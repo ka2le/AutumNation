@@ -6,6 +6,8 @@ Read the [common testing blind spots](../../BALANCE.md#common-testing-blind-spot
 first: partial honey, automatic spending, equal worker splits and endgame-only income can all hide good paths.
 The latest benchmark and retained $180 hive/ant price are in [the honey-maxing report](honey-max.md).
 The final seven-step alloy ladder and later metal-grade prices are tested in [the alloy report](alloy-steps.md).
+The [combined Claw and discount study](claw-discount.md) implements the merged Claw/Reach track and tests
+removing the automatic copied-skill discount or gating it behind a $1,500/$3,000 Yard purchase.
 The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.
 The [cleanup and staffing study](cleanup-study.md) measures current cleanup payback, the leaf-only ceiling,
 the requested 2-smelter/3-packer/2-leaf/3-miner layout, earned mature yards and a doubled final cleanup reward.
