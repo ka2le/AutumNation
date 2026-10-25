@@ -11,6 +11,8 @@ removing the automatic copied-skill discount or gating it behind a $1,500/$3,000
 The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.
 The [cleanup and staffing study](cleanup-study.md) measures current cleanup payback, the leaf-only ceiling,
 the requested 2-smelter/3-packer/2-leaf/3-miner layout, earned mature yards and a doubled final cleanup reward.
+The [fewer-upgrade-steps proposal](fewer-steps.md) tests shorter personal/helper tracks with unchanged complete
+costs and final effects. It measures capable-player purchases per minute and keeps the shipping game unchanged.
 
 Use the paid full-campaign runner for pacing and completion comparisons. It runs the **current `public/` game**,
 freezes its inputs, and preserves the earned home → hollow → home route. The old browser `__leafYard.sim()` and
@@ -104,6 +106,49 @@ randomness. Rendering, browser UI timers, human reaction time and the final cine
 policies within the same mode and source snapshot.
 
 See [the current audit](smart-tester.md) for results, balance implications and remaining limits.
+
+## Isolated fewer-steps proposal
+
+`fewer-steps.cjs` copies current `public/` into a frozen baseline and builds the candidate alongside it.
+It never writes the shipping game. Use a fresh output directory; preparation refuses to replace a baseline.
+The candidate is a fresh-campaign experiment, without old-save migration or adjusted developer kits.
+
+```powershell
+$env:RESULT_DIR='runs/my-fewer-steps'
+node tools/balance/fewer-steps.cjs prepare
+node tools/balance/fewer-steps.cjs checks
+node tools/balance/fewer-steps.cjs boundaries
+
+$env:SEEDS='1,2,3'
+$env:SUITE='training'
+node tools/balance/fewer-steps.cjs run
+
+$env:SEEDS='1801,1802,1803,1804,1805,1806'
+$env:SUITE='heldout'
+node tools/balance/fewer-steps.cjs run
+
+$env:FIDELITY='live'
+$env:SEEDS='1811,1812'
+$env:POLICIES='smart,smart-skip'
+$env:SUITE='live'
+node tools/balance/fewer-steps.cjs run
+
+Remove-Item Env:FIDELITY, Env:POLICIES -ErrorAction SilentlyContinue
+$env:SEEDS='1901,1902'
+node tools/balance/fewer-steps.cjs challengers
+node tools/balance/fewer-steps-report.cjs
+node tools/check-balance-harness.js
+```
+
+`run` audits paid completion and exactly replays its first selected policy in each variant. `challengers`
+compares five paid home-repair forks with matched state, actors and RNG within each variant: mixed, leaf,
+raw, industry and full-storage honey. Source-priority windows last 20 minutes; honey must reach its whole
+advertised target, including two fully trained packers. Their common prefix uses the retained honey-skipping
+completion route. They are supplementary strategy checks, not a replacement main benchmark or a new search.
+
+The report distinguishes all purchase actions, upgrade actions and personal/helper training. It preserves
+phase rates, fixed-time bins, gap distributions, investment, milestone times, source receipts and physical
+output. See the report's metric definitions before interpreting automated one-second purchase bursts.
 
 ## Source balance and completion shortcuts
 
