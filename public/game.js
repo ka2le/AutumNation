@@ -9670,7 +9670,7 @@ function cardShows(o){
   if (k === 'bin') return o.id === 'bagger' || o.obj === 'bagger';
   if (k === 'tub') return S.metalSlot && o.id === 'plant';
   if (k === 'spot') return o.id === 'metalSlot' || (o.id === 'up' && (o.key === 'metalBin' || o.key === 'metalPrice') && S.metalSlot && SPOTS[cardOpen.i] && SPOTS[cardOpen.i].land <= S.land);   // (V40: the tub and price rows are on the mine card too; V41: and on the vein once the slot is built)
-  if (k === 'shed') return o.id === 'hive';
+  if (k === 'shed') return o.id === 'hive' || o.id === 'metalSlot';
   return false;
 }
 let seenT = 0;
@@ -10846,8 +10846,8 @@ function draw(){
 }
 
 // ───────────────────────── V33: Efficiency Overview (a webcam eye on the workshop roof)
-// Bought in the workshop for EYE_COST like any other upgrade (V33.1: no other requirements; it shows once you've held a
-// quarter of its price). Each yard buys its own. A little webcam on a telescoping arm with one hinge then sits on the workshop roof's right slope and keeps
+// Bought in the workshop for EYE_COST, with no story prerequisite. The reveal threshold stays separate from its price
+// so lowering the price does not introduce it earlier. Each yard buys its own. A little webcam on a telescoping arm with one hinge then sits on the workshop roof's right slope and keeps
 // an eye on the yard (eyeScan, twice a game second):
 //   Stuck (counts a lot): unread letters, research nobody is doing (and who's missing), Robots / Blowers / Shakers that
 //   can't do any of their tasks, Robots waiting at a full bin, tub or pallet, buildings standing still because something is
@@ -10861,7 +10861,7 @@ function draw(){
 // step up blinks the ring and sends pulses of light in the new colour into the yard for ~2 s. It looks at what it found.
 // Tapping the camera (or Open on the workshop row) opens the overview card: what is stuck and why, as short as possible,
 // with pictures, and a button that opens the card of the thing in question.
-const EYE_COST = 300;
+const EYE_COST = 100, EYE_REVEAL_CASH = 75;
 const EYE_FX_T = 3.2;                        // seconds of glow after a step up
 const EYE_AT = { x: 27, y: -77 };            // its foot, bolted to the workshop roof's right slope (from SHED)
 const EYE_SLOPE = Math.atan2(38, 54);        // the roof's pitch
@@ -10911,8 +10911,8 @@ const eyeRt = { rt: 0, fill: 0, fx: [], flashT: 0, lid: 0, blinkT: 2, blink: -1,
   hx: 0, hy: 0, zoom: 0, lvl: 0, quiet: 2, ledT: 0 };
 const eyeBots = () => [S.robots, S.blowers, S.shakers].reduce((n, L) => n + L.filter(c => !c.away).length, 0);
 const eyeHive = () => S.hive.built && !hiveGrounded();
-// (V33.1: a regular workshop upgrade: no requirements, shown once you've held a quarter of its price like the others)
-const eyeShown = () => !S.eye.built && seenPrice(EYE_COST);
+// No robot-count, hive or story prerequisite; reveal after holding $75, independently of the purchase price.
+const eyeShown = () => !S.eye.built && (S.peak || 0) >= EYE_REVEAL_CASH;
 const eyeBuyable = eyeShown;
 const eyeA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')'; };
 // how long (game seconds) a condition has held; it starts counting the first scan it's true and stops when it isn't
@@ -11338,7 +11338,7 @@ function eyeCardRows(rows, rows2){
     for (const [k, q] of L) rows2.push({ sig:'eyI' + k, html: row({ cls:'eyerow lo ig', icon: q.icon, name: q.what, val: q.why, btn:'<button class="buy ghost eyeunig" data-act="eyeunig:' + k + '" title="Show it again when it’s cheap">Unignore</button>' }) });
   }
 }
-// the workshop's row: build it (once there are enough robots and a working beehive), then a way to open it
+// The workshop's row: build it after the cash reveal threshold, then a way to open it.
 function eyeShedRow(){
   const tip = 'A webcam on the workshop roof that watches the yard: what is stuck and why (letters, research, idle Robots, buildings standing still, skills nobody uses) which Robots lack cheap upgrades for their job, and cheap building and yard-wide upgrades left unbought (cheap: under 5% of the cash you have). Ignore one and it stays out. The more it finds, the further its ring fills: green, yellow, orange, red. Tap the camera to look.';
   if (S.eye.built) return { sig:'eyeB' + EYE.lvl + EYE.issues.length + EYE.lo.length, html: row({ icon: eyeRing(eyeRt.fill, EYE_COL[EYE.lvl]), name:'Efficiency Overview', tip, val: eyeSummary(), btn:'<button class="buy ghost" data-act="eye">Open</button>' }) };
@@ -12629,8 +12629,8 @@ function plantBuildRow(){
     'Robots melt ' + ORE_PER_INGOT + ' metal into an ingot worth more. Three furnaces (two for Robots, one for a Blower on the bellows), and someone has to haul the ingots to the road');
 }
 // V40: says plainly that this only unlocks selling: the metal itself needs a Miner as well, and what that costs
-const metalSlotRow = () => buyRow('Metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>' +
-    '<span class="lockx">Unlocks mining, step 1 of 2. Then build a Miner on the rocks: ' + ic('vein') + '<b>' + cash$(MINER_COST) + '</b>, worked by a Robot (' + cash$(METAL_SLOT_COST + MINER_COST) + ' in all)</span>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
+const metalSlotRow = () => buyRow('Build a metal slot', 'Sell ' + ic('ore') + ' at <b>' + cash$(metalPrice()) + '</b>' +
+    '<span class="lockx">You will also need to purchase a mine for <b>' + cash$(MINER_COST) + '</b>.</span>', 'metalSlot', METAL_SLOT_COST, '', ic('tub'),
   'A metal tub beside the bin, so the truck buys metal too. It doesn’t dig any: build a Miner on the rocks as well (' + cash$(MINER_COST) + ' each, a Robot works each one)');
 
 // ── robot portraits: the real robot, drawn live into a little canvas
@@ -13223,6 +13223,7 @@ function cardModel(){
     }
     { const er = eyeShedRow(); if (er) rows.push(er); }   // V33
     if (!S.hive.built && hiveShown()) rows.push(buyRow('Robot beehive', ic('bee') + arrow + ic('nectar') + arrow + ic('jar') + '<b>' + cash$(honeyPrice()) + '</b>', 'hive', hiveCost(), '', ic('honey'), 'Robot bees bring nectar from the flowers, the hive makes honey, and the truck buys the jars'));
+    if (!S.metalSlot && metalSlotShown()) rows.push(metalSlotRow());
     if (genVisible()){
       // V13: a lot's own upgrades (the prairie's flower upgrades) get a section of their own, always shown when available
       const own = (LOT.genSection && LOT.genSection.keys) || [];
@@ -13992,7 +13993,10 @@ card.addEventListener('click', e => {
   else if (act.startsWith('eyeign:')){ const o = EYE.lo.find(q => q.key === act.slice(7)); if (o && o.ign) for (const k of o.ign) if (!eyeIgnored(k)) eyeIgn().push(k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }   // V33.3
   else if (act.startsWith('eyeunig:')){ const k = act.slice(8); S.eye.ign = eyeIgn().filter(q => q !== k); eyeScan(); save(); sfx('paper'); renderCard(true); return; }
   else if (act === 'eyeshowign'){ EYE.showIgn = !EYE.showIgn; sfx('paper'); renderCard(true); return; }
-  else if (act === 'metalSlot'){ if (!S.metalSlot && cardOpen.kind === 'spot' && SPOTS[i].land <= S.land && metalSlotShown()) buy({ id:'metalSlot', obj:'spot'+i, cost:METAL_SLOT_COST }); }
+  else if (act === 'metalSlot'){
+    const spot = cardOpen.kind === 'spot' ? i : cardOpen.kind === 'shed' ? SPOTS.findIndex(p => p.land <= S.land) : -1;
+    if (!S.metalSlot && SPOTS[spot] && SPOTS[spot].land <= S.land && metalSlotShown()) buy({ id:'metalSlot', obj:'spot'+spot, cost:METAL_SLOT_COST });
+  }
   else if (act === 'hive'){ if (!S.hive.built && hiveShown()) buy({ id:'hive', obj:'hive', cost:hiveCost() }); }
   else if (act === 'bee'){ if (S.hive.built && S.hive.bees < MAX_BEES) buy({ id:'bee', obj:'hive', cost:beeCost() }); }
   else if (act.startsWith('hiveUp:')){ const k = act.slice(7); if (HIVE_UP[k] && !S.hive.up[k]) buy({ id:'hiveUp', key:k, obj:'hive', cost:hiveUpCost() }); }
