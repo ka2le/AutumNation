@@ -90,6 +90,20 @@ This standard governs future tests and tuning; older tables and pacing targets b
   instructions in [tools/balance/README.md](tools/balance/README.md). Treat finite strategy searches as evidence,
   not proof of global optimality.
 
+### Fewer upgrade steps — October 25, 2026
+
+The game uses the approved shorter skill ladders: Wheels and Basket 9 → 7, Pickup 8 → 7, Load & pack
+7 → 6, Operate machinery 7 → 5, Resource efficiency and Tree shaking 6 → 5, Leaf blowing 4 → 3,
+and Leaf drying 6 → 5. Complete full-price and copied-training costs, research prices and maximum
+effects stay unchanged. Sale-price/value ladders are excluded. The first three gathering purchases stay intact.
+
+Six paired held-out seeds reduce the main capable player's upgrades per minute from **5.78 to 4.78**
+(17.3%), with average completion **128.69 → 131.43 minutes** (2.1% slower). Other tested strategies
+also purchase less often; later copied-training bursts remain. This is an average pacing result, not a
+guaranteed slowdown or a global optimal-policy claim. Existing intermediate skills round up to the next
+retained effect; fully upgraded robots stay maxed. Migration is versioned for saves and travel.
+See the [study](tools/balance/fewer-steps.md) and [shipping validation](tools/balance/fewer-steps-shipping.md).
+
 ### Final cleanup reward — October 22, 2026
 
 The final cleanup deal now pays **$140 per 100 leaves**, up from $70, in both yards. The first two rewards

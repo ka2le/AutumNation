@@ -2,6 +2,14 @@
 
 ## Current snapshot
 
+**Fewer upgrade steps (2026-10-25):** The approved nine-track proposal is integrated: Wheels/Basket 7
+steps, Pickup 7, Load & pack 6, Operate machinery 5, Resource efficiency/Tree shaking 5, Leaf blowing 3,
+and Leaf drying 5. Complete costs, copied discounts and maximum effects are preserved; sale-value ladders
+are untouched. Existing removed intermediate levels round up without a cash refund, with one-time save
+and versioned traveller migration. Test kits and cosmetic tiers follow retained endpoints. The shipping
+campaigns reproduce the tested proposal's economy; see `tools/balance/fewer-steps-shipping.md` and the
+original six-seed cadence/finish evidence in `tools/balance/fewer-steps.md`.
+
 **Combined Claw/Reach (2026-10-24):** One Claw track now buys both leaf count and reach, with the former
 prices added: $13 unlock, then $5.50 / $17 / $52 / $459. Maximum effects stay 12 leaves / 125 cm; old saves
 retain their higher purchased level. The automatic copied-skill discount stays unchanged. Paid full-route

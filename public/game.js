@@ -323,24 +323,24 @@ const SHAFT_COST = 600;         // V32.1: was 350. Turning a miner into a mine s
 const BAG_TIME = 4, JAR_TIME = 2.5, WRAP_TIME = 2.6, SMELT_TIME = COAL ? 27 : 13.5;   // (V22: the kiln's batch is twice as long)
 // Per-robot upgrade tracks. Generation 0 needs no research; later generations are unlocked at the workshop.
 const TRACKS = {
-  // V34: the first three gathering levels stay very cheap; researched levels climb toward 6–7. Effects and step counts stay as in V32.
+  // The first three gathering purchases stay cheap; later neighbouring steps are combined.
   speed: { label:'Wheels', gens:[
       { name:'Old wheels', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'treads', name:'Rubber treads', n:4, cost:[4, 6, 10, 16] },
+      { tech:'treads', name:'Rubber treads', n:2, cost:[10, 26] },
       { tech:'hubs', name:'Ball-bearing hubs', n:2, cost:[100, 190] } ],
-    vals:[1,1.14,1.28,1.42, 1.62,1.82,2.02,2.22, 2.74,3.3], show:v=>v.toFixed(2)+'× speed' },
+    vals:[1,1.14,1.28,1.42, 1.82,2.22, 2.74,3.3], show:v=>v.toFixed(2)+'× speed' },
   carry: { label:'Basket', gens:[
       { name:'Tin basket', n:3, cost:[0.25, 0.5, 1] },
-      { tech:'hamper', name:'Wicker hamper', n:4, cost:[5, 8, 13, 22] },
-      { tech:'hopper', name:'Spring hopper', n:2, cost:[140, 300] } ],   // V34: copied-basket discount unchanged; no further consolidation.
-    vals:[3,5,7,9, 12,15,18,21, 29,38], show:v=>v+' leaves' },
+      { tech:'hamper', name:'Wicker hamper', n:2, cost:[13, 35] },
+      { tech:'hopper', name:'Spring hopper', n:2, cost:[140, 300] } ],   // Copied-basket discount and complete bill unchanged.
+    vals:[3,5,7,9, 15,21, 29,38], show:v=>v+' leaves' },
   pick: { label:'Pickup', gens:[
       { name:'Creaky servo', n:3, cost:[0.3, 0.6, 1.2] },
-      { tech:'servos', name:'Quick servos', n:3, cost:[3.5, 6, 11] },
+      { tech:'servos', name:'Quick servos', n:2, cost:[3.5, 17] },
       { tech:'wrist', name:'Gyro wrist', n:1, cost:[85] },
       { tech:'fineWrist', name:'Fine control', n:1, cost:[250] } ],
     // V34: basic levels unchanged; later researched tiers keep V32's larger steps.
-    vals:[1.3,1.12,0.98,0.86, 0.76,0.67,0.60, 0.44,0.32], show:v=>v.toFixed(2)+'s a grab' },
+    vals:[1.3,1.12,0.98,0.86, 0.76,0.60, 0.44,0.32], show:v=>v.toFixed(2)+'s a grab' },
   grab: { label:'Claw', gens:[
       { name:'Single pincer', n:0, cost:[] },
       { tech:'claw', name:'Telescoping claw rake', n:4, cost:[5.5, 17, 52, 459] } ],
@@ -349,29 +349,27 @@ const TRACKS = {
   // V19: one skill in every yard (was Drill here and Saw in the Rainy hollow): how well a robot runs the machines. It sets
   // how fast it mines metal or saws logs, and (with Load & pack) how fast it smelts ingots or burns charcoal
   drill: { label:'Operate machinery', gens:[
-      { name:'Hand tools', n:3, cost:[25, 40, 60], needsMetal:true },
-      { tech:'diamond', name:'Power tools', n:4, cost:[110, 160, 230, 330] } ],
-    vals:[4,3.4,2.9,2.5, 2.1,1.8,1.55,1.35], show:v=>v.toFixed(1)+'s per chunk' },
+      { name:'Hand tools', n:2, cost:[25, 100], needsMetal:true },
+      { tech:'diamond', name:'Power tools', n:3, cost:[110, 160, 560] } ],
+    vals:[4,3.4,2.5, 2.1,1.8,1.35], show:v=>v.toFixed(1)+'s per chunk' },
   // V19: Extra yield (was Magnet here and Wedge in the Rainy hollow): the chance a chunk of metal or a log comes out as two.
-  // 3 levels, one unlock, 3 more (was 3 + 4 + 4 with two unlocks): same 0 → 72% and the same $1,300 last step, bigger jumps,
-  // ~$3,150 in all (was ~$5,900)
+  // Three basic steps, one unlock, two stronger steps; the same 0 → 72% maximum.
   magnet: { label:'Resource efficiency', gens:[   // (V25: was Extra yield; same effects)
       { name:'Keen eye', n:3, cost:[35, 60, 100], needsMetal:true },
-      { tech:'horseshoe', name:'Master’s touch', n:3, cost:[150, 300, 600] } ],   // (V22: was 450 / 800 / 1,300; the unlock stays $400)
-    vals:[0, .1, .2, .3, .44, .58, .72], show:v=>v ? Math.round(v*100)+'% chance of an extra piece' : 'no extra pieces' },
+      { tech:'horseshoe', name:'Master’s touch', n:2, cost:[150, 900] } ],   // (V22: was 450 / 800 / 1,300; the unlock stays $400)
+    vals:[0, .1, .2, .3, .44, .72], show:v=>v ? Math.round(v*100)+'% chance of an extra piece' : 'no extra pieces' },
   // helper robots: blowers push far-off leaves toward the bin, shakers shake trees and bushes for extra leaves
-  // V30: four one-step tiers with no research gates. $132 total (was $275 with unlocks), top power 6.4× (was 5.8×).
+  // Three one-step tiers with no research gates; still $132 total and 6.4× maximum power.
   blow: { label:'Leaf blowing', gens:[
       { name:'Desk fan', n:1, cost:[6] },
-      { name:'Leaf turbine', n:1, cost:[18] },
-      { name:'Jet nozzle', n:1, cost:[38] },
+      { name:'Jet nozzle', n:1, cost:[56] },
       { name:'Wide jet', n:1, cost:[70] } ],
-    vals:[1, 1.75, 2.8, 4.3, 6.4], show:v=>v.toFixed(2)+'× blow power' },
-  // V19: 3 levels, one unlock, 3 more (was 2 + 3 + 3 with two unlocks): the same 6 → 38 leaves
+    vals:[1, 1.75, 4.3, 6.4], show:v=>v.toFixed(2)+'× blow power' },
+  // Three basic levels, one unlock, two stronger levels: the same 6 → 38 leaves.
   shake: { label:'Tree shaking', gens:[
       { name:'Gentle wiggle', n:3, cost:[5, 9, 18] },
-      { tech:'pincers', name:'Hydraulic pincers', n:3, cost:[45, 70, 90] } ],
-    vals:[6, 8, 11, 15, 21, 29, 38], show:v=>v+' leaves from a big tree' },
+      { tech:'pincers', name:'Hydraulic pincers', n:2, cost:[45, 160] } ],
+    vals:[6, 8, 11, 15, 21, 38], show:v=>v+' leaves from a big tree' },
   // shakers with shears can deadhead spent flowers so a fresh bloom pops up for the bees right away
   snip: { label:'Shears', gens:[ { name:'Garden shears', n:1, cost:[25] } ],
     vals:[0, 1], show:v=>v ? 'can deadhead flowers' : 'trees only' },
@@ -380,10 +378,10 @@ const TRACKS = {
   // (V24: copied levels are discounted like every other skill; V7 to V23 bought every Load & pack level at full price)
   // V19: Load & pack (was Packing): loading kilns and furnaces as well as packing bags, jars and cans
   pack: { label:'Load & pack', gens:[
-      { name:'Clumsy hands', n:3, cost:[3, 6, 11], needsPack:true },
+      { name:'Clumsy hands', n:2, cost:[3, 17], needsPack:true },
       { tech:'jig', name:'Packing jig', n:2, cost:[75, 183] },
       { tech:'precision', name:'Precision tools', n:2, cost:[416, 1300] } ],   // V32: paired later skills at +30%; basic packing and maximum output preserved.
-    vals:[0.6, 0.72, 0.84, 0.96, 1.3, 1.75, 2.95, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
+    vals:[0.6, 0.72, 0.96, 1.3, 1.75, 2.95, 4.6], show:v=>v.toFixed(2)+'× load & pack speed' },
   // V12: how quickly a robot works through the old picture book (the Research task). V24: every robot on the research adds
   // its full share, RESEARCH_UNIT units a second × its Research level (helpers used to add a quarter of the reader's share)
   study: { label:'Research', gens:[
@@ -410,13 +408,45 @@ const TRACKS = {
     vals:[0, 1], show:v=>v ? 'carries the wood umbrella' : 'no umbrella yet' },
   // V15 (DRY_BENCH): a blower blows warm air over the leaves on the drying bench. Level 1 teaches it; every level dries faster
   // V16: much cheaper with a slow climb, and a third tier (Drying tunnel, 4 more levels up to 6.5×); ~$540 in all, was ~$1,400
-  // V19: 2 levels a tier (was 3 + 4 + 4): the same 1 → 6.5×, each tier ending where it did
+  // Two steps in each early tier, then one tunnel step; the same tier endpoints and 6.5× maximum.
   dry: { label:'Leaf drying', gens:[
       { name:'Warm air', n:2, cost:[10, 20], needsBench:true },
       { tech:'kiln', name:'Hot-air stove', n:2, cost:[30, 42] },
-      { tech:'tunnel', name:'Drying tunnel', n:2, cost:[58, 75] } ],
-    vals:[0, 1, 1.6, 2.45, 3.5, 4.8, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
+      { tech:'tunnel', name:'Drying tunnel', n:1, cost:[133] } ],
+    vals:[0, 1, 1.6, 2.45, 3.5, 6.5], show:v=>v ? v.toFixed(2) + '× drying speed' : 'can’t dry leaves yet' },
 };
+
+// Skill schema 33: fewer purchases, unchanged complete costs and final effects.
+// Each entry is the old schema-32 endpoint retained by the new level.
+const SKILL_VERSION = 33;
+const SKILL_ENDPOINTS = {
+  speed:[0,1,2,3,5,7,8,9], carry:[0,1,2,3,5,7,8,9], pick:[0,1,2,3,4,6,7,8],
+  pack:[0,1,3,4,5,6,7], drill:[0,1,3,4,5,7], magnet:[0,1,2,3,4,6],
+  shake:[0,1,2,3,4,6], blow:[0,1,3,4], dry:[0,1,2,3,4,6],
+};
+// Round each former price separately so copied training keeps its exact bill,
+// including Shared basket plans (e.g. 10% of $5 + $8 stays $0.50 + $0.80).
+const SKILL_PRICE_PARTS = {
+  speed:{3:[4,6],4:[10,16]}, carry:{3:[5,8],4:[13,22]}, pick:{4:[6,11]},
+  pack:{1:[6,11]}, drill:{1:[40,60],4:[230,330]}, magnet:{4:[300,600]},
+  shake:{4:[70,90]}, blow:{1:[18,38]}, dry:{4:[58,75]},
+};
+function copiedSkillCost(k, level){
+  const ge = genAt(k, level), parts = SKILL_PRICE_PARTS[k]?.[level] || [ge.g.cost[ge.idx]];
+  return parts.reduce((sum, cost) => sum + niceCost(cost*discFor(k)), 0);
+}
+function condensedLevel(key, old){
+  const keep = SKILL_ENDPOINTS[key]; if (!keep) return old;
+  const level = clamp(old | 0, 0, keep[keep.length - 1]);
+  return keep.findIndex(endpoint => endpoint >= level);
+}
+function condensedSkills(lv){
+  const out = Object.assign({}, lv);
+  for (const k in out) out[k] = condensedLevel(k, out[k]);
+  return out;
+}
+// Keep the purchased effect's wheel/basket appearance despite fewer indices.
+const skillArtLevel = (key, level) => SKILL_ENDPOINTS[key]?.[level] ?? level;
 
 const TRACK_ORDER = ['speed','carry','pick','grab','pack','drill','magnet','study'];
 // V32: old purchased levels map to retained effect endpoints. No refunds or lost maximum skills.
@@ -444,25 +474,25 @@ const BOT_TRACKS = { robot: TRACK_ORDER, blower: ['speed', ...(DRY_BENCH ? ['dry
 const TECH = {
   // V21: the first unlock on each of the three basic skills costs twice what it did (3 / 3.50 / 4): a little hill to
   // climb before the next levels, which cost what they did
-  treads:  { name:'Rubber treads',     track:'speed', cost:10,  desc:'Four new wheel upgrades for every Robot.' },
-  hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Four new basket upgrades.' },
-  servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Three faster pickup upgrades.' },
+  treads:  { name:'Rubber treads',     track:'speed', cost:10,  desc:'Two new wheel upgrades for every Robot.' },
+  hamper:  { name:'Wicker hamper',     track:'carry', cost:7, desc:'Two new basket upgrades.' },
+  servos:  { name:'Quick servos',      track:'pick',  cost:8,   desc:'Two faster pickup upgrades.' },
   claw:    { name:'Telescoping claw rake', track:'grab', cost:13, desc:'Four combined claw and reach upgrades: scoop up more leaves from further away, up to 12 leaves a grab and 125 cm reach.' },
   hubs:    { name:'Ball-bearing hubs', track:'speed', cost:90,  needs:'treads', desc:'Two stronger wheel upgrades, up to 3.30× speed.' },
   hopper:  { name:'Spring hopper',     track:'carry', cost:50,  needs:'hamper', desc:'Two bigger basket upgrades, up to 38 leaves.' },
   wrist:   { name:'Gyro wrist',        track:'pick',  cost:25,  needs:'servos', get desc(){ return 'A faster pickup upgrade: ' + +realDuration(0.44).toFixed(3) + ' seconds a grab.'; } },
   fineWrist:{ name:'Fine control',     track:'pick',  cost:55,  needs:'wrist', get desc(){ return 'The final pickup upgrade: ' + +realDuration(0.32).toFixed(3) + ' seconds a grab.'; } },
-  diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Four Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
+  diamond: { name:'Power tools',       track:'drill', cost:350, needsMiner:true, desc: KEEP + 'Three Operate machinery upgrades: faster mining and sawing, and faster furnaces and kilns.' },
   // V19: one Extra yield unlock (was Horseshoe magnet $260 and Electromagnet $1,200)
-  horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Three more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
+  horseshoe:{ name:'Master’s touch',   track:'magnet', cost:400, needsMiner:true, desc:'Two more Resource efficiency upgrades: up to a 72% chance of an extra chunk of metal or log, and up to +36% from each kiln or furnace batch.' },
   // V19: one shaking unlock (was Hydraulic pincers $28 and Rumble claws $55)
-  pincers: { name:'Hydraulic pincers', track:'shake', cost:40,  needsKind:'shakers', desc:'Three stronger tree shaking upgrades: more leaves from every tree and bush.' },
+  pincers: { name:'Hydraulic pincers', track:'shake', cost:40,  needsKind:'shakers', desc:'Two stronger tree shaking upgrades: more leaves from every tree and bush.' },
   jig:     { name:'Packing jig',       track:'pack',  cost:40,  needsPack:true, desc: KEEP + 'Two faster Load & pack upgrades: bagging, jars and cans, gift wrapping, and loading furnaces and kilns.' },
   precision:{ name:'Precision tools',  track:'pack',  cost:600, needs:'jig', desc:'Two advanced Load & pack upgrades, up to 4.60× speed.' },
   cyclone: { name:'Grit cyclone',      track:'dig',   cost:90, needsShaft:true, desc:'Two stronger excavating upgrades for Blowers at a mine shaft.' },
   forge:   { name:'Forge blast',       track:'stoke', cost:120, needsPlantBlower:true, desc:'Two stronger bellows upgrades for Blowers at the smelting plant.' },
   kiln:    { name:'Hot-air stove',     track:'dry',   cost:40,  needsDryBlower:true, desc:'Two faster leaf drying upgrades for Blowers at the drying bench.' },
-  tunnel:  { name:'Drying tunnel',     track:'dry',   cost:75,  needs:'kiln', desc:'The last two leaf drying upgrades: a covered tunnel of hot air over the tray.' },
+  tunnel:  { name:'Drying tunnel',     track:'dry',   cost:75,  needs:'kiln', desc:'The final leaf drying upgrade: a covered tunnel of hot air over the tray.' },
 };
 // Yard-wide upgrades (workshop, right column). They show up once you have $10. Not every one is a plain boost:
 // some change the rules a little, like how much a copied robot upgrade costs.
@@ -612,11 +642,11 @@ const keepJars = () => S.hive.packing ? Math.round(clamp(S.keep.jars || 0, 0, 1)
 const truckEvery = () => val('truck');
 const rv = (ri, k) => k === 'reach' ? TRACKS.grab.reach[S.robots[ri].lv.grab] : TRACKS[k].vals[S.robots[ri].lv[k]];
 const leafCap = ri => rv(ri, 'carry');
-// V32: industrial carrying follows the retained Basket endpoints (0–9). Maximum capacities are unchanged.
+// Industrial carrying follows the retained Basket endpoints (0–7). Maximum capacities are unchanged.
 // (was metal 2 + level/2, up to 7; ingots a quarter and coal half of the leaves, up to 9 and 19). Leaves are unchanged
-const METAL_CARRY = [2, 2, 3, 3, 4, 5, 6, 7, 10, 14];
-const INGOT_CARRY = [1, 1, 1, 2, 3, 4, 5, 6, 10, 14];
-const COAL_CARRY  = [1, 2, 3, 4, 6, 8, 10, 12, 19, 28];
+const METAL_CARRY = [2, 2, 3, 3, 5, 7, 10, 14];
+const INGOT_CARRY = [1, 1, 1, 2, 4, 6, 10, 14];
+const COAL_CARRY  = [1, 2, 3, 4, 8, 12, 19, 28];
 const carryAt = (tab, L) => tab[clamp(L | 0, 0, tab.length - 1)];
 const metalCarryAt = L => carryAt(METAL_CARRY, L);
 const ingotCarryAt = L => carryAt(COAL ? COAL_CARRY : INGOT_CARRY, L);
@@ -713,7 +743,7 @@ function botCost(kind, i, k){
   const full = ge.g.cost[ge.idx];
   // (V24: "another robot already has it" counts every identity in every yard)
   const disc = !NO_DISCOUNT.includes(k) && (idPeers(k).some(lv => lv !== me.lv && lv[k] > L) || peersFor(k).some(c => c !== me && c.lv[k] > L));
-  return { cost: disc ? niceCost(full*discFor(k)) : full, full, disc };
+  return { cost: disc ? copiedSkillCost(k,L) : full, full, disc };
 }
 const rCost = (ri, k) => botCost('robot', ri, k);
 const botCount = () => S.robots.length + S.blowers.length + S.shakers.length;
@@ -728,7 +758,7 @@ function allPlan(k){
   // (V24: "the best robot" can be an identity in another yard: everyone here is brought up to it, all at the copied price)
   const lv = peers.map(r => r.lv[k]), cap = trackCap(k), gtop = Math.max(0, ...idPeers(k).map(l => l[k] | 0));
   const top = Math.max(...lv, Math.min(gtop, cap, trackMax(k)));
-  const price = (L, disc) => { const ge = genAt(k, L); if (!ge) return null; const f = ge.g.cost[ge.idx]; return disc && !NO_DISCOUNT.includes(k) ? niceCost(f*discFor(k)) : f; };
+  const price = (L, disc) => { const ge = genAt(k, L); if (!ge) return null; const f = ge.g.cost[ge.idx]; return disc && !NO_DISCOUNT.includes(k) ? copiedSkillCost(k,L) : f; };
   let cost = 0, full = 0, target;
   if (lv.some(l => l < top)){
     target = top;
@@ -751,7 +781,7 @@ function maxPlan(kind, i, k){
   const best = Math.max(0, ...peers.map(c => c.lv[k]), ...others.map(lv => lv[k] | 0)), top = Math.min(best, trackCap(k), trackMax(k));   // (V24: the best identity anywhere)
   if (top - L < 2) return null;
   let cost = 0;
-  for (let l = L; l < top; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx]; cost += NO_DISCOUNT.includes(k) ? f : niceCost(f*discFor(k)); }
+  for (let l = L; l < top; l++){ const ge = genAt(k, l); if (!ge) return null; const f = ge.g.cost[ge.idx]; cost += NO_DISCOUNT.includes(k) ? f : copiedSkillCost(k,l); }
   const who = peers.find(c => c.lv[k] >= best);
   return { cost: Math.round(cost*100)/100, target: top, n: top - L, who };
 }
@@ -1031,7 +1061,7 @@ function freshState(){
       fare:0, fareOpen:false, hollowLetter:false, hollowGone:false, smeltKnown:false,
       beeFail:false, antHill:false, dryTold:false, v15:true,   // V15: the hollow's beehive story and drying bench
       fireDone:false, coalKnown:false, coalFound:false,
-      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true, alloySevenSteps:true, popGrab:0, popMine:0, popLucky:0 }   // New saves already use the current skill/alloy indices.
+      fireTrip:false, ember:0, ruinKnown:false, coalV22:true, investmentV32:true, fewerStepsV1:true, alloySevenSteps:true, popGrab:0, popMine:0, popLucky:0 }   // New saves already use the current skill/alloy indices.
   };
 }
 let S = freshState();
@@ -4142,7 +4172,7 @@ function rideSpot(o){ const rs = truck.riders, n = rs.length, k = Math.max(0, rs
 const HOME_EARNED = 200;                  // what the first yard made while you were away (on the prairie)
 const HOLLOW_HOME_EARNED = 0;             // returning from the Rainy hollow grants no cash bonus
 // dev (?fresh&lot=prairie): about what the robot you'd send has when the letter comes ($900 earned in the first yard)
-const DEV_TRAVELLER = { lv:{ speed:7, carry:10, pick:6, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
+const DEV_TRAVELLER = { lv:{ speed:5, carry:7, pick:5, grab:3, reach:3 }, tech:['treads', 'hamper', 'servos', 'claw', 'arm', 'hopper'], truck:1, cleanup:1 };
 const HIVE_DEAL = 60;                     // the beehive back home, once a bee has come along
 // the robot that goes (or would go) to the new lot: the one with the trip in Do, else the first robot (Tinker)
 const tripRobotName = () => { const h = typeof tripHolder === 'function' ? tripHolder() : null, i = h ? S.robots.indexOf(h) : 0; return S.robots[i] ? styleOf(i).name : 'your Robot'; };
@@ -4302,7 +4332,7 @@ function travel(quick){
   const crew = T.riders.map(o => { const kind = o.kind || 'robot', i = kind === 'robot' ? o.id : o.idx; return { kind, i, cfg: cfgsOf(kind)[i] }; }).filter(q => q.cfg);
   if (!crew.length){ T.riders = []; return; }
   travelling = true;
-  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, earned: trip.earned || 0, skillVersion:32,
+  const carry = { from: LOT_ID, to: trip.to, bee: !!trip.bee, earned: trip.earned || 0, skillVersion:SKILL_VERSION,
     crew: crew.map(q => ({ kind: q.kind, bot: JSON.parse(JSON.stringify(q.cfg)), sty: q.kind === 'robot' ? styleIdx(q.i) : helperStyleIdx(q.kind, q.i), home: q.cfg.home != null ? q.cfg.home : q.i })),
     tech: Object.assign({}, S.tech), helpers: helpersKnown(), seen: Object.assign({}, S.seen),
     fire: !!trip.fire, fare: trip.to !== 'home' ? (trip.paid || S.flags.fare || 0) : 0, hints: Object.assign({}, S.flags.hints), know: { opened: S.flags.opened, research: S.flags.research, taskHint: S.flags.taskHint, sentHint: S.flags.sentHint }, at: Date.now() };
@@ -4348,8 +4378,13 @@ function arrive(a, wasNew){
     let localCopy = !home && i >= 0 && !!list[i] && !list[i].away;   // (V24: a copy of it already works here)
     if (!(i >= 0 && list[i])){ i = list.length; list.push(fresh()); localCopy = false; }
     const b = q.bot || {}, cfg = list[i];
-    if (a.skillVersion !== 32 && b.lv) b.lv = investmentSkills(b.lv);
-    cfg.lv = Object.assign(fresh().lv, cfg.lv || {}, b.lv || {});   // (bindIds ties it to the identity's levels; levels only go up)
+    // Do not mutate the arrival payload: an old in-flight handoff can be retried.
+    let incoming = b.lv || {};
+    if (a.skillVersion !== SKILL_VERSION){
+      if (a.skillVersion !== 32) incoming = investmentSkills(incoming);
+      incoming = condensedSkills(incoming);
+    }
+    cfg.lv = Object.assign(fresh().lv, cfg.lv || {}, incoming);   // (bindIds ties it to the identity's levels; levels only go up)
     // (V24: task lists stay local: a copy that was already working here keeps its own)
     if (!localCopy){ cfg.prio = (b.prio || []).map(row => row.slice()); cfg.off = (b.off || []).slice(); }
     if (kind === 'robot') cfg.miner = null;
@@ -8618,7 +8653,7 @@ function drawRobot(r){
   c.scale(r.face, 1);
   // treads: they look different for each wheel tier (old wheels, rubber treads, ball-bearing hubs)
   const th = st.chunky ? 12 : 10, md = st.modern;
-  drawWheels(c, tw, th, r.moving, r.anim, tierOf(cfg.lv.speed), (r.x + r.y*0.4)*r.face, { md, chunky: st.chunky });
+  drawWheels(c, tw, th, r.moving, r.anim, tierOf(skillArtLevel('speed', cfg.lv.speed)), (r.x + r.y*0.4)*r.face, { md, chunky: st.chunky });
   if (r.lean){ c.translate(0, -8); c.rotate(r.lean); c.translate(0, 8); }   // V15: leaning in (putting a porthole into the hive)
   c.translate(0, bob);
   // body
@@ -8703,7 +8738,7 @@ function drawRobot(r){
     c.save(); c.translate(bw/2 - 5.5, -13.8); c.scale(r.face, 1); c.fillText(String(r.id + 1), 0, 0.4); c.restore();
   }
   // basket on the back: a tin pail, then a wicker hamper, then a sprung steel hopper, a little bigger with every level
-  const cl = cfg.lv.carry, bt = tierOf(cl), bs = 1 + 0.06*(cl - bt*4);
+  const cl = skillArtLevel('carry', cfg.lv.carry), bt = tierOf(cl), bs = 1 + 0.06*(cl - bt*4);
   const BW = [12, 16, 20][bt]*bs, BH = [7, 7, 8][bt]*bs, bx1 = -bw/2 + 13, bx0 = bx1 - BW, by0 = top - 5 - (BH - 7)*0.6;
   if (!st.driver && !st.noBasket){
   drawBasket(c, bt, bx0, by0, BW, BH, false);
@@ -9156,7 +9191,7 @@ function drawBlower(h){
   c.save(); c.translate(h.x, h.y - hz);
   c.fillStyle = 'rgba(35,28,12,' + (hz ? 0.18 : 0.3) + ')'; ell(c, 0, 1 + hz, st.tw*0.6, 4.5); c.fill();
   c.scale(h.face, 1);
-  drawTreads(c, st.tw, 9, h.moving, h.anim, tierOf(helperCfg(h).lv.speed), (h.x + h.y*0.4)*h.face);
+  drawTreads(c, st.tw, 9, h.moving, h.anim, tierOf(skillArtLevel('speed', helperCfg(h).lv.speed)), (h.x + h.y*0.4)*h.face);
   const bob = h.moving ? -Math.abs(Math.sin(h.anim*10))*1.2 : Math.sin(h.anim*2 + h.idx)*0.3;
   c.translate(blowing ? Math.sin(h.anim*45)*0.35 : 0, bob);
   // body: a low, wide, rounded box (the robot-vacuum part) with a fan grille on top
@@ -9246,7 +9281,7 @@ function drawShaker(h){
     c.fillStyle = '#3b3430'; rr(c, tx - 5.5, -11, 11, 11, 4); c.fill();
     c.fillStyle = '#5a524b'; const off = h.moving ? (h.anim*24) % 4 : 0;
     for (let y=-10 + off; y<-1; y+=4) c.fillRect(tx - 4.5, y, 9, 1.5);
-    const wt = tierOf(helperCfg(h).lv.speed);
+    const wt = tierOf(skillArtLevel('speed', helperCfg(h).lv.speed));
     if (wt === 1){ c.fillStyle = '#1e1a18'; ell(c, tx, -5.5, 3.4, 3.4); c.fill(); c.fillStyle = '#d4672a'; ell(c, tx, -5.5, 2.1, 2.1); c.fill(); }
     else if (wt === 2){ c.fillStyle = '#b8902f'; ell(c, tx, -5.5, 3.8, 3.8); c.fill(); const hg = c.createRadialGradient(tx - 0.8, -6.3, 0.3, tx, -5.5, 3); hg.addColorStop(0, '#fff'); hg.addColorStop(0.6, '#c3cbd0'); hg.addColorStop(1, '#6f7b82'); c.fillStyle = hg; ell(c, tx, -5.5, 3, 3); c.fill(); }
   }
@@ -10921,7 +10956,7 @@ function eyeMain(kind, i){
 function eyeLvCost(kind, cfg, k, L){
   const ge = genAt(k, L); if (!ge) return null;
   const f = ge.g.cost[ge.idx], disc = !NO_DISCOUNT.includes(k) && peersFor(k).some(c => c !== cfg && c.lv[k] > L);
-  return disc ? niceCost(f*discFor(k)) : f;
+  return disc ? copiedSkillCost(k,L) : f;
 }
 const EYE_RES_ICON = { book:'book', bee:'deadbee', hive:'bee', fire:'firetree', coal:'coal', ruin:'ruin' };
 function eyeScan(){
@@ -11755,7 +11790,7 @@ function applyKit(name){
   if (K.bag && !S.bag.built) free({ id: 'bagger' });
   if (K.metalSlot && !S.metalSlot) free({ id: 'metalSlot' });
   // Kits describe the original effect endpoints, so intermediate scenes retain their intended abilities.
-  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(investmentLevel(k, lv[k]), trackMax(k)) : lv[k]); };
+  const levels = (cfg, lv) => { for (const k in lv) if (k in cfg.lv) cfg.lv[k] = Math.max(cfg.lv[k] | 0, TRACKS[k] ? Math.min(condensedLevel(k, investmentLevel(k, lv[k])), trackMax(k)) : lv[k]); };
   // (V24: like a player would, a kit builds copies of the robots it already has elsewhere before making new ones)
   const another = kind => { const cp = copyable(kind); return cp.length ? free({ id: 'copy', kind, sty: cp[0] }) : free({ id: kind }); };
   (K.robots || []).forEach((lv, i) => { while (S.robots.length <= i && S.robots.length < ROBOT_MAX){ if (!another('robot')) break; } if (S.robots[i]) levels(S.robots[i], lv); });
@@ -14170,6 +14205,12 @@ function load(data){
       S.lv.bagPrice = investmentLevel('bagPrice', S.lv.bagPrice);
     }
     S.flags.investmentV32 = true;
+    // Round removed intermediate levels UP: no purchased ability is lost.
+    // Arrays share the input records until they are rebuilt below. Mark once so
+    // future loads, including the saved inactive yard, do not migrate twice.
+    if (!(src.flags && src.flags.fewerStepsV1))
+      for (const list of [S.robots, S.blowers, S.shakers]) for (const c of list) if (c.lv) c.lv = condensedSkills(c.lv);
+    S.flags.fewerStepsV1 = true;
     // Preserve approximate owned progress when spreading the old four late alloy steps over six.
     // The old maximum stays maxed; prices/effects use the new balance. Hollow briquettes keep their indices.
     if (!(src.flags && src.flags.alloySevenSteps) && !COAL)
@@ -14543,8 +14584,8 @@ function devTraveller(){
   S.flags.helpers = true; S.flags.research = true;
   if (LOT.tripHome){
     // V14 (?fresh&lot=hollow): Tinker and a blower, like a crew sent from a first yard with a hive, a meadow and a mine
-    Object.assign(c.lv, { speed: 9, carry: 11, pick: 6, grab: 4, reach: 4, drill: 3, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe']) S.tech[k] = true;
-    const b = newHelperCfg('blower'); b.home = 0; Object.assign(b.lv, { speed: 6, blow: 4 }); S.blowers = [b];
+    Object.assign(c.lv, { speed: 7, carry: 7, pick: 5, grab: 4, reach: 4, drill: 2, magnet: 2 }); for (const k of ['hubs', 'diamond', 'horseshoe']) S.tech[k] = true;
+    const b = newHelperCfg('blower'); b.home = 0; Object.assign(b.lv, { speed: 5, blow: 3 }); S.blowers = [b];
     S.cash = S.peak = 0;   // (V28: the hollow starts with nothing, was $1,000)
     if (!FIRE_STORY) openTrip({ to: 'home', crew: ['robot', 'blower'], earned: LOT.tripHome.earned }, true);
   }

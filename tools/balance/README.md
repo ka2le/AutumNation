@@ -11,8 +11,8 @@ removing the automatic copied-skill discount or gating it behind a $1,500/$3,000
 The [economy tuning report](economy-tuning.md) records the preceding cleanup/alloy changes and $140 trial.
 The [cleanup and staffing study](cleanup-study.md) measures current cleanup payback, the leaf-only ceiling,
 the requested 2-smelter/3-packer/2-leaf/3-miner layout, earned mature yards and a doubled final cleanup reward.
-The [fewer-upgrade-steps proposal](fewer-steps.md) tests shorter personal/helper tracks with unchanged complete
-costs and final effects. It measures capable-player purchases per minute and keeps the shipping game unchanged.
+The [fewer-upgrade-steps study](fewer-steps.md) tests the shorter personal/helper tracks now used by the game,
+with unchanged complete costs and final effects. It measures capable-player purchases per minute.
 
 Use the paid full-campaign runner for pacing and completion comparisons. It runs the **current `public/` game**,
 freezes its inputs, and preserves the earned home → hollow → home route. The old browser `__leafYard.sim()` and
@@ -109,9 +109,11 @@ See [the current audit](smart-tester.md) for results, balance implications and r
 
 ## Isolated fewer-steps proposal
 
-`fewer-steps.cjs` copies current `public/` into a frozen baseline and builds the candidate alongside it.
+`fewer-steps.cjs` copies pre-integration `public/` into a frozen baseline and builds the historical candidate alongside it.
 It never writes the shipping game. Use a fresh output directory; preparation refuses to replace a baseline.
-The candidate is a fresh-campaign experiment, without old-save migration or adjusted developer kits.
+The historical candidate is a fresh-campaign experiment, without old-save migration or adjusted developer kits.
+Since the game now includes this change, set `BASELINE_ROOT` to a separate copy of `public/` from commit
+`b419eed` to reproduce the proposal. The original frozen copy is `runs/fewer-steps-v1/baseline/game/` locally.
 
 ```powershell
 $env:RESULT_DIR='runs/my-fewer-steps'
@@ -149,6 +151,19 @@ completion route. They are supplementary strategy checks, not a replacement main
 The report distinguishes all purchase actions, upgrade actions and personal/helper training. It preserves
 phase rates, fixed-time bins, gap distributions, investment, milestone times, source receipts and physical
 output. See the report's metric definitions before interpreting automated one-second purchase bursts.
+
+### Shipping integration
+
+`node tools/check-fewer-steps.js` checks old and current save indices, old/current travel payloads, repeat
+loads, all developer kits, copied-price totals, preserved effect endpoints and robot/helper cards in both yards.
+`node tools/check-investments.js` retains the current economy and legal paid-purchase checks.
+
+`node tools/balance/fewer-steps-integration.cjs` runs the shipping game on the six frozen held-out seeds and
+checks the complete campaign traces against canonical hashes in the committed proposal evidence. Only the
+new `fewerStepsV1` save flag is omitted from the economic comparison. It also performs an exact replay,
+reading the original trace before running the replay. No ignored historical output is needed.
+Set `SUITE=live` and a fresh `RESULT_DIR` for the two-seed normal-gameplay comparison. `SEEDS` and `POLICIES`
+can select a subset already present in the frozen evidence. See the [shipping validation](fewer-steps-shipping.md).
 
 ## Source balance and completion shortcuts
 

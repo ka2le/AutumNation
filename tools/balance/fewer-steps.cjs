@@ -55,9 +55,12 @@ function proposalDiscount(k,L,d){
 }
 function prepare(){
   assert(!fs.existsSync(path.join(out,'baseline','game')),'Use a fresh RESULT_DIR; never replace evidence.');
+  const baselineRoot=path.resolve(process.env.BASELINE_ROOT||path.join(root,'public'));
+  assert(!fs.readFileSync(path.join(baselineRoot,'game.js'),'utf8').includes('const SKILL_ENDPOINTS'),
+    'This historical proposal needs pre-integration public/ (commit b419eed); set BASELINE_ROOT.');
   for(const arm of ['baseline','candidate'])for(const f of files){
     const dest=path.join(out,arm,'game',f);fs.mkdirSync(path.dirname(dest),{recursive:true});
-    const data=fs.readFileSync(path.join(root,'public',f));fs.writeFileSync(dest,arm==='candidate'&&f==='game.js'?candidate(data.toString()):data);
+    const data=fs.readFileSync(path.join(baselineRoot,f));fs.writeFileSync(dest,arm==='candidate'&&f==='game.js'?candidate(data.toString()):data);
   }
   fs.writeFileSync(path.join(out,'proposal.json'),JSON.stringify({endpoints,source:hash(fs.readFileSync(path.join(out,'baseline/game/game.js'))),script:hash(fs.readFileSync(__filename))},null,2));
 }
@@ -115,7 +118,8 @@ async function checks(){
     for(const arm of ['baseline','candidate']){
       const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.route(/^https:\/\//,r=>r.abort());await page.addInitScript(()=>window.requestAnimationFrame=()=>0);
-      await page.goto(pathToFileURL(path.join(out,arm,'game/index.html')).href+'?fresh&lot='+lot);await page.waitForFunction(()=>window.__leafYard);
+      const gameDir=arm==='candidate'&&process.env.CANDIDATE_ROOT?path.resolve(process.env.CANDIDATE_ROOT):path.join(out,arm,'game');
+      await page.goto(pathToFileURL(path.join(gameDir,'index.html')).href+'?fresh&lot='+lot);await page.waitForFunction(()=>window.__leafYard);
       const data=await page.evaluate(()=>{
         const Y=__leafYard;Y.dev('simMode=true;S.cash=S.peak=1e8;S.bag.built=true;S.metalSlot=true;S.plant.built=true;S.story.found=true;S.flags.dryKnown=true;S.shafts=[0];for(const k in TECH)S.tech[k]=true;S.robots.push(newRobotCfg(),newRobotCfg());S.blowers.push(newHelperCfg("blower"));S.shakers.push(newHelperCfg("shaker"));bindIds();syncRobots();syncHelpers();');
         Y.dev('for(const list of [S.robots,S.blowers,S.shakers])for(const c of list)for(const k in c.lv)c.lv[k]=0;');

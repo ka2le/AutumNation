@@ -1,9 +1,13 @@
 # Fewer upgrade steps — tested proposal, October 25, 2026
 
+**Integration update:** The approved proposal is now implemented in the game, with old-save/traveller
+migration, developer-kit mappings and preserved cosmetic tiers. See [shipping validation](fewer-steps-shipping.md).
+The report below preserves the original isolated experiment and its results.
+
 **Recommendation: this is a useful moderate first pass.** Across six held-out seeds, the capable main player
 makes **17.3% fewer upgrade purchases per minute**, and buys about **115 fewer upgrades** over a campaign.
 Completion averages **128.69 → 131.43 minutes**, a **2.1% slowdown**. Complete training costs and final effects
-stay unchanged. The shipping game in `public/` is unchanged; this is an isolated proposal.
+stay unchanged. These measurements were made on the isolated proposal before integration.
 
 The reduction is real in fixed observation windows as well as over whole campaigns. It does not completely
 smooth out spending: copied-skill catch-up still produces late bursts. A slower campaign is an observed average,
