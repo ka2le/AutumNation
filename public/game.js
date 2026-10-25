@@ -10861,7 +10861,7 @@ function draw(){
 // step up blinks the ring and sends pulses of light in the new colour into the yard for ~2 s. It looks at what it found.
 // Tapping the camera (or Open on the workshop row) opens the overview card: what is stuck and why, as short as possible,
 // with pictures, and a button that opens the card of the thing in question.
-const EYE_COST = 100, EYE_REVEAL_CASH = 75;
+const EYE_COST = 100, EYE_REVEAL_CASH = 220;
 const EYE_FX_T = 3.2;                        // seconds of glow after a step up
 const EYE_AT = { x: 27, y: -77 };            // its foot, bolted to the workshop roof's right slope (from SHED)
 const EYE_SLOPE = Math.atan2(38, 54);        // the roof's pitch
@@ -10911,7 +10911,7 @@ const eyeRt = { rt: 0, fill: 0, fx: [], flashT: 0, lid: 0, blinkT: 2, blink: -1,
   hx: 0, hy: 0, zoom: 0, lvl: 0, quiet: 2, ledT: 0 };
 const eyeBots = () => [S.robots, S.blowers, S.shakers].reduce((n, L) => n + L.filter(c => !c.away).length, 0);
 const eyeHive = () => S.hive.built && !hiveGrounded();
-// No robot-count, hive or story prerequisite; reveal after holding $75, independently of the purchase price.
+// No robot-count, hive or story prerequisite; reveal after holding $220, independently of the purchase price.
 const eyeShown = () => !S.eye.built && (S.peak || 0) >= EYE_REVEAL_CASH;
 const eyeBuyable = eyeShown;
 const eyeA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a.toFixed(3) + ')'; };

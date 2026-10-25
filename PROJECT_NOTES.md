@@ -2,7 +2,7 @@
 
 ## Current snapshot
 
-**Workshop discovery (2026-10-25):** The workshop now also offers the metal slot at its existing reveal threshold, with the separate mine cost shown ( at home). Efficiency Overview costs  and still reveals only after holding ; it has no story prerequisite.
+**Workshop discovery (2026-10-25):** The workshop now also offers the metal slot at its existing reveal threshold, with the separate mine cost shown ($500 at home). Efficiency Overview costs $100 and reveals only after holding $220; it has no story prerequisite.
 
 **Fewer upgrade steps (2026-10-25):** The approved nine-track proposal is integrated: Wheels/Basket 7
 steps, Pickup 7, Load & pack 6, Operate machinery 5, Resource efficiency/Tree shaking 5, Leaf blowing 3,
